@@ -1,0 +1,11 @@
+{
+  "name": "Remix Vagou para pro",
+  "description": "Aplicativo oficial do estabelecimento — Barbearia Rota 99. Catálogo de serviços, agendamento de horários e apresentação do espaço.",
+  "requestFramePermissions": [
+    "geolocation",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
