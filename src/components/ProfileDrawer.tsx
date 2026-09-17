@@ -3,7 +3,7 @@ import {
   X, User, Mail, Phone, MapPin, Calendar, Clock, 
   Check, Moon, Sun, Bell, MessageCircle, ShieldCheck, 
   ChevronRight, ArrowRight, Sparkles, CheckCircle2, 
-  Scissors, AlertCircle
+  Scissors, AlertCircle, LayoutDashboard, Store, KeyRound, LogOut
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../utils/haptics';
@@ -18,6 +18,10 @@ interface ProfileDrawerProps {
   onNavigateToSchedule?: () => void;
   salonName?: string;
   salonPhone?: string;
+  isSalonLoggedIn?: boolean;
+  onOpenAdminPanel?: () => void;
+  onLoginSalon?: (pin: string) => boolean;
+  onLogoutSalon?: () => void;
 }
 
 const DEFAULT_PROFILE: UserProfile = {
@@ -63,9 +67,38 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   onNavigateToSchedule,
   salonName = 'Barbearia Rota 99',
   salonPhone = '5511987654321',
+  isSalonLoggedIn = false,
+  onOpenAdminPanel,
+  onLoginSalon,
+  onLogoutSalon,
 }) => {
   const { isDark, toggleTheme } = useTheme();
   const [activeSubTab, setActiveSubTab] = useState<'menu' | 'agenda' | 'dados' | 'config'>('menu');
+
+  // Estado do Login do Salão
+  const [isSalonLoginModalOpen, setIsSalonLoginModalOpen] = useState(false);
+  const [salonPinInput, setSalonPinInput] = useState('');
+  const [loginError, setLoginError] = useState(false);
+
+  const handleSalonLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (onLoginSalon) {
+      const success = onLoginSalon(salonPinInput);
+      if (success) {
+        hapticSuccess();
+        setIsSalonLoginModalOpen(false);
+        setSalonPinInput('');
+        setLoginError(false);
+        if (onOpenAdminPanel) {
+          onClose();
+          onOpenAdminPanel();
+        }
+      } else {
+        hapticMedium();
+        setLoginError(true);
+      }
+    }
+  };
 
   // Estado dos Dados Pessoais do Usuário
   const [profile, setProfile] = useState<UserProfile>(() => {
@@ -410,6 +443,101 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   </div>
                   <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
                 </a>
+
+                {/* Seção de Gestão do Salão (Administração) */}
+                {isSalonLoggedIn ? (
+                  <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider font-['Poppins']">
+                        Gestão do Salão
+                      </span>
+                      <span className="px-1.5 py-0.2 rounded text-[9px] bg-emerald-500 text-white font-black">
+                        CONECTADO
+                      </span>
+                    </div>
+
+                    {/* Botão: Abrir Painel do Salão */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        onClose();
+                        onOpenAdminPanel?.();
+                      }}
+                      className={`w-full p-3.5 rounded border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer shadow-xs ${
+                        isDark 
+                          ? 'border-emerald-500/40 bg-emerald-950/40 hover:bg-emerald-950/60 text-white' 
+                          : 'border-emerald-500/40 bg-emerald-50 hover:bg-emerald-100 text-slate-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded bg-emerald-500 flex items-center justify-center text-white shrink-0 shadow-xs">
+                          <LayoutDashboard className="w-4 h-4 stroke-[2.5]" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold font-['Poppins'] flex items-center gap-1.5">
+                            <span>Painel de Gestão do Salão</span>
+                            <span className="px-1.5 py-0.2 rounded text-[9px] bg-emerald-500 text-white font-bold">Admin</span>
+                          </div>
+                          <div className={`text-[11px] ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                            Gerenciar catálogo, equipe, horários e fila
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-emerald-400" />
+                    </button>
+
+                    {/* Botão: Sair da Conta do Salão */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticMedium();
+                        onLogoutSalon?.();
+                      }}
+                      className={`w-full p-3 rounded border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark 
+                          ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400' 
+                          : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <LogOut className="w-4 h-4" />
+                        <span className="text-xs font-bold font-['Poppins']">Sair da Conta do Salão</span>
+                      </div>
+                      <span className="text-[10px] uppercase font-bold">Desconectar</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="pt-2 border-t border-slate-800/80">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setIsSalonLoginModalOpen(true);
+                        setLoginError(false);
+                        setSalonPinInput('');
+                      }}
+                      className={`w-full p-3.5 rounded border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark 
+                          ? 'bg-slate-900/60 hover:bg-slate-850 border-slate-800 text-slate-300 hover:text-white' 
+                          : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 hover:text-slate-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded bg-slate-800 flex items-center justify-center text-slate-400 shrink-0">
+                          <Store className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold font-['Poppins']">Acesso do Salão / Gestão</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Entrar como gestor para gerenciar o app
+                          </div>
+                        </div>
+                      </div>
+                      <KeyRound className="w-4 h-4 text-emerald-500" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -719,6 +847,88 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
           <span>{salonName} • App Oficial do Estabelecimento</span>
         </div>
       </div>
+
+      {/* MODAL DE LOGIN DO SALÃO COM PIN */}
+      {isSalonLoginModalOpen && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsSalonLoginModalOpen(false);
+          }}
+        >
+          <div
+            className={`w-full max-w-sm p-5 rounded border shadow-2xl space-y-4 ${
+              isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Store className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-sm font-bold font-['Poppins']">Login da Barbearia</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSalonLoginModalOpen(false)}
+                className="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+              Digite o PIN de acesso do salão para liberar os controles administrativos. (PIN padrão: <strong className="text-emerald-400 font-mono">1234</strong>)
+            </p>
+
+            <form onSubmit={handleSalonLoginSubmit} className="space-y-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 block mb-1">PIN do Gestor</label>
+                <input
+                  type="password"
+                  maxLength={6}
+                  autoFocus
+                  required
+                  value={salonPinInput}
+                  onChange={(e) => {
+                    setSalonPinInput(e.target.value);
+                    setLoginError(false);
+                  }}
+                  placeholder="Ex: 1234"
+                  className={`w-full px-3 py-2.5 text-center text-base tracking-widest font-mono rounded border outline-hidden transition ${
+                    loginError 
+                      ? 'border-rose-500 bg-rose-500/10 text-rose-300' 
+                      : isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+                {loginError && (
+                  <p className="text-[11px] text-rose-400 font-medium mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    <span>PIN incorreto. Tente novamente ou use 1234.</span>
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSalonLoginModalOpen(false)}
+                  className="px-3 py-2 rounded text-xs text-slate-400 hover:text-white cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs rounded transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Acessar Painel</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -38,17 +38,25 @@ export interface ServiceOffer {
 }
 
 export interface BookingAppointment {
+  id?: string;
   protocolCode: string;
-  service: string;
-  professional: string;
+  service?: string;
+  serviceTitle?: string;
+  professional?: string;
+  professionalName?: string;
   salonName: string;
   dateTime: string;
-  dayGroup: string;
-  time: string;
+  dayGroup?: string;
+  time?: string;
   totalPrice: number;
-  status: 'EM ANDAMENTO' | 'CONFIRMADO' | 'AGENDADO' | 'CONCLUÍDO' | 'CANCELADO';
-  address: string;
+  status: 'EM ANDAMENTO' | 'CONFIRMADO' | 'AGENDADO' | 'CONCLUÍDO' | 'CANCELADO' | 'concluido' | 'confirmado' | 'cancelado' | 'agendado' | 'em andamento' | string;
+  address?: string;
   qrCodeMock?: string;
+  customerName?: string;
+  clientName?: string;
+  customerPhone?: string;
+  clientPhone?: string;
+  dateIso?: string;
 }
 
 export interface UserProfile {
@@ -57,4 +65,13 @@ export interface UserProfile {
   phone: string;
   address: string;
   avatarUrl?: string;
+}
+
+export interface SalonAdminSettings {
+  salonName: string;
+  salonPhone: string;
+  salonAddress: string;
+  openingHours: string;
+  isOpenNow: boolean;
+  pinCode: string;
 }

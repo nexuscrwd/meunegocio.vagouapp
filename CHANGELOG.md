@@ -15,6 +15,106 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-17] — Redesign Completo da Agenda de Horários (Calendário Interativo & Horários do Dia)
+- **Tipo:** `[UI/UX / Redesign / Visual Polish]`
+- **Motivo:** O usuário solicitou a modernização completa da seção de agenda do profissional (`#section-vagas`), eliminando elementos primitivos, fontes pesadas e botões arcaicos ("html antigo"). Foi implementada a exibição prioritária dos horários do dia em primeira mão, com seletor interativo de dias (Hoje, Amanhã e próximos dias) e acesso a mini-calendário para selecionar qualquer dia e visualizar os horários correspondentes logo abaixo.
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalAgendaView.tsx`: Redesenhado com estética Dark Luxury elegante, cabeçalho limpo com seletor horizontal de datas (Hoje, Amanhã, próximos 12 dias com contadores de agendamentos), botão de mini-calendário integrado, cards de horários em layout plano (sem "box dentro de box"), badges de horário de alto contraste, ações rápidas (WhatsApp e toggle de status Concluir/Reabrir/Cancelar) e modal refinado para novo encaixe.
+  - `src/components/SalonProfileView.tsx`: Enriquecido `INITIAL_APPOINTMENTS` com atributos completos (`time`, `dayGroup: 'Hoje'` e `'Amanhã'`) para testes imediatos da troca entre Hoje e Amanhã.
+  - `src/types.ts`: Adicionado campo `dateIso?: string` à interface `BookingAppointment`.
+- **Resumo Técnico:**
+  - Respeito estrito à regra do Fundo Verde = Texto Branco (`text-white`) e proibição de aninhamento de caixas.
+  - Ícones 100% via `lucide-react`.
+  - Compilação e linting validados com sucesso (`tsc --noEmit` e `npm run build`).
+
+
+### [2026-09-16] — Correção Definitiva do Erro (isOpenNow Undefined Property)
+- **Tipo:** `[Fix / Bugfix / Robustness]`
+- **Motivo:** Identificada e corrigida a causa raiz do erro `Uncaught TypeError: Cannot read properties of undefined (reading 'isOpenNow')`. O componente `ProfessionalDashboardView` recebia `adminSettings` como `undefined` no modo logado no `SalonProfileView.tsx`.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`: Passadas as props `adminSettings={adminSettings}` e `onUpdateSettings={handleUpdateSettings}` ao renderizar o `ProfessionalDashboardView`.
+  - `src/components/professional/ProfessionalDashboardView.tsx`: Adicionada verificação segura `isOpenNow` (`adminSettings?.isOpenNow ?? true`), props opcionais com valores padrão e handlers unificados.
+  - `src/components/professional/ProfessionalSpaceManager.tsx`: Adicionado fallback seguro com optional chaining para `adminSettings`.
+- **Resumo Técnico:**
+  - Blindagem completa contra `adminSettings` não fornecido ou propriedades indefinidas em todos os painéis do gestor.
+  - Testes e compilação de produção aprovados via `lint_applet` e `compile_applet`.
+
+### [2026-09-16] — Remoção de Ícones Sobrepostos nas Imagens de Serviços
+- **Tipo:** `[UI/UX / Clean Code / Visual Polish]`
+- **Motivo:** Remoção do ícone/botão circular de agendamento (`Calendar`) posicionado sobre a base das imagens no catálogo de serviços (`#section-servicos`), deixando as fotos dos procedimentos 100% limpas, preservando a área visual com títulos, preços e durações em alto contraste.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`: Removido o badge circular com ícone de calendário que ficava sobreposto nas imagens dos serviços.
+- **Resumo Técnico:**
+  - Layout mais limpo, sem ícones flutuantes cobrindo as fotos dos serviços.
+  - Build validado com `lint_applet` e `compile_applet`.
+
+### [2026-09-16] — Remoção de Botões e Ícones de Ação sobre as Imagens do Carrossel
+- **Tipo:** `[UI/UX / Clean Code / Visual Polish]`
+- **Motivo:** Remoção dos botões de agendamento/ação ("Agendar Agora", "Ver Nossos Serviços", "Ver Horários Disponíveis"), ícones sobrepostos e dica "Role para navegar" posicionados em cima das imagens do carrossel da tela inicial, despoluindo completamente as fotos e deixando o layout focado na identidade visual e nas fotografias do estabelecimento com elegantes indicadores de pontos.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`: Removidos botões de ação com ícones e texto de rolagem das imagens do carrossel inicial, adicionados indicadores de pontos minimalistas e removido import não utilizado de `ChevronDown`.
+- **Resumo Técnico:**
+  - Carrossel da tela inicial 100% despoluído, sem botões ou ícones cobrindo as fotos.
+  - Build validado com `lint_applet` e `compile_applet`.
+
+### [2026-09-16] — Remoção das Setas Flutuantes do Carrossel Inicial
+- **Tipo:** `[UI/UX / Clean Code]`
+- **Motivo:** Remoção das setas flutuantes laterais de navegação do carrossel/slider da tela inicial, mantendo o visual limpo, com transição automática suave e navegação por gesto de arrasto (swipe).
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`: Removidos os botões de seta lateral sobrepostos ao slide publicitário.
+- **Resumo Técnico:**
+  - Interface mais limpa e focada no conteúdo visual do carrossel.
+  - Build validado com `lint_applet` e `compile_applet`.
+
+### [2026-09-16] — Otimização e Remoção do Botão Redundante na Aba Localização
+- **Tipo:** `[UI/UX / Refactor / Clean Code]`
+- **Motivo:** Remoção do botão redundante "Como Chegar" na aba de Localização da seção Espaço, priorizando o mapa interativo direto do Google Maps com o botão de rota flutuante integrado.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`: Removido o botão de link redundante e expandida a área útil de visualização do mapa embed do Google Maps.
+- **Resumo Técnico:**
+  - Redução de poluição visual e aumento da área de visualização do mapa em dispositivos móveis.
+  - Build validado com `lint_applet` e `compile_applet`.
+
+### [2026-09-16] — Restauração e Integração Completa da Seção Espaço (4 Abas)
+- **Tipo:** `[UI/UX / Feature Restoration / Clean Code]`
+- **Motivo:** Restauração da 4ª seção da página do estabelecimento ("Espaço, Localização & Equipe") e da 4ª aba de navegação ("Espaço") no menu inferior (`BottomNav`), restabelecendo a experiência completa de visualização de Equipe/Profissionais, Estrutura/Comodidades e Localização com mapa interativo do Google Maps.
+- **Arquivos Impactados:**
+  - `src/components/BottomNav.tsx`: Restabelecida a 4ª aba "Espaço" (com suporte dinâmico para `SpaceIcon` e label customizado).
+  - `src/components/SalonProfileView.tsx`: Restaurada a seção `#section-espaco` com 3 sub-abas integradas (Equipe em layout plano e limpo, Estrutura com comodidades, e Localização com endereço, horário e mapa interativo do Google Maps), suporte a gestos de swipe, sincronização de scroll-snap com o IntersectionObserver, adição do 4º slide no carrossel de entrada e atualização da navegação por abas.
+- **Resumo Técnico:**
+  - Layout plano sem aninhamento de caixas ("box dentro de box"), ícones padronizados `lucide-react`, contraste rigoroso e integração perfeita com o rodapé fixo de ação.
+  - Build validado com `lint_applet` e `compile_applet`.
+
+### [2026-09-16] — Remoção da Seção Espaço e Simplificação da Navegação (3 Abas)
+- **Tipo:** `[UI/UX / Refactor / Clean Code]`
+- **Motivo:** Remoção da 4ª seção da página do estabelecimento ("Espaço, Localização & Equipe") e da respectiva 4ª aba de navegação ("Espaço") no menu inferior (`BottomNav`), mantendo o foco exclusivo e enxuto em 3 abas essenciais: Início, Serviços e Agendar.
+- **Arquivos Impactados:**
+  - `src/components/BottomNav.tsx`: Removida a 4ª aba "Espaço" e ajustada a distribuição do menu inferior com as 3 abas essenciais (Início, Serviços, Agendar).
+  - `src/components/SalonProfileView.tsx`: Removida a seção `#section-espaco`, excluídas referências de estados e funções associadas (`espacoSlideIndex`, `handleNextEspacoSlide`, `espacoSectionRef`), removido o slide de apresentação do espaço no carrossel inicial, ajustada a tipagem de navegação `activeTab` para `'home' | 'servicos' | 'vagas'`, e limpos todos os imports não utilizados.
+- **Resumo Técnico:**
+  - Layout simplificado e mais rápido com scroll-snap focado apenas nas 3 seções ativas.
+  - 100% de conformidade com o Mandamento 5 (Clean Code, zero variáveis ou imports mortos).
+  - Build validado com `lint_applet` e `compile_applet`.
+
+### [2026-09-16] — Implantação do Painel Administrativo de Gestão do Salão
+- **Tipo:** `[Feat / UI/UX / Security / Clean Code]`
+- **Motivo:** Implementação do Painel Administrativo do Estabelecimento com controle de acesso por PIN de segurança (padrão `1234`), módulo completo de gestão e botão exclusivo no cabeçalho superior que é exibido somente quando o app estiver conectado/logado como salão.
+- **Arquivos Impactados:**
+  - `src/types.ts`: Adicionada a interface `SalonAdminSettings`.
+  - `src/components/SalonAdminModal.tsx`: Criado componente administrativo completo com 5 módulos:
+    1. **Visão Geral / Dashboard**: Controle de status operacional (Aberto/Fechado), métricas do dia (faturamento previsto, agendamentos, equipe ativa) e fila rápida de atendimento.
+    2. **Serviços & Preços**: Cadastro, edição de preços, tempos, categorias e exclusão de serviços do catálogo com persistência local.
+    3. **Equipe & Profissionais**: Cadastro e gerenciamento de barbeiros/profissionais da equipe.
+    4. **Agendamentos**: Fila completa de clientes com atualização de status (Confirmar, Concluir, Cancelar) e contato direto via WhatsApp.
+    5. **Configurações & Dados do Salão**: Edição de dados comerciais, horário de atendimento e alteração do PIN de segurança.
+  - `src/components/ProfileDrawer.tsx`: Adicionada opção de login de gestor com PIN no menu, feedback de validação, botão de acesso direto ao painel e botão de desconexão (Logout).
+  - `src/components/SalonProfileView.tsx`: Integrado o estado de login do salão (`isSalonLoggedIn`), adicionado botão estilizado de acesso rápido `[PAINEL ADMIN]` no cabeçalho que aparece exclusivamente quando conectado como salão, e montado o modal administrativo.
+- **Resumo Técnico:**
+  - Segregação de privilégios de acesso: usuários comuns navegam normalmente, e os controles administrativos do salão são liberados sob autenticação.
+  - Totalmente aderente ao design system (fundo verde = texto branco, ícones `lucide-react`, ausência de caixas aninhadas).
+  - Testado e validado com `lint_applet` e `compile_applet` sem erros.
+
+
 ### [2026-09-16] — Fechamento do Menu do Usuário ao Clicar Fora & Tecla ESC
 - **Tipo:** `[UI/UX / Fix]`
 - **Motivo:** O menu do usuário (`ProfileDrawer`) agora se fecha imediatamente ao clicar na área externa (backdrop/fundo escuro com blur) ou ao pressionar a tecla `Escape`.

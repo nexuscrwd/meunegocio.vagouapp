@@ -1,49 +1,57 @@
 import React from 'react';
-import { Home, Sparkles, Calendar, Store } from 'lucide-react';
+import { Home, Calendar, Sparkles, Store, LayoutDashboard } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight } from '../utils/haptics';
 
 export interface SalonNavContext {
   activeTab: 'home' | 'servicos' | 'vagas' | 'espaco';
   onSelectTab: (tab: 'home' | 'servicos' | 'vagas' | 'espaco') => void;
-  spaceTabLabel?: string;
-  SpaceIcon?: React.ComponentType<{ className?: string }>;
   ServicesIcon?: React.ComponentType<{ className?: string }>;
+  SpaceIcon?: React.ComponentType<{ className?: string }>;
+  spaceTabLabel?: string;
+  vagasTabLabel?: string;
+  isProfessionalMode?: boolean;
 }
 
 interface BottomNavProps {
   salonContext?: SalonNavContext | null;
   activeTab?: 'home' | 'servicos' | 'vagas' | 'espaco';
   onSelectTab?: (tab: 'home' | 'servicos' | 'vagas' | 'espaco') => void;
-  spaceTabLabel?: string;
-  SpaceIcon?: React.ComponentType<{ className?: string }>;
   ServicesIcon?: React.ComponentType<{ className?: string }>;
+  SpaceIcon?: React.ComponentType<{ className?: string }>;
+  spaceTabLabel?: string;
+  vagasTabLabel?: string;
+  isProfessionalMode?: boolean;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
   salonContext,
   activeTab: propActiveTab,
   onSelectTab: propOnSelectTab,
-  spaceTabLabel: propSpaceTabLabel,
-  SpaceIcon: propSpaceIcon,
   ServicesIcon: propServicesIcon,
+  SpaceIcon: propSpaceIcon,
+  spaceTabLabel: propSpaceTabLabel,
+  vagasTabLabel: propVagasTabLabel,
+  isProfessionalMode: propIsProfessionalMode,
 }) => {
   const { isDark } = useTheme();
 
   const activeTab = propActiveTab || salonContext?.activeTab || 'home';
   const onSelectTab = propOnSelectTab || salonContext?.onSelectTab;
-  const spaceTabLabel = propSpaceTabLabel || salonContext?.spaceTabLabel || 'Espaço';
-  const SpaceIcon = propSpaceIcon || salonContext?.SpaceIcon || Store;
+  const isProfessionalMode = propIsProfessionalMode ?? salonContext?.isProfessionalMode ?? false;
   const ServicesIcon = propServicesIcon || salonContext?.ServicesIcon || Sparkles;
+  const SpaceIcon = propSpaceIcon || salonContext?.SpaceIcon || Store;
+  const spaceTabLabel = propSpaceTabLabel || salonContext?.spaceTabLabel || (isProfessionalMode ? 'Espaço' : 'Espaço');
+  const vagasTabLabel = propVagasTabLabel || salonContext?.vagasTabLabel || (isProfessionalMode ? 'Agenda' : 'Agendar');
 
   if (!onSelectTab) {
     return null;
   }
 
   const establishmentTabs = [
-    { id: 'home' as const, label: 'Início', icon: Home },
+    { id: 'home' as const, label: 'Início', icon: isProfessionalMode ? LayoutDashboard : Home },
     { id: 'servicos' as const, label: 'Serviços', icon: ServicesIcon },
-    { id: 'vagas' as const, label: 'Agendar', icon: Calendar },
+    { id: 'vagas' as const, label: vagasTabLabel, icon: Calendar },
     { id: 'espaco' as const, label: spaceTabLabel, icon: SpaceIcon },
   ];
 
@@ -52,7 +60,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       isDark
         ? 'bg-[#151A1E]/95 border-slate-800/90 shadow-[0_-4px_16px_rgba(0,0,0,0.5)]'
         : 'bg-white/95 border-slate-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]'
-    } backdrop-blur-md border-t px-3 py-1 my-0 mx-0 flex items-center justify-around z-30 transition-colors`}>
+    } backdrop-blur-md border-t px-2 sm:px-3 py-1 my-0 mx-0 flex items-center justify-around z-30 transition-colors`}>
       {establishmentTabs.map((tab) => {
         const Icon = tab.icon;
         const isActive = activeTab === tab.id;
@@ -65,7 +73,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               hapticLight();
               onSelectTab(tab.id);
             }}
-            className="flex flex-col items-center justify-center gap-1 py-1 px-3 transition active:scale-95 cursor-pointer group"
+            className="flex flex-col items-center justify-center gap-1 py-1 px-2 sm:px-3 transition active:scale-95 cursor-pointer group"
           >
             <div className={`w-[34px] h-[34px] rounded flex items-center justify-center transition-all ${
               isActive
@@ -78,7 +86,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             }`}>
               <Icon className="w-5 h-5 stroke-[2.2]" />
             </div>
-            <span className={`text-[10px] tracking-wide font-['Poppins'] font-bold ${
+            <span className={`text-[10px] tracking-wide font-['Poppins'] font-bold truncate max-w-[64px] ${
               isActive
                 ? isDark ? 'text-[#20C933]' : 'text-[#087A2A]'
                 : isDark ? 'text-slate-400' : 'text-slate-500'
