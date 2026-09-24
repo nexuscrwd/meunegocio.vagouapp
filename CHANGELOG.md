@@ -15,6 +15,21 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-24] — Sincronização e Alinhamento com o Schema SQL v2.1.0 do Portal Vagou
+- **Tipo:** `[Database / Schema Alignment / Full Stack]`
+- **Motivo / Solicitação:** Ajuste e conformidade total da base de dados e camadas do aplicativo com o schema SQL oficial v2.1.0 gerado no projeto Portal VagouAPP.
+- **Ações Realizadas:**
+  - Atualizado `supabase/schema.sql` com a versão exata v2.1.0 (Haversine RPC, novas colunas de endereço, branding JSONB e seeds).
+  - Atualizado `src/types/database.types.ts` refletindo fielmente as 8 tabelas e RPC geoespacial.
+  - Atualizado `src/lib/supabase.ts` para mapear `owner_id`, `cep`, `branding` e novos campos de sincronização.
+  - Validação estrita de tipos (`lint_applet`) e compilação de build (`compile_applet`) com 100% de sucesso.
+- **Arquivos Impactados:**
+  - `supabase/schema.sql`
+  - `src/types/database.types.ts`
+  - `src/lib/supabase.ts`
+  - `CHANGELOG.md`
+
+
 ### [2026-09-24] — Recuperação Integral do Projeto via Repositório GitHub
 - **Tipo:** `[Restore / Synchronization]`
 - **Motivo / Solicitação:** Restauração completa do código-fonte e histórico do projeto original a partir do repositório `nexuscrwd/provagouapp.git`.

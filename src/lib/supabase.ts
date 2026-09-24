@@ -150,14 +150,14 @@ export async function getSupabaseUser(): Promise<User | null> {
 }
 
 /**
- * Buscar estabelecimento pelo slug ou pelo owner_user_id
+ * Buscar estabelecimento pelo slug ou pelo owner_id
  */
 export async function fetchSalonData(identifier: { slug?: string; ownerUserId?: string }) {
   if (!supabase) return null;
   try {
     let query = supabase.from('salons').select('*');
     if (identifier.ownerUserId) {
-      query = query.eq('owner_user_id', identifier.ownerUserId);
+      query = query.eq('owner_id', identifier.ownerUserId);
     } else if (identifier.slug) {
       query = query.eq('slug', identifier.slug);
     } else {
@@ -216,33 +216,37 @@ export async function syncSalonDataToSupabase(salonData: {
     const payload: any = {
       slug: salonData.slug,
       trade_name: salonData.tradeName,
-      legal_name: salonData.legalName || null,
-      document_type: salonData.documentType || 'cpf',
+      legal_name: salonData.legalName || salonData.tradeName,
+      document_type: salonData.documentType || 'CNPJ',
       document_number: salonData.documentNumber || null,
       phone_whatsapp: salonData.phoneWhatsapp,
-      phone_landline: salonData.phoneLandline || null,
       email: salonData.email,
       address: salonData.address,
       neighborhood: salonData.neighborhood,
       city: salonData.city,
-      state: salonData.state || 'PR',
-      postal_code: salonData.postalCode || null,
+      state: salonData.state || 'SP',
+      cep: salonData.postalCode || null,
       latitude: salonData.latitude,
       longitude: salonData.longitude,
       operating_model: salonData.operatingModel,
       logo_light_url: salonData.logoLightUrl || null,
       logo_dark_url: salonData.logoDarkUrl || null,
-      app_icon_url: salonData.appIconUrl || null,
-      primary_color: salonData.primaryColor || '#10b981',
+      primary_color: salonData.primaryColor || '#20C933',
+      secondary_color: '#0F172A',
+      branding: {
+        primaryColor: salonData.primaryColor || '#20C933',
+        secondaryColor: '#0F172A',
+        themeMode: 'dark',
+      },
       home_delivery_enabled: salonData.homeDeliverySettings?.enabled ?? false,
       home_delivery_area: salonData.homeDeliverySettings?.areaDescription || null,
       home_delivery_travel_fee: salonData.homeDeliverySettings?.travelFee || 0,
-      home_delivery_is_free_condo: salonData.homeDeliverySettings?.isFreeForCondo ?? false,
-      home_delivery_max_distance_km: salonData.homeDeliverySettings?.maxDistanceKm || 15,
+      is_verified: true,
+      is_active: true,
     };
 
     if (salonData.ownerUserId) {
-      payload.owner_user_id = salonData.ownerUserId;
+      payload.owner_id = salonData.ownerUserId;
     }
 
     const { data, error } = await supabase.from('salons').upsert(payload, { onConflict: 'slug' }).select().single();
