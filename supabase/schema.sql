@@ -52,7 +52,7 @@ CREATE TABLE public.salons (
     logo_light_url TEXT,
     logo_dark_url TEXT,
     cover_url TEXT,
-    branding JSONB DEFAULT '{"primaryColor": "#20C933", "secondaryColor": "#0F172A", "themeMode": "dark"}'::jsonb,
+    branding JSONB DEFAULT '{"primaryColor": "#20C933", "secondaryColor": "#0F172A", "themeMode": "light"}'::jsonb,
     primary_color VARCHAR(20) DEFAULT '#20C933',
     secondary_color VARCHAR(20) DEFAULT '#0F172A',
     bio TEXT,

@@ -236,7 +236,7 @@ export async function syncSalonDataToSupabase(salonData: {
       branding: {
         primaryColor: salonData.primaryColor || '#20C933',
         secondaryColor: '#0F172A',
-        themeMode: 'dark',
+        themeMode: 'light',
       },
       home_delivery_enabled: salonData.homeDeliverySettings?.enabled ?? false,
       home_delivery_area: salonData.homeDeliverySettings?.areaDescription || null,

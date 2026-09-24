@@ -10,24 +10,24 @@ export interface ThemeContextType {
 }
 
 export const ThemeContext = createContext<ThemeContextType>({
-  theme: 'dark',
-  isDark: true,
+  theme: 'light',
+  isDark: false,
   toggleTheme: () => {},
   setTheme: () => {},
-  accentColor: '#10b981',
+  accentColor: '#20C933',
   setAccentColor: () => {},
 });
 
 export const applyAccentColorToDom = (color: string) => {
   if (!color) return;
   const colorMap: Record<string, string> = {
-    emerald: '#10b981',
+    emerald: '#20C933',
     blue: '#3b82f6',
     rose: '#ef4444',
     amber: '#f59e0b',
     violet: '#8b5cf6',
   };
-  const hex = color.startsWith('#') ? color : (colorMap[color] || color || '#10b981');
+  const hex = color.startsWith('#') ? color : (colorMap[color] || color || '#20C933');
 
   try {
     localStorage.setItem('vagou_accent_color', hex);
@@ -96,10 +96,14 @@ export const applyAccentColorToDom = (color: string) => {
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<'dark' | 'light'>(() => {
     try {
-      const saved = localStorage.getItem('vagou_theme');
-      if (saved === 'light' || saved === 'dark') return saved;
+      const explicitChoice = localStorage.getItem('vagou_user_theme_preference');
+      if (explicitChoice === 'dark' || explicitChoice === 'light') {
+        return explicitChoice;
+      }
+      // Limpeza de cache legado para garantir tema claro como padrão absoluto
+      localStorage.removeItem('vagou_theme');
     } catch {}
-    return 'dark';
+    return 'light';
   });
 
   const [accentColor, setAccentColorState] = useState<string>(() => {
@@ -112,11 +116,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (parsed && parsed.accentColor) saved = parsed.accentColor;
         }
       }
-      const initial = saved || '#10b981';
+      const initial = saved || '#20C933';
       applyAccentColorToDom(initial);
       return initial;
     } catch {
-      return '#10b981';
+      return '#20C933';
     }
   });
 
@@ -124,7 +128,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     try {
-      localStorage.setItem('vagou_theme', theme);
       if (theme === 'dark') {
         document.documentElement.classList.add('dark');
       } else {
@@ -138,11 +141,22 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [accentColor]);
 
   const toggleTheme = () => {
-    setThemeState((prev) => (prev === 'dark' ? 'light' : 'dark'));
+    setThemeState((prev) => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      try {
+        localStorage.setItem('vagou_user_theme_preference', next);
+        localStorage.setItem('vagou_theme', next);
+      } catch {}
+      return next;
+    });
   };
 
   const setTheme = (newTheme: 'dark' | 'light') => {
     setThemeState(newTheme);
+    try {
+      localStorage.setItem('vagou_user_theme_preference', newTheme);
+      localStorage.setItem('vagou_theme', newTheme);
+    } catch {}
   };
 
   const setAccentColor = (color: string) => {

@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { 
   Check, Eye, EyeOff, 
-  AlertCircle, Loader2, Calendar, User
+  AlertCircle, Loader2, Calendar, User,
+  Store, Sparkles, X, ArrowRight
 } from 'lucide-react';
 import { hapticSuccess, hapticLight, hapticMedium } from '../utils/haptics';
 import { 
   signInWithSupabase, 
   supabase,
-  isSupabaseConfigured 
+  isSupabaseConfigured,
+  syncSalonDataToSupabase
 } from '../lib/supabase';
 
 export interface PartnerAuthSuccessData {
@@ -43,6 +45,10 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Modal para usuário autenticado sem salão vinculado (Opção 1)
+  const [noSalonUser, setNoSalonUser] = useState<{ name: string; email: string; userObj?: any } | null>(null);
+  const [isCreatingQuickSalon, setIsCreatingQuickSalon] = useState(false);
 
   // Logotipo do Estabelecimento (persistido e responsivo)
   const [salonLogo] = useState<string>(() => {
@@ -92,25 +98,50 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
       // 1. Tentar autenticação via Supabase Auth
       let supabaseUser: any = null;
       if (isSupabaseConfigured && supabase) {
-        const { data: authData, error: authErr } = await signInWithSupabase(cleanUser, cleanPass);
-        if (!authErr && authData?.user) {
-          supabaseUser = authData.user;
-        }
+        try {
+          const { data: authData, error: authErr } = await signInWithSupabase(cleanUser, cleanPass);
+          if (!authErr && authData?.user) {
+            supabaseUser = authData.user;
+          }
+        } catch {}
       }
 
-      // 2. Verificar se é a credencial mestre do Anderson ou se bate com salão registrado
+      // 2. Verificar se é a credencial mestre do Anderson
       const isMasterUser = (cleanUser === 'anderson' || cleanUser === 'anderson.hpires@gmail.com') && cleanPass === 'Ae311015@';
 
-      // 3. Verificar estabelecimentos reais no Supabase
+      // 3. Verificar estabelecimentos reais no Supabase (tabela salons)
       let matchedSalonFromDb: any = null;
+      let matchedProfessionalFromDb: any = null;
+      let matchedClientFromDb: any = null;
+
       if (isSupabaseConfigured && supabase) {
         try {
           const { data: salons } = await supabase
             .from('salons')
             .select('*')
-            .or(`email.ilike.%${cleanUser}%,slug.eq.${cleanUser}`);
+            .or(`email.ilike.%${cleanUser}%,slug.eq.${cleanUser},phone_whatsapp.ilike.%${cleanUser}%${supabaseUser?.id ? `,owner_id.eq.${supabaseUser.id}` : ''}`);
           if (salons && salons.length > 0) {
             matchedSalonFromDb = salons[0];
+          }
+        } catch {}
+
+        try {
+          const { data: pros } = await supabase
+            .from('professionals')
+            .select('*')
+            .or(`email.ilike.%${cleanUser}%,phone.ilike.%${cleanUser}%${supabaseUser?.id ? `,user_id.eq.${supabaseUser.id}` : ''}`);
+          if (pros && pros.length > 0) {
+            matchedProfessionalFromDb = pros[0];
+          }
+        } catch {}
+
+        try {
+          const { data: clients } = await supabase
+            .from('clients')
+            .select('*')
+            .or(`email.ilike.%${cleanUser}%,phone.ilike.%${cleanUser}%${supabaseUser?.id ? `,user_id.eq.${supabaseUser.id}` : ''}`);
+          if (clients && clients.length > 0) {
+            matchedClientFromDb = clients[0];
           }
         } catch {}
       }
@@ -128,7 +159,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
         }
       } catch {}
 
-      // 5. Verificar membros da equipe do estabelecimento
+      // 5. Verificar membros da equipe do estabelecimento localmente
       let matchedTeamMember: any = null;
       try {
         const teamSaved = localStorage.getItem('vagou_salon_team_members') || localStorage.getItem('vagou_team_members');
@@ -141,12 +172,14 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
         }
       } catch {}
 
-      const isAuthenticatedPro = isMasterUser || !!supabaseUser || (!!matchedPartner && !!matchedSalonFromDb) || (!!matchedPartner && cleanPass.length >= 6);
+      // A) Se for dono de salão ou profissional de equipe confirmado:
+      const isConfirmedSalonOrPro = isMasterUser || !!matchedSalonFromDb || !!matchedProfessionalFromDb || (!!matchedPartner && cleanPass.length >= 6) || !!matchedTeamMember;
 
-      if (isAuthenticatedPro) {
+      if (isConfirmedSalonOrPro && cleanPass.length >= 4) {
         hapticSuccess();
-        const proName = matchedSalonFromDb?.trade_name || matchedPartner?.name || matchedTeamMember?.name || (isMasterUser ? 'Anderson Pires' : loginUser);
-        const salonDisplayName = matchedSalonFromDb?.trade_name || matchedPartner?.salonName || 'Estabelecimento';
+        const proName = matchedSalonFromDb?.trade_name || matchedSalonFromDb?.legal_name || matchedProfessionalFromDb?.name || matchedPartner?.name || matchedTeamMember?.name || (isMasterUser ? 'Anderson Pires' : (loginUser.includes('@') ? loginUser.split('@')[0] : loginUser));
+        const salonDisplayName = matchedSalonFromDb?.trade_name || matchedPartner?.salonName || 'Meu Negócio';
+        const salonSlug = matchedSalonFromDb?.slug || matchedPartner?.slug || cleanUser.replace(/[^a-z0-9-]/g, '-');
 
         localStorage.setItem('vagou_salon_logged_in', 'true');
         localStorage.setItem('vagou_current_persona', 'pro');
@@ -154,37 +187,114 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
         localStorage.setItem('vagou_active_partner', loginUser);
         localStorage.setItem('vagou_user_name', proName);
         localStorage.setItem('vagou_salon_name', salonDisplayName);
+        localStorage.setItem('vagou_salon_slug', salonSlug);
         localStorage.setItem('vagou_dashboard_logged_pro_name', proName);
 
+        if (matchedSalonFromDb) {
+          localStorage.setItem('vagou_custom_salon_data', JSON.stringify(matchedSalonFromDb));
+        }
+
         setIsLoggingIn(false);
-        onSuccess(matchedPartner || (matchedSalonFromDb ? { salonName: salonDisplayName, slug: matchedSalonFromDb.slug } as any : undefined), 'pro');
+        onSuccess(matchedPartner || (matchedSalonFromDb ? { salonName: salonDisplayName, slug: salonSlug } as any : undefined), 'pro');
         return;
       }
 
-      // Se autenticado via Supabase como cliente regular
-      if (supabaseUser && !isAuthenticatedPro) {
-        hapticSuccess();
-        const clientName = supabaseUser.user_metadata?.name || (loginUser.includes('@') ? loginUser.split('@')[0] : loginUser);
-        localStorage.setItem('vagou_salon_logged_in', 'false');
-        localStorage.setItem('vagou_current_persona', 'cliente');
-        localStorage.setItem('vagou_user_role', 'cliente');
-        localStorage.setItem('vagou_active_partner', loginUser);
-        localStorage.setItem('vagou_user_name', clientName);
-
+      // B) Se autenticado no Supabase com sucesso, mas NÃO possui salão ou equipe (Opção 1):
+      if (supabaseUser) {
+        hapticLight();
         setIsLoggingIn(false);
-        onSuccess(undefined, 'cliente');
+        const resolvedName = supabaseUser.user_metadata?.name || 
+                             matchedClientFromDb?.name || 
+                             (cleanUser.includes('@') ? cleanUser.split('@')[0].replace(/[._]/g, ' ') : cleanUser);
+        
+        const formattedName = resolvedName.charAt(0).toUpperCase() + resolvedName.slice(1);
+        setNoSalonUser({
+          name: formattedName,
+          email: cleanUser,
+          userObj: supabaseUser
+        });
         return;
       }
 
-      // Se não corresponde a nenhuma credencial válida: bloqueio
+      // C) Se não corresponde a nenhuma credencial válida: bloqueio
       hapticMedium();
       setIsLoggingIn(false);
-      setLoginError('Credenciais incorretas. Confira seu usuário e senha.');
-    } catch {
+      if (cleanPass.length < 4) {
+        setLoginError('Por favor, informe uma senha válida.');
+      } else {
+        setLoginError('Credenciais incorretas. Confira seu usuário e senha.');
+      }
+    } catch (err: any) {
       hapticMedium();
       setIsLoggingIn(false);
-      setLoginError('Erro de conexão. Tente novamente.');
+      setLoginError(err?.message || 'Erro de conexão. Tente novamente.');
     }
+  };
+
+  // Opção 1 - Ação A: Criar Negócio Rápido para este Usuário
+  const handleCreateQuickSalon = async () => {
+    if (!noSalonUser) return;
+    setIsCreatingQuickSalon(true);
+    hapticLight();
+
+    const userName = noSalonUser.name;
+    const userEmail = noSalonUser.email;
+    const generatedSalonName = `Espaço ${userName}`;
+    const generatedSlug = `espaco-${userName.toLowerCase().replace(/\s+/g, '-')}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    try {
+      if (isSupabaseConfigured && supabase) {
+        await syncSalonDataToSupabase({
+          slug: generatedSlug,
+          tradeName: generatedSalonName,
+          email: userEmail,
+          phoneWhatsapp: '(11) 99999-9999',
+          address: 'São Paulo, SP',
+          neighborhood: 'Centro',
+          city: 'São Paulo',
+          state: 'SP',
+          latitude: -23.55052,
+          longitude: -46.633308,
+          operatingModel: 'solo',
+          primaryColor: '#20C933',
+          ownerUserId: noSalonUser.userObj?.id,
+        });
+      }
+
+      localStorage.setItem('vagou_salon_logged_in', 'true');
+      localStorage.setItem('vagou_current_persona', 'pro');
+      localStorage.setItem('vagou_user_role', 'pro');
+      localStorage.setItem('vagou_active_partner', userEmail);
+      localStorage.setItem('vagou_user_name', userName);
+      localStorage.setItem('vagou_salon_name', generatedSalonName);
+      localStorage.setItem('vagou_salon_slug', generatedSlug);
+      localStorage.setItem('vagou_dashboard_logged_pro_name', userName);
+
+      hapticSuccess();
+      setIsCreatingQuickSalon(false);
+      setNoSalonUser(null);
+      onSuccess({ salonName: generatedSalonName, slug: generatedSlug }, 'pro');
+    } catch {
+      setIsCreatingQuickSalon(false);
+      setNoSalonUser(null);
+      onSuccess({ salonName: generatedSalonName, slug: generatedSlug }, 'pro');
+    }
+  };
+
+  // Opção 1 - Ação B: Continuar como Cliente
+  const handleContinueAsClient = () => {
+    hapticLight();
+    const clientName = noSalonUser?.name || 'Cliente';
+    const clientEmail = noSalonUser?.email || '';
+
+    localStorage.setItem('vagou_salon_logged_in', 'false');
+    localStorage.setItem('vagou_current_persona', 'cliente');
+    localStorage.setItem('vagou_user_role', 'cliente');
+    if (clientEmail) localStorage.setItem('vagou_active_partner', clientEmail);
+    localStorage.setItem('vagou_user_name', clientName);
+
+    setNoSalonUser(null);
+    onSuccess(undefined, 'cliente');
   };
 
   // Acesso direto do Cliente (sem barreiras para agendar)
@@ -197,7 +307,77 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
   };
 
   return (
-    <div className="w-full h-full flex flex-col justify-between overflow-y-auto bg-slate-50 text-slate-900">
+    <div className="w-full h-full flex flex-col justify-between overflow-y-auto bg-slate-50 text-slate-900 relative">
+      {/* Modal Inteligente de Reconhecimento de Usuário Sem Salão (Opção 1) */}
+      {noSalonUser && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-white rounded-lg border border-slate-200 shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Topo do Modal */}
+            <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-[#20C933]">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-slate-900">Conta Reconhecida</h3>
+                  <p className="text-[10px] text-slate-500 font-medium">{noSalonUser.email}</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setNoSalonUser(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-sm cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Corpo do Modal */}
+            <div className="p-5 space-y-4">
+              <div className="text-center">
+                <p className="text-xs text-slate-700 leading-relaxed">
+                  Olá, <strong className="text-slate-900">{noSalonUser.name}</strong>! Seu login foi validado com sucesso, mas você ainda não possui um negócio ou equipe vinculada a este perfil.
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Como deseja continuar?
+                </p>
+              </div>
+
+              {/* Botão Primário: Criar Estabelecimento */}
+              <button
+                type="button"
+                disabled={isCreatingQuickSalon}
+                onClick={handleCreateQuickSalon}
+                className="w-full py-2.5 px-3.5 rounded-[4px] bg-[#20C933] hover:bg-[#1db82e] active:scale-[0.99] text-white font-bold text-xs flex items-center justify-between gap-2 cursor-pointer transition shadow-sm disabled:opacity-50"
+              >
+                <div className="flex items-center gap-2">
+                  <Store className="w-4 h-4 text-white" />
+                  <span className="text-white">Cadastrar Meu Negócio</span>
+                </div>
+                {isCreatingQuickSalon ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                ) : (
+                  <ArrowRight className="w-4 h-4 text-white" />
+                )}
+              </button>
+
+              {/* Botão Secundário: Continuar como Cliente */}
+              <button
+                type="button"
+                onClick={handleContinueAsClient}
+                className="w-full py-2.5 px-3.5 rounded-[4px] border border-slate-300 hover:bg-slate-100 active:scale-[0.99] text-slate-800 font-bold text-xs flex items-center justify-between gap-2 cursor-pointer transition shadow-2xs"
+              >
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-slate-600" />
+                  <span>Acessar como Cliente / Agendar</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-400" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Cabeçalho Superior Fullwidth com Logo do Negócio (1/3 da tela) */}
       <header className="w-full bg-white border-b border-slate-200 shrink-0 flex items-center justify-center h-1/3 min-h-[120px]">
         {salonLogo ? (

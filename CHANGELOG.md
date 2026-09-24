@@ -15,6 +15,44 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-24] — Tema Claro Definido como Padrão Absoluto & Purga de Cache Legado
+- **Tipo:** `[UI / Theming / Bug Fix]`
+- **Motivo / Solicitação:** Forçar abertura imediata em Tema Claro mesmo em navegadores com cache anterior residual de tema escuro (`vagou_theme`).
+- **Ações Realizadas:**
+  - `src/context/ThemeContext.tsx`: Adicionada purga automática de cache residual e exigência de preferência explícita do usuário (`vagou_user_theme_preference`) para ativar modo escuro. Padrão absoluto e imediato: **Claro (`light`)**.
+  - `index.html`: Remoção síncrona imediata da classe `.dark` antes do primeiro paint.
+- **Arquivos Impactados:**
+  - `src/context/ThemeContext.tsx`
+  - `index.html`
+  - `CHANGELOG.md`
+
+
+### [2026-09-24] — Reconhecimento Inteligente de Contas sem Estabelecimento (Opção 1)
+- **Tipo:** `[Auth / UX / Onboarding Flow]`
+- **Motivo / Solicitação:** Usuários autenticados no Supabase Auth que ainda não possuem um negócio cadastrado na tabela `salons` recebem um modal de boas-vindas com opções diretas de ação.
+- **Ações Realizadas:**
+  - `src/components/PartnerAuthView.tsx`:
+    - Adicionado modal inteligente que identifica a conta autenticada e exibe saudação personalizada com o nome e e-mail.
+    - **Ação 1 (Cadastrar Meu Negócio):** Cria e configura automaticamente o perfil inicial do estabelecimento no Supabase (`salons`), liberando imediatamente o painel de gestão para adicionar serviços e equipe.
+    - **Ação 2 (Acessar como Cliente / Agendar):** Entra no app diretamente como cliente para buscar vagas e agendar no Radar.
+- **Arquivos Impactados:**
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
+
+### [2026-09-24] — Correção e Conexão Direta de Autenticação com o Supabase
+- **Tipo:** `[Auth / Bug Fix / Database]`
+- **Motivo / Solicitação:** Usuários registrados diretamente no banco de dados (tabelas `salons`, `professionals`, `clients` ou `auth.users`) não conseguiam entrar quando acessavam de um navegador diferente devido a dependência do cache local.
+- **Ações Realizadas:**
+  - `src/components/PartnerAuthView.tsx`:
+    - Removida a exigência de `matchedPartner` local para usuários existentes no Supabase.
+    - Implementada busca direta nas tabelas `salons` (por e-mail, slug ou WhatsApp) e `professionals` (por e-mail ou telefone).
+    - Login autentica imediatamente o gestor ou profissional com carregamento do perfil real do estabelecimento.
+- **Arquivos Impactados:**
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
+
 ### [2026-09-24] — Sincronização e Alinhamento com o Schema SQL v2.1.0 do Portal Vagou
 - **Tipo:** `[Database / Schema Alignment / Full Stack]`
 - **Motivo / Solicitação:** Ajuste e conformidade total da base de dados e camadas do aplicativo com o schema SQL oficial v2.1.0 gerado no projeto Portal VagouAPP.
