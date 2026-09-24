@@ -1,0 +1,386 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
+export type OperatingModel = 'solo' | 'team' | 'home_delivery' | 'hybrid';
+export type AppointmentStatus = 'CONFIRMADO' | 'EM_ATENDIMENTO' | 'CONCLUIDO' | 'CANCELADO' | 'NO_SHOW';
+export type OfferStatus = 'AVAILABLE' | 'BOOKED' | 'EXPIRED' | 'CANCELLED';
+export type ServiceType = 'IN_SALON' | 'HOME_DELIVERY';
+
+export interface Database {
+  public: {
+    Tables: {
+      salons: {
+        Row: {
+          id: string;
+          slug: string;
+          trade_name: string;
+          legal_name: string | null;
+          document_type: string;
+          document_number: string | null;
+          legal_representative: string | null;
+          owner_user_id: string | null;
+          operating_model: OperatingModel;
+          home_delivery_enabled: boolean;
+          home_delivery_area: string | null;
+          home_delivery_travel_fee: number;
+          home_delivery_is_free_condo: boolean;
+          home_delivery_max_distance_km: number;
+          phone_whatsapp: string;
+          phone_landline: string | null;
+          email: string;
+          address: string;
+          neighborhood: string;
+          city: string;
+          state: string;
+          postal_code: string | null;
+          latitude: number;
+          longitude: number;
+          logo_url: string | null;
+          logo_light_url: string | null;
+          logo_dark_url: string | null;
+          app_icon_url: string | null;
+          banner_url: string | null;
+          primary_color: string;
+          secondary_color: string;
+          custom_domain: string | null;
+          rating_avg: number;
+          rating_count: number;
+          registration_level: number;
+          registration_due_date: string | null;
+          is_verified: boolean;
+          is_active: boolean;
+          billing_model: 'PER_APPOINTMENT' | 'SUBSCRIPTION' | 'HYBRID' | 'EXEMPT';
+          commission_type: string;
+          commission_value: number;
+          subscription_monthly_fee: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          slug: string;
+          trade_name: string;
+          legal_name?: string | null;
+          document_type?: string;
+          document_number?: string | null;
+          legal_representative?: string | null;
+          owner_user_id?: string | null;
+          operating_model?: OperatingModel;
+          home_delivery_enabled?: boolean;
+          home_delivery_area?: string | null;
+          home_delivery_travel_fee?: number;
+          home_delivery_is_free_condo?: boolean;
+          home_delivery_max_distance_km?: number;
+          phone_whatsapp: string;
+          phone_landline?: string | null;
+          email: string;
+          address: string;
+          neighborhood: string;
+          city: string;
+          state?: string;
+          postal_code?: string | null;
+          latitude: number;
+          longitude: number;
+          logo_url?: string | null;
+          logo_light_url?: string | null;
+          logo_dark_url?: string | null;
+          app_icon_url?: string | null;
+          banner_url?: string | null;
+          primary_color?: string;
+          secondary_color?: string;
+          custom_domain?: string | null;
+          rating_avg?: number;
+          rating_count?: number;
+          registration_level?: number;
+          registration_due_date?: string | null;
+          is_verified?: boolean;
+          is_active?: boolean;
+          billing_model?: 'PER_APPOINTMENT' | 'SUBSCRIPTION' | 'HYBRID' | 'EXEMPT';
+          commission_type?: string;
+          commission_value?: number;
+          subscription_monthly_fee?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['salons']['Insert']>;
+      };
+      professionals: {
+        Row: {
+          id: string;
+          salon_id: string;
+          auth_user_id: string | null;
+          name: string;
+          role: string;
+          avatar_url: string | null;
+          phone: string | null;
+          specialties: string[];
+          color_hex: string;
+          slot_duration_minutes: number;
+          is_owner: boolean;
+          system_role: string;
+          rating_avg: number;
+          rating_count: number;
+          is_active: boolean;
+          schedule_config: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          salon_id: string;
+          auth_user_id?: string | null;
+          name: string;
+          role: string;
+          avatar_url?: string | null;
+          phone?: string | null;
+          specialties?: string[];
+          color_hex?: string;
+          slot_duration_minutes?: number;
+          is_owner?: boolean;
+          system_role?: string;
+          rating_avg?: number;
+          rating_count?: number;
+          is_active?: boolean;
+          schedule_config?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['professionals']['Insert']>;
+      };
+      services: {
+        Row: {
+          id: string;
+          salon_id: string;
+          title: string;
+          description: string | null;
+          category: string;
+          price: number;
+          promotional_price: number | null;
+          duration_estimated: string;
+          duration_minutes: number;
+          is_home_delivery_available: boolean;
+          image_url: string | null;
+          video_url: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          salon_id: string;
+          title: string;
+          description?: string | null;
+          category?: string;
+          price: number;
+          promotional_price?: number | null;
+          duration_estimated?: string;
+          duration_minutes?: number;
+          is_home_delivery_available?: boolean;
+          image_url?: string | null;
+          video_url?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['services']['Insert']>;
+      };
+      salon_media_slots: {
+        Row: {
+          id: string;
+          salon_id: string;
+          slot_number: number;
+          media_type: 'video' | 'image';
+          media_url: string;
+          thumbnail_url: string | null;
+          title: string | null;
+          service_id: string | null;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          salon_id: string;
+          slot_number: number;
+          media_type: 'video' | 'image';
+          media_url: string;
+          thumbnail_url?: string | null;
+          title?: string | null;
+          service_id?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['salon_media_slots']['Insert']>;
+      };
+      service_offers: {
+        Row: {
+          id: string;
+          salon_id: string;
+          professional_id: string;
+          service_id: string | null;
+          service_title: string;
+          category: string;
+          original_price: number;
+          price: number;
+          date_str: string;
+          start_time: string;
+          end_time: string;
+          media_level: number;
+          video_url: string | null;
+          gallery_images: string[];
+          status: OfferStatus;
+          expires_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          salon_id: string;
+          professional_id: string;
+          service_id?: string | null;
+          service_title: string;
+          category: string;
+          original_price: number;
+          price: number;
+          date_str: string;
+          start_time: string;
+          end_time: string;
+          media_level?: number;
+          video_url?: string | null;
+          gallery_images?: string[];
+          status?: OfferStatus;
+          expires_at: string;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['service_offers']['Insert']>;
+      };
+      clients: {
+        Row: {
+          id: string;
+          auth_user_id: string | null;
+          name: string;
+          email: string;
+          phone_whatsapp: string | null;
+          phone_verified: boolean;
+          push_token: string | null;
+          push_enabled: boolean;
+          avatar_url: string | null;
+          favorite_salon_ids: string[];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          auth_user_id?: string | null;
+          name: string;
+          email: string;
+          phone_whatsapp?: string | null;
+          phone_verified?: boolean;
+          push_token?: string | null;
+          push_enabled?: boolean;
+          avatar_url?: string | null;
+          favorite_salon_ids?: string[];
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['clients']['Insert']>;
+      };
+      appointments: {
+        Row: {
+          id: string;
+          protocol_code: string;
+          offer_id: string | null;
+          salon_id: string;
+          professional_id: string;
+          client_id: string | null;
+          client_name: string;
+          client_phone: string;
+          client_email: string | null;
+          service_type: ServiceType;
+          client_address: string | null;
+          travel_fee: number;
+          service_title: string;
+          price: number;
+          total_amount: number;
+          date_str: string;
+          start_time: string;
+          end_time: string;
+          status: AppointmentStatus;
+          commission_fee: number;
+          billed_in_invoice_id: string | null;
+          booked_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          protocol_code: string;
+          offer_id?: string | null;
+          salon_id: string;
+          professional_id: string;
+          client_id?: string | null;
+          client_name: string;
+          client_phone: string;
+          client_email?: string | null;
+          service_type?: ServiceType;
+          client_address?: string | null;
+          travel_fee?: number;
+          service_title: string;
+          price: number;
+          date_str: string;
+          start_time: string;
+          end_time: string;
+          status?: AppointmentStatus;
+          commission_fee?: number;
+          billed_in_invoice_id?: string | null;
+          booked_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['appointments']['Insert']>;
+      };
+    };
+    Functions: {
+      get_offers_in_radius: {
+        Args: {
+          user_lat: number;
+          user_lng: number;
+          radius_km?: number;
+          filter_category?: string | null;
+        };
+        Returns: {
+          offer_id: string;
+          salon_id: string;
+          salon_name: string;
+          salon_neighborhood: string;
+          salon_address: string;
+          salon_logo: string | null;
+          salon_logo_light: string | null;
+          salon_logo_dark: string | null;
+          operating_model: OperatingModel;
+          home_delivery_enabled: boolean;
+          home_delivery_area: string | null;
+          home_delivery_travel_fee: number;
+          professional_name: string;
+          professional_avatar: string | null;
+          rating_avg: number;
+          rating_count: number;
+          service_title: string;
+          category: string;
+          price: number;
+          original_price: number;
+          date_str: string;
+          start_time: string;
+          end_time: string;
+          media_level: number;
+          video_url: string | null;
+          gallery_images: string[];
+          distance_meters: number;
+          distance_km: number;
+          expires_at: string;
+        }[];
+      };
+    };
+  };
+}
