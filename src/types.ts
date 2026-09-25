@@ -67,6 +67,11 @@ export interface BookingAppointment {
   dateIso?: string;
   createdAt?: string;
 
+  // Vagou Family / Dependentes (Multi-Perfis)
+  is_dependent?: boolean;
+  dependent_name?: string;
+  client_user_id?: string;
+
   // Gestão Financeira & Caixa
   paymentMethod?: PaymentMethod;
   isPaid?: boolean;
@@ -126,6 +131,25 @@ export interface ClientSwapGovernance {
 
 export type UserPersona = 'cliente' | 'pro' | 'profissional' | 'admin';
 
+export type FamilyRelationship = 'filho' | 'filha' | 'esposo' | 'esposa' | 'pai' | 'mae' | 'outro';
+export type FamilyAutonomyLevel = 'parent_controlled' | 'teen_assisted' | 'emancipated';
+
+export interface FamilyMember {
+  id: string;
+  name: string;
+  relationship: FamilyRelationship;
+  birthDate?: string; // YYYY-MM-DD para cálculo de faixa etária e maioridade
+  avatarUrl?: string;
+  avatarEmoji?: string;
+  gender?: 'M' | 'F' | 'O';
+  notes?: string; // Preferências de corte, alergias, estilo favorito
+  autonomyLevel: FamilyAutonomyLevel;
+  phone?: string; // Celular do jovem quando atingir autonomia
+  email?: string;
+  emancipatedUserId?: string; // ID da conta emancipada quando virar independente
+  createdAt?: string;
+}
+
 export interface UserProfile {
   name: string;
   email: string;
@@ -133,6 +157,7 @@ export interface UserProfile {
   address: string;
   avatarUrl?: string;
   swapGovernance?: ClientSwapGovernance;
+  familyMembers?: FamilyMember[];
 }
 
 export interface DayOperatingHours {

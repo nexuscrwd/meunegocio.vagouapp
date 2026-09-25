@@ -6,7 +6,7 @@ import {
   DollarSign, Mail,
   ChevronLeft, ChevronRight, ChevronDown, RefreshCw, Send, ShieldCheck,
   Lock, Unlock, ArrowRight,
-  LayoutGrid, List, Zap
+  LayoutGrid, List, Zap, Baby, Heart
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { BookingAppointment, CatalogServiceItem, SalonProfessionalItem } from '../../types';
@@ -1273,8 +1273,20 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                     <p className={`text-[10px] sm:text-[11px] font-semibold truncate ${
                       isDark ? 'text-slate-200' : 'text-slate-800'
                     }`}>
-                      {clientName}
+                      {app.is_dependent && app.dependent_name ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Baby className="w-2.5 h-2.5 text-cyan-400 shrink-0" />
+                          <span>{app.dependent_name}</span>
+                        </span>
+                      ) : (
+                        clientName
+                      )}
                     </p>
+                    {app.is_dependent && app.dependent_name && (
+                      <p className="text-[8px] text-slate-400 truncate">
+                        Dep. de {clientName}
+                      </p>
+                    )}
                   </div>
                 </button>
               );
@@ -1369,9 +1381,26 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                     <span className="font-mono text-sm sm:text-base font-black px-2 py-0.5 rounded-[3px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">
                       {item.startTime}
                     </span>
-                    <h4 className={`text-xs sm:text-sm font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                      {clientName}
-                    </h4>
+                    <div className="min-w-0 truncate">
+                      <h4 className={`text-xs sm:text-sm font-bold truncate flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        {app.is_dependent && app.dependent_name ? (
+                          <>
+                            <span className="truncate">{app.dependent_name}</span>
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-0.5 shrink-0">
+                              <Baby className="w-2.5 h-2.5" />
+                              <span>Dep</span>
+                            </span>
+                          </>
+                        ) : (
+                          clientName
+                        )}
+                      </h4>
+                      {app.is_dependent && app.dependent_name && (
+                        <p className="text-[10px] text-slate-400 truncate">
+                          Resp: {clientName}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   <span className={`text-[8.5px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-[3px] border whitespace-nowrap shrink-0 ${
@@ -1440,19 +1469,36 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                 <div className={`p-3 rounded-[4px] border space-y-1.5 ${
                   isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
                 }`}>
-                  <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 block">
-                    {isConcluded ? 'Cliente Atendido' : 'Cliente'}
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 block">
+                      {isConcluded ? 'Cliente Atendido' : 'Cliente'}
+                    </span>
+                    {selectedAppointment.is_dependent && (
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                        <Baby className="w-3 h-3 text-cyan-400" />
+                        <span>Perfil Familiar / Dependente</span>
+                      </span>
+                    )}
+                  </div>
 
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="w-8 h-8 rounded-[4px] bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xs font-black shrink-0">
-                        {(selectedAppointment.customerName || selectedAppointment.clientName || 'C')[0].toUpperCase()}
+                        {selectedAppointment.is_dependent && selectedAppointment.dependent_name
+                          ? selectedAppointment.dependent_name[0].toUpperCase()
+                          : (selectedAppointment.customerName || selectedAppointment.clientName || 'C')[0].toUpperCase()}
                       </div>
                       <div className="min-w-0">
                         <p className={`font-bold text-xs truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                          {selectedAppointment.customerName || selectedAppointment.clientName || 'Cliente sem nome'}
+                          {selectedAppointment.is_dependent && selectedAppointment.dependent_name
+                            ? selectedAppointment.dependent_name
+                            : (selectedAppointment.customerName || selectedAppointment.clientName || 'Cliente sem nome')}
                         </p>
+                        {selectedAppointment.is_dependent && (
+                          <p className="text-[10px] text-slate-400 truncate">
+                            Responsável: {selectedAppointment.customerName || selectedAppointment.clientName || 'Titular'}
+                          </p>
+                        )}
                         <p className="text-[10.5px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
                           <Phone className="w-3 h-3 text-slate-400 shrink-0" />
                           <span>{selectedAppointment.customerPhone || selectedAppointment.clientPhone || '(41) 99123-4567'}</span>

@@ -460,3 +460,117 @@ export async function updateAppointmentStatusInDb(appointmentId: string, status:
     return false;
   }
 }
+
+/**
+ * Vagou Family: Buscar dependentes de um cliente responsável
+ */
+export async function fetchClientFamilyMembers(guardianClientId: string) {
+  if (!supabase) return [];
+  try {
+    const { data, error } = await (supabase.from('client_family_members') as any)
+      .select('*')
+      .eq('guardian_client_id', guardianClientId)
+      .order('created_at', { ascending: true });
+    if (error) {
+      console.warn('Erro ao buscar dependentes:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Vagou Family: Adicionar ou Atualizar Dependente
+ */
+export async function saveClientFamilyMember(member: {
+  id?: string;
+  guardianClientId: string;
+  name: string;
+  relationship: string;
+  birthDate?: string | null;
+  avatarUrl?: string | null;
+  avatarEmoji?: string | null;
+  gender?: string | null;
+  notes?: string | null;
+  autonomyLevel?: string;
+  phone?: string | null;
+  email?: string | null;
+}) {
+  if (!supabase) return null;
+  try {
+    const payload = {
+      guardian_client_id: member.guardianClientId,
+      name: member.name,
+      relationship: member.relationship,
+      birth_date: member.birthDate || null,
+      avatar_url: member.avatarUrl || null,
+      avatar_emoji: member.avatarEmoji || null,
+      gender: member.gender || null,
+      notes: member.notes || null,
+      autonomy_level: member.autonomyLevel || 'parent_controlled',
+      phone: member.phone || null,
+      email: member.email || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (member.id) {
+      const { data, error } = await (supabase.from('client_family_members') as any)
+        .update(payload)
+        .eq('id', member.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    } else {
+      const { data, error } = await (supabase.from('client_family_members') as any)
+        .insert(payload)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    }
+  } catch (err: any) {
+    console.warn('Erro ao salvar dependente:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Vagou Family: Emancipar dependente para conta própria (Migração de Histórico)
+ */
+export async function emancipateFamilyMemberToUser(memberId: string, newUserId: string) {
+  if (!supabase) return false;
+  try {
+    // 1. Atualiza o status do dependente para emancipado
+    const { error: memberError } = await (supabase.from('client_family_members') as any)
+      .update({
+        autonomy_level: 'emancipated',
+        emancipated_user_id: newUserId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', memberId);
+
+    if (memberError) throw memberError;
+
+    // 2. Transfere os agendamentos históricos desse dependente para o novo perfil
+    const { error: aptError } = await (supabase.from('appointments') as any)
+      .update({
+        client_id: newUserId,
+        is_dependent: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('dependent_id', memberId);
+
+    if (aptError) {
+      console.warn('Aviso: Alguns agendamentos não puderam ser migrados automaticamente:', aptError.message);
+    }
+
+    return true;
+  } catch (err: any) {
+    console.error('Erro na emancipação digital do dependente:', err);
+    return false;
+  }
+}
+

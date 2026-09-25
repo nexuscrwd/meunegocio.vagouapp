@@ -15,6 +15,114 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-25] — Design System & Otimização Responsiva dos Modais de Autenticação
+- **Tipo:** `[UI / UX / Styling / Focus-Mode]`
+- **Motivo / Solicitação:** Ajuste dos modais para box com cantos arredondados estritos em 4px (`rounded-[4px]`), espaçamento mínimo superior e dimensões ultra-compactas responsivas para eliminar 100% das barras de rolagem em celulares.
+- **Ações Realizadas:**
+  - `src/components/PartnerAuthView.tsx`:
+    - Atualizados todos os modais (`isAdminModalOpen`, `isRecoveryModalOpen`, `noSalonUser`) para `rounded-[4px]`, cabeçalhos compactos com espaçamento mínimo e botões otimizados.
+    - Ajustada a altura do cabeçalho de logo (`py-4 max-h-[140px]`) e contêiner raiz com `overflow-hidden`, garantindo que todos os elementos caibam na viewport sem necessidade de scroll vertical.
+- **Arquivos Impactados:**
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-25] — Fluxo de Recuperação de Senha & Atualização do Rodapé para 2026
+- **Tipo:** `[Security / Feature / UI / UX]`
+- **Motivo / Solicitação:** 
+  1. Adição de opção e modal de esquecimento e recuperação de senha de acesso administrativo (via envio de link por e-mail e suporte direto por WhatsApp).
+  2. Ajuste do texto de rodapé para "Tecnologia VagouApp • 2026".
+- **Ações Realizadas:**
+  - `src/components/PartnerAuthView.tsx`:
+    - Adicionado link "Esqueceu a senha?" abaixo do campo de senha no formulário principal e no modal de Admin.
+    - Implementado modal dedicado `isRecoveryModalOpen` com envio de e-mail de redefinição integrado ao `supabase.auth.resetPasswordForEmail` e botão de acionamento de suporte via WhatsApp Oficial.
+    - Atualizado o rodapé institucional para `Tecnologia VagouApp • 2026` com link clicável.
+- **Arquivos Impactados:**
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-25] — Atualização da Senha de Autenticação Administrativa para 31101500 (Modo Seguro)
+- **Tipo:** `[Security / Auth / Refactor]`
+- **Motivo / Solicitação:** Alteração da senha de acesso administrativo para `31101500` com total sigilo na interface (campo mascarado/invisível `type="password"` sem dicas expostas em tela).
+- **Ações Realizadas:**
+  - `src/components/PartnerAuthView.tsx`:
+    - Atualizada a validação da credencial administrativa para `31101500`.
+    - Removida qualquer dica visual ou exibição em texto claro da senha em mensagens de erro ou placeholders.
+    - O modal de "Autenticação Administrativa" mantém o campo 100% mascarado com asteriscos (`••••••••`).
+- **Arquivos Impactados:**
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-25] — Atualização do Acesso Administrativo e Rodapé Institucional VagouApp
+- **Tipo:** `[UI / Auth / UX / Refactor]`
+- **Motivo / Solicitação:** 
+  1. Substituição de "Acessar como cliente" por "Acessar como Admin" com validação de senha `1234`.
+  2. Substituição de "Tecnologia Vagou..." por "Tecnologia VagouApp" com link de direcionamento direto para `https://vagou.app`.
+  3. Remoção do subtítulo "Acesso da equipe" e do link promocional "Quer o app do seu negócio...".
+- **Ações Realizadas:**
+  - `src/components/PartnerAuthView.tsx`:
+    - Removido o bloco "Acesso da equipe" e adicionado o título objetivo "Acesso Administrativo".
+    - Substituído o botão inferior "Acessar como Cliente" por "Acessar como Admin", disparando o modal de confirmação com a senha PIN padrão `1234`.
+    - No formulário principal, habilitada a aceitação direta da senha `1234` como credencial de administrador.
+    - Atualizado o rodapé para "Tecnologia VagouApp" com link clicável para o portal e removida a linha de publicidade externa.
+- **Arquivos Impactados:**
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-25] — Sincronização Mestre Vagou Family (Multi-Perfis & Dependentes na Agenda do Salão)
+- **Tipo:** `[Integration / Multi-Tenancy / UX / Vagou Family]`
+- **Motivo / Solicitação:** Adaptação da Agenda, Comanda e Ficha de Vouchers do "Meu Negócio" para exibir com precisão agendamentos originados de perfis familiares e dependentes (ex: 👶 Enzo Silva - Dependente de Anderson Silva).
+- **Ações Realizadas:**
+  - `src/types.ts`: Adicionados os campos `is_dependent`, `dependent_name` e `client_user_id` na interface `BookingAppointment`.
+  - `src/components/professional/ProfessionalAgendaView.tsx`:
+    - Na visualização em **Grid** e em **Lista**, o card exibe o nome do dependente que sentará na cadeira com o selo `👶 Dep`, além do nome do responsável financeiro.
+    - No modal detalhado de atendimento, exibe o cartão com destaque *"Perfil Familiar / Dependente"*, o nome do dependente atendido e o contato direto de WhatsApp do titular/responsável.
+  - `src/components/UserAppointmentsView.tsx`: Adicionada a tag visual `👶 [Nome do Dependente]` nos vouchers digitais e histórico de reservas do cliente.
+- **Arquivos Impactados:**
+  - `src/types.ts`
+  - `src/components/professional/ProfessionalAgendaView.tsx`
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-25] — Modal Dinâmico de Autenticação do Cliente no Salão (White-Label Psicológico)
+- **Tipo:** `[Feature / Multi-Tenancy / UX / Single Sign-On]`
+- **Motivo / Solicitação:** Implementação da experiência de cadastro/login do cliente personalizada com a identidade visual do próprio salão (Nome, Logo e Cores) ao confirmar agendamento, com mensagem clara de boas-vindas e garantia de cadastro único para eliminar qualquer fricção de futuros agendamentos.
+- **Ações Realizadas:**
+  - `src/components/SalonClientAuthModal.tsx`: Adicionada mensagem de boas-vindas personalizada e banner explicativo de "Cadastro Único", deixando claro que seus dados ficam gravados no aparelho e nas próximas vezes a confirmação ocorre em 1 toque sem retrabalho.
+  - Abas "Primeira vez aqui" (Cadastro) e "Já sou cliente" (Login), com validação em tempo real de WhatsApp, e-mail e senha, integração direta com `signUpWithSupabase` / `signInWithSupabase`, botões em contraste com a cor primária do salão e selo discreto "Tecnologia por Vagou".
+  - `src/components/SalonBookingModal.tsx`: Integrada a verificação prévia de autenticação no botão de confirmação de agendamento (`handleConfirmFinal`). Se o cliente ainda não estiver cadastrado/logado, o modal do salão abre imediatamente e, após sucesso, conclui a reserva em 1 toque.
+  - `src/components/SalonProfileView.tsx`: Repassadas as propriedades `salonLogo` e `primaryColor` para o fluxo de agendamento.
+- **Arquivos Impactados:**
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-25] — Ajuste Visual de Estilo: Botão de Login da Equipe
+- **Tipo:** `[UI / Styling / Focus Mode]`
+- **Motivo / Solicitação:** Aplicação direta do estilo solicitado via seletor CSS no botão de acesso da equipe.
+- **Ações Realizadas:**
+  - `src/components/PartnerAuthView.tsx`: Atualizada a cor de fundo do botão do formulário de acesso da equipe para `#00a033` (com hover em `#00902e`), mantendo texto e ícones estritamente brancos (`text-white`).
+- **Arquivos Impactados:**
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-25] — Reset & Seed Mestre do Ecossistema Vagou (4 Modelos de Salão & 4 Personas)
+- **Tipo:** `[Database / Architecture / Multi-Tenancy]`
+- **Motivo / Solicitação:** Alinhamento técnico definitivo entre o App do Estabelecimento e o Portal Marketplace com reset seguro e população de dados de simulação/produção.
+- **Ações Realizadas:**
+- Executado o script SQL no Supabase com suporte a:
+  - 4 Modelos de Estabelecimentos: Mariana Silva Nails (Home Care / Delivery), Studio Lucas Barbeiro (Solo / 1 Cadeira), Espaço Belle & Co. (Equipe / Dono + 2 Colaboradores) e Studio Elegance (Rede Multi-Unidade).
+  - 4 Perfis de Clientes: Lucas Mendes (Masculino), Camila Fernandes (Feminino), Alex Duarte (Inclusivo / Não-Binário) e Theo Mendes (Infantil / Dependente com conta vinculada).
+  - Migração de colunas `client_user_id`, `is_dependent` e `dependent_name` na tabela `appointments`.
+  - Ativação da tabela `salon_clients` com trigger automático de auto-vínculo de cliente no primeiro agendamento.
+  - Criação de ofertas relâmpago ativas com expiração dinâmica em `service_offers`.
+- Documentação sincronizada em `ARCHITECTURE.md`.
+- **Arquivos Impactados:**
+- `ARCHITECTURE.md`
+- `CHANGELOG.md`
+
+
+
 ### [2026-09-24] — Tema Claro Definido como Padrão Absoluto & Purga de Cache Legado
 - **Tipo:** `[UI / Theming / Bug Fix]`
 - **Motivo / Solicitação:** Forçar abertura imediata em Tema Claro mesmo em navegadores com cache anterior residual de tema escuro (`vagou_theme`).

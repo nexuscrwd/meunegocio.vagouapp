@@ -8,6 +8,7 @@ import { ServiceOffer, CatalogServiceItem } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { getAvailableSlotsForDate } from '../utils/bookingSlots';
 import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
+import { SalonClientAuthModal, SalonClientAuthUser } from './SalonClientAuthModal';
 
 export type { CatalogServiceItem };
 
@@ -27,6 +28,8 @@ interface SalonBookingModalProps {
   onClose?: () => void;
   salonName: string;
   salonAddress?: string;
+  salonLogo?: string;
+  primaryColor?: string;
   services: CatalogServiceItem[];
   professionals: SalonProfessionalItem[];
   initialService?: CatalogServiceItem | null;
@@ -56,6 +59,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   onClose,
   salonName,
   salonAddress = '',
+  salonLogo,
+  primaryColor = '#00a033',
   services,
   professionals,
   initialService,
@@ -149,6 +154,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   // 4. Time Slot Selection
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(initialTimeSlot || null);
   const [timePeriodFilter, setTimePeriodFilter] = useState<'todos' | 'manha' | 'tarde' | 'noite'>('todos');
+
+  // Estado do Modal de Autenticação do Cliente no Salão
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Rastrear estado anterior de abertura para inicializar APENAS na transição de fechado -> aberto
   const prevIsOpenRef = useRef(false);
@@ -280,6 +288,22 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   const resolvedProfessionalAvatar = activeProfObj?.avatar || professionals[0]?.avatar;
 
   const handleConfirmFinal = () => {
+    if (!selectedTimeSlot) return;
+
+    // Verificar se o cliente já possui identificação cadastrada
+    const savedName = localStorage.getItem('vagou_user_name');
+    const savedPhone = localStorage.getItem('vagou_user_phone');
+    if (!savedName || !savedPhone) {
+      // Cliente ainda não logado/cadastrado: abre o modal de cadastro/login com a cara do salão!
+      hapticMedium();
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    executeFinalBooking();
+  };
+
+  const executeFinalBooking = () => {
     if (!selectedTimeSlot) return;
 
     hapticSuccess();
@@ -973,9 +997,25 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      {bookingContent}
-    </div>
+    <>
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+        {bookingContent}
+      </div>
+
+      {/* Modal de Cadastro/Login do Cliente no Salão */}
+      <SalonClientAuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        salonName={salonName}
+        salonLogo={salonLogo}
+        primaryColor={primaryColor}
+        onAuthenticated={() => {
+          setIsAuthModalOpen(false);
+          // Executar o agendamento imediatamente após a autenticação bem-sucedida!
+          executeFinalBooking();
+        }}
+      />
+    </>
   );
 };
 

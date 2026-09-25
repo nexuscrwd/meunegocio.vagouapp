@@ -58,12 +58,30 @@ Focado na gestão de horários e publicação de vagas relâmpago:
 
 As ofertas possuem um sistema dinâmico de mídia estruturado em 3 níveis:
 1. **Nível 1 (Fallback Animado):** Utilizado quando o estabelecimento não enviou mídias reais. Exibe cartões gerados visualmente com gradientes da marca, badges dinâmicos e tipografia forte (`MediaFallbackCard`).
-2. **Nível 2 (Carrossel de Fotos):** Galeria horizontal navegável com fotos do ambiente e cortes/serviços reais com contadores de imagem.
-3. **Nível 3 (Vídeo Vertical / Story):** Vídeo imersivo com reprodução automática, controle de mudo e experiência estilo reels/stories (`RadarStoryModal`).
+2. **Nível 2 (Carrossel de Fotos):** Apresentação com galeria de até 5 fotos reais do espaço/serviço.
+3. **Nível 3 (Vídeo Vertical):** Experiência estilo stories em tela cheia com autoplay mudo e controle de áudio.
 
 ---
 
-## 📂 5. Estrutura de Pastas e Componentes
+## 🏛️ 5. Ecossistema Descentralizado: Modelos de Negócio & Perfis de Consumidor
+
+O ecossistema opera sob banco de dados Supabase unificado (`auth.users` global), atendendo tanto os aplicativos PWA White-label dos salões quanto o Portal Marketplace:
+
+### A. 4 Modelos de Estabelecimentos Suportados:
+1. **Prestador a Domicílio (Home Care / Delivery):** Não possui ponto comercial fixo. Exige endereço do cliente no agendamento e aplica taxa de deslocamento configurável (`home_delivery_travel_fee`). Exemplo: *Mariana Silva Nail & Lash*.
+2. **Studio Solo (1 Cadeira / Autônomo com Ponto Físico):** O proprietário é o único profissional atendente. Agenda e faturamento 100% individualizados. Exemplo: *Studio Lucas Barbeiro*.
+3. **Salão com Equipe (Dono + Profissionais):** Salão físico estruturado com dono e múltiplos colaboradores especialistas com agendas simultâneas e taxas de comissão. Exemplo: *Espaço Belle & Co.*.
+4. **Rede Multi-Unidade (Mesmo Dono, Múltiplos Estabelecimentos):** O mesmo proprietário gerencia 2 ou mais filiais (compartilhando `owner_id`), cada uma com endereço e equipe própria. Exemplo: *Studio Elegance (Jardins & Moema)*.
+
+### B. 4 Perfis de Consumidores Suportados:
+1. **Homem (ex: Lucas Mendes):** Foco em barbearias, corte degradê e barba.
+2. **Mulher (ex: Camila Fernandes):** Foco em mechas, manicure em gel e estética.
+3. **Não-Binário / Inclusivo (ex: Alex Duarte):** Foco em design de sobrancelha e procedimentos modernos.
+4. **Infantil / Dependente (ex: Theo Mendes, 7 anos):** Conta vinculada ao responsável com flags `is_dependent: true` e `dependent_name`. Permite ao pai/mãe agendar tanto para si quanto para dependentes.
+
+---
+
+## 📂 6. Estrutura de Pastas e Componentes
 
 ```
 /

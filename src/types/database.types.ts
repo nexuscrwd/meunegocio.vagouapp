@@ -55,6 +55,7 @@ export interface Database {
           billing_plan: string;
           billing_fee_type: string;
           billing_fee_value: number;
+          pin_code?: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -62,7 +63,7 @@ export interface Database {
           id?: string;
           owner_id?: string | null;
           trade_name: string;
-          legal_name: string;
+          legal_name?: string;
           slug: string;
           document_type?: string;
           document_number?: string | null;
@@ -98,6 +99,7 @@ export interface Database {
           billing_plan?: string;
           billing_fee_type?: string;
           billing_fee_value?: number;
+          pin_code?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -247,6 +249,43 @@ export interface Database {
         };
         Update: Partial<Database['public']['Tables']['clients']['Insert']>;
       };
+      client_family_members: {
+        Row: {
+          id: string;
+          guardian_client_id: string;
+          name: string;
+          relationship: string;
+          birth_date: string | null;
+          avatar_url: string | null;
+          avatar_emoji: string | null;
+          gender: string | null;
+          notes: string | null;
+          autonomy_level: string; // 'parent_controlled' | 'teen_assisted' | 'emancipated'
+          phone: string | null;
+          email: string | null;
+          emancipated_user_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          guardian_client_id: string;
+          name: string;
+          relationship?: string;
+          birth_date?: string | null;
+          avatar_url?: string | null;
+          avatar_emoji?: string | null;
+          gender?: string | null;
+          notes?: string | null;
+          autonomy_level?: string;
+          phone?: string | null;
+          email?: string | null;
+          emancipated_user_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['client_family_members']['Insert']>;
+      };
       appointments: {
         Row: {
           id: string;
@@ -258,6 +297,9 @@ export interface Database {
           client_name: string;
           client_phone: string;
           client_email: string | null;
+          is_dependent: boolean;
+          dependent_id: string | null;
+          dependent_name: string | null;
           service_title: string;
           service_category: string;
           service_type: ServiceType;
@@ -283,6 +325,9 @@ export interface Database {
           client_name: string;
           client_phone: string;
           client_email?: string | null;
+          is_dependent?: boolean;
+          dependent_id?: string | null;
+          dependent_name?: string | null;
           service_title: string;
           service_category?: string;
           service_type?: ServiceType;

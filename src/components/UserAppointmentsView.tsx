@@ -14,7 +14,8 @@ import {
   ChevronRight,
   Info,
   Download,
-  ExternalLink
+  ExternalLink,
+  Baby
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { BookingAppointment } from '../types';
@@ -278,9 +279,17 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                 {/* TOPO: Cabeçalho do Card */}
                 <div className="flex items-start justify-between gap-2 border-b border-slate-800/20 pb-3">
                   <div className="space-y-0.5">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                      Voucher Digital
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                        Voucher Digital
+                      </span>
+                      {item.is_dependent && item.dependent_name && (
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                          <Baby className="w-2.5 h-2.5" />
+                          <span>{item.dependent_name}</span>
+                        </span>
+                      )}
+                    </div>
                     <h3 className="text-sm font-extrabold leading-tight text-emerald-400">
                       {item.serviceTitle || item.service || 'Serviço Personalizado'}
                     </h3>
