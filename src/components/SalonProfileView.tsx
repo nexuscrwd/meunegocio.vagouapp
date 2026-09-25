@@ -217,7 +217,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       const logged = localStorage.getItem('vagou_salon_logged_in') === 'true';
       return logged ? 'pro' : 'cliente';
     } catch {
-      return 'pro';
+      return 'cliente';
     }
   });
 
@@ -229,7 +229,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       if (saved === 'cliente') return false;
       return localStorage.getItem('vagou_salon_logged_in') === 'true';
     } catch {
-      return true;
+      return false;
     }
   });
 
@@ -239,7 +239,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       const saved = localStorage.getItem('vagou_current_persona');
       return saved === 'cliente' ? 'pub' : 'ger';
     } catch {
-      return 'ger';
+      return 'pub';
     }
   });
 
