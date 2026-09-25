@@ -20,8 +20,15 @@ const EMPTY_OFFERS: ServiceOffer[] = [];
 
 export const App: React.FC = () => {
   const { isDark, accentColor } = useTheme();
-  // Início padrão na tela de Login / Cadastre-se conforme especificação
-  const [viewMode, setViewMode] = useState<'auth' | 'salon' | 'agenda' | 'dashboard'>('auth');
+  // Início padrão na tela de Login / Cadastre-se com botão Acessar como Admin
+  const [viewMode, setViewMode] = useState<'auth' | 'salon' | 'agenda' | 'dashboard'>(() => {
+    try {
+      const isLoggedIn = localStorage.getItem('vagou_salon_logged_in') === 'true';
+      return isLoggedIn ? 'salon' : 'auth';
+    } catch {
+      return 'auth';
+    }
+  });
   const [salonName, setSalonName] = useState(() => {
     try {
       const saved = localStorage.getItem('vagou_partner_data');

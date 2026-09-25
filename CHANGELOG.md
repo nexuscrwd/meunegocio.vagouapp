@@ -15,6 +15,17 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-25] — Isolamento do Formulário de Acesso do App "Meu Negócio" (meunegocio.app)
+- **Tipo:** `[Security / Architecture / Separation]`
+- **Motivo / Solicitação:** Definir e isolar o formulário de login e o modal de acesso exclusivo para o aplicativo do estabelecimento (`meunegocio.app`), sem misturar com a interface e fluxos do Portal (`vagou.app`).
+- **Ações Realizadas:**
+  - `src/App.tsx`: Configurada a inicialização da aplicação para direcionar exclusivamente para a tela/modal de login do app `meunegocio.app` quando não houver sessão ativa.
+  - `src/components/PartnerAuthView.tsx`: Definida como a interface principal de acesso do app do estabelecimento, contendo o formulário oficial e o modal rápido "Acessar como Admin".
+- **Arquivos Impactados:**
+  - `src/App.tsx`
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-25] — Design System & Otimização Responsiva dos Modais de Autenticação
 - **Tipo:** `[UI / UX / Styling / Focus-Mode]`
 - **Motivo / Solicitação:** Ajuste dos modais para box com cantos arredondados estritos em 4px (`rounded-[4px]`), espaçamento mínimo superior e dimensões ultra-compactas responsivas para eliminar 100% das barras de rolagem em celulares.
