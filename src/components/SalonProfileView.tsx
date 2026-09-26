@@ -209,13 +209,14 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   // Personalidade Ativa: 'cliente' | 'pro' (mapeando legados 'profissional'/'admin' para 'pro')
   const [currentPersona, setCurrentPersona] = useState<UserPersona>(() => {
     try {
+      const isLogged = localStorage.getItem('vagou_salon_logged_in') === 'true';
+      if (!isLogged) return 'cliente';
       const saved = localStorage.getItem('vagou_current_persona') as UserPersona;
       if (saved === 'cliente') return 'cliente';
       if (saved === 'pro' || saved === 'profissional' || saved === 'admin') {
         return 'pro';
       }
-      const logged = localStorage.getItem('vagou_salon_logged_in') === 'true';
-      return logged ? 'pro' : 'cliente';
+      return 'pro';
     } catch {
       return 'cliente';
     }
@@ -224,10 +225,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   // Estado de Autenticação do Salão / Modo Gestor
   const [isSalonLoggedIn, setIsSalonLoggedIn] = useState<boolean>(() => {
     try {
+      const isLogged = localStorage.getItem('vagou_salon_logged_in') === 'true';
+      if (!isLogged) return false;
       const saved = localStorage.getItem('vagou_current_persona');
-      if (saved === 'pro' || saved === 'admin' || saved === 'profissional') return true;
       if (saved === 'cliente') return false;
-      return localStorage.getItem('vagou_salon_logged_in') === 'true';
+      return true;
     } catch {
       return false;
     }
@@ -236,6 +238,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   // Modo de visualização quando logado: 'ger' (Gerenciamento) ou 'pub' (Público / Visão do Cliente)
   const [viewMode, setViewMode] = useState<'ger' | 'pub'>(() => {
     try {
+      const isLogged = localStorage.getItem('vagou_salon_logged_in') === 'true';
+      if (!isLogged) return 'pub';
       const saved = localStorage.getItem('vagou_current_persona');
       return saved === 'cliente' ? 'pub' : 'ger';
     } catch {

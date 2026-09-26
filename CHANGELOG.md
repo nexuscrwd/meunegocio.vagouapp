@@ -15,6 +15,17 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-26] — Correção do Ponto de Entrada para meunegocio.vagouapp.com
+- **Tipo:** `[Fix / Architecture / Navigation]`
+- **Motivo / Solicitação:** Ao acessar `meunegocio.vagouapp.com`, a aplicação abria a visão pública do portal/salão em vez da tela de login do app do estabelecimento.
+- **Ações Realizadas:**
+  - `src/components/SalonProfileView.tsx`: Refatorados os hooks de inicialização (`currentPersona`, `isSalonLoggedIn`, `viewMode`) para responderem com rigor ao estado do `localStorage` (`vagou_salon_logged_in`). Se não estiver autenticado, o estado assume o modo deslogado público/login.
+  - `src/App.tsx`: Mantido o direcionamento padrão e direto para `PartnerAuthView` para conexões não autenticadas no subdomínio do aplicativo `meunegocio.app`.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `src/App.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-26] — Integração Completa do Fluxo de Cadastro de Usuários no App meunegocio.app
 - **Tipo:** `[Feat / Auth / Real Integration]`
 - **Motivo / Solicitação:** Assegurar que o fluxo de cadastro de novos usuários (com coleta de dados pessoais, nome completo, WhatsApp, e-mail e senha) esteja totalmente acessível no app `meunegocio.app` sem dados fictícios/mocks.
