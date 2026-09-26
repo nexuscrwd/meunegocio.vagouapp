@@ -1,6 +1,16 @@
 # 🗺️ Arquitetura e Visão Técnica — Vagou
 
-O **Vagou** é um aplicativo mobile-first de agendamento de vagas imediatas e horários ociosos em salões de beleza, barbearias, estética e bem-estar.
+O **Vagou** é um ecossistema mobile-first em tempo real para liquidação de vagas imediatas e horários ociosos em salões de beleza, barbearias, estética e bem-estar.
+
+---
+
+## 🏛️ A Tríade VagouApp (Governança e Escopo dos Projetos)
+
+O ecossistema é formalmente composto por **três aplicações independentes e integradas**:
+
+1. **`pvapp` (`portal.vagouapp.com`):** Marketplace e Portal do Consumidor final (Radar, geolocalização GIS, agendamentos rápidos).
+2. **`mnvapp` (`meunegocio.vagouapp.com` / `seunegocio.vagouapp.com`):** Este projeto — App Operacional do Parceiro (Agenda, equipe, serviços, publicação de vagas e gestão do salão).
+3. **`admvapp` (`adm.vagouapp.com` / `admin.vagouapp.com`):** Painel de Admin Master (Governança executiva, moderação de salões, verificação de conformidade fiscal e auditoria direta no banco Supabase).
 
 ---
 

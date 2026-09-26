@@ -56,6 +56,8 @@ export interface Database {
           billing_fee_type: string;
           billing_fee_value: number;
           pin_code?: string | null;
+          status?: 'active' | 'pending' | 'incomplete' | 'suspended';
+          moderation_notes?: string | null;
           created_at: string;
           updated_at: string;
         };

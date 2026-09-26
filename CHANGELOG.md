@@ -15,6 +15,44 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-26] — Instituição do 7º Mandamento: Comunicados Oficiais Inter-Projetos (Tríade Sync)
+- **Tipo:** `[Governance / Mandatory Rule / Inter-Agent Protocol]`
+- **Motivo / Solicitação:** Determinação obrigatória e inesquecível de que toda alteração em qualquer um dos projetos (`mnvapp`, `pvapp` ou `admvapp`) deve gerar um comunicado técnico oficial para os outros dois apps da Tríade.
+- **Implementações:**
+  - Registrado em `AGENTS.md` como o **7º Mandamento Inegociável** da Engenharia da IA.
+  - Registrado em `GEMINI.md` (Regra 11 de Ouro).
+  - Atualizado em `MASTER_APPROVALS_AND_GUIDELINES.md` no Protocolo dos Mandamentos.
+- **Arquivos Impactados:**
+  - `AGENTS.md`
+  - `GEMINI.md`
+  - `MASTER_APPROVALS_AND_GUIDELINES.md`
+  - `CHANGELOG.md`
+
+### [2026-09-26] — Alinhamento de Governança com adm.vagouapp.com (admvapp)
+- **Tipo:** `[Architecture / Governance / Types]`
+- **Motivo / Solicitação:** Comunicado técnico oficial anunciando o nascimento do projeto independente `adm.vagouapp.com` (`admvapp`).
+- **Ajustes e Conformidade Realizados no mnvapp:**
+  - Atualização do modelo conceitual em `ARCHITECTURE.md` e `MASTER_APPROVALS_AND_GUIDELINES.md` consolidando a Tríade: `pvapp` (Consumidor), `mnvapp` (Parceiro) e `admvapp` (Admin Master).
+  - Tipagem expandida em `src/types.ts` (`SalonAdminSettings`) e `src/types/database.types.ts` (`salons`) para acomodar o ciclo de moderação controlado pelo `admvapp`: `status: 'active' | 'pending' | 'incomplete' | 'suspended'`, `isVerified` e `moderation_notes`.
+  - Reforço do isolamento de tenant (`salon_id` / RLS): o `mnvapp` opera estritamente sob seus dados operacionais locais e sincronização via Supabase, sem poluição de telas ou escopo de administração global.
+- **Arquivos Impactados:**
+  - `MASTER_APPROVALS_AND_GUIDELINES.md`
+  - `ARCHITECTURE.md`
+  - `src/types.ts`
+  - `src/types/database.types.ts`
+  - `CHANGELOG.md`
+
+### [2026-09-26] — Padronização de Apelidos dos Projetos da Tríade Vagou
+- **Tipo:** `[Doc / Architecture / Glossary]`
+- **Motivo / Solicitação:** Memorizar os apelidos oficiais dos projetos no ecossistema AI Studio para comunicação ágil e clara.
+- **Definições Registradas:**
+  - `mnvapp`: `meunegociovagouapp` / `meunegocio.vagouapp.com` (Este app - Estabelecimentos / Parceiros)
+  - `pvapp`: `portal.vagouapp.com` (Portal do Usuário / Clientes finais)
+  - `admvapp`: `adm.vagouapp.com` / `admin.vagouapp.com` (Painel Executivo / Backoffice)
+- **Arquivos Impactados:**
+  - `MASTER_APPROVALS_AND_GUIDELINES.md`
+  - `CHANGELOG.md`
+
 ### [2026-09-26] — Correção do Ponto de Entrada para meunegocio.vagouapp.com
 - **Tipo:** `[Fix / Architecture / Navigation]`
 - **Motivo / Solicitação:** Ao acessar `meunegocio.vagouapp.com`, a aplicação abria a visão pública do portal/salão em vez da tela de login do app do estabelecimento.

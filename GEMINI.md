@@ -21,3 +21,4 @@ Consulte o arquivo principal completo em `AGENTS.md` e a documentação técnica
 8. **⚡ Contraste Obrigatório & Trava do Fundo Verde**: Para QUALQUER fundo verde sólido (`bg-emerald-500`, `bg-emerald-600`, etc.), a cor do texto e dos ícones deve ser OBRIGATORIAMENTE BRANCA (`text-white`). Fonte e fundo devem sempre divergir e ser opostos em tom e temperatura (claro vs escuro, frio vs quente).
 9. **🛡️ Padrão de Ícones Estrito**: 100% dos ícones devem vir de `lucide-react` (zero SVGs artesanais).
 10. **📌 Rodapé Fixo de Ação**: Botões de avanço e confirmação de agendamento devem ser sempre fixos (`sticky bottom-0 z-20`) fora da rolagem interna.
+11. **📡 Comunicados Inter-Projetos Obrigatórios (Tríade Sync)**: Toda alteração arquitetural, de banco (Supabase) ou de regras de negócio em um app DEVE gerar obrigatoriamente um Comunicado Técnico Oficial estruturado para os outros dois projetos (`mnvapp` ➔ `pvapp` + `admvapp` e reciprocamente).

@@ -221,6 +221,11 @@ export interface SalonAdminSettings {
     travelFee?: number;
     isFreeForCondo?: boolean;
   };
+
+  // Governança e Moderação Centralizada (adm.vagouapp.com / admvapp)
+  status?: 'active' | 'pending' | 'incomplete' | 'suspended';
+  isVerified?: boolean;
+  moderationNotes?: string;
 }
 
 export interface ServiceCategoryItem {

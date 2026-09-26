@@ -49,6 +49,18 @@
   - Arquivos e componentes afetados.
   - Resumo das mudanças para permitir rollback imediato se necessário.
 
+### 7. 📡 Protocolo Obrigatório e Inegociável de Comunicados Inter-Projetos (Tríade Sync)
+- **Toda e qualquer mudança, alteração arquitetural, novo campo de banco, status ou funcionalidade realizada em um dos projetos DEVE gerar obrigatoriamente um Comunicado Técnico Oficial para os outros dois projetos da Tríade:**
+  - Se a mudança for feita no **`mnvapp`**, o agente DEVE emitir o comunicado oficial para o **`pvapp`** e para o **`admvapp`**.
+  - Se for feita no **`pvapp`**, deve haver comunicado para o **`mnvapp`** e para o **`admvapp`**.
+  - Se for feita no **`admvapp`**, deve haver comunicado para o **`mnvapp`** e para o **`pvapp`**.
+- **Formato Obrigatório do Comunicado:**
+  - **Título claro:** `# 🏛️ COMUNICADO TÉCNICO INTER-PROJETOS: [Nome da Mudança]`
+  - **Origem e Destinatários:** Projeto emissor ➔ Projetos receptores.
+  - **O que mudou:** Tabelas, campos do Supabase, contratos de API, localStorage ou regras de negócio.
+  - **Impacto & Ações Necessárias:** O que o projeto receptor precisa implementar, ajustar ou se abster de fazer.
+  - O usuário copiará e colará esse comunicado no chat do projeto correspondente no AI Studio, garantindo que os três agentes operem em perfeita sintonia e sem quebras de compatibilidade.
+
 ---
 
 ## 🎨 2. Padrões de Design & UI/UX do Vagou

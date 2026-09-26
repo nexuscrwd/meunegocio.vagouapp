@@ -12,7 +12,7 @@ O **Vagou** não é apenas um catálogo de salões: ele é um **ecossistema mobi
 
 O ecossistema é dividido estritamente em **3 frentes operacionais (A Tríade Vagou)**:
 
-### Frente 1: 📱 Portal do Usuário (`portal.vagouapp.com`)
+### Frente 1: 📱 Portal do Usuário (`portal.vagouapp.com`) — Apelido: `pvapp`
 - **Público:** Clientes finais buscando atendimento imediato ou no mesmo dia por proximidade física (GPS).
 - **Mecânica Principal:**
   - **Radar de Vagas Imediatas:** Feed com stories/vídeos curtos verticais (5 segundos) e carrossel de fotos reais dos salões.
@@ -25,7 +25,7 @@ O ecossistema é dividido estritamente em **3 frentes operacionais (A Tríade Va
     - **Caminho com Fricção:** *"Criar conta com E-mail"* (E-mail + Confirmação de e-mail + Código numérico de 6 dígitos). Isso filtra bots, curiosos e cadastros falsos.
     - **Pós-Login de Segurança:** Captura e confirmação do número de WhatsApp e permissão de Notificações Push nativas para envio de lembretes e prevenção de "no-show" (não comparecimento).
 
-### Frente 2: 💈 Meu Negócio / Portal do Parceiro (`meunegocio.vagouapp.com`)
+### Frente 2: 💈 Meu Negócio / Portal do Parceiro (`meunegocio.vagouapp.com`) — Apelido: `mnvapp`
 - **Público:** Donos de salões, barbearias, clínicas e seus profissionais cadastrados.
 - **Mecânica Principal:**
   - **Estrutura Cadastral em 3 Níveis:**
@@ -39,7 +39,7 @@ O ecossistema é dividido estritamente em **3 frentes operacionais (A Tríade Va
   - **Gestão de Horários & Escalas:** Configuração de dias de funcionamento, pausas para almoço e atribuição de profissionais.
   - **Micro-App Exclusivo ("Ver Cliente"):** Permite ao dono do salão pré-visualizar a experiência exata do seu cliente tanto na versão oficial do repositório (`SalonProfileView`) com as 4 abas integradas, quanto na versão temática white-label com capa panorâmica (`SalonExclusiveClientView`).
 
-### Frente 3: 💻 Admin-VagouApp (`admin.vagouapp.com`)
+### Frente 3: 💻 Admin-VagouApp (`admin.vagouapp.com` / `adm.vagouapp.com`) — Apelido: `admvapp`
 - **Público:** Diretoria executiva e equipe operacional do VagouApp.
 - **Mecânica Principal:**
   - **Tabela Executiva de Parceiros:** Visão consolidada de todos os salões credenciados, CNPJ/CPF, responsáveis, status cadastral (Níveis 1, 2 e 3) e selos de conformidade.
@@ -49,7 +49,7 @@ O ecossistema é dividido estritamente em **3 frentes operacionais (A Tríade Va
 
 ---
 
-## 🛑 2. O Protocolo dos 6 Mandamentos de Engenharia da IA
+## 🛑 2. O Protocolo dos 7 Mandamentos de Engenharia da IA
 
 Em qualquer modificação, a IA **DEVE** seguir rigorosamente estes passos:
 
@@ -66,6 +66,9 @@ Em qualquer modificação, a IA **DEVE** seguir rigorosamente estes passos:
    - ❌ Nenhum `console.log` de depuração esquecido.
    - ❌ Nenhum bloco de código morto comentado.
 6. **Rastreabilidade no `CHANGELOG.md`:** Toda alteração relevante deve ser registrada com data, tipo, motivo e lista de arquivos afetados.
+7. **📡 Protocolo de Comunicados Oficiais Inter-Projetos (Tríade Sync):**
+   - Toda alteração em banco, arquitetura ou fluxos feita em um app deve gerar um comunicado técnico para os outros dois projetos da Tríade (`mnvapp` ➔ `pvapp` + `admvapp`, ou vice-versa).
+   - O comunicado deve conter cabeçalho, origem/destino, resumo das mudanças e instruções práticas para o outro agente.
 
 ---
 
