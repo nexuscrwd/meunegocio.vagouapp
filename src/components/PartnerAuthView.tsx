@@ -3,7 +3,7 @@ import {
   Check, Eye, EyeOff, 
   AlertCircle, Loader2,
   Store, Sparkles, X, ArrowRight, ShieldCheck, KeyRound,
-  Mail, MessageCircle, HelpCircle
+  Mail, MessageCircle, HelpCircle, UserPlus
 } from 'lucide-react';
 import { hapticSuccess, hapticLight, hapticMedium } from '../utils/haptics';
 import { 
@@ -12,6 +12,7 @@ import {
   isSupabaseConfigured,
   syncSalonDataToSupabase
 } from '../lib/supabase';
+import { SalonClientAuthModal, SalonClientAuthUser } from './SalonClientAuthModal';
 
 export interface PartnerAuthSuccessData {
   salonName: string;
@@ -46,6 +47,9 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Modal para Novo Cadastro de Usuário (Dados Pessoais e Definição de Perfil)
+  const [isClientRegisterModalOpen, setIsClientRegisterModalOpen] = useState(false);
 
   // Modal para Acesso Rápido de Administrador com Senha
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
@@ -818,8 +822,40 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
             <KeyRound className="w-3.5 h-3.5 text-slate-600" />
             <span>Acessar como Admin</span>
           </button>
+
+          {/* Botão de Cadastro de Usuário (Dados Pessoais & Perfil Sem Mocks) */}
+          <button
+            type="button"
+            onClick={() => {
+              hapticLight();
+              setIsClientRegisterModalOpen(true);
+            }}
+            className="w-full py-2 px-4 rounded-[4px] border border-emerald-300 bg-emerald-50/40 hover:bg-emerald-100/60 active:scale-[0.99] text-emerald-800 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition shadow-2xs"
+          >
+            <UserPlus className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Criar Nova Conta / Cadastrar-se</span>
+          </button>
         </form>
       </section>
+
+      {/* Modal Completo de Cadastro de Usuários e Autenticação Supabase */}
+      <SalonClientAuthModal
+        isOpen={isClientRegisterModalOpen}
+        onClose={() => setIsClientRegisterModalOpen(false)}
+        salonName={currentDisplaySalonName}
+        salonLogo={salonLogo}
+        primaryColor="#00a033"
+        onAuthenticated={(user: SalonClientAuthUser) => {
+          setIsClientRegisterModalOpen(false);
+          hapticSuccess();
+          localStorage.setItem('vagou_salon_logged_in', 'false');
+          localStorage.setItem('vagou_current_persona', 'cliente');
+          localStorage.setItem('vagou_user_role', 'cliente');
+          if (user.name) localStorage.setItem('vagou_user_name', user.name);
+          if (user.email) localStorage.setItem('vagou_active_partner', user.email);
+          onSuccess(undefined, 'cliente');
+        }}
+      />
 
       {/* Rodapé Fullwidth com Tecnologia VagouApp e Ano 2026 */}
       <footer className="p-3 text-center border-t border-slate-200 bg-white text-slate-500 shrink-0">

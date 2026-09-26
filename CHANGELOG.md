@@ -15,6 +15,16 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-26] — Integração Completa do Fluxo de Cadastro de Usuários no App meunegocio.app
+- **Tipo:** `[Feat / Auth / Real Integration]`
+- **Motivo / Solicitação:** Assegurar que o fluxo de cadastro de novos usuários (com coleta de dados pessoais, nome completo, WhatsApp, e-mail e senha) esteja totalmente acessível no app `meunegocio.app` sem dados fictícios/mocks.
+- **Ações Realizadas:**
+  - `src/components/PartnerAuthView.tsx`: Adicionado botão **"Criar Nova Conta / Cadastrar-se"** que abre o `SalonClientAuthModal`.
+  - Integrado o cadastro direto no banco **Supabase Auth** (`signUpWithSupabase`), com validações reais de WhatsApp e credenciais.
+- **Arquivos Impactados:**
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-25] — Isolamento do Formulário de Acesso do App "Meu Negócio" (meunegocio.app)
 - **Tipo:** `[Security / Architecture / Separation]`
 - **Motivo / Solicitação:** Definir e isolar o formulário de login e o modal de acesso exclusivo para o aplicativo do estabelecimento (`meunegocio.app`), sem misturar com a interface e fluxos do Portal (`vagou.app`).
