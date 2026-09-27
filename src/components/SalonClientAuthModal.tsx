@@ -221,12 +221,12 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
             <img 
               src={salonLogo} 
               alt={salonName} 
-              className="w-14 h-14 rounded-2xl object-cover shadow-sm border border-slate-200 mb-2.5"
+              className="max-h-16 max-w-[180px] h-auto w-auto object-contain shadow-2xs mb-2.5 block"
             />
           ) : (
             <div 
               style={{ backgroundColor: primaryColor }}
-              className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-sm mb-2.5"
+              className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-base shadow-2xs mb-2.5 select-none"
             >
               {salonName.slice(0, 2).toUpperCase()}
             </div>

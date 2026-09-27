@@ -15,6 +15,27 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — Cabeçalho Condicional de Logo na Tela Inicial (Exibição Completa sem Caixa Quadrada)
+- **Tipo:** `[UI / Header & Brand Styling]`
+- **Motivo / Solicitação:** O cabeçalho branco superior na tela inicial só deve ser exibido se houver uma imagem de logo cadastrada para o estabelecimento. Se não houver logo, o cabeçalho branco e a caixa de iniciais são ocultados por completo. Quando houver logo, a imagem é renderizada por inteiro (`object-contain`) sem corte ou confinamento em caixa quadrada.
+- **Ações Implementadas:**
+  - `src/components/PartnerAuthView.tsx`: Condicionado o elemento `<header>` à existência de `salonLogo`. Removido o fallback de caixa quadrada de iniciais. Aplicadas as regras `max-h-16 max-w-[85%] object-contain` no logo.
+  - `src/components/SalonClientAuthModal.tsx`: Ajustado o container de logo para `object-contain` na visualização completa.
+- **Arquivos Impactados:**
+  - `src/components/PartnerAuthView.tsx`
+  - `src/components/SalonClientAuthModal.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-27] — Alinhamento do Conceito Client-First (Remoção do Título "Acesso Administrativo")
+- **Tipo:** `[Architecture / Product Concept Alignment]`
+- **Motivo / Solicitação:** O aplicativo é desenhado com primeira frente para o CLIENTE (template que profissionais oferecem a seus clientes). Removido o cabeçalho "Acesso Administrativo" da tela de login para tornar o formulário 100% universal.
+- **Ações Implementadas:**
+  - `src/components/PartnerAuthView.tsx`: Removido o selo e texto `"Acesso Administrativo"`. O formulário é limpo e direto para clientes e profissionais.
+  - O seletor `[Cliente] | [Pro]` no cabeçalho e os privilégios de gestão continuam condicionados estritamente ao reconhecimento de perfil de membro do salão (`isUserProRole`). Para usuários clientes, o botão no cabeçalho nem sequer aparece.
+- **Arquivos Impactados:**
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-27] — Ajuste da Tela de Login (Remoção de Acesso Admin e Conversão de Cadastro em Link Discreto)
 - **Tipo:** `[UI / Refinement & Simplification]`
 - **Motivo / Solicitação:** Como o app já é o "Meu Negócio" do parceiro, foi removido o botão redundante "Acessar como Admin" e o divisor "ou". O botão "Criar Nova Conta / Cadastrar-se" foi renomeado e convertido em um texto-link sutil e discreto ("Cadastre-se").

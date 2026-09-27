@@ -635,31 +635,20 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
         </div>
       )}
 
-      {/* Cabeçalho Superior Compacto e Responsivo para Evitar Barra de Rolagem */}
-      <header className="w-full bg-white border-b border-slate-200 shrink-0 flex items-center justify-center py-4 sm:py-6 max-h-[140px]">
-        {salonLogo ? (
+      {/* Cabeçalho Superior: Exibido APENAS se houver logo cadastrado, sem limitação de caixa quadrada */}
+      {salonLogo && salonLogo.trim() !== '' && (
+        <header className="w-full bg-white border-b border-slate-200 shrink-0 flex items-center justify-center py-3 px-4 max-h-[120px]">
           <img 
             src={salonLogo} 
             alt={currentDisplaySalonName} 
-            className="w-14 h-14 sm:w-16 sm:h-16 rounded-[4px] shadow-sm object-cover block"
+            className="max-h-16 sm:max-h-20 max-w-[85%] h-auto w-auto object-contain block"
           />
-        ) : (
-          <span className="w-14 h-14 sm:w-16 sm:h-16 rounded-[4px] bg-slate-100 border border-slate-200 shadow-xs flex items-center justify-center text-slate-800 font-black text-lg font-['Poppins'] tracking-wider select-none">
-            {(currentDisplaySalonName.trim() || 'Vagou').slice(0, 2).toUpperCase()}
-          </span>
-        )}
-      </header>
+        </header>
+      )}
 
-      {/* Conteúdo Principal: Entrada do Administrador Ajustada */}
+      {/* Conteúdo Principal: Entrada de Usuário / Cliente / Profissional */}
       <section className="flex-1 w-full max-w-md mx-auto flex flex-col justify-center px-4 py-2 sm:py-4">
         <form onSubmit={handleLoginSubmit} className="w-full max-w-[270px] mx-auto space-y-2.5 animate-in fade-in duration-200">
-          <div className="text-center mb-0.5">
-            <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center justify-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Acesso Administrativo</span>
-            </h2>
-          </div>
-
           <label className="block">
             <span className="block text-[10.5px] font-bold text-slate-700 mb-0.5">
               Usuário ou E-mail
