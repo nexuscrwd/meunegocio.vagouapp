@@ -84,11 +84,14 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   }
 
   return (
-    <nav className={`flex-shrink-0 w-full h-[70px] ${
-      isDark
-        ? 'bg-[#151A1E]/95 border-slate-800/90 shadow-[0_-4px_16px_rgba(0,0,0,0.5)]'
-        : 'bg-white/95 border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] text-slate-800'
-    } backdrop-blur-md border-t px-3 sm:px-6 py-1 my-0 mx-0 flex items-center justify-around z-30 transition-colors`}>
+    <nav 
+      id="vagou-bottom-nav"
+      className={`shrink-0 w-full h-[70px] ${
+        isDark
+          ? 'bg-[#151A1E]/95 border-slate-800/90 shadow-[0_-4px_16px_rgba(0,0,0,0.5)]'
+          : 'bg-white/95 border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] text-slate-800'
+      } backdrop-blur-md border-t px-3 sm:px-6 py-1 my-0 mx-0 flex items-center justify-around z-30 transition-colors pb-[env(safe-area-inset-bottom,0px)] select-none`}
+    >
       {establishmentTabs.map((tab) => {
         const Icon = tab.icon;
         const isActive = activeTab === tab.id;

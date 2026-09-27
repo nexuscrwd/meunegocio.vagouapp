@@ -999,11 +999,11 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
   };
 
   return (
-    <div className={`w-full h-full flex flex-col justify-between overflow-y-auto no-scrollbar ${
+    <div className={`w-full h-full flex-1 min-h-0 flex flex-col overflow-y-auto no-scrollbar ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
       {/* 2. Conteúdo Rolável: Fila & Agenda seguido de Dashboard & Metas */}
-      <div className="p-2 flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto no-scrollbar">
+      <div className="p-2 flex flex-col gap-3 flex-1">
         {/* Bloco de Atendimentos Prioritários: Atual / Próximo e Subsequente (Acima de Próximas Vagas Livres) */}
         <div className="space-y-2">
           {/* Título do Grupo de Atendimento */}

@@ -15,6 +15,32 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — Fixação Estrita da Barra de Navegação Inferior (BottomNav) e Trava de Viewport Mobile
+- **Tipo:** `[Fix / Mobile Viewport & BottomNav Fixation]`
+- **Motivo / Solicitação:** Correção do comportamento em que a barra de navegação inferior subia junto com o conteúdo durante a rolagem no celular.
+- **Ações Implementadas:**
+  - `src/index.css`: Travada a viewport de `html`, `body` e `#root` com `position: fixed; inset: 0; overflow: hidden; overscroll-behavior: none;` para eliminar qualquer rolagem do documento global no navegador mobile.
+  - `src/App.tsx`: Reforçadas as restrições de altura rígida (`h-dvh`, `h-full`, `overflow-hidden`) e flexbox no contêiner raiz e no `main`.
+  - `src/components/BottomNav.tsx`: Adicionados `shrink-0`, padding de área segura (`pb-[env(safe-area-inset-bottom)]`) e atributos de ancoragem estrita.
+  - `src/components/SalonProfileView.tsx`: Envolvido o `BottomNav` em um rodapé semântico `footer.shrink-0.z-30.w-full` isolado da rolagem interna da área de conteúdo (`main`).
+  - `src/components/professional/ProfessionalDashboardView.tsx`: Unificado o contêiner de rolagem do painel em uma única camada `overflow-y-auto`, eliminando conflitos de aninhamento e o `justify-between` incorreto.
+- **Arquivos Impactados:**
+  - `src/index.css`
+  - `src/App.tsx`
+  - `src/components/BottomNav.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-27] — Remoção do Botão Utilidades & Ferramentas do Menu Lateral (Focus Mode)
+- **Tipo:** `[UI Cleanup / Focus Mode]`
+- **Motivo / Solicitação:** Remoção da opção "Utilidades & Ferramentas" do menu gaveta de perfil (`ProfileDrawer.tsx`), mantendo a navegação limpa, já que a aba de utilidades já está acessível pela barra inferior fixa (`BottomNav.tsx`).
+- **Ações Implementadas:**
+  - `ProfileDrawer.tsx`: Removido o botão `#menu-option-utilidades`.
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-27] — Remoção de Botões Redundantes de Caixa e Agenda no Menu Lateral (Focus Mode)
 - **Tipo:** `[UI Cleanup / Focus Mode]`
 - **Motivo / Solicitação:** Remoção das opções repetidas de "Caixa" e "Agenda Geral" do menu gaveta de perfil (`ProfileDrawer.tsx`), mantendo a navegação limpa, já que ambos já estão disponíveis na barra fixa inferior (`BottomNav.tsx`).

@@ -332,7 +332,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className={`w-full h-dvh flex items-center justify-center overflow-hidden font-['Poppins'] ${
+    <div className={`w-full h-full h-dvh flex items-center justify-center overflow-hidden font-['Poppins'] ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-200/80 text-slate-900'
     }`}>
       {/* Contêiner Mobile do Aplicativo (Enquadramento PWA Nativo Mobile-First no Desktop) */}
@@ -379,7 +379,7 @@ export const App: React.FC = () => {
         )}
 
         {/* Contêiner Principal da Página do Estabelecimento */}
-        <main className="flex-1 w-full min-h-0 overflow-hidden relative">
+        <main className="flex-1 w-full min-h-0 overflow-hidden relative flex flex-col">
           {viewMode === 'auth' ? (
             <PartnerAuthView
               onSuccess={(partnerData?: PartnerAuthSuccessData, userRole?: 'pro' | 'cliente') => {

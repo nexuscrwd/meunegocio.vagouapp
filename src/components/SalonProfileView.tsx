@@ -2362,16 +2362,18 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       )}
 
       {/* Barra de Navegação Inferior Nativa do Estabelecimento (4 Abas: Início/Painel, Serviços/Gestão, Agendar/Agenda, Espaço/Gerenciar) */}
-      <BottomNav
-        activeTab={activeTab}
-        onSelectTab={handleSelectTab}
-        spaceTabLabel={spaceTabLabel}
-        SpaceIcon={SpaceIcon}
-        ServicesIcon={ServicesIcon}
-        isProfessionalMode={isGerMode}
-        currentPersona={currentPersona}
-        isProAdmin={isActiveProAdmin}
-      />
+      <footer className="shrink-0 z-30 w-full">
+        <BottomNav
+          activeTab={activeTab}
+          onSelectTab={handleSelectTab}
+          spaceTabLabel={spaceTabLabel}
+          SpaceIcon={SpaceIcon}
+          ServicesIcon={ServicesIcon}
+          isProfessionalMode={isGerMode}
+          currentPersona={currentPersona}
+          isProAdmin={isActiveProAdmin}
+        />
+      </footer>
 
       {/* 2. MODAL DE AGENDAMENTO CONFIRMADO (DENTRO DA SEÇÃO DO ESTABELECIMENTO) */}
       {confirmedBookingData && (

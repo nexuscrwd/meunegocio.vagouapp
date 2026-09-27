@@ -1095,39 +1095,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
                 </button>
 
-                {/* Opção: Utilidades & Ferramentas (Modo Gerenciamento) */}
-                {currentPersona !== 'cliente' && (
-                  <button
-                    type="button"
-                    id="menu-option-utilidades"
-                    onClick={() => {
-                      hapticLight();
-                      onClose();
-                      onNavigateTab?.('utilidades');
-                    }}
-                    className={`w-full p-3.5 rounded border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                      isDark 
-                        ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
-                        : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                        <Wrench className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold font-['Poppins']">Utilidades & Ferramentas</span>
-                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500 text-white shadow-xs">Gestão</span>
-                        </div>
-                        <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                          Água, luz, previsão de insumos e bancada
-                        </div>
-                      </div>
-                    </div>
-                    <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                  </button>
-                )}
+
 
                 {/* ÚLTIMA OPÇÃO DA LISTA DO MENU: Gerenciar Estabelecimento (Exclusivo Administrador Pro) */}
                 {currentPersona !== 'cliente' && isProAdmin && (
