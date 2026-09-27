@@ -78,7 +78,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     establishmentTabs = [
       { id: 'home', label: 'Início', icon: Home },
       { id: 'servicos', label: 'Serviços', icon: ServicesIconComponent },
-      { id: 'equipe', label: 'Equipe', icon: Users },
+      { id: 'vagas', label: vagasTabLabel || 'Agenda', icon: Calendar },
       { id: 'espaco', label: spaceTabLabel, icon: SpaceIconComponent },
     ];
   }

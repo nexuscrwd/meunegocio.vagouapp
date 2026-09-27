@@ -15,6 +15,15 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-26] — Restauração do Ícone de Agenda/Agendar no Menu Inferior do Cliente
+- **Tipo:** `[Fix / Navigation]`
+- **Motivo / Solicitação:** Usuário reportou o desaparecimento do botão/ícone de Agenda no menu inferior na visão de Cliente.
+- **Ações Implementadas:**
+  - Restaurada a aba `vagas` com o ícone de calendário (`Calendar`) e rótulo `Agenda`/`Agendar` na barra de navegação inferior (`BottomNav.tsx`) para o modo cliente.
+- **Arquivos Impactados:**
+  - `src/components/BottomNav.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-26] — Inclusão de Input Manual de Cor Hexadecimal (`#HEX`)
 - **Tipo:** `[UI/UX / Feature]`
 - **Motivo / Solicitação:** Inclusão de campo de texto para digitação direta do código de cor hexadecimal na seção de Identidade Visual.
