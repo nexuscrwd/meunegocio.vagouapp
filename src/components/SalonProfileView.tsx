@@ -208,7 +208,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     setCurrentUserName(userName);
   }, [userName]);
   const [isLoginPinModalOpen, setIsLoginPinModalOpen] = useState<boolean>(false);
-  const [isManagePinModalOpen, setIsManagePinModalOpen] = useState<boolean>(false);
 
   // Personalidade Ativa: 'cliente' | 'pro' (mapeando legados 'profissional'/'admin' para 'pro')
   const [currentPersona, setCurrentPersona] = useState<UserPersona>(() => {
@@ -787,23 +786,15 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
   };
 
-  // Solicitação de acesso a Gerenciar Estabelecimento com verificação obrigatória de senha
+  // Solicitação de acesso a Gerenciar Estabelecimento com acesso direto sem caixa de senha
   const handleRequestManage = useCallback(() => {
-    if (!isActiveProAdmin) {
-      return;
+    if (currentPersona === 'cliente') {
+      setCurrentPersona('admin');
+      setIsSalonLoggedIn(true);
+      setViewMode('ger');
     }
-    setIsManagePinModalOpen(true);
-  }, [isActiveProAdmin]);
-
-  const handleConfirmManagePin = (pin: string): boolean => {
-    const validPin = (adminSettings.pinCode || '1234').trim();
-    if (pin.trim() === validPin) {
-      setActiveTab('personalizar');
-      setIsManagePinModalOpen(false);
-      return true;
-    }
-    return false;
-  };
+    setActiveTab('personalizar');
+  }, [currentPersona]);
 
   useEffect(() => {
     if (userName) {
@@ -2430,21 +2421,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           } catch {
             // ignore
           }
-        }}
-        savedPin={adminSettings.pinCode || '1234'}
-        salonName={salonInfo.name}
-      />
-
-      {/* Modal de Confirmação de Senha para Acesso a Gerenciar Estabelecimento */}
-      <ProfessionalLoginModal
-        isOpen={isManagePinModalOpen}
-        onClose={() => setIsManagePinModalOpen(false)}
-        title="Confirmar Senha de Acesso"
-        description="Digite novamente a mesma senha de acesso usada no login para gerenciar o estabelecimento."
-        onLogin={handleConfirmManagePin}
-        onSuccess={() => {
-          setActiveTab('personalizar');
-          setIsManagePinModalOpen(false);
         }}
         savedPin={adminSettings.pinCode || '1234'}
         salonName={salonInfo.name}

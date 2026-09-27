@@ -15,6 +15,17 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — Remoção da Confirmação de Senha para Acesso ao Gerenciar Estabelecimento
+- **Tipo:** `[UX / Direct Access Flow]`
+- **Motivo / Solicitação:** Usuário solicitou a remoção da caixa/modal de senha ao acessar a área de Gerenciar Estabelecimento ("Personalizar Estabelecimento"), permitindo navegação direta e imediata.
+- **Ações Implementadas:**
+  - Removido o estado `isManagePinModalOpen` e a função `handleConfirmManagePin` em `SalonProfileView.tsx`.
+  - Atualizado o handler `handleRequestManage` para navegar diretamente para a aba `personalizar` sem exibir modais intermediários de senha.
+  - Removido o elemento `ProfessionalLoginModal` secundário de confirmação do JSX.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-27] — Integração Completa de CRUD e Sincronização em Nuvem Supabase
 - **Tipo:** `[Database / Full CRUD & Cloud Persistence]`
 - **Motivo / Solicitação:** Usuário reportou que alterações de identidade visual (logos, cor do tema), criação e edição de serviços e dados de cadastro não estavam persistindo no Supabase nem aparecendo no teste online.
