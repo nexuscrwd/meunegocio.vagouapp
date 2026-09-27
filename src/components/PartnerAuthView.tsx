@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { 
   Check, Eye, EyeOff, 
   AlertCircle, Loader2,
-  Store, Sparkles, X, ArrowRight, ShieldCheck, KeyRound,
-  Mail, MessageCircle, HelpCircle, UserPlus
+  Store, Sparkles, X, ArrowRight, ShieldCheck,
+  Mail, MessageCircle, HelpCircle
 } from 'lucide-react';
 import { hapticSuccess, hapticLight, hapticMedium } from '../utils/haptics';
 import { 
@@ -738,39 +738,19 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
             </div>
           )}
 
-          {/* Divisor Visual Sutil */}
-          <div className="relative py-1 flex items-center justify-center">
-            <div className="w-full border-t border-slate-200" />
-            <span className="absolute bg-slate-50 px-2 text-[9.5px] uppercase font-bold text-slate-400">
-              ou
-            </span>
+          {/* Link Discreto: Cadastre-se */}
+          <div className="pt-2 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                hapticLight();
+                setIsClientRegisterModalOpen(true);
+              }}
+              className="text-[11px] text-slate-500 hover:text-slate-800 hover:underline transition-colors cursor-pointer select-none"
+            >
+              Cadastre-se
+            </button>
           </div>
-
-          {/* Botão de Acesso Rápido como Admin */}
-          <button
-            type="button"
-            onClick={() => {
-              hapticLight();
-              setIsAdminModalOpen(true);
-            }}
-            className="w-full py-2 px-4 rounded-[4px] border border-slate-300 hover:bg-slate-100 active:scale-[0.99] text-slate-800 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition shadow-2xs"
-          >
-            <KeyRound className="w-3.5 h-3.5 text-slate-600" />
-            <span>Acessar como Admin</span>
-          </button>
-
-          {/* Botão de Cadastro de Usuário (Dados Pessoais & Perfil Sem Mocks) */}
-          <button
-            type="button"
-            onClick={() => {
-              hapticLight();
-              setIsClientRegisterModalOpen(true);
-            }}
-            className="w-full py-2 px-4 rounded-[4px] border border-emerald-300 bg-emerald-50/40 hover:bg-emerald-100/60 active:scale-[0.99] text-emerald-800 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition shadow-2xs"
-          >
-            <UserPlus className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Criar Nova Conta / Cadastrar-se</span>
-          </button>
         </form>
       </section>
 

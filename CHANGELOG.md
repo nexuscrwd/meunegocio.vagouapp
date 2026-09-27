@@ -15,6 +15,18 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — Ajuste da Tela de Login (Remoção de Acesso Admin e Conversão de Cadastro em Link Discreto)
+- **Tipo:** `[UI / Refinement & Simplification]`
+- **Motivo / Solicitação:** Como o app já é o "Meu Negócio" do parceiro, foi removido o botão redundante "Acessar como Admin" e o divisor "ou". O botão "Criar Nova Conta / Cadastrar-se" foi renomeado e convertido em um texto-link sutil e discreto ("Cadastre-se").
+- **Ações Implementadas:**
+  - `src/components/PartnerAuthView.tsx`:
+    - Removidos o botão `#menu-option-admin` ("Acessar como Admin") e o separador "ou".
+    - Substituído o botão volumoso de cadastro por um texto-link sutil e centralizado "Cadastre-se".
+    - Removidos os imports não utilizados `KeyRound` e `UserPlus` (protocolo Clean Code).
+- **Arquivos Impactados:**
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-27] — Fixação Estrita da Barra de Navegação Inferior (BottomNav) e Trava de Viewport Mobile
 - **Tipo:** `[Fix / Mobile Viewport & BottomNav Fixation]`
 - **Motivo / Solicitação:** Correção do comportamento em que a barra de navegação inferior subia junto com o conteúdo durante a rolagem no celular.
