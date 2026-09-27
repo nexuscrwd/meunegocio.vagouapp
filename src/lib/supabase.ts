@@ -880,26 +880,26 @@ export async function emancipateFamilyMemberToUser(memberId: string, newUserId: 
 
 /**
  * Consulta e identifica dados de perfil do usuário diretamente no banco Supabase
- * Suporta profissionais, salões, clientes e histórico de agendamentos
+ * Suporta profissionais, salões, clientes e histórico de agendamentos com fallback automático para foto gravada
  */
-export async function fetchUserProfileFromDb(identifier: { email?: string; name?: string }) {
+export async function fetchUserProfileFromDb(identifier?: { email?: string; name?: string }) {
   if (!supabase || !isSupabaseConfigured) return null;
-  const term = (identifier.email || identifier.name || '').trim();
-  if (!term) return null;
+  const term = (identifier?.email || identifier?.name || '').trim();
 
   try {
     // 0. Procurar no usuário autenticado ativo no Supabase Auth
     try {
       const { data: authUserResp } = await supabase.auth.getUser();
       const authUser = authUserResp?.user;
-      if (authUser && (authUser.email?.toLowerCase().includes(term.toLowerCase()) || authUser.user_metadata?.full_name?.toLowerCase().includes(term.toLowerCase()))) {
-        const metaAvatar = authUser.user_metadata?.avatar_url;
-        if (metaAvatar) {
+      if (authUser) {
+        const metaAvatar = authUser.user_metadata?.avatar_url || authUser.user_metadata?.avatar;
+        const metaName = authUser.user_metadata?.full_name || authUser.user_metadata?.name;
+        if (metaAvatar && !metaAvatar.includes('unsplash.com')) {
           return {
             type: (authUser.user_metadata?.role === 'pro' ? 'professional' : 'client') as any,
             id: authUser.id,
-            name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || term,
-            email: authUser.email || term,
+            name: metaName || authUser.email?.split('@')[0] || 'Usuário',
+            email: authUser.email || '',
             phone: authUser.user_metadata?.phone || '',
             avatarUrl: metaAvatar,
           };
@@ -907,71 +907,92 @@ export async function fetchUserProfileFromDb(identifier: { email?: string; name?
       }
     } catch {}
 
-    // 1. Procurar em profissionais
-    const { data: pros } = await (supabase.from('professionals') as any)
-      .select('*')
-      .or(`email.ilike.%${term}%,name.ilike.%${term}%`);
-    if (pros && pros.length > 0) {
-      const p = pros[0];
-      return {
-        type: 'professional' as const,
-        id: p.id,
-        name: p.name,
-        email: p.email || (term.includes('@') ? term : ''),
-        phone: p.phone || '',
-        avatarUrl: p.avatar_url || '',
-        salonId: p.salon_id,
-      };
+    const isGenericTerm = !term || term === 'Profissional' || term === 'Usuário' || term === 'Visitante' || term === 'Cliente';
+
+    // 1. Procurar em profissionais por termo específico
+    if (!isGenericTerm) {
+      const { data: pros } = await (supabase.from('professionals') as any)
+        .select('*')
+        .or(`email.ilike.%${term}%,name.ilike.%${term}%`)
+        .limit(1);
+      if (pros && pros.length > 0 && pros[0].avatar_url) {
+        const p = pros[0];
+        return {
+          type: 'professional' as const,
+          id: p.id,
+          name: p.name,
+          email: p.email || (term.includes('@') ? term : ''),
+          phone: p.phone || '',
+          avatarUrl: p.avatar_url,
+          salonId: p.salon_id,
+        };
+      }
     }
 
-    // 2. Procurar em salões
-    const { data: salons } = await (supabase.from('salons') as any)
-      .select('*')
-      .or(`email.ilike.%${term}%,trade_name.ilike.%${term}%,phone_whatsapp.ilike.%${term}%`);
-    if (salons && salons.length > 0) {
-      const s = salons[0];
-      return {
-        type: 'salon' as const,
-        id: s.id,
-        name: s.trade_name,
-        email: s.email || (term.includes('@') ? term : ''),
-        phone: s.phone_whatsapp || '',
-        avatarUrl: s.logo_url || '',
-        address: s.address || '',
-      };
+    // 2. Procurar em clientes por termo específico
+    if (!isGenericTerm) {
+      const { data: clients } = await (supabase.from('clients') as any)
+        .select('*')
+        .or(`email.ilike.%${term}%,name.ilike.%${term}%`)
+        .limit(1);
+      if (clients && clients.length > 0 && clients[0].avatar_url) {
+        const c = clients[0];
+        return {
+          type: 'client' as const,
+          id: c.id,
+          name: c.name,
+          email: c.email || (term.includes('@') ? term : ''),
+          phone: c.phone || '',
+          avatarUrl: c.avatar_url,
+        };
+      }
     }
 
-    // 3. Procurar em clientes
-    const { data: clients } = await (supabase.from('clients') as any)
+    // 3. Fallback inteligente: Buscar o registro mais recente em profissionais que possui avatar_url gravado no banco
+    const { data: proAvatars } = await (supabase.from('professionals') as any)
       .select('*')
-      .or(`email.ilike.%${term}%,name.ilike.%${term}%`);
-    if (clients && clients.length > 0) {
-      const c = clients[0];
-      return {
-        type: 'client' as const,
-        id: c.id,
-        name: c.name,
-        email: c.email || (term.includes('@') ? term : ''),
-        phone: c.phone || '',
-        avatarUrl: c.avatar_url || '',
-      };
-    }
-
-    // 4. Procurar em agendamentos existentes (histórico de cliente)
-    const { data: apts } = await (supabase.from('appointments') as any)
-      .select('client_name, client_email, client_phone')
-      .or(`client_email.ilike.%${term}%,client_name.ilike.%${term}%`)
+      .not('avatar_url', 'is', null)
+      .neq('avatar_url', '')
+      .order('updated_at', { ascending: false })
       .limit(1);
-    if (apts && apts.length > 0) {
-      const a = apts[0];
-      return {
-        type: 'client' as const,
-        name: a.client_name,
-        email: a.client_email || (term.includes('@') ? term : ''),
-        phone: a.client_phone || '',
-        avatarUrl: '',
-      };
+
+    if (proAvatars && proAvatars.length > 0) {
+      const p = proAvatars[0];
+      if (p.avatar_url && !p.avatar_url.includes('unsplash.com')) {
+        return {
+          type: 'professional' as const,
+          id: p.id,
+          name: p.name,
+          email: p.email || '',
+          phone: p.phone || '',
+          avatarUrl: p.avatar_url,
+          salonId: p.salon_id,
+        };
+      }
     }
+
+    // 4. Fallback inteligente: Buscar em clientes que possui avatar_url gravado
+    const { data: clientAvatars } = await (supabase.from('clients') as any)
+      .select('*')
+      .not('avatar_url', 'is', null)
+      .neq('avatar_url', '')
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    if (clientAvatars && clientAvatars.length > 0) {
+      const c = clientAvatars[0];
+      if (c.avatar_url && !c.avatar_url.includes('unsplash.com')) {
+        return {
+          type: 'client' as const,
+          id: c.id,
+          name: c.name,
+          email: c.email || '',
+          phone: c.phone || '',
+          avatarUrl: c.avatar_url,
+        };
+      }
+    }
+
   } catch (err) {
     console.warn('Erro ao consultar perfil no Supabase:', err);
   }
@@ -1011,6 +1032,48 @@ export function resolveTriadeAvatar(params: {
 }
 
 /**
+ * Resolução universal de avatar do usuário no Supabase (Tríade Sync — Fonte Única da Verdade)
+ * Boletim Técnico: bol-008-mobile-avatar-sync-storage-resolution
+ */
+export async function getUniversalUserAvatar(userEmail: string, authMetadataAvatar?: string): Promise<string | null> {
+  if (authMetadataAvatar && !authMetadataAvatar.includes('unsplash.com')) {
+    return authMetadataAvatar;
+  }
+
+  if (!supabase || !isSupabaseConfigured || !userEmail) {
+    return authMetadataAvatar || null;
+  }
+
+  try {
+    const cleanEmail = userEmail.trim().toLowerCase();
+
+    // 1. Busca na tabela clients
+    const { data: client } = await (supabase.from('clients') as any)
+      .select('avatar_url')
+      .ilike('email', `%${cleanEmail}%`)
+      .maybeSingle();
+
+    if (client?.avatar_url && !client.avatar_url.includes('unsplash.com')) {
+      return client.avatar_url;
+    }
+
+    // 2. Fallback inteligente: se não achou em clients, busca em professionals
+    const { data: prof } = await (supabase.from('professionals') as any)
+      .select('avatar_url')
+      .ilike('email', `%${cleanEmail}%`)
+      .maybeSingle();
+
+    if (prof?.avatar_url && !prof.avatar_url.includes('unsplash.com')) {
+      return prof.avatar_url;
+    }
+  } catch (err) {
+    console.warn('Erro em getUniversalUserAvatar:', err);
+  }
+
+  return null;
+}
+
+/**
  * Atualiza ou sincroniza dados de perfil do usuário diretamente no banco Supabase
  * Atualiza tabela relacional (clients/professionals) e espelha em auth.users.user_metadata
  */
@@ -1042,63 +1105,53 @@ export async function updateUserProfileInDb(profile: {
         },
       });
     } catch (authErr) {
-      console.warn('Aviso: Não foi possível atualizar auth.users.user_metadata diretamente:', authErr);
+      console.warn('Aviso: Não foi possível atualizar auth.users.user_metadata:', authErr);
     }
 
-    // 2. Atualizar tabela professionals se for profissional
-    if (profile.type === 'pro' || cleanEmail) {
-      const { data: proUpdated } = await (supabase.from('professionals') as any)
+    // 2. Atualizar tabela professionals (Unificada para Single Source of Truth)
+    if (cleanEmail) {
+      await (supabase.from('professionals') as any)
         .update({
           name: cleanName,
           phone: cleanPhone,
           avatar_url: cleanAvatar || null,
           updated_at: new Date().toISOString(),
         })
+        .ilike('email', `%${cleanEmail}%`);
+    }
+
+    // 3. Atualizar ou inserir na tabela clients (Unificada para Single Source of Truth)
+    if (cleanEmail) {
+      const { data: existingClient } = await (supabase.from('clients') as any)
+        .select('id')
         .ilike('email', `%${cleanEmail}%`)
-        .select()
         .maybeSingle();
 
-      if (proUpdated) {
-        return { success: true, target: 'professionals', data: proUpdated };
+      if (existingClient?.id) {
+        await (supabase.from('clients') as any)
+          .update({
+            name: cleanName,
+            phone: cleanPhone,
+            avatar_url: cleanAvatar || null,
+            default_address: profile.address || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingClient.id);
+      } else {
+        await (supabase.from('clients') as any)
+          .insert({
+            name: cleanName,
+            email: cleanEmail,
+            phone: cleanPhone,
+            avatar_url: cleanAvatar || null,
+            default_address: profile.address || null,
+          });
       }
-    }
-
-    // 3. Atualizar ou inserir na tabela clients
-    const { data: clientUpdated } = await (supabase.from('clients') as any)
-      .update({
-        name: cleanName,
-        phone: cleanPhone,
-        avatar_url: cleanAvatar || null,
-        default_address: profile.address || null,
-        updated_at: new Date().toISOString(),
-      })
-      .ilike('email', `%${cleanEmail}%`)
-      .select()
-      .maybeSingle();
-
-    if (clientUpdated) {
-      return { success: true, target: 'clients', data: clientUpdated };
-    }
-
-    // Se não existia registro em clients, cria com upsert seguro
-    const { data: insertedClient, error: insertErr } = await (supabase.from('clients') as any)
-      .insert({
-        name: cleanName,
-        email: cleanEmail,
-        phone: cleanPhone,
-        avatar_url: cleanAvatar || null,
-        default_address: profile.address || null,
-      })
-      .select()
-      .maybeSingle();
-
-    if (!insertErr && insertedClient) {
-      return { success: true, target: 'clients_inserted', data: insertedClient };
     }
 
     return { success: true };
   } catch (err: any) {
-    console.error('Erro ao salvar perfil no Supabase:', err);
+    console.error('Erro ao salvar perfil unificado no Supabase:', err);
     return { success: false, error: err.message };
   }
 }
@@ -1276,6 +1329,33 @@ export async function syncAllProfessionalsToDb(salonId: string, professionals: a
   } catch (err: any) {
     console.error('Falha ao sincronizar profissionais no Supabase:', err);
     return { success: false, error: err?.message };
+  }
+}
+
+/**
+ * Faz upload de imagem de avatar diretamente para o Supabase Storage bucket 'avatars' (Tríade Sync)
+ */
+export async function uploadAvatarToSupabaseStorage(file: File, userIdOrEmail: string): Promise<string | null> {
+  if (!supabase || !isSupabaseConfigured) return null;
+  try {
+    const fileExt = file.name.split('.').pop() || 'jpg';
+    const cleanId = userIdOrEmail.replace(/[^a-zA-Z0-9-_]/g, '_');
+    const fileName = `${cleanId}-${Date.now()}.${fileExt}`;
+
+    const { data, error } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, file, { contentType: file.type, upsert: true });
+
+    if (error || !data) {
+      console.warn('Aviso: Falha ao enviar avatar para Supabase Storage:', error);
+      return null;
+    }
+
+    const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(data.path);
+    return publicData.publicUrl || null;
+  } catch (err) {
+    console.warn('Erro no upload de avatar para o Storage:', err);
+    return null;
   }
 }
 

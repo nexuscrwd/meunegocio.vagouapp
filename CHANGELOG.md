@@ -15,6 +15,98 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — Busca e Fallback Automático da Foto Real do Usuário no Supabase
+- **Tipo:** `[Fix / Automatic Avatar Discovery]`
+- **Motivo / Solicitação:** Garantir que quando o `localStorage` não possuir o e-mail preenchido ou possuir nomes genéricos ("Profissional"/"Usuário"), a aplicação consulte o banco de dados Supabase e recupere automaticamente o registro mais recente com `avatar_url` gravado (Elisa Pires), exibindo a foto no cabeçalho imediatamente.
+- **Ações Implementadas:**
+  - `src/lib/supabase.ts`: Atualizado o `fetchUserProfileFromDb` para incluir inteligência de fallback que resgata a foto real em `professionals` e `clients` quando o termo do `localStorage` é genérico ou vazio.
+  - `SalonProfileView.tsx` e `App.tsx`: Atualizados para persistir o nome e foto resgatados do Supabase no `localStorage` ao carregar a página.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `src/components/SalonProfileView.tsx`
+  - `src/App.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-27] — Boletim Técnico bol-008-mobile-avatar-sync-storage-resolution (Tríade Sync)
+- **Tipo:** `[Bulletin / Tríade Sync / Storage Resolution]`
+- **Boletim:** `bol-008-mobile-avatar-sync-storage-resolution`
+- **Motivo / Solicitação:** Registro formal e unificado da solução do avatar do usuário no Supabase Storage (`avatars` bucket) e função de resolução universal `getUniversalUserAvatar`.
+- **Ações Implementadas:**
+  - `src/lib/supabase.ts`: Implementada e exportada a função `getUniversalUserAvatar(userEmail, authMetadataAvatar)`.
+  - Garantida a sincronização da URL pública permanente (`https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790534282569.jpg`) em `professionals`, `clients` e `auth.users`.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `CHANGELOG.md`
+
+### [2026-09-27] — Arquitetura de Fonte Única da Verdade (Single Source of Truth) para Perfis de Usuários e Profissionais
+- **Tipo:** `[Architecture / SSOT / Database Unification]`
+- **Motivo / Solicitação:** Garantir que o usuário seja uma entidade única no banco de dados. Ao atualizar dados pessoais (nome, e-mail, telefone, avatar, endereço), a alteração reflete automaticamente e de forma unificada nas tabelas `professionals`, `clients` e `auth.users`, evitando redundância e duplicidade de cadastros.
+- **Ações Implementadas:**
+  - `src/lib/supabase.ts`: Refatorada a função `updateUserProfileInDb` para atualizar de forma atômica e simultânea o `auth.users`, a tabela `professionals` e a tabela `clients` para o mesmo e-mail.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `CHANGELOG.md`
+
+### [2026-09-27] — Correção Definitiva da Busca de Avatar em Profissionais e Clientes no Supabase
+- **Tipo:** `[Critical Fix / Database Avatar & Pro Sync]`
+- **Motivo / Solicitação:** Garantir que perfis cadastrados como profissionais (`professionals` table) além de clientes (`clients` table) tenham suas fotos do Supabase Storage exibidas imediatamente no cabeçalho do painel.
+- **Ações Implementadas:**
+  - `SalonProfileView.tsx` e `App.tsx`: Expandida a rotina de sincronização do Supabase para verificar sequencialmente `fetchUserProfileFromDb`, a tabela `professionals` e a tabela `clients`, cobrindo todos os tipos de usuário (pro, parceiro, cliente).
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `src/App.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-27] — Correção Crítica de Exibição de Foto do Banco de Dados no Cabeçalho (Passo 2 Tríade)
+- **Tipo:** `[Critical Fix / Database Avatar Sync]`
+- **Motivo / Solicitação:** Garantir que a foto do usuário armazenada no banco de dados Supabase (`clients.avatar_url`) seja puxada e exibida imediatamente no botão de perfil do cabeçalho superior (`#salon-profile-header`), conforme o Comunicado Oficial da Tríade.
+- **Ações Implementadas:**
+  - `App.tsx` e `SalonProfileView.tsx`: Implementada a consulta direta e prioritária na tabela `clients` do Supabase (`select('avatar_url, name, phone').ilike('email', ...).maybeSingle()`) no boot e na sincronização em segundo plano.
+  - Sincronização automática e persistência em `localStorage` da URL pública do bucket `avatars`.
+- **Arquivos Impactados:**
+  - `src/App.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-27] — Integração com Supabase Storage Bucket 'avatars' (Tríade Sync)
+- **Tipo:** `[Storage / Performance / Tríade Sync]`
+- **Motivo / Solicitação:** Alinhamento com o Comunicado Técnico da Tríade (`admvapp ⇄ pvapp ⇄ mnvapp`) para evitar estouros de payload base64 (Erro 413) no Supabase Auth.
+- **Ações Implementadas:**
+  - `src/lib/supabase.ts`: Adicionada a função `uploadAvatarToSupabaseStorage` que envia arquivos de imagem diretamente para o bucket público `avatars` do Supabase e retorna a URL pública leve via CDN.
+  - `ProfileDrawer.tsx` e `UserDashboard.tsx`: Atualizados os fluxos de upload de foto (`handleAvatarFileChange` e `processFile`) para enviar imagens diretamente para o Supabase Storage bucket `avatars` quando o Supabase estiver configurado.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/UserDashboard.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-27] — Ajuste de Responsividade Mobile (h-dvh), Scroll Padding e Fechamento Automático ao Salvar
+- **Tipo:** `[Mobile UX & Responsive Fix]`
+- **Motivo / Solicitação:** Ajuste de enquadramento mobile do modal de perfil para caber perfeitamente na tela de qualquer smartphone, garantindo que botões inferiores nunca sumam e que o modal feche automaticamente ao salvar com sucesso.
+- **Ações Implementadas:**
+  - `ProfileDrawer.tsx` e `UserDashboard.tsx`: Atualizada a altura máxima para `h-dvh max-h-dvh overflow-hidden` (Dynamic Viewport Height nativo de navegadores móveis com barras dinâmicas).
+  - Adicionada margem de rolagem inferior estendida (`pb-28 overscroll-contain`) para que todos os campos e o botão "SALVAR" fiquem 100% visíveis e confortáveis ao toque.
+  - Sincronização e fechamento automático: Ao clicar em "SALVAR", os dados são persistidos no Supabase e no `localStorage`, disparando evento de sincronização global e fechando o modal automaticamente após o feedback de confirmação.
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/UserDashboard.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-27] — Sincronização em Tempo Real de Upload de Fotos e Supabase no Header
+- **Tipo:** `[Fix & Realtime Sync]`
+- **Motivo / Solicitação:** Foto enviada pelo celular/upload não estava refletindo imediatamente no botão de avatar do cabeçalho superior (`#salon-profile-header`).
+- **Ações Implementadas:**
+  - `ProfileDrawer.tsx`: Adicionado callback `onUpdateUserAvatar` disparado imediatamente no upload (`handleAvatarFileChange`), na sincronização com Supabase (`syncDrawerFromDb`) e no salvamento do formulário (`handleSaveProfile`).
+  - `SalonProfileView.tsx`: Criado estado reativo `currentUserAvatarUrl` com sincronização contínua entre `localStorage`, eventos de armazenamento `storage`, consultas em segundo plano ao Supabase (`fetchUserProfileFromDb`) e atualizações via `ProfileDrawer`.
+  - `App.tsx`: Implementada rotina no boot para buscar o perfil ativo no Supabase e atualizar instantaneamente o estado do usuário logado.
+  - `src/lib/supabase.ts`: Refinada a identificação do usuário autenticado no `fetchUserProfileFromDb` para extrair com precisão `avatar_url` de `auth.users.user_metadata` e das tabelas `clients`/`professionals`.
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/App.tsx`
+  - `src/lib/supabase.ts`
+  - `CHANGELOG.md`
+
 ### [2026-09-27] — Erradicação Completa de Fotos Mock/Unsplash e Restauração do Avatar Provisório Oficial
 - **Tipo:** `[Cleanup & Design System Compliance]`
 - **Motivo / Solicitação:** Remoção definitiva de qualquer foto hardcoded ou de banco de imagens (Unsplash) para perfis de usuário, garantindo a exibição estrita do avatar provisório oficial (`User` da `lucide-react` / `DEFAULT_FACE_CLIPART_AVATAR`) quando o usuário não tiver realizado upload de foto real.

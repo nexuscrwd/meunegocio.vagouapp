@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess } from '../utils/haptics';
-import { fetchUserProfileFromDb, updateUserProfileInDb, isSupabaseConfigured } from '../lib/supabase';
+import { fetchUserProfileFromDb, updateUserProfileInDb, isSupabaseConfigured, uploadAvatarToSupabaseStorage } from '../lib/supabase';
 
 interface UserDashboardProps {
   onBack: () => void;
@@ -169,10 +169,21 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     }
   };
 
-  const processFile = (file: File) => {
+  const processFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       alert('Por favor, envie apenas arquivos de imagem.');
       return;
+    }
+
+    if (isSupabaseConfigured) {
+      const emailOrId = email || name || 'user';
+      const storageUrl = await uploadAvatarToSupabaseStorage(file, emailOrId);
+      if (storageUrl) {
+        setAvatarUrl(storageUrl);
+        localStorage.setItem('vagou_user_avatar', storageUrl);
+        hapticLight();
+        return;
+      }
     }
     
     const reader = new FileReader();
@@ -235,7 +246,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       
       hapticSuccess();
       setIsSavedSuccessfully(true);
-      setTimeout(() => setIsSavedSuccessfully(false), 3000);
+      try {
+        window.dispatchEvent(new Event('storage'));
+      } catch {}
+      setTimeout(() => {
+        setIsSavedSuccessfully(false);
+        onBack();
+      }, 600);
     } catch (err) {
       console.error('Erro ao salvar perfil:', err);
     } finally {
@@ -244,11 +261,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   };
 
   return (
-    <div className="w-full h-full flex flex-col min-h-0 bg-transparent">
+    <div className="w-full h-dvh max-h-dvh flex flex-col min-h-0 bg-transparent overflow-hidden">
       {/* CABEÇALHO UNIFICADO COM INDICADOR DE CONEXÃO AO BANCO */}
       <header className={`sticky top-0 z-40 px-4 py-3.5 flex items-center justify-between border-b ${
         isDark ? 'bg-slate-950/95 border-slate-900/60' : 'bg-white border-slate-200'
-      } backdrop-blur-md`}>
+      } backdrop-blur-md shrink-0`}>
         <button
           type="button"
           onClick={() => {
@@ -284,7 +301,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       </header>
 
       {/* CONTEÚDO ROLANTE */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-5 no-scrollbar">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 pb-28 space-y-5 no-scrollbar">
         
         {/* EDITAR FOTO / AVATAR (ÁREA DE UPLOAD E PRESETS) */}
         <div className={`p-4 rounded-[4px] border ${

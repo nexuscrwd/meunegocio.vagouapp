@@ -11,7 +11,7 @@ import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../utils/haptics';
 import { DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
 import { BookingAppointment, UserProfile, UserPersona, ClientSwapGovernance, SwapTargetQueueItem } from '../types';
-import { fetchUserProfileFromDb, updateUserProfileInDb, resolveTriadeAvatar } from '../lib/supabase';
+import { fetchUserProfileFromDb, updateUserProfileInDb, resolveTriadeAvatar, uploadAvatarToSupabaseStorage, isSupabaseConfigured } from '../lib/supabase';
 
 interface ProfileDrawerProps {
   isOpen: boolean;
@@ -19,6 +19,7 @@ interface ProfileDrawerProps {
   userName?: string;
   userAvatarUrl?: string;
   onUpdateUserName?: (name: string) => void;
+  onUpdateUserAvatar?: (avatarUrl: string) => void;
   onNavigateToSchedule?: () => void;
   onNavigateTab?: (tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades') => void;
   salonName?: string;
@@ -125,6 +126,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   userName = 'Usuário',
   userAvatarUrl = DEFAULT_FACE_CLIPART_AVATAR,
   onUpdateUserName,
+  onUpdateUserAvatar,
   onNavigateToSchedule,
   onNavigateTab,
   salonName = 'Meu Estabelecimento',
@@ -244,6 +246,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         if (dbProfile.phone) localStorage.setItem('vagou_user_phone', dbProfile.phone);
         if (validAvatar) {
           localStorage.setItem('vagou_user_avatar', validAvatar);
+          onUpdateUserAvatar?.(validAvatar);
         } else {
           localStorage.removeItem('vagou_user_avatar');
         }
@@ -259,9 +262,22 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   const [savedSuccessToast, setSavedSuccessToast] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (isSupabaseConfigured) {
+      const emailOrId = profile.email || profile.name || 'user';
+      const storageUrl = await uploadAvatarToSupabaseStorage(file, emailOrId);
+      if (storageUrl) {
+        setProfile(prev => ({ ...prev, avatarUrl: storageUrl }));
+        try {
+          localStorage.setItem('vagou_user_avatar', storageUrl);
+        } catch {}
+        onUpdateUserAvatar?.(storageUrl);
+        return;
+      }
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -271,6 +287,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         try {
           localStorage.setItem('vagou_user_avatar', base64);
         } catch {}
+        onUpdateUserAvatar?.(base64);
       }
     };
     reader.readAsDataURL(file);
@@ -750,6 +767,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
       onUpdateUserName(profile.name.trim());
     }
 
+    if (onUpdateUserAvatar) {
+      onUpdateUserAvatar(profile.avatarUrl || '');
+    }
+
     // Sincronização direta com o Supabase (relacional + auth.users.user_metadata)
     await updateUserProfileInDb({
       name: profile.name,
@@ -763,9 +784,13 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     setIsSavingProfile(false);
     setIsEditing(false);
     setSavedSuccessToast(true);
+    try {
+      window.dispatchEvent(new Event('storage'));
+    } catch {}
     setTimeout(() => {
       setSavedSuccessToast(false);
-    }, 2500);
+      onClose();
+    }, 600);
   };
 
   // Fechar ao pressionar a tecla Escape
@@ -784,14 +809,14 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-xs transition-opacity animate-in fade-in duration-200 cursor-pointer"
+      className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-xs transition-opacity animate-in fade-in duration-200 cursor-pointer overflow-hidden"
       onClick={onClose}
       aria-modal="true"
       role="dialog"
     >
       {/* Container do Drawer com limite de largura mobile */}
       <div 
-        className={`w-full max-w-md h-full flex flex-col shadow-2xl transition-transform animate-in slide-in-from-right duration-250 cursor-default ${
+        className={`w-full max-w-md h-dvh max-h-dvh flex flex-col shadow-2xl transition-transform animate-in slide-in-from-right duration-250 cursor-default overflow-hidden ${
           isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
         }`}
         onClick={(e) => e.stopPropagation()}
@@ -851,7 +876,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         </div>
 
         {/* 2. CORPO DO DRAWER COM ROLAGEM */}
-        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain no-scrollbar p-4 pb-28 space-y-4">
           {/* TOAST DE FEEDBACK DE SALVAMENTO */}
           {savedSuccessToast && (
             <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded flex items-center gap-2.5 text-emerald-400 text-xs font-semibold animate-in fade-in slide-in-from-top-2">

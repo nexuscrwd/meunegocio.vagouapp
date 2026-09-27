@@ -38,7 +38,8 @@ import {
   fetchCompleteSalonData,
   updateSalonSettingsInDb,
   syncAllServicesToDb,
-  syncAllProfessionalsToDb
+  syncAllProfessionalsToDb,
+  fetchUserProfileFromDb
 } from '../lib/supabase';
 
 export interface SalonProfileViewProps {
@@ -202,11 +203,100 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const { isDark, accentColor, setAccentColor: setAccentColorContext } = useTheme();
   const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState<boolean>(false);
   const [currentUserName, setCurrentUserName] = useState<string>(userName);
+  const [currentUserAvatarUrl, setCurrentUserAvatarUrl] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('vagou_user_avatar');
+      if (saved && !saved.includes('unsplash.com')) return saved;
+    } catch {}
+    return userAvatarUrl || '';
+  });
   const [isCopied, setIsCopied] = useState<boolean>(false);
 
   React.useEffect(() => {
     setCurrentUserName(userName);
   }, [userName]);
+
+  React.useEffect(() => {
+    if (userAvatarUrl !== undefined) {
+      setCurrentUserAvatarUrl(userAvatarUrl);
+    }
+  }, [userAvatarUrl]);
+
+  // Sincronizar Avatar do Usuário com o Supabase (Tríade Sync)
+  React.useEffect(() => {
+    let isMounted = true;
+    async function syncAvatar() {
+      try {
+        const saved = localStorage.getItem('vagou_user_avatar');
+        if (saved && !saved.includes('unsplash.com')) {
+          if (isMounted) setCurrentUserAvatarUrl(saved);
+        }
+      } catch {}
+
+      if (!isSupabaseConfigured || !supabase) return;
+
+      try {
+        const savedEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
+        const savedName = localStorage.getItem('vagou_user_name') || currentUserName || '';
+
+        // 1. fetchUserProfileFromDb (Auth, Professionals, Salons, Clients, e fallback automático)
+        const profile = await fetchUserProfileFromDb({ email: savedEmail, name: savedName });
+        if (isMounted && profile?.avatarUrl && !profile.avatarUrl.includes('unsplash.com')) {
+          setCurrentUserAvatarUrl(profile.avatarUrl);
+          localStorage.setItem('vagou_user_avatar', profile.avatarUrl);
+          if (profile.name && profile.name !== 'Profissional' && profile.name !== 'Usuário') {
+            setCurrentUserName(profile.name);
+            localStorage.setItem('vagou_user_name', profile.name);
+          }
+          if (profile.email) {
+            localStorage.setItem('vagou_user_email', profile.email);
+          }
+          return;
+        }
+
+        // 2. professionals table explicitly
+        if (savedEmail) {
+          const { data: pro } = await (supabase.from('professionals') as any)
+            .select('avatar_url, name, phone')
+            .ilike('email', `%${savedEmail}%`)
+            .maybeSingle();
+
+          if (pro?.avatar_url && !pro.avatar_url.includes('unsplash.com')) {
+            if (isMounted) {
+              setCurrentUserAvatarUrl(pro.avatar_url);
+              localStorage.setItem('vagou_user_avatar', pro.avatar_url);
+            }
+            return;
+          }
+        }
+
+        // 3. clients table explicitly
+        if (savedEmail) {
+          const { data: client } = await (supabase.from('clients') as any)
+            .select('avatar_url, name, phone')
+            .ilike('email', `%${savedEmail}%`)
+            .maybeSingle();
+
+          if (client?.avatar_url && !client.avatar_url.includes('unsplash.com')) {
+            if (isMounted) {
+              setCurrentUserAvatarUrl(client.avatar_url);
+              localStorage.setItem('vagou_user_avatar', client.avatar_url);
+            }
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao sincronizar avatar do Supabase:', err);
+      }
+    }
+
+    syncAvatar();
+    window.addEventListener('storage', syncAvatar);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('storage', syncAvatar);
+    };
+  }, [currentUserName]);
   const [isLoginPinModalOpen, setIsLoginPinModalOpen] = useState<boolean>(false);
 
   // Personalidade Ativa: 'cliente' | 'pro' (mapeando legados 'profissional'/'admin' para 'pro')
@@ -1421,9 +1511,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               title={`Perfil de ${currentUserName}`}
               aria-label="Perfil do Usuário"
             >
-              {userAvatarUrl && !userAvatarUrl.startsWith('data:image/svg+xml') ? (
+              {currentUserAvatarUrl && !currentUserAvatarUrl.startsWith('data:image/svg+xml') && !currentUserAvatarUrl.includes('unsplash.com') ? (
                 <img
-                  src={userAvatarUrl}
+                  src={currentUserAvatarUrl}
                   alt={currentUserName}
                   className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
@@ -2388,8 +2478,18 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         isOpen={isProfileDrawerOpen}
         onClose={() => setIsProfileDrawerOpen(false)}
         userName={currentUserName}
-        userAvatarUrl={userAvatarUrl}
+        userAvatarUrl={currentUserAvatarUrl}
         onUpdateUserName={(newName) => setCurrentUserName(newName)}
+        onUpdateUserAvatar={(newAvatar) => {
+          setCurrentUserAvatarUrl(newAvatar);
+          try {
+            if (newAvatar) {
+              localStorage.setItem('vagou_user_avatar', newAvatar);
+            } else {
+              localStorage.removeItem('vagou_user_avatar');
+            }
+          } catch {}
+        }}
         onNavigateToSchedule={() => handleSelectTab('vagas')}
         onNavigateTab={handleSelectTab}
         salonName={salonInfo.name}
