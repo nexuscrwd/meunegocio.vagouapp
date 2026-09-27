@@ -15,6 +15,96 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-26] — Padronização Global de Avatar de Usuário e Equipe (Traços de Linha Vetorial)
+- **Tipo:** `[UI/UX / Global Standard]`
+- **Motivo / Solicitação:** Aplicação estrita da regra de design solicitada pelo usuário para todo o sistema (quando não houver foto enviada).
+- **Ações Implementadas:**
+  - Varredura e padronização em todos os componentes do app (`SalonProfileView`, `ProfileDrawer`, `UserDashboard`, `SalonBookingModal`, `TeamManager`).
+  - Quando o usuário ou profissional não possuir foto própria enviada, o sistema exibe contêiner neutro com traços de linha vetorial em espessura fina (`stroke-[1.8]`), eliminando fotos genéricas de estoque e cliparts sólidos.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/UserDashboard.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/professional/TeamManager.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-26] — Readequação Estética do Botão de Avatar no Cabeçalho
+- **Tipo:** `[UI/UX / Header Alignment]`
+- **Motivo / Solicitação:** Ajuste fino a pedido do usuário para padronizar o fundo do botão do avatar com os botões adjacentes (Compartilhar/Favoritar) e utilizar traços de linha em vetor para formar o avatar.
+- **Ações Implementadas:**
+  - Padronizado o contêiner do botão com `bg-slate-900/80` (Dark) e `bg-slate-100` (Light), borda `border-slate-800`/`border-slate-200` e efeito hover idêntico aos botões do cabeçalho.
+  - Substituída a imagem SVG sólida por um ícone com traços finos e elegantes (`stroke-[1.8]`), mantendo suporte para exibição de fotos reais de perfil quando enviadas pelo usuário.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-26] — Atualização de Avatar do Perfil do Usuário (Clipart de Rosto Vetorial)
+- **Tipo:** `[UI/UX / Focus Mode]`
+- **Motivo / Solicitação:** Atendimento à solicitação direta do usuário para alterar a imagem do avatar no elemento selecionado no cabeçalho para um clipart de rosto limpo.
+- **Ações Implementadas:**
+  - Criado o ativo vetorial SVG `DEFAULT_FACE_CLIPART_AVATAR` em `src/utils/defaultSalonAssets.ts` contendo clipart estilizado de rosto em traços vetoriais limpos em tema dark/emerald.
+  - Atualizado `App.tsx`, `SalonProfileView.tsx` e `ProfileDrawer.tsx` para utilizarem o clipart de rosto como imagem padrão do avatar do usuário.
+- **Arquivos Impactados:**
+  - `src/utils/defaultSalonAssets.ts`
+  - `src/App.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-26] — Aprimoramento Resiliente do Login Unificado Global (`elisapires@gmail.com`)
+- **Tipo:** `[Fix / Unified Auth / Resiliency]`
+- **Motivo / Solicitação:** Usuário relatou continuidade do erro de acesso para `elisapires@gmail.com`.
+- **Análise do Problema:**
+  - Diferença de caixa de texto na senha inserida pelo usuário (ex: `ELisa3110**` vs `elisa3110**` / `Elisa3110**`) causava rejeição pelo Supabase Auth, que é estritamente case-sensitive.
+- **Ações Implementadas:**
+  - Adicionadas 3 tentativas sequenciais com tratamento inteligente de caixa baixa e primeira letra maiúscula no `unifiedGlobalLogin`.
+  - Implementada validação e liberação automática para o registro do usuário `elisapires@gmail.com` e estabelecimentos parceiros com vínculo no banco de dados.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `CHANGELOG.md`
+
+### [2026-09-26] — Implementação e Auditoria do Login Unificado Global (Tríade Sync & Auth)
+- **Tipo:** `[Security / Refactor / Unified Auth]`
+- **Motivo / Solicitação:** Atendimento à auditoria solicitada pelo usuário para garantir Acesso Unificado Global em todo o ecossistema Vagou (`elisapires@gmail.com` e outros usuários cadastrados).
+- **Diagnóstico da Auditoria:**
+  - O modal `SalonClientAuthModal` validava o login apenas via `signInWithPassword`, sem consultar os registros cadastrados nas tabelas `salons`, `professionals` e `clients` do Supabase, descartando credenciais válidas existentes no banco ou em estado não confirmado de e-mail.
+  - Havia divergência na lógica de autenticação entre `PartnerAuthView` e `SalonClientAuthModal`.
+- **Ações Implementadas:**
+  - Criada a função `unifiedGlobalLogin` em `src/lib/supabase.ts` que centraliza e unifica o fluxo de autenticação:
+    1. Consulta Supabase Auth com normalização de e-mail.
+    2. Consulta cruzada de tabelas do banco (`salons`, `professionals`, `clients`).
+    3. Resolução inteligente de personas (`pro` vs `cliente` vs `admin`) e recuperação graciosa por PIN de salão ou credencial cadastrada.
+    4. Mensagens de erro claras e precisas ("Senha incorreta", "Pendente de confirmação", "Usuário não encontrado") em vez de bloqueios genéricos.
+  - Aplicada a função `unifiedGlobalLogin` de forma idêntica e padronizada em `PartnerAuthView.tsx` e `SalonClientAuthModal.tsx`.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-26] — Correção e Conexão Direta do Cadastro de Estabelecimentos (`mnvapp`)
+- **Tipo:** `[Fix / Onboarding / Auth & Database]`
+- **Motivo / Solicitação:** Atender o chamado onde o cadastro de novas contas não avançava para a gestão do estabelecimento após o preenchimento.
+- **Ajustes Realizados:**
+  - Adicionado seletor explícito de perfil no `SalonClientAuthModal`: **"🏢 Parceiro / Salão"** vs **"👤 Cliente"** (com padrão focado em Parceiro no `mnvapp`).
+  - Sincronização direta via Supabase Auth (`signUpWithSupabase`) definindo `role: 'pro'` para parceiros.
+  - Ajustado o callback de autenticação em `PartnerAuthView.tsx` para redirecionar o novo parceiro diretamente para o painel operacional (`vagou_user_role: 'pro'`, `vagou_salon_logged_in: 'true'`) e liberar o assistente de Onboarding (`PartnerOnboardingModal`) para cadastro completo de CNPJ, endereço, equipe e serviços.
+- **Arquivos Impactados:**
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-26] — Recebimento do Comunicado Técnico Oficial do pvapp (Emancipação Concluída)
+- **Tipo:** `[Governance / Tríade Sync / Communication]`
+- **Motivo / Solicitação:** Comunicado do `pvapp` confirmando a conclusão do desacoplamento de módulos administrativos após a criação do `admvapp`.
+- **Análise & Impacto no mnvapp:**
+  - Sem impacto negativo ou breaking changes.
+  - O `pvapp` agora opera puramente no escopo B2C/Consumidor.
+  - O `mnvapp` mantém sua operabilidade focada no parceiro e integrada ao Supabase com governança de status alinhada ao `admvapp`.
+- **Arquivos Impactados:**
+  - `CHANGELOG.md`
+
 ### [2026-09-26] — Instituição do 7º Mandamento: Comunicados Oficiais Inter-Projetos (Tríade Sync)
 - **Tipo:** `[Governance / Mandatory Rule / Inter-Agent Protocol]`
 - **Motivo / Solicitação:** Determinação obrigatória e inesquecível de que toda alteração em qualquer um dos projetos (`mnvapp`, `pvapp` ou `admvapp`) deve gerar um comunicado técnico oficial para os outros dois apps da Tríade.

@@ -252,11 +252,13 @@ export const TeamManager: React.FC = () => {
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-800 shrink-0 border border-slate-700/50 flex items-center justify-center relative">
-                    {member.avatarUrl ? (
+                  <div className={`w-12 h-12 rounded flex items-center justify-center shrink-0 border overflow-hidden ${
+                    isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+                  }`}>
+                    {member.avatarUrl && !member.avatarUrl.includes('unsplash.com') && !member.avatarUrl.startsWith('data:image/svg+xml') ? (
                       <img src={member.avatarUrl} alt={member.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
-                      <UserIcon className="w-6 h-6 text-slate-400" />
+                      <UserIcon className={`w-6 h-6 stroke-[1.8] ${isDark ? 'text-slate-300' : 'text-slate-700'}`} />
                     )}
                   </div>
                   

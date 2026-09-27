@@ -23,7 +23,7 @@ import { SalonCustomizationHub } from './professional/SalonCustomizationHub';
 import { UtilitiesAndToolsView } from './professional/UtilitiesAndToolsView';
 import { useTheme } from '../context/ThemeContext';
 import { getSalonLogo } from '../utils/salonLogos';
-import { DEFAULT_ROTA99_LOGO_DARK, DEFAULT_ROTA99_LOGO_LIGHT, DEFAULT_ROTA99_ICON } from '../utils/defaultSalonAssets';
+import { DEFAULT_ROTA99_LOGO_DARK, DEFAULT_ROTA99_LOGO_LIGHT, DEFAULT_ROTA99_ICON, DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
 import { updateDynamicPwaAssets } from '../utils/pwaAssets';
 import { BottomNav } from './BottomNav';
 import { ProfileDrawer } from './ProfileDrawer';
@@ -1300,17 +1300,22 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             </button>
           )}
 
-          {/* Foto do Usuário / Abrir Perfil */}
+          {/* Foto / Ícone do Usuário (Abrir Perfil) */}
           <button
+            type="button"
             onClick={() => {
               hapticLight();
               setIsProfileDrawerOpen(true);
             }}
-            className="relative flex items-center justify-center shrink-0 w-8 h-8 sm:w-9.5 sm:h-9.5 rounded overflow-hidden ring-1.5 ring-emerald-500 hover:ring-emerald-400 active:scale-95 transition shadow-xs bg-slate-800 cursor-pointer"
+            className={`group w-8 h-8 sm:w-9.5 sm:h-9.5 rounded flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 overflow-hidden ${
+              isDark
+                ? 'bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40'
+                : 'bg-slate-100 hover:bg-slate-200 border border-slate-200 shadow-xs hover:border-emerald-500/40'
+            }`}
             title={`Perfil de ${currentUserName}`}
             aria-label="Perfil do Usuário"
           >
-            {userAvatarUrl ? (
+            {userAvatarUrl && !userAvatarUrl.includes('unsplash.com') && !userAvatarUrl.startsWith('data:image/svg+xml') ? (
               <img
                 src={userAvatarUrl}
                 alt={currentUserName}
@@ -1318,9 +1323,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <div className="w-full h-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300">
-                {currentUserName ? currentUserName.charAt(0).toUpperCase() : 'U'}
-              </div>
+              <User className={`w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[1.8] ${isDark ? 'text-slate-300 group-hover:text-emerald-400' : 'text-slate-700 group-hover:text-emerald-600'} transition-colors`} />
             )}
           </button>
         </div>

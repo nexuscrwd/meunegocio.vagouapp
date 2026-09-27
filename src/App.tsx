@@ -5,6 +5,7 @@ import { UserDashboard } from './components/UserDashboard';
 import { PartnerAuthView, PartnerAuthSuccessData } from './components/PartnerAuthView';
 import { ServiceOffer, BookingAppointment } from './types';
 import { initializeStoredPwaAssets } from './utils/pwaAssets';
+import { DEFAULT_FACE_CLIPART_AVATAR } from './utils/defaultSalonAssets';
 import { 
   ThemeContext, 
   ThemeProvider, 
@@ -43,7 +44,9 @@ export const App: React.FC = () => {
     return localStorage.getItem('vagou_user_name') || 'Profissional';
   });
   const [userAvatarUrl, setUserAvatarUrl] = useState(() => {
-    return localStorage.getItem('vagou_user_avatar') || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80';
+    const saved = localStorage.getItem('vagou_user_avatar');
+    if (saved && !saved.includes('unsplash.com')) return saved;
+    return DEFAULT_FACE_CLIPART_AVATAR;
   });
   const [appointments, setAppointments] = useState<BookingAppointment[]>([]);
   const [offers, setOffers] = useState<ServiceOffer[]>(EMPTY_OFFERS);

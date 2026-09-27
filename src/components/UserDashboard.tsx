@@ -208,12 +208,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                     : 'border-slate-300 hover:border-emerald-500 bg-slate-100 shadow-2xs'
               }`}
             >
-              <img 
-                src={avatarUrl || PRESET_AVATARS[0]} 
-                alt="Foto do Perfil" 
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover"
-              />
+              {avatarUrl && !avatarUrl.includes('unsplash.com') && !avatarUrl.startsWith('data:image/svg+xml') ? (
+                <img 
+                  src={avatarUrl} 
+                  alt="Foto do Perfil" 
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <User className={`w-10 h-10 stroke-[1.8] ${isDark ? 'text-slate-300 group-hover:text-emerald-400' : 'text-slate-700 group-hover:text-emerald-600'} transition-colors`} />
+              )}
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center text-white">
                 <Upload className="w-4 h-4 text-emerald-400 mb-1" />
                 <span className="text-[9px] font-bold text-slate-300 uppercase">Enviar</span>

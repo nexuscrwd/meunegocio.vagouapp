@@ -10,7 +10,8 @@ import {
   signInWithSupabase, 
   supabase,
   isSupabaseConfigured,
-  syncSalonDataToSupabase
+  syncSalonDataToSupabase,
+  unifiedGlobalLogin
 } from '../lib/supabase';
 import { SalonClientAuthModal, SalonClientAuthUser } from './SalonClientAuthModal';
 
@@ -102,123 +103,43 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
     return 'Estabelecimento';
   })();
 
-  // Autenticação Real Consultando o Banco Supabase Auth e Banco de Dados
+  // Autenticação Real Consultando o Banco Supabase Auth e Banco de Dados (Global Login)
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     setIsLoggingIn(true);
     hapticLight();
 
-    const cleanUser = loginUser.trim().toLowerCase();
-    const cleanPass = loginPassword.trim();
-
     try {
-      // 1. Tentar autenticação via Supabase Auth
-      let supabaseUser: any = null;
-      if (isSupabaseConfigured && supabase) {
-        try {
-          const { data: authData, error: authErr } = await signInWithSupabase(cleanUser, cleanPass);
-          if (!authErr && authData?.user) {
-            supabaseUser = authData.user;
-          }
-        } catch {}
-      }
+      const result = await unifiedGlobalLogin(loginUser, loginPassword);
 
-      // 2. Consultar o banco de dados no Supabase para validar credencial do salão
-      let matchedSalonFromDb: any = null;
-      let matchedProfessionalFromDb: any = null;
-      let matchedClientFromDb: any = null;
-
-      if (isSupabaseConfigured && supabase) {
-        try {
-          // Busca o salão no banco
-          const { data: salons } = await (supabase.from('salons') as any)
-            .select('*')
-            .or(`email.ilike.%${cleanUser}%,slug.eq.${cleanUser},phone_whatsapp.ilike.%${cleanUser}%${supabaseUser?.id ? `,owner_id.eq.${supabaseUser.id}` : ''}`);
-          
-          if (salons && salons.length > 0) {
-            // Valida se a senha bate com a cadastrada no banco ou senha auth
-            const salon = salons[0];
-            const salonPin = salon.pin_code || '31101500';
-            if (cleanPass === salonPin || supabaseUser) {
-              matchedSalonFromDb = salon;
-            }
-          }
-        } catch (dbErr) {
-          console.warn('Erro ao consultar salão no banco:', dbErr);
-        }
-
-        try {
-          // Busca profissional no banco
-          const { data: pros } = await (supabase.from('professionals') as any)
-            .select('*')
-            .or(`email.ilike.%${cleanUser}%,phone.ilike.%${cleanUser}%${supabaseUser?.id ? `,user_id.eq.${supabaseUser.id}` : ''}`);
-          if (pros && pros.length > 0 && supabaseUser) {
-            matchedProfessionalFromDb = pros[0];
-          }
-        } catch {}
-
-        try {
-          // Busca cliente no banco
-          const { data: clients } = await (supabase.from('clients') as any)
-            .select('*')
-            .or(`email.ilike.%${cleanUser}%,phone.ilike.%${cleanUser}%${supabaseUser?.id ? `,user_id.eq.${supabaseUser.id}` : ''}`);
-          if (clients && clients.length > 0) {
-            matchedClientFromDb = clients[0];
-          }
-        } catch {}
-      }
-
-      // 3. Fallback mestre de segurança
-      const isMasterAdmin = (cleanUser === 'anderson' || cleanUser === 'anderson.hpires@gmail.com' || cleanUser === 'admin') && 
-                            (cleanPass === '31101500' || cleanPass === 'Ae311015@');
-
-      // A) Se for autenticado no banco como salão / admin:
-      if ((matchedSalonFromDb || matchedProfessionalFromDb || isMasterAdmin)) {
-        hapticSuccess();
-        const proName = matchedSalonFromDb?.trade_name || matchedSalonFromDb?.legal_name || matchedProfessionalFromDb?.name || 'Administrador';
-        const salonDisplayName = matchedSalonFromDb?.trade_name || currentDisplaySalonName || 'Meu Negócio';
-        const salonSlug = matchedSalonFromDb?.slug || 'meu-negocio';
-
-        localStorage.setItem('vagou_salon_logged_in', 'true');
-        localStorage.setItem('vagou_current_persona', 'pro');
-        localStorage.setItem('vagou_user_role', 'pro');
-        localStorage.setItem('vagou_active_partner', loginUser);
-        localStorage.setItem('vagou_user_name', proName);
-        localStorage.setItem('vagou_salon_name', salonDisplayName);
-        localStorage.setItem('vagou_salon_slug', salonSlug);
-        localStorage.setItem('vagou_dashboard_logged_pro_name', proName);
-
-        if (matchedSalonFromDb) {
-          localStorage.setItem('vagou_custom_salon_data', JSON.stringify(matchedSalonFromDb));
-        }
-
+      if (!result.success) {
+        hapticMedium();
         setIsLoggingIn(false);
-        onSuccess(matchedSalonFromDb ? { salonName: salonDisplayName, slug: salonSlug } as any : undefined, 'pro');
+        setLoginError(result.errorMessage || 'Credenciais incorretas. Confira seu usuário e senha.');
         return;
       }
 
-      // B) Se autenticado no Supabase com sucesso, mas NÃO possui salão ou equipe (Opção 1):
-      if (supabaseUser) {
-        hapticLight();
-        setIsLoggingIn(false);
-        const resolvedName = supabaseUser.user_metadata?.name || 
-                             matchedClientFromDb?.name || 
-                             (cleanUser.includes('@') ? cleanUser.split('@')[0].replace(/[._]/g, ' ') : cleanUser);
-        
-        const formattedName = resolvedName.charAt(0).toUpperCase() + resolvedName.slice(1);
-        setNoSalonUser({
-          name: formattedName,
-          email: cleanUser,
-          userObj: supabaseUser
-        });
-        return;
+      hapticSuccess();
+      const proName = result.userName || 'Administrador';
+      const salonDisplayName = result.salonName || currentDisplaySalonName || 'Meu Negócio';
+      const salonSlug = result.salonSlug || 'meu-negocio';
+
+      localStorage.setItem('vagou_salon_logged_in', result.role === 'pro' ? 'true' : 'false');
+      localStorage.setItem('vagou_current_persona', result.persona);
+      localStorage.setItem('vagou_user_role', result.role);
+      localStorage.setItem('vagou_active_partner', result.userEmail || loginUser);
+      localStorage.setItem('vagou_user_name', proName);
+      localStorage.setItem('vagou_salon_name', salonDisplayName);
+      localStorage.setItem('vagou_salon_slug', salonSlug);
+      localStorage.setItem('vagou_dashboard_logged_pro_name', proName);
+
+      if (result.salonData) {
+        localStorage.setItem('vagou_custom_salon_data', JSON.stringify(result.salonData));
       }
 
-      // C) Se não corresponde a nenhuma credencial válida: bloqueio
-      hapticMedium();
       setIsLoggingIn(false);
-      setLoginError('Credenciais incorretas. Confira seu usuário e senha.');
+      onSuccess({ salonName: salonDisplayName, slug: salonSlug }, result.role);
     } catch (err: any) {
       hapticMedium();
       setIsLoggingIn(false);
@@ -845,15 +766,29 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
         salonName={currentDisplaySalonName}
         salonLogo={salonLogo}
         primaryColor="#00a033"
-        onAuthenticated={(user: SalonClientAuthUser) => {
+        onAuthenticated={(user: SalonClientAuthUser, role?: 'pro' | 'cliente') => {
           setIsClientRegisterModalOpen(false);
           hapticSuccess();
-          localStorage.setItem('vagou_salon_logged_in', 'false');
-          localStorage.setItem('vagou_current_persona', 'cliente');
-          localStorage.setItem('vagou_user_role', 'cliente');
-          if (user.name) localStorage.setItem('vagou_user_name', user.name);
-          if (user.email) localStorage.setItem('vagou_active_partner', user.email);
-          onSuccess(undefined, 'cliente');
+          const targetRole = role || 'pro';
+          if (targetRole === 'pro') {
+            localStorage.setItem('vagou_salon_logged_in', 'true');
+            localStorage.setItem('vagou_current_persona', 'pro');
+            localStorage.setItem('vagou_user_role', 'pro');
+            if (user.name) localStorage.setItem('vagou_user_name', user.name);
+            if (user.email) localStorage.setItem('vagou_active_partner', user.email);
+            const userSlug = `espaco-${user.name.toLowerCase().replace(/\s+/g, '-')}-${Math.floor(1000 + Math.random() * 9000)}`;
+            const userSalonName = `Espaço ${user.name}`;
+            localStorage.setItem('vagou_salon_name', userSalonName);
+            localStorage.setItem('vagou_salon_slug', userSlug);
+            onSuccess({ salonName: userSalonName, slug: userSlug }, 'pro');
+          } else {
+            localStorage.setItem('vagou_salon_logged_in', 'false');
+            localStorage.setItem('vagou_current_persona', 'cliente');
+            localStorage.setItem('vagou_user_role', 'cliente');
+            if (user.name) localStorage.setItem('vagou_user_name', user.name);
+            if (user.email) localStorage.setItem('vagou_active_partner', user.email);
+            onSuccess(undefined, 'cliente');
+          }
         }}
       />
 

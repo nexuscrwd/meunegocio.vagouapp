@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../utils/haptics';
+import { DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
 import { BookingAppointment, UserProfile, UserPersona, ClientSwapGovernance, SwapTargetQueueItem } from '../types';
 
 interface ProfileDrawerProps {
@@ -120,7 +121,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   isOpen,
   onClose,
   userName = 'Usuário',
-  userAvatarUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+  userAvatarUrl = DEFAULT_FACE_CLIPART_AVATAR,
   onUpdateUserName,
   onNavigateToSchedule,
   onNavigateTab,
@@ -778,8 +779,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
               }`}>
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded overflow-hidden ring-2 ring-emerald-500 shrink-0 bg-slate-800 flex items-center justify-center">
-                    {userAvatarUrl ? (
+                  <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded flex items-center justify-center shrink-0 border overflow-hidden ${
+                    isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+                  }`}>
+                    {userAvatarUrl && !userAvatarUrl.includes('unsplash.com') && !userAvatarUrl.startsWith('data:image/svg+xml') ? (
                       <img 
                         src={userAvatarUrl} 
                         alt={profile.name} 
@@ -787,9 +790,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         referrerPolicy="no-referrer"
                       />
                     ) : (
-                      <span className="text-base font-bold text-white">
-                        {profile.name ? profile.name.charAt(0).toUpperCase() : 'U'}
-                      </span>
+                      <User className={`w-6 h-6 stroke-[1.8] ${isDark ? 'text-slate-300' : 'text-slate-700'}`} />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">

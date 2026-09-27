@@ -729,7 +729,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                             : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
                         }`}
                       >
-                        {prof.avatar ? (
+                        {prof.avatar && !prof.avatar.includes('unsplash.com') && !prof.avatar.startsWith('data:image/svg+xml') ? (
                           <img
                             src={prof.avatar}
                             alt={prof.name}
@@ -737,8 +737,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                             referrerPolicy="no-referrer"
                           />
                         ) : (
-                          <div className="w-6 h-6 rounded bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-300 ring-1 ring-emerald-500/30 flex-shrink-0">
-                            {prof.name ? prof.name.charAt(0).toUpperCase() : 'P'}
+                          <div className={`w-6 h-6 rounded flex items-center justify-center shrink-0 border ${
+                            isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+                          }`}>
+                            <User className={`w-3.5 h-3.5 stroke-[1.8] ${isDark ? 'text-slate-300' : 'text-slate-700'}`} />
                           </div>
                         )}
                         <div className="min-w-0">
