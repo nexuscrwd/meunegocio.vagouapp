@@ -15,6 +15,15 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — Remoção de Botões Redundantes de Caixa e Agenda no Menu Lateral (Focus Mode)
+- **Tipo:** `[UI Cleanup / Focus Mode]`
+- **Motivo / Solicitação:** Remoção das opções repetidas de "Caixa" e "Agenda Geral" do menu gaveta de perfil (`ProfileDrawer.tsx`), mantendo a navegação limpa, já que ambos já estão disponíveis na barra fixa inferior (`BottomNav.tsx`).
+- **Ações Implementadas:**
+  - `ProfileDrawer.tsx`: Removidos os botões `menu-option-caixa` e `menu-option-agenda-admin`.
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-27] — Busca e Fallback Automático da Foto Real do Usuário no Supabase
 - **Tipo:** `[Fix / Automatic Avatar Discovery]`
 - **Motivo / Solicitação:** Garantir que quando o `localStorage` não possuir o e-mail preenchido ou possuir nomes genéricos ("Profissional"/"Usuário"), a aplicação consulte o banco de dados Supabase e recupere automaticamente o registro mais recente com `avatar_url` gravado (Elisa Pires), exibindo a foto no cabeçalho imediatamente.
