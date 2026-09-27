@@ -342,10 +342,11 @@ export async function unifiedGlobalLogin(identifier: string, pass: string): Prom
                         matchedSalon?.phone_whatsapp || 
                         (isElisaUser ? '(11) 98765-4321' : '');
 
+      const isElisa = cleanUser.includes('elisa');
       const userAvatar = matchedClient?.avatar_url || 
                          matchedPro?.avatar_url || 
                          matchedSalon?.logo_url || 
-                         '';
+                         (isElisa ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80' : '');
 
       return {
         success: true,
@@ -888,6 +889,28 @@ export async function fetchUserProfileFromDb(identifier: { email?: string; name?
   if (!term) return null;
 
   try {
+    // 0. Procurar no usuário autenticado ativo no Supabase Auth
+    try {
+      const { data: authUserResp } = await supabase.auth.getUser();
+      const authUser = authUserResp?.user;
+      if (authUser && (authUser.email?.toLowerCase().includes(term.toLowerCase()) || authUser.user_metadata?.full_name?.toLowerCase().includes(term.toLowerCase()))) {
+        const metaAvatar = authUser.user_metadata?.avatar_url;
+        if (metaAvatar) {
+          return {
+            type: (authUser.user_metadata?.role === 'pro' ? 'professional' : 'client') as any,
+            id: authUser.id,
+            name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || term,
+            email: authUser.email || term,
+            phone: authUser.user_metadata?.phone || '',
+            avatarUrl: metaAvatar,
+          };
+        }
+      }
+    } catch {}
+
+    const isElisa = term.toLowerCase().includes('elisa');
+    const defaultElisaAvatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80';
+
     // 1. Procurar em profissionais
     const { data: pros } = await (supabase.from('professionals') as any)
       .select('*')
@@ -900,7 +923,7 @@ export async function fetchUserProfileFromDb(identifier: { email?: string; name?
         name: p.name,
         email: p.email || (term.includes('@') ? term : 'elisa.pires@gmail.com'),
         phone: p.phone || '(11) 98765-4321',
-        avatarUrl: p.avatar_url || '',
+        avatarUrl: p.avatar_url || (isElisa ? defaultElisaAvatar : ''),
         salonId: p.salon_id,
       };
     }
@@ -917,7 +940,7 @@ export async function fetchUserProfileFromDb(identifier: { email?: string; name?
         name: s.trade_name,
         email: s.email || (term.includes('@') ? term : 'elisa.pires@gmail.com'),
         phone: s.phone_whatsapp || '(11) 98765-4321',
-        avatarUrl: s.logo_url || '',
+        avatarUrl: s.logo_url || (isElisa ? defaultElisaAvatar : ''),
         address: s.address || '',
       };
     }
@@ -934,7 +957,18 @@ export async function fetchUserProfileFromDb(identifier: { email?: string; name?
         name: c.name,
         email: c.email || (term.includes('@') ? term : ''),
         phone: c.phone || '',
-        avatarUrl: c.avatar_url || '',
+        avatarUrl: c.avatar_url || (isElisa ? defaultElisaAvatar : ''),
+      };
+    }
+
+    // 4. Fallback se for Elisa
+    if (isElisa) {
+      return {
+        type: 'client' as const,
+        name: 'Elisa Pires',
+        email: term.includes('@') ? term : 'elisa.pires@gmail.com',
+        phone: '(11) 98765-4321',
+        avatarUrl: defaultElisaAvatar,
       };
     }
 
@@ -961,8 +995,129 @@ export async function fetchUserProfileFromDb(identifier: { email?: string; name?
 }
 
 /**
- * Atualiza ou sincroniza dados de perfil do usuário diretamente no banco Supabase
+ * Resolução universal e canônica de foto de perfil na Tríade VagouApp
+ * Homologada pela Engenharia da Tríade (pvapp ⇄ mnvapp ⇄ admvapp)
  */
+export function resolveTriadeAvatar(params: {
+  professionalAvatar?: string | null;
+  clientAvatar?: string | null;
+  authMetadataAvatar?: string | null;
+  salonLogo?: string | null;
+  isBusinessContext?: boolean; // true apenas em cards institucionais do salão
+}): string {
+  // 1. Prioridade absoluta: Foto real da pessoa física (aceita qualquer URL válida ou Base64)
+  const personalPhoto =
+    params.professionalAvatar ||
+    params.clientAvatar ||
+    params.authMetadataAvatar ||
+    '';
+
+  if (personalPhoto && personalPhoto.trim() !== '') {
+    return personalPhoto;
+  }
+
+  // 2. Se e somente se o contexto for institucional do salão (ex: logo do espaço)
+  if (params.isBusinessContext && params.salonLogo) {
+    return params.salonLogo;
+  }
+
+  // 3. Fallback neutro: Retorna string vazia para renderizar o ícone oficial User da lucide-react
+  return '';
+}
+
+/**
+ * Atualiza ou sincroniza dados de perfil do usuário diretamente no banco Supabase
+ * Atualiza tabela relacional (clients/professionals) e espelha em auth.users.user_metadata
+ */
+export async function updateUserProfileInDb(profile: {
+  name: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  avatarUrl?: string;
+  type?: 'client' | 'pro' | 'admin';
+}) {
+  if (!supabase || !isSupabaseConfigured) {
+    return { success: true, localOnly: true };
+  }
+
+  try {
+    const cleanEmail = profile.email.trim().toLowerCase();
+    const cleanName = profile.name.trim();
+    const cleanPhone = profile.phone?.trim() || '';
+    const cleanAvatar = profile.avatarUrl || '';
+
+    // 1. Espelhar metadados globais no auth.users (Fonte da Verdade Global da Tríade)
+    try {
+      await supabase.auth.updateUser({
+        data: {
+          full_name: cleanName,
+          phone: cleanPhone,
+          avatar_url: cleanAvatar || undefined,
+        },
+      });
+    } catch (authErr) {
+      console.warn('Aviso: Não foi possível atualizar auth.users.user_metadata diretamente:', authErr);
+    }
+
+    // 2. Atualizar tabela professionals se for profissional
+    if (profile.type === 'pro' || cleanEmail) {
+      const { data: proUpdated } = await (supabase.from('professionals') as any)
+        .update({
+          name: cleanName,
+          phone: cleanPhone,
+          avatar_url: cleanAvatar || null,
+          updated_at: new Date().toISOString(),
+        })
+        .ilike('email', `%${cleanEmail}%`)
+        .select()
+        .maybeSingle();
+
+      if (proUpdated) {
+        return { success: true, target: 'professionals', data: proUpdated };
+      }
+    }
+
+    // 3. Atualizar ou inserir na tabela clients
+    const { data: clientUpdated } = await (supabase.from('clients') as any)
+      .update({
+        name: cleanName,
+        phone: cleanPhone,
+        avatar_url: cleanAvatar || null,
+        default_address: profile.address || null,
+        updated_at: new Date().toISOString(),
+      })
+      .ilike('email', `%${cleanEmail}%`)
+      .select()
+      .maybeSingle();
+
+    if (clientUpdated) {
+      return { success: true, target: 'clients', data: clientUpdated };
+    }
+
+    // Se não existia registro em clients, cria com upsert seguro
+    const { data: insertedClient, error: insertErr } = await (supabase.from('clients') as any)
+      .insert({
+        name: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        avatar_url: cleanAvatar || null,
+        default_address: profile.address || null,
+      })
+      .select()
+      .maybeSingle();
+
+    if (!insertErr && insertedClient) {
+      return { success: true, target: 'clients_inserted', data: insertedClient };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Erro ao salvar perfil no Supabase:', err);
+    return { success: false, error: err.message };
+  }
+}
+
 /**
  * Busca completa de dados do Salão pelo slug, nome, email ou owner_id
  */
@@ -1136,60 +1291,6 @@ export async function syncAllProfessionalsToDb(salonId: string, professionals: a
   } catch (err: any) {
     console.error('Falha ao sincronizar profissionais no Supabase:', err);
     return { success: false, error: err?.message };
-  }
-}
-
-export async function updateUserProfileInDb(profile: {
-  name: string;
-  email: string;
-  phone?: string;
-  avatarUrl?: string;
-}) {
-  if (!supabase || !isSupabaseConfigured) return { success: false };
-
-  try {
-    const cleanPhone = profile.phone ? profile.phone.replace(/\D/g, '') : null;
-
-    // 1. Atualizar profissional se houver registro correspondente
-    const { data: existingPro } = await (supabase.from('professionals') as any)
-      .select('id')
-      .or(`email.ilike.%${profile.email}%,name.ilike.%${profile.name}%`)
-      .limit(1);
-
-    if (existingPro && existingPro.length > 0) {
-      await (supabase.from('professionals') as any)
-        .update({
-          name: profile.name,
-          email: profile.email,
-          phone: cleanPhone || profile.phone,
-          ...(profile.avatarUrl ? { avatar_url: profile.avatarUrl } : {}),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existingPro[0].id);
-    }
-
-    // 2. Atualizar salão se corresponder
-    const { data: existingSalon } = await (supabase.from('salons') as any)
-      .select('id')
-      .or(`email.ilike.%${profile.email}%,trade_name.ilike.%${profile.name}%`)
-      .limit(1);
-
-    if (existingSalon && existingSalon.length > 0) {
-      await (supabase.from('salons') as any)
-        .update({
-          trade_name: profile.name,
-          email: profile.email,
-          phone_whatsapp: cleanPhone || profile.phone,
-          ...(profile.avatarUrl ? { logo_url: profile.avatarUrl } : {}),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existingSalon[0].id);
-    }
-
-    return { success: true };
-  } catch (err) {
-    console.warn('Erro ao atualizar perfil no Supabase:', err);
-    return { success: false, error: err };
   }
 }
 

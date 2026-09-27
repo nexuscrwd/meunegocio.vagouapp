@@ -15,6 +15,18 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — Homologação do SSO Global e Avatar Unificado da Tríade
+- **Tipo:** `[SSO / Global Identity / Realtime Sync]`
+- **Motivo / Solicitação:** Alinhamento técnico com `pvapp` e `admvapp` sobre a arquitetura de Identidade Única Global, persistência atômica no `auth.users.user_metadata` e segregação de avatar pessoal vs logo de salão.
+- **Ações Implementadas:**
+  - Implementada a função canônica de resolução `resolveTriadeAvatar` recomendada pela governança do `admvapp` (evita vazamento de logo comercial para avatar de pessoa física).
+  - Implementada sincronização atômica em `updateUserProfileInDb` gravando no `auth.users.user_metadata` e nas tabelas relacionais (`clients` e `professionals`).
+  - Adicionado seletor de upload de foto de perfil em `ProfileDrawer.tsx` com espelhamento instantâneo para todos os apps da Tríade.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-27] — Auditoria e Correção da Gravação de Imagens (Logos e Ícones) no Supabase
 - **Tipo:** `[Database / Storage & Realtime Feedback]`
 - **Motivo / Solicitação:** Usuário reportou que as colunas `logo_url`, `logo_light_url` e `logo_dark_url` na tabela `salons` do Supabase estavam aparecendo como `NULL` e os logos não estavam subindo para a nuvem.

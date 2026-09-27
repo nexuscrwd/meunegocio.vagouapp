@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, User, Mail, Phone, MapPin, Calendar, Clock, 
   Check, Moon, Sun, MessageCircle, MessageSquare, Send, ShieldCheck, 
   ChevronRight, ArrowRight, Sparkles, CheckCircle2, 
   Scissors, LayoutDashboard, Store, LogOut, Users, DollarSign, Wrench, Wallet,
-  ArrowLeftRight, AlertCircle, RotateCcw, Timer, Ban, HelpCircle, Info, Layers
+  ArrowLeftRight, AlertCircle, RotateCcw, Timer, Ban, HelpCircle, Info, Layers,
+  Camera, Upload
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../utils/haptics';
 import { DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
 import { BookingAppointment, UserProfile, UserPersona, ClientSwapGovernance, SwapTargetQueueItem } from '../types';
-import { fetchUserProfileFromDb } from '../lib/supabase';
+import { fetchUserProfileFromDb, updateUserProfileInDb, resolveTriadeAvatar } from '../lib/supabase';
 
 interface ProfileDrawerProps {
   isOpen: boolean;
@@ -235,10 +236,12 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
           name: dbProfile.name || prev.name,
           email: dbProfile.email || prev.email,
           phone: dbProfile.phone || prev.phone,
+          avatarUrl: dbProfile.avatarUrl || prev.avatarUrl,
         }));
         if (dbProfile.name) localStorage.setItem('vagou_user_name', dbProfile.name);
         if (dbProfile.email) localStorage.setItem('vagou_user_email', dbProfile.email);
         if (dbProfile.phone) localStorage.setItem('vagou_user_phone', dbProfile.phone);
+        if (dbProfile.avatarUrl) localStorage.setItem('vagou_user_avatar', dbProfile.avatarUrl);
       }
     }
 
@@ -247,7 +250,26 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   }, [isOpen, userName]);
 
   const [isEditing, setIsEditing] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [savedSuccessToast, setSavedSuccessToast] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      if (base64) {
+        setProfile(prev => ({ ...prev, avatarUrl: base64 }));
+        try {
+          localStorage.setItem('vagou_user_avatar', base64);
+        } catch {}
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Estado dos Agendamentos
   const [appointments, setAppointments] = useState<BookingAppointment[]>(() => {
@@ -704,17 +726,36 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     }));
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     hapticSuccess();
+    setIsSavingProfile(true);
+
     try {
       localStorage.setItem('vagou_user_profile', JSON.stringify(profile));
+      if (profile.name) localStorage.setItem('vagou_user_name', profile.name);
+      if (profile.email) localStorage.setItem('vagou_user_email', profile.email);
+      if (profile.phone) localStorage.setItem('vagou_user_phone', profile.phone);
+      if (profile.avatarUrl) localStorage.setItem('vagou_user_avatar', profile.avatarUrl);
     } catch {
       // ignore
     }
+
     if (onUpdateUserName && profile.name.trim()) {
       onUpdateUserName(profile.name.trim());
     }
+
+    // Sincronização direta com o Supabase (relacional + auth.users.user_metadata)
+    await updateUserProfileInDb({
+      name: profile.name,
+      email: profile.email,
+      phone: profile.phone,
+      address: profile.address,
+      avatarUrl: profile.avatarUrl,
+      type: currentPersona === 'profissional' ? 'pro' : currentPersona === 'admin' ? 'admin' : 'client',
+    });
+
+    setIsSavingProfile(false);
     setIsEditing(false);
     setSavedSuccessToast(true);
     setTimeout(() => {
@@ -825,9 +866,19 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded flex items-center justify-center shrink-0 border overflow-hidden ${
                     isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
                   }`}>
-                    {userAvatarUrl && !userAvatarUrl.includes('unsplash.com') && !userAvatarUrl.startsWith('data:image/svg+xml') ? (
+                    {resolveTriadeAvatar({
+                      professionalAvatar: currentPersona === 'profissional' ? (profile.avatarUrl || userAvatarUrl) : null,
+                      clientAvatar: currentPersona === 'cliente' ? (profile.avatarUrl || userAvatarUrl) : null,
+                      authMetadataAvatar: profile.avatarUrl || userAvatarUrl,
+                      isBusinessContext: false,
+                    }) ? (
                       <img 
-                        src={userAvatarUrl} 
+                        src={resolveTriadeAvatar({
+                          professionalAvatar: currentPersona === 'profissional' ? (profile.avatarUrl || userAvatarUrl) : null,
+                          clientAvatar: currentPersona === 'cliente' ? (profile.avatarUrl || userAvatarUrl) : null,
+                          authMetadataAvatar: profile.avatarUrl || userAvatarUrl,
+                          isBusinessContext: false,
+                        })} 
                         alt={profile.name} 
                         className="w-full h-full object-cover" 
                         referrerPolicy="no-referrer"
@@ -1632,6 +1683,53 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
           {activeSubTab === 'dados' && (
             <div className="space-y-4">
               <form onSubmit={handleSaveProfile} className="space-y-3">
+                {/* Foto de Perfil do Usuário */}
+                <div className={`p-3.5 rounded border flex items-center justify-between gap-3 ${
+                  isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-14 h-14 rounded flex items-center justify-center shrink-0 border overflow-hidden relative group ${
+                      isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+                    }`}>
+                      {profile.avatarUrl && !profile.avatarUrl.includes('unsplash.com') && !profile.avatarUrl.startsWith('data:image/svg+xml') ? (
+                        <img 
+                          src={profile.avatarUrl} 
+                          alt={profile.name} 
+                          className="w-full h-full object-cover" 
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <User className={`w-7 h-7 stroke-[1.8] ${isDark ? 'text-slate-300' : 'text-slate-700'}`} />
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold">Foto de Perfil</h4>
+                      <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Sincronizada em todos os apps da Tríade
+                      </p>
+                    </div>
+                  </div>
+
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={handleAvatarFileChange} 
+                  />
+
+                  {isEditing && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1.5 bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold rounded flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                    >
+                      <Camera className="w-3.5 h-3.5 text-white" />
+                      <span>Alterar</span>
+                    </button>
+                  )}
+                </div>
+
                 {/* Campo Nome */}
                 <div className="space-y-1">
                   <label className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${

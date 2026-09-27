@@ -1421,7 +1421,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               title={`Perfil de ${currentUserName}`}
               aria-label="Perfil do Usuário"
             >
-              {userAvatarUrl && !userAvatarUrl.includes('unsplash.com') && !userAvatarUrl.startsWith('data:image/svg+xml') ? (
+              {userAvatarUrl && !userAvatarUrl.startsWith('data:image/svg+xml') ? (
                 <img
                   src={userAvatarUrl}
                   alt={currentUserName}

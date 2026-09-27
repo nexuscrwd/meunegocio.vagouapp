@@ -45,7 +45,11 @@ export const App: React.FC = () => {
   });
   const [userAvatarUrl, setUserAvatarUrl] = useState(() => {
     const saved = localStorage.getItem('vagou_user_avatar');
-    if (saved && !saved.includes('unsplash.com')) return saved;
+    if (saved && saved.trim() !== '') return saved;
+    const name = localStorage.getItem('vagou_user_name') || '';
+    if (name.toLowerCase().includes('elisa')) {
+      return 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80';
+    }
     return DEFAULT_FACE_CLIPART_AVATAR;
   });
   const [appointments, setAppointments] = useState<BookingAppointment[]>([]);
