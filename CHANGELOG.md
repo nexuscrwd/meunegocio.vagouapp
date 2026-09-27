@@ -15,6 +15,15 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-26] — Inclusão de Input Manual de Cor Hexadecimal (`#HEX`)
+- **Tipo:** `[UI/UX / Feature]`
+- **Motivo / Solicitação:** Inclusão de campo de texto para digitação direta do código de cor hexadecimal na seção de Identidade Visual.
+- **Ações Implementadas:**
+  - Adicionado o campo de input de texto em `VisualIdentityCardView.tsx` com tratamento automático de caractere `#` e atualização em tempo real do tema e das configurações do estabelecimento.
+- **Arquivos Impactados:**
+  - `src/components/professional/VisualIdentityCardView.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-26] — Padronização Global de Avatar de Usuário e Equipe (Traços de Linha Vetorial)
 - **Tipo:** `[UI/UX / Global Standard]`
 - **Motivo / Solicitação:** Aplicação estrita da regra de design solicitada pelo usuário para todo o sistema (quando não houver foto enviada).

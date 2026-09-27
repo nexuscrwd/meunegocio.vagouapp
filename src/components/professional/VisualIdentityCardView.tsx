@@ -244,11 +244,11 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
               </button>
             ))}
 
-            {/* Seletor Customizado */}
+            {/* Seletor Customizado & Input Hexadecimal */}
             <div className="flex items-center gap-1 pl-1">
               <input
                 type="color"
-                value={accentColor}
+                value={accentColor.length === 7 && /^#[0-9a-fA-F]{6}$/.test(accentColor) ? accentColor : '#10b981'}
                 onChange={(e) => {
                   const val = e.target.value;
                   setAccentColor(val);
@@ -260,6 +260,44 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
               />
               <span className="text-[10px] text-slate-400 font-mono">Custom</span>
             </div>
+          </div>
+
+          {/* Campo de Entrada de Cor Hexadecimal (#HEX) */}
+          <div className={`p-2.5 rounded border flex items-center justify-between gap-3 ${
+            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+          }`}>
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div 
+                className="w-7 h-7 rounded border border-white/20 shrink-0 shadow-xs transition-colors"
+                style={{ backgroundColor: /^#[0-9a-fA-F]{3,6}$/.test(accentColor) ? accentColor : '#10b981' }}
+              />
+              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                <span className="text-xs font-mono font-bold text-slate-400 select-none">Hexa:</span>
+                <input
+                  type="text"
+                  value={accentColor}
+                  maxLength={7}
+                  onChange={(e) => {
+                    let val = e.target.value.trim();
+                    if (val && !val.startsWith('#')) {
+                      val = '#' + val;
+                    }
+                    setAccentColor(val);
+                    if (/^#[0-9a-fA-F]{3,6}$/.test(val)) {
+                      setAccentColorContext(val);
+                      onUpdateSettings({ accentColor: val });
+                    }
+                  }}
+                  placeholder="#10B981"
+                  className={`w-28 px-2 py-1 rounded text-xs font-mono font-bold uppercase tracking-wider border focus:outline-none focus:ring-1 focus:ring-emerald-500 transition ${
+                    isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                  }`}
+                />
+              </div>
+            </div>
+            <span className="text-[10px] text-slate-400 font-medium shrink-0">
+              Digite a cor (ex: #10B981)
+            </span>
           </div>
         </div>
 
