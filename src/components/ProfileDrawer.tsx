@@ -1225,6 +1225,38 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     <span className="text-[10px] uppercase font-bold">Desconectar</span>
                   </button>
                 )}
+
+                {/* Desconectar no Modo Cliente */}
+                {currentPersona === 'cliente' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticMedium();
+                      localStorage.removeItem('vagou_active_partner');
+                      localStorage.removeItem('vagou_user_email');
+                      localStorage.removeItem('vagou_user_phone');
+                      localStorage.removeItem('vagou_client_logged_in');
+                      localStorage.removeItem('vagou_salon_logged_in');
+                      localStorage.setItem('vagou_user_name', 'Usuário');
+                      localStorage.setItem('vagou_current_persona', 'cliente');
+                      onClose();
+                      if (onLogoutSalon) {
+                        onLogoutSalon();
+                      }
+                    }}
+                    className={`w-full p-3 rounded border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer mt-3 ${
+                      isDark 
+                        ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400' 
+                        : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <LogOut className="w-4 h-4" />
+                      <span className="text-xs font-bold font-['Poppins']">Sair da Conta</span>
+                    </div>
+                    <span className="text-[10px] uppercase font-bold">Desconectar</span>
+                  </button>
+                )}
               </div>
             </div>
           )}

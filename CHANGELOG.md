@@ -15,6 +15,35 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — Integração Completa de CRUD e Sincronização em Nuvem Supabase
+- **Tipo:** `[Database / Full CRUD & Cloud Persistence]`
+- **Motivo / Solicitação:** Usuário reportou que alterações de identidade visual (logos, cor do tema), criação e edição de serviços e dados de cadastro não estavam persistindo no Supabase nem aparecendo no teste online.
+- **Ações Implementadas:**
+  - Corrigida a consulta de carregamento inicial em `SalonProfileView.tsx`: implementado `fetchCompleteSalonData` que recupera todos os campos do salão (`logo_url`, `logo_light_url`, `logo_dark_url`, `primary_color`, `branding`, `phone_whatsapp`, `address`, `document_number`, etc.) do Supabase.
+  - Corrigido o mapeamento de serviços do banco (`title: s.title || s.name`).
+  - Implementado `syncAllServicesToDb`: criação, edição e exclusão de serviços agora gravam e atualizam imediatamente a tabela `services` no Supabase.
+  - Implementado `updateSalonSettingsInDb`: personalização de cores, logos (claro/escuro), nome, endereço, CNPJ e horários agora executam `update` em tempo real na tabela `salons` do Supabase.
+  - Implementado `syncAllProfessionalsToDb`: gestão de equipe e colaboradores sincronizada com a tabela `professionals`.
+  - Garantida a consistência de estado entre `localStorage` (cache de velocidade) e `Supabase` (persistência na nuvem para qualquer dispositivo/sessão).
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-27] — Renderização Condicional do Cabeçalho: Botão "Entrar" vs Ícone de Avatar
+- **Tipo:** `[UI / Auth State Handling]`
+- **Motivo / Solicitação:** Usuário solicitou que o ícone de avatar/perfil no cabeçalho superior apareça exclusivamente quando o usuário estiver autenticado (logado); quando o usuário não estiver logado, deve ser exibido o botão com a legenda "Entrar".
+- **Ações Implementadas:**
+  - Adicionado hook de detecção em tempo real do estado de autenticação (`isUserLoggedInState`) em `SalonProfileView.tsx`.
+  - Substituída a exibição incondicional do botão de avatar pelo botão **"Entrar"** estilizado conforme o padrão corporativo quando o usuário não está autenticado.
+  - Ao clicar em **"Entrar"**, o aplicativo dispara o fluxo de login (`onBackToAuth` / tela de login unificada).
+  - Quando autenticado, o cabeçalho exibe o avatar do usuário ou o ícone vetorial fino `User` (`lucide-react`) que abre a gaveta de perfil (`ProfileDrawer`).
+  - Adicionado botão de logout também para a visão de cliente em `ProfileDrawer.tsx` para alternância e testes de estado.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-27] — Auditoria de Banco de Dados e Sincronização em Tempo Real dos Dados Pessoais
 - **Tipo:** `[Database / Supabase Integration & Fix]`
 - **Motivo / Solicitação:** Usuário solicitou varredura completa código por código para checar a conexão com o banco Supabase e identificou que, ao abrir "Meus Dados Pessoais" logado como Elisa, o e-mail e telefone apareciam em branco (com apenas placeholders visíveis).

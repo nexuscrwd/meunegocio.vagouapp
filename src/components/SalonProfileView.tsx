@@ -34,7 +34,11 @@ import {
   fetchSalonServices, 
   fetchSalonProfessionals,
   fetchSalonAppointments,
-  upsertSalonService 
+  upsertSalonService,
+  fetchCompleteSalonData,
+  updateSalonSettingsInDb,
+  syncAllServicesToDb,
+  syncAllProfessionalsToDb
 } from '../lib/supabase';
 
 export interface SalonProfileViewProps {
@@ -234,6 +238,54 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       return false;
     }
   });
+
+  // Identificação do estado de login do usuário (Exibe o ícone de avatar se logado; botão "Entrar" se não logado)
+  const [isUserLoggedInState, setIsUserLoggedInState] = useState<boolean>(() => {
+    try {
+      const isSalonLogged = localStorage.getItem('vagou_salon_logged_in') === 'true';
+      const isClientLogged = localStorage.getItem('vagou_client_logged_in') === 'true';
+      const activePartner = localStorage.getItem('vagou_active_partner');
+      const userEmail = localStorage.getItem('vagou_user_email');
+      const storedName = localStorage.getItem('vagou_user_name');
+      
+      if (isSalonLogged || isClientLogged || !!activePartner || !!userEmail) {
+        return true;
+      }
+      if (storedName && storedName.trim() !== '' && storedName !== 'Usuário' && storedName !== 'Visitante') {
+        return true;
+      }
+      if (userName && userName.trim() !== '' && userName !== 'Usuário' && userName !== 'Visitante') {
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    const checkLoginState = () => {
+      try {
+        const isSalonLogged = localStorage.getItem('vagou_salon_logged_in') === 'true';
+        const isClientLogged = localStorage.getItem('vagou_client_logged_in') === 'true';
+        const activePartner = localStorage.getItem('vagou_active_partner');
+        const userEmail = localStorage.getItem('vagou_user_email');
+        const storedName = localStorage.getItem('vagou_user_name');
+        
+        const logged = isSalonLoggedIn || isSalonLogged || isClientLogged || !!activePartner || !!userEmail || 
+          (!!storedName && storedName.trim() !== '' && storedName !== 'Usuário' && storedName !== 'Visitante') ||
+          (!!userName && userName.trim() !== '' && userName !== 'Usuário' && userName !== 'Visitante');
+        
+        setIsUserLoggedInState(logged);
+      } catch {
+        setIsUserLoggedInState(false);
+      }
+    };
+
+    checkLoginState();
+    window.addEventListener('storage', checkLoginState);
+    return () => window.removeEventListener('storage', checkLoginState);
+  }, [userName, isSalonLoggedIn, currentPersona]);
 
   // Modo de visualização quando logado: 'ger' (Gerenciamento) ou 'pub' (Público / Visão do Cliente)
   const [viewMode, setViewMode] = useState<'ger' | 'pub'>(() => {
@@ -525,31 +577,76 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     return INITIAL_APPOINTMENTS;
   });
 
-  // Carregar dados reais do Supabase (Serviços e Equipe)
+  // Estado do ID do salão no Supabase para sincronização em tempo real
+  const [currentSalonDbId, setCurrentSalonDbId] = useState<string>(() => {
+    return localStorage.getItem('vagou_salon_db_id') || '';
+  });
+
+  // Carregar dados reais do Supabase (Identidade Visual, Configurações, Serviços e Equipe)
   useEffect(() => {
     let isMounted = true;
     async function loadDataFromSupabase() {
       if (!isSupabaseConfigured || !supabase) return;
       try {
-        // 1. Obter o salão atual no Supabase
         const activeSlug = localStorage.getItem('vagou_salon_slug') || adminSettings.salonSlug || salonName.toLowerCase().replace(/\s+/g, '-');
-        const { data: salonRecord } = await (supabase
-          .from('salons') as any)
-          .select('id, trade_name')
-          .or(`slug.eq.${activeSlug},trade_name.ilike.%${salonName}%`)
-          .maybeSingle();
+        const activeEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
+        
+        // 1. Obter o registro completo do salão no Supabase
+        const salonRecord = await fetchCompleteSalonData({
+          slug: activeSlug,
+          name: salonName,
+          email: activeEmail
+        });
 
         if (!salonRecord || !salonRecord.id) return;
+        if (isMounted) {
+          setCurrentSalonDbId(salonRecord.id);
+          localStorage.setItem('vagou_salon_db_id', salonRecord.id);
+          if (salonRecord.slug) localStorage.setItem('vagou_salon_slug', salonRecord.slug);
+
+          // Sincronizar dados visuais e administrativos vindos do Supabase
+          const updatedSettings: Partial<SalonAdminSettings> = {};
+          if (salonRecord.trade_name) updatedSettings.salonName = salonRecord.trade_name;
+          if (salonRecord.legal_name) updatedSettings.razaoSocial = salonRecord.legal_name;
+          if (salonRecord.document_number) updatedSettings.cnpj = salonRecord.document_number;
+          if (salonRecord.phone_whatsapp) updatedSettings.salonPhone = salonRecord.phone_whatsapp;
+          if (salonRecord.address) updatedSettings.salonAddress = salonRecord.address;
+          if (salonRecord.street_number) updatedSettings.numero = salonRecord.street_number;
+          if (salonRecord.complement) updatedSettings.complemento = salonRecord.complement;
+          if (salonRecord.neighborhood) updatedSettings.bairro = salonRecord.neighborhood;
+          if (salonRecord.city) updatedSettings.cidade = salonRecord.city;
+          if (salonRecord.state) updatedSettings.uf = salonRecord.state;
+          if (salonRecord.cep) updatedSettings.cep = salonRecord.cep;
+          if (salonRecord.pin_code) updatedSettings.pinCode = salonRecord.pin_code;
+          if (salonRecord.logo_light_url) {
+            updatedSettings.salonLogoLight = salonRecord.logo_light_url;
+            localStorage.setItem('vagou_salon_logo_light', salonRecord.logo_light_url);
+          }
+          if (salonRecord.logo_dark_url) {
+            updatedSettings.salonLogoDark = salonRecord.logo_dark_url;
+            localStorage.setItem('vagou_salon_logo_dark', salonRecord.logo_dark_url);
+          }
+          if (salonRecord.logo_url) {
+            updatedSettings.salonLogo = salonRecord.logo_url;
+          }
+          if (salonRecord.primary_color) {
+            updatedSettings.accentColor = salonRecord.primary_color;
+            localStorage.setItem('vagou_accent_color', salonRecord.primary_color);
+            setAccentColorContext(salonRecord.primary_color);
+          }
+
+          setAdminSettings((prev) => ({ ...prev, ...updatedSettings }));
+        }
 
         // 2. Buscar serviços reais do banco
         const servicesFromDb = await fetchSalonServices(salonRecord.id);
         if (isMounted && servicesFromDb && servicesFromDb.length > 0) {
           const mappedServices: CatalogServiceItem[] = servicesFromDb.map((s: any) => ({
             id: s.id,
-            title: s.name,
+            title: s.title || s.name || 'Serviço',
             description: s.description || '',
-            price: Number(s.price),
-            duration: `${s.duration_minutes} min`,
+            price: Number(s.price) || 0,
+            duration: `${s.duration_minutes || 40} min`,
             category: s.category || 'Geral',
             image: s.image_url || '',
           }));
@@ -579,26 +676,36 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     return () => { isMounted = false; };
   }, [salonName, adminSettings.salonSlug]);
 
-  // Handlers para persistência e atualização em tempo real
-  const handleUpdateServices = (newServices: CatalogServiceItem[]) => {
+  // Handlers para persistência e sincronização em tempo real no Supabase
+  const handleUpdateServices = async (newServices: CatalogServiceItem[]) => {
     setCatalogServicesList(newServices);
     try {
       localStorage.setItem('vagou_custom_catalog_services', JSON.stringify(newServices));
     } catch {
       // ignore
     }
+
+    const salonId = currentSalonDbId || localStorage.getItem('vagou_salon_db_id');
+    if (salonId) {
+      await syncAllServicesToDb(salonId, newServices);
+    }
   };
 
-  const handleUpdateProfessionals = (newPros: SalonProfessionalItem[]) => {
+  const handleUpdateProfessionals = async (newPros: SalonProfessionalItem[]) => {
     setProfessionalsList(newPros);
     try {
       localStorage.setItem('vagou_custom_professionals', JSON.stringify(newPros));
     } catch {
       // ignore
     }
+
+    const salonId = currentSalonDbId || localStorage.getItem('vagou_salon_db_id');
+    if (salonId) {
+      await syncAllProfessionalsToDb(salonId, newPros);
+    }
   };
 
-  const handleUpdateSettings = (newSettings: Partial<SalonAdminSettings>) => {
+  const handleUpdateSettings = async (newSettings: Partial<SalonAdminSettings>) => {
     if (newSettings.accentColor) {
       setAccentColorContext(newSettings.accentColor);
       try {
@@ -623,6 +730,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       }
       return merged;
     });
+
+    const salonTarget = currentSalonDbId || localStorage.getItem('vagou_salon_db_id') || localStorage.getItem('vagou_salon_slug') || adminSettings.salonSlug || salonName.toLowerCase().replace(/\s+/g, '-');
+    if (salonTarget) {
+      await updateSalonSettingsInDb(salonTarget, newSettings);
+    }
   };
 
   useEffect(() => {
@@ -1300,32 +1412,55 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             </button>
           )}
 
-          {/* Foto / Ícone do Usuário (Abrir Perfil) */}
-          <button
-            type="button"
-            onClick={() => {
-              hapticLight();
-              setIsProfileDrawerOpen(true);
-            }}
-            className={`group w-8 h-8 sm:w-9.5 sm:h-9.5 rounded flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 overflow-hidden ${
-              isDark
-                ? 'bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40'
-                : 'bg-slate-100 hover:bg-slate-200 border border-slate-200 shadow-xs hover:border-emerald-500/40'
-            }`}
-            title={`Perfil de ${currentUserName}`}
-            aria-label="Perfil do Usuário"
-          >
-            {userAvatarUrl && !userAvatarUrl.includes('unsplash.com') && !userAvatarUrl.startsWith('data:image/svg+xml') ? (
-              <img
-                src={userAvatarUrl}
-                alt={currentUserName}
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <User className={`w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[1.8] ${isDark ? 'text-slate-300 group-hover:text-emerald-400' : 'text-slate-700 group-hover:text-emerald-600'} transition-colors`} />
-            )}
-          </button>
+          {/* Se o usuário estiver logado -> exibe o ícone/avatar de perfil; Se NÃO estiver logado -> exibe o botão com a legenda "Entrar" */}
+          {isUserLoggedInState ? (
+            <button
+              type="button"
+              onClick={() => {
+                hapticLight();
+                setIsProfileDrawerOpen(true);
+              }}
+              className={`group w-8 h-8 sm:w-9.5 sm:h-9.5 rounded flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 overflow-hidden ${
+                isDark
+                  ? 'bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40'
+                  : 'bg-slate-100 hover:bg-slate-200 border border-slate-200 shadow-xs hover:border-emerald-500/40'
+              }`}
+              title={`Perfil de ${currentUserName}`}
+              aria-label="Perfil do Usuário"
+            >
+              {userAvatarUrl && !userAvatarUrl.includes('unsplash.com') && !userAvatarUrl.startsWith('data:image/svg+xml') ? (
+                <img
+                  src={userAvatarUrl}
+                  alt={currentUserName}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <User className={`w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[1.8] ${isDark ? 'text-slate-300 group-hover:text-emerald-400' : 'text-slate-700 group-hover:text-emerald-600'} transition-colors`} />
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                hapticLight();
+                if (onBackToAuth) {
+                  onBackToAuth();
+                } else {
+                  setIsProfileDrawerOpen(true);
+                }
+              }}
+              className={`h-8 sm:h-9.5 px-3 sm:px-3.5 rounded flex items-center justify-center font-bold text-xs sm:text-sm font-['Poppins'] tracking-wide transition active:scale-95 cursor-pointer shrink-0 ${
+                isDark
+                  ? 'bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-white shadow-xs'
+                  : 'bg-slate-900 hover:bg-slate-800 border border-slate-800 text-white shadow-xs'
+              }`}
+              title="Entrar no aplicativo"
+              aria-label="Entrar"
+            >
+              Entrar
+            </button>
+          )}
         </div>
       </header>
 

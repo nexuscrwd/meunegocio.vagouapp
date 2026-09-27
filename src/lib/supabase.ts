@@ -963,6 +963,171 @@ export async function fetchUserProfileFromDb(identifier: { email?: string; name?
 /**
  * Atualiza ou sincroniza dados de perfil do usuário diretamente no banco Supabase
  */
+/**
+ * Busca completa de dados do Salão pelo slug, nome, email ou owner_id
+ */
+export async function fetchCompleteSalonData(identifier: { slug?: string; name?: string; email?: string; ownerId?: string }) {
+  if (!supabase || !isSupabaseConfigured) return null;
+  try {
+    let query = (supabase.from('salons') as any).select('*');
+    if (identifier.ownerId) {
+      query = query.eq('owner_id', identifier.ownerId);
+    } else if (identifier.slug) {
+      query = query.eq('slug', identifier.slug);
+    } else if (identifier.email) {
+      query = query.ilike('email', `%${identifier.email}%`);
+    } else if (identifier.name) {
+      query = query.or(`trade_name.ilike.%${identifier.name}%,slug.ilike.%${identifier.name.toLowerCase().replace(/\s+/g, '-')}%`);
+    } else {
+      return null;
+    }
+
+    const { data, error } = await query.maybeSingle();
+    if (error) {
+      console.warn('Erro ao carregar dados completos do salão:', error.message);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.error('Falha ao consultar salão no Supabase:', err);
+    return null;
+  }
+}
+
+/**
+ * Atualiza configurações, identidade visual e dados cadastrais do Salão no Supabase
+ */
+export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: any) {
+  if (!supabase || !isSupabaseConfigured || !salonIdOrSlug) return { success: false };
+  try {
+    const payload: any = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (settings.salonName || settings.tradeName) payload.trade_name = settings.salonName || settings.tradeName;
+    if (settings.razaoSocial || settings.legalName) payload.legal_name = settings.razaoSocial || settings.legalName;
+    if (settings.cnpj || settings.documentNumber) payload.document_number = settings.cnpj || settings.documentNumber;
+    if (settings.salonPhone || settings.phoneWhatsapp || settings.legalManagerPhone) {
+      payload.phone_whatsapp = settings.salonPhone || settings.phoneWhatsapp || settings.legalManagerPhone;
+    }
+    if (settings.email || settings.legalManagerEmail) payload.email = settings.email || settings.legalManagerEmail;
+    if (settings.salonAddress || settings.address || settings.logradouro) {
+      payload.address = settings.salonAddress || settings.address || settings.logradouro;
+    }
+    if (settings.numero || settings.streetNumber) payload.street_number = settings.numero || settings.streetNumber;
+    if (settings.complemento || settings.complement) payload.complement = settings.complemento || settings.complement;
+    if (settings.bairro || settings.neighborhood) payload.neighborhood = settings.bairro || settings.neighborhood;
+    if (settings.cidade || settings.city) payload.city = settings.cidade || settings.city;
+    if (settings.uf || settings.state) payload.state = settings.uf || settings.state;
+    if (settings.cep || settings.postalCode) payload.cep = settings.cep || settings.postalCode;
+    if (settings.salonLogoLight !== undefined) payload.logo_light_url = settings.salonLogoLight || null;
+    if (settings.salonLogoDark !== undefined) payload.logo_dark_url = settings.salonLogoDark || null;
+    if (settings.salonLogo !== undefined || settings.logoUrl !== undefined) {
+      payload.logo_url = settings.salonLogo || settings.logoUrl || settings.salonLogoDark || settings.salonLogoLight || null;
+    }
+    if (settings.accentColor || settings.primaryColor) {
+      payload.primary_color = settings.accentColor || settings.primaryColor;
+      payload.branding = {
+        primaryColor: settings.accentColor || settings.primaryColor,
+        pwaName: settings.pwaName || settings.salonName,
+        themeMode: 'dark',
+      };
+    }
+    if (settings.pinCode !== undefined) payload.pin_code = settings.pinCode;
+    if (settings.bio !== undefined) payload.bio = settings.bio;
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonIdOrSlug);
+    let updateQuery = (supabase.from('salons') as any).update(payload);
+    if (isUuid) {
+      updateQuery = updateQuery.eq('id', salonIdOrSlug);
+    } else {
+      updateQuery = updateQuery.eq('slug', salonIdOrSlug);
+    }
+
+    const { data, error } = await updateQuery.select().maybeSingle();
+    if (error) {
+      console.warn('Erro ao atualizar configurações do salão no Supabase:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true, data };
+  } catch (err: any) {
+    console.error('Falha ao atualizar salão no Supabase:', err);
+    return { success: false, error: err?.message };
+  }
+}
+
+/**
+ * Sincroniza a lista completa de serviços do Salão com o Supabase (CRUD Total)
+ */
+export async function syncAllServicesToDb(salonId: string, services: any[]) {
+  if (!supabase || !isSupabaseConfigured || !salonId) return { success: false };
+  try {
+    // 1. Para cada serviço fornecido, realiza upsert no banco
+    for (const s of services) {
+      const durationMinutes = typeof s.duration === 'string' 
+        ? parseInt(s.duration.replace(/\D/g, '')) || 40 
+        : (s.duration_minutes || s.durationMinutes || 40);
+
+      const payload: any = {
+        salon_id: salonId,
+        title: s.title || s.name || 'Serviço',
+        category: s.category || 'Geral',
+        price: Number(s.price) || 0,
+        duration_minutes: durationMinutes,
+        description: s.description || null,
+        image_url: s.image || s.image_url || (s.photos && s.photos.length > 0 ? s.photos[0] : null),
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      };
+
+      const isUuid = s.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.id);
+      if (isUuid) {
+        payload.id = s.id;
+      }
+
+      await (supabase.from('services') as any).upsert(payload, { onConflict: isUuid ? 'id' : undefined });
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Falha ao sincronizar catálogo de serviços no Supabase:', err);
+    return { success: false, error: err?.message };
+  }
+}
+
+/**
+ * Sincroniza a lista de profissionais da equipe no Supabase
+ */
+export async function syncAllProfessionalsToDb(salonId: string, professionals: any[]) {
+  if (!supabase || !isSupabaseConfigured || !salonId) return { success: false };
+  try {
+    for (const p of professionals) {
+      const payload: any = {
+        salon_id: salonId,
+        name: p.name || 'Profissional',
+        role: p.role || 'Profissional',
+        avatar_url: p.avatarUrl || p.avatar || null,
+        phone: p.phone || null,
+        email: p.email || null,
+        specialties: Array.isArray(p.specialties) ? p.specialties : ['Geral'],
+        is_active: p.isActive !== false,
+        updated_at: new Date().toISOString(),
+      };
+
+      const isUuid = p.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.id);
+      if (isUuid) {
+        payload.id = p.id;
+      }
+
+      await (supabase.from('professionals') as any).upsert(payload, { onConflict: isUuid ? 'id' : undefined });
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('Falha ao sincronizar profissionais no Supabase:', err);
+    return { success: false, error: err?.message };
+  }
+}
+
 export async function updateUserProfileInDb(profile: {
   name: string;
   email: string;
