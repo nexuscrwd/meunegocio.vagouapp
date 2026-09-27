@@ -15,6 +15,21 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — Auditoria e Correção da Gravação de Imagens (Logos e Ícones) no Supabase
+- **Tipo:** `[Database / Storage & Realtime Feedback]`
+- **Motivo / Solicitação:** Usuário reportou que as colunas `logo_url`, `logo_light_url` e `logo_dark_url` na tabela `salons` do Supabase estavam aparecendo como `NULL` e os logos não estavam subindo para a nuvem.
+- **Ações Implementadas:**
+  - Identificada a causa raiz: a função `updateSalonSettingsInDb` não possuía fallback quando o ID/slug diferia da chave primária e o botão de salvar não aguardava a promessa (`await`) nem exibia feedback de erro/sucesso do Supabase.
+  - Implementado tratamento assíncrono completo em `VisualIdentityCardView.tsx` com estado `isSaving` e retorno do Supabase.
+  - Adicionado fallback em `updateSalonSettingsInDb` para buscar por `id`, `slug` ou `trade_name`.
+  - Adicionado indicador visual em tempo real no cabeçalho e rodapé da tela de Identidade Visual.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `src/components/professional/VisualIdentityCardView.tsx`
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-27] — Remoção da Confirmação de Senha para Acesso ao Gerenciar Estabelecimento
 - **Tipo:** `[UX / Direct Access Flow]`
 - **Motivo / Solicitação:** Usuário solicitou a remoção da caixa/modal de senha ao acessar a área de Gerenciar Estabelecimento ("Personalizar Estabelecimento"), permitindo navegação direta e imediata.

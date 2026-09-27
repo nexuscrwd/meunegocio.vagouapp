@@ -11,7 +11,7 @@ import { compressImageFile } from '../../utils/imageCompressor';
 
 export interface VisualIdentityCardViewProps {
   adminSettings: SalonAdminSettings;
-  onUpdateSettings: (settings: Partial<SalonAdminSettings>) => void;
+  onUpdateSettings: (settings: Partial<SalonAdminSettings>) => Promise<any> | void;
   onBack: () => void;
 }
 
@@ -28,7 +28,9 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
   const [salonLogoDark, setSalonLogoDark] = useState(adminSettings.salonLogoDark || adminSettings.salonLogo || '');
   const [salonIcon, setSalonIcon] = useState(adminSettings.salonIcon || '');
   const [accentColor, setAccentColor] = useState(adminSettings.accentColor || '#10b981');
+  const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState<string>('');
 
   const logoLightInputRef = useRef<HTMLInputElement>(null);
   const logoDarkInputRef = useRef<HTMLInputElement>(null);
@@ -126,20 +128,13 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
     }
   };
 
-  const handleSave = (e?: React.FormEvent) => {
+  const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     hapticSuccess();
+    setIsSaving(true);
+    setSaveFeedback('Sincronizando com o Supabase...');
 
     const finalLogo = isDark ? (salonLogoDark || salonLogoLight) : (salonLogoLight || salonLogoDark);
-
-    onUpdateSettings({
-      salonLogo: finalLogo,
-      salonLogoLight,
-      salonLogoDark,
-      salonIcon,
-      accentColor,
-      pwaName: pwaName.trim() || salonName,
-    });
 
     try {
       if (salonLogoLight) localStorage.setItem('vagou_salon_logo_light', salonLogoLight);
@@ -153,8 +148,27 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
     setAccentColorContext(accentColor);
     updateDynamicPwaAssets(pwaName.trim() || salonName, salonIcon || finalLogo);
 
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2500);
+    const result = await onUpdateSettings({
+      salonLogo: finalLogo,
+      salonLogoLight,
+      salonLogoDark,
+      salonIcon,
+      accentColor,
+      pwaName: pwaName.trim() || salonName,
+    });
+
+    setIsSaving(false);
+    if (result && result.success === false) {
+      setSaveFeedback(`Erro Supabase: ${result.error || 'Falha ao gravar'}`);
+      setSavedSuccess(false);
+    } else {
+      setSaveFeedback('Salvo com sucesso na nuvem Supabase!');
+      setSavedSuccess(true);
+      setTimeout(() => {
+        setSavedSuccess(false);
+        setSaveFeedback('');
+      }, 3500);
+    }
   };
 
   return (
@@ -187,12 +201,21 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
           </div>
         </div>
 
-        {savedSuccess && (
+        {isSaving ? (
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-blue-600 px-2 py-0.5 rounded shadow-xs animate-pulse">
+            <RefreshCw className="w-3 h-3 text-white animate-spin" />
+            Salvando no Supabase...
+          </span>
+        ) : savedSuccess ? (
           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-emerald-500 px-2 py-0.5 rounded shadow-xs animate-in fade-in">
             <Check className="w-3 h-3 text-white" />
-            Salvo
+            Salvo no Supabase
           </span>
-        )}
+        ) : saveFeedback ? (
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-950/80 border border-amber-500/40 px-2 py-0.5 rounded shadow-xs">
+            {saveFeedback}
+          </span>
+        ) : null}
       </div>
 
       <form onSubmit={handleSave} className="p-3.5 space-y-4 pb-24">
@@ -667,12 +690,22 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
 
         <button
           type="button"
+          disabled={isSaving}
           onClick={() => handleSave()}
-          className="flex-1 py-2.5 px-4 rounded text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98"
+          className="flex-1 py-2.5 px-4 rounded text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98 disabled:opacity-75"
           style={{ backgroundColor: accentColor }}
         >
-          <Save className="w-4 h-4 text-white" />
-          <span>Salvar Identidade Visual</span>
+          {isSaving ? (
+            <>
+              <RefreshCw className="w-4 h-4 text-white animate-spin" />
+              <span>Sincronizando no Supabase...</span>
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4 text-white" />
+              <span>Salvar Identidade Visual</span>
+            </>
+          )}
         </button>
       </div>
     </div>

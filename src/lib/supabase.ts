@@ -998,7 +998,9 @@ export async function fetchCompleteSalonData(identifier: { slug?: string; name?:
  * Atualiza configurações, identidade visual e dados cadastrais do Salão no Supabase
  */
 export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: any) {
-  if (!supabase || !isSupabaseConfigured || !salonIdOrSlug) return { success: false };
+  if (!supabase || !isSupabaseConfigured || !salonIdOrSlug) {
+    return { success: false, error: 'Supabase não configurado ou identificador vazio' };
+  }
   try {
     const payload: any = {
       updated_at: new Date().toISOString(),
@@ -1037,14 +1039,23 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
     if (settings.bio !== undefined) payload.bio = settings.bio;
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonIdOrSlug);
-    let updateQuery = (supabase.from('salons') as any).update(payload);
-    if (isUuid) {
-      updateQuery = updateQuery.eq('id', salonIdOrSlug);
-    } else {
-      updateQuery = updateQuery.eq('slug', salonIdOrSlug);
+    let { data, error } = await (supabase.from('salons') as any)
+      .update(payload)
+      .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug })
+      .select()
+      .maybeSingle();
+
+    // Se não encontrou pelo match primário, tenta por slug aproximado ou trade_name
+    if (!data && !error && settings.salonName) {
+      const fallbackQuery = await (supabase.from('salons') as any)
+        .update(payload)
+        .ilike('trade_name', `%${settings.salonName}%`)
+        .select()
+        .maybeSingle();
+      data = fallbackQuery.data;
+      error = fallbackQuery.error;
     }
 
-    const { data, error } = await updateQuery.select().maybeSingle();
     if (error) {
       console.warn('Erro ao atualizar configurações do salão no Supabase:', error.message);
       return { success: false, error: error.message };

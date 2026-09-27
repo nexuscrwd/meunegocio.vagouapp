@@ -22,7 +22,7 @@ export type ManagementCardId = 'dados' | 'visual' | 'servicos' | 'equipe' | 'fin
 export interface SalonCustomizationHubProps {
   initialSubTab?: ManagementCardId | 'hub' | 'espaco';
   adminSettings: SalonAdminSettings;
-  onUpdateSettings: (settings: Partial<SalonAdminSettings>) => void;
+  onUpdateSettings: (settings: Partial<SalonAdminSettings>) => Promise<any> | void;
   services: CatalogServiceItem[];
   onUpdateServices: (services: CatalogServiceItem[]) => void;
   professionals: SalonProfessionalItem[];

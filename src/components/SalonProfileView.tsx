@@ -732,8 +732,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
     const salonTarget = currentSalonDbId || localStorage.getItem('vagou_salon_db_id') || localStorage.getItem('vagou_salon_slug') || adminSettings.salonSlug || salonName.toLowerCase().replace(/\s+/g, '-');
     if (salonTarget) {
-      await updateSalonSettingsInDb(salonTarget, newSettings);
+      const dbRes = await updateSalonSettingsInDb(salonTarget, newSettings);
+      return dbRes;
     }
+    return { success: false, error: 'Identificador do salão não encontrado' };
   };
 
   useEffect(() => {
