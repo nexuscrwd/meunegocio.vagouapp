@@ -15,6 +15,22 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — Erradicação Completa de Fotos Mock/Unsplash e Restauração do Avatar Provisório Oficial
+- **Tipo:** `[Cleanup & Design System Compliance]`
+- **Motivo / Solicitação:** Remoção definitiva de qualquer foto hardcoded ou de banco de imagens (Unsplash) para perfis de usuário, garantindo a exibição estrita do avatar provisório oficial (`User` da `lucide-react` / `DEFAULT_FACE_CLIPART_AVATAR`) quando o usuário não tiver realizado upload de foto real.
+- **Ações Implementadas:**
+  - Varredura profunda em todos os arquivos e remoção de qualquer URL do Unsplash (`PRESET_AVATARS`, mocks legados).
+  - Sanitização de `localStorage` para expurgar referências legadas a fotos externas ao iniciar a aplicação.
+  - `UserDashboard.tsx`: Substituído o seletor de fotos clássicas do Unsplash por botões diretos de upload real de foto e opção "Remover Foto".
+  - `src/lib/supabase.ts`: Removido qualquer fallback com links de fotos de teste. Agora retorna string vazia quando não há foto cadastrada no banco, ativando o ícone provisório canônico.
+- **Arquivos Impactados:**
+  - `src/App.tsx`
+  - `src/lib/supabase.ts`
+  - `src/components/UserDashboard.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-27] — Homologação do SSO Global e Avatar Unificado da Tríade
 - **Tipo:** `[SSO / Global Identity / Realtime Sync]`
 - **Motivo / Solicitação:** Alinhamento técnico com `pvapp` e `admvapp` sobre a arquitetura de Identidade Única Global, persistência atômica no `auth.users.user_metadata` e segregação de avatar pessoal vs logo de salão.

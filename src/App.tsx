@@ -44,13 +44,15 @@ export const App: React.FC = () => {
     return localStorage.getItem('vagou_user_name') || 'Profissional';
   });
   const [userAvatarUrl, setUserAvatarUrl] = useState(() => {
-    const saved = localStorage.getItem('vagou_user_avatar');
-    if (saved && saved.trim() !== '') return saved;
-    const name = localStorage.getItem('vagou_user_name') || '';
-    if (name.toLowerCase().includes('elisa')) {
-      return 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80';
-    }
-    return DEFAULT_FACE_CLIPART_AVATAR;
+    try {
+      const saved = localStorage.getItem('vagou_user_avatar');
+      if (saved && (saved.includes('unsplash.com') || saved.includes('images.unsplash'))) {
+        localStorage.removeItem('vagou_user_avatar');
+        return '';
+      }
+      if (saved && saved.trim() !== '') return saved;
+    } catch {}
+    return '';
   });
   const [appointments, setAppointments] = useState<BookingAppointment[]>([]);
   const [offers, setOffers] = useState<ServiceOffer[]>(EMPTY_OFFERS);
@@ -77,8 +79,13 @@ export const App: React.FC = () => {
         setUserName(savedName);
       }
       const savedAvatar = localStorage.getItem('vagou_user_avatar');
-      if (savedAvatar) {
+      if (savedAvatar && (savedAvatar.includes('unsplash.com') || savedAvatar.includes('images.unsplash'))) {
+        localStorage.removeItem('vagou_user_avatar');
+        setUserAvatarUrl('');
+      } else if (savedAvatar) {
         setUserAvatarUrl(savedAvatar);
+      } else {
+        setUserAvatarUrl('');
       }
     } catch {
       setAppointments([]);

@@ -231,17 +231,22 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
       });
 
       if (isMounted && dbProfile) {
+        const validAvatar = dbProfile.avatarUrl && !dbProfile.avatarUrl.includes('unsplash.com') ? dbProfile.avatarUrl : '';
         setProfile(prev => ({
           ...prev,
           name: dbProfile.name || prev.name,
           email: dbProfile.email || prev.email,
           phone: dbProfile.phone || prev.phone,
-          avatarUrl: dbProfile.avatarUrl || prev.avatarUrl,
+          avatarUrl: validAvatar || (prev.avatarUrl && !prev.avatarUrl.includes('unsplash.com') ? prev.avatarUrl : ''),
         }));
         if (dbProfile.name) localStorage.setItem('vagou_user_name', dbProfile.name);
         if (dbProfile.email) localStorage.setItem('vagou_user_email', dbProfile.email);
         if (dbProfile.phone) localStorage.setItem('vagou_user_phone', dbProfile.phone);
-        if (dbProfile.avatarUrl) localStorage.setItem('vagou_user_avatar', dbProfile.avatarUrl);
+        if (validAvatar) {
+          localStorage.setItem('vagou_user_avatar', validAvatar);
+        } else {
+          localStorage.removeItem('vagou_user_avatar');
+        }
       }
     }
 

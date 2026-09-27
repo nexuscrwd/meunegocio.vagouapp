@@ -19,15 +19,6 @@ import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess } from '../utils/haptics';
 import { fetchUserProfileFromDb, updateUserProfileInDb, isSupabaseConfigured } from '../lib/supabase';
 
-// Avatares premium pré-selecionados para o usuário escolher
-const PRESET_AVATARS = [
-  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
-  'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=120&q=80',
-  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
-];
-
 interface UserDashboardProps {
   onBack: () => void;
   onUpdateProfile?: (name: string, avatarUrl: string) => void;
@@ -46,8 +37,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   
   const [avatarUrl, setAvatarUrl] = useState(() => {
     const saved = localStorage.getItem('vagou_user_avatar');
-    if (saved && !saved.includes('unsplash.com')) return saved;
-    return '';
+    if (saved && (saved.includes('unsplash.com') || saved.includes('images.unsplash'))) {
+      localStorage.removeItem('vagou_user_avatar');
+      return '';
+    }
+    return saved || '';
   });
 
   const [email, setEmail] = useState(() => {
@@ -358,33 +352,34 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 </p>
               </div>
 
-              {/* Seletor Rápido de Avatares Clássicos */}
-              <div className="space-y-1.5">
-                <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                  Ou escolha um avatar clássico:
-                </span>
-                <div className="flex items-center gap-2 justify-center sm:justify-start">
-                  {PRESET_AVATARS.map((url, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => {
-                        hapticLight();
-                        setAvatarUrl(url);
-                      }}
-                      className={`w-8 h-8 rounded-full overflow-hidden border-2 transition active:scale-95 cursor-pointer ${
-                        avatarUrl === url ? 'border-emerald-400 scale-110 shadow-md' : 'border-slate-800 hover:border-slate-600'
-                      }`}
-                    >
-                      <img 
-                        src={url} 
-                        alt={`Preset ${index}`} 
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover"
-                      />
-                    </button>
-                  ))}
-                </div>
+              {/* Ações de Foto */}
+              <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3 py-1.5 rounded text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white transition active:scale-95 cursor-pointer shadow-xs flex items-center gap-1.5"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Escolher Foto</span>
+                </button>
+
+                {avatarUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      setAvatarUrl('');
+                      localStorage.removeItem('vagou_user_avatar');
+                    }}
+                    className={`px-3 py-1.5 rounded text-xs font-bold transition active:scale-95 cursor-pointer border ${
+                      isDark 
+                        ? 'border-slate-800 hover:bg-rose-500/10 hover:border-rose-500/30 text-rose-400' 
+                        : 'border-slate-200 hover:bg-rose-50 hover:border-rose-300 text-rose-600'
+                    }`}
+                  >
+                    Remover Foto
+                  </button>
+                )}
               </div>
             </div>
           </div>

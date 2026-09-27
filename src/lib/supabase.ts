@@ -342,11 +342,10 @@ export async function unifiedGlobalLogin(identifier: string, pass: string): Prom
                         matchedSalon?.phone_whatsapp || 
                         (isElisaUser ? '(11) 98765-4321' : '');
 
-      const isElisa = cleanUser.includes('elisa');
       const userAvatar = matchedClient?.avatar_url || 
                          matchedPro?.avatar_url || 
                          matchedSalon?.logo_url || 
-                         (isElisa ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80' : '');
+                         '';
 
       return {
         success: true,
@@ -908,9 +907,6 @@ export async function fetchUserProfileFromDb(identifier: { email?: string; name?
       }
     } catch {}
 
-    const isElisa = term.toLowerCase().includes('elisa');
-    const defaultElisaAvatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80';
-
     // 1. Procurar em profissionais
     const { data: pros } = await (supabase.from('professionals') as any)
       .select('*')
@@ -921,9 +917,9 @@ export async function fetchUserProfileFromDb(identifier: { email?: string; name?
         type: 'professional' as const,
         id: p.id,
         name: p.name,
-        email: p.email || (term.includes('@') ? term : 'elisa.pires@gmail.com'),
-        phone: p.phone || '(11) 98765-4321',
-        avatarUrl: p.avatar_url || (isElisa ? defaultElisaAvatar : ''),
+        email: p.email || (term.includes('@') ? term : ''),
+        phone: p.phone || '',
+        avatarUrl: p.avatar_url || '',
         salonId: p.salon_id,
       };
     }
@@ -938,9 +934,9 @@ export async function fetchUserProfileFromDb(identifier: { email?: string; name?
         type: 'salon' as const,
         id: s.id,
         name: s.trade_name,
-        email: s.email || (term.includes('@') ? term : 'elisa.pires@gmail.com'),
-        phone: s.phone_whatsapp || '(11) 98765-4321',
-        avatarUrl: s.logo_url || (isElisa ? defaultElisaAvatar : ''),
+        email: s.email || (term.includes('@') ? term : ''),
+        phone: s.phone_whatsapp || '',
+        avatarUrl: s.logo_url || '',
         address: s.address || '',
       };
     }
@@ -957,18 +953,7 @@ export async function fetchUserProfileFromDb(identifier: { email?: string; name?
         name: c.name,
         email: c.email || (term.includes('@') ? term : ''),
         phone: c.phone || '',
-        avatarUrl: c.avatar_url || (isElisa ? defaultElisaAvatar : ''),
-      };
-    }
-
-    // 4. Fallback se for Elisa
-    if (isElisa) {
-      return {
-        type: 'client' as const,
-        name: 'Elisa Pires',
-        email: term.includes('@') ? term : 'elisa.pires@gmail.com',
-        phone: '(11) 98765-4321',
-        avatarUrl: defaultElisaAvatar,
+        avatarUrl: c.avatar_url || '',
       };
     }
 
