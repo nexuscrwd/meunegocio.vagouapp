@@ -130,9 +130,24 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
       localStorage.setItem('vagou_user_role', result.role);
       localStorage.setItem('vagou_active_partner', result.userEmail || loginUser);
       localStorage.setItem('vagou_user_name', proName);
+      localStorage.setItem('vagou_user_email', result.userEmail || loginUser);
+      if (result.userPhone) {
+        localStorage.setItem('vagou_user_phone', result.userPhone);
+      }
+      if (result.userAvatarUrl) {
+        localStorage.setItem('vagou_user_avatar', result.userAvatarUrl);
+      }
       localStorage.setItem('vagou_salon_name', salonDisplayName);
       localStorage.setItem('vagou_salon_slug', salonSlug);
       localStorage.setItem('vagou_dashboard_logged_pro_name', proName);
+
+      const userProfileObj = {
+        name: proName,
+        email: result.userEmail || loginUser,
+        phone: result.userPhone || '',
+        address: result.salonData?.address || '',
+      };
+      localStorage.setItem('vagou_user_profile', JSON.stringify(userProfileObj));
 
       if (result.salonData) {
         localStorage.setItem('vagou_custom_salon_data', JSON.stringify(result.salonData));

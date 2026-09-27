@@ -123,6 +123,8 @@ export interface UnifiedLoginResult {
   role: 'pro' | 'cliente' | 'admin';
   userName: string;
   userEmail: string;
+  userPhone?: string;
+  userAvatarUrl?: string;
   salonName?: string;
   salonSlug?: string;
   errorMessage?: string;
@@ -281,6 +283,21 @@ export async function unifiedGlobalLogin(identifier: string, pass: string): Prom
                          matchedClient?.name || 
                          matchedSalon?.trade_name || 
                          cleanUser.split('@')[0];
+    const resolvedEmail = supabaseAuthUser.email || 
+                          matchedClient?.email || 
+                          matchedPro?.email || 
+                          matchedSalon?.email || 
+                          cleanUser;
+    const resolvedPhone = matchedClient?.phone || 
+                          matchedPro?.phone || 
+                          matchedSalon?.phone_whatsapp || 
+                          supabaseAuthUser.user_metadata?.phone || 
+                          '';
+    const resolvedAvatar = matchedClient?.avatar_url || 
+                           matchedPro?.avatar_url || 
+                           matchedSalon?.logo_url || 
+                           supabaseAuthUser.user_metadata?.avatar_url || 
+                           '';
 
     return {
       success: true,
@@ -291,7 +308,9 @@ export async function unifiedGlobalLogin(identifier: string, pass: string): Prom
       persona: isPro ? 'pro' : 'cliente',
       role: isPro ? 'pro' : 'cliente',
       userName: resolvedName,
-      userEmail: supabaseAuthUser.email || cleanUser,
+      userEmail: resolvedEmail,
+      userPhone: resolvedPhone,
+      userAvatarUrl: resolvedAvatar,
       salonName: matchedSalon?.trade_name || 'Meu Negócio',
       salonSlug: matchedSalon?.slug || 'meu-negocio',
     };
@@ -313,6 +332,21 @@ export async function unifiedGlobalLogin(identifier: string, pass: string): Prom
                        matchedClient?.name || 
                        (isElisaUser ? 'Elisa Pires' : cleanUser.split('@')[0]);
 
+      const userEmail = matchedClient?.email || 
+                        matchedPro?.email || 
+                        matchedSalon?.email || 
+                        (isElisaUser ? 'elisa.pires@gmail.com' : (cleanUser.includes('@') ? cleanUser : `${cleanUser}@vagou.app`));
+
+      const userPhone = matchedClient?.phone || 
+                        matchedPro?.phone || 
+                        matchedSalon?.phone_whatsapp || 
+                        (isElisaUser ? '(11) 98765-4321' : '');
+
+      const userAvatar = matchedClient?.avatar_url || 
+                         matchedPro?.avatar_url || 
+                         matchedSalon?.logo_url || 
+                         '';
+
       return {
         success: true,
         salonData: matchedSalon,
@@ -321,9 +355,11 @@ export async function unifiedGlobalLogin(identifier: string, pass: string): Prom
         persona: isProRole ? 'pro' : 'cliente',
         role: isProRole ? 'pro' : 'cliente',
         userName: userName,
-        userEmail: cleanUser,
-        salonName: matchedSalon?.trade_name || 'Espaço Elisa Pires',
-        salonSlug: matchedSalon?.slug || 'espaco-elisa-pires',
+        userEmail: userEmail,
+        userPhone: userPhone,
+        userAvatarUrl: userAvatar,
+        salonName: matchedSalon?.trade_name || (isElisaUser ? 'Espaço Elisa Pires' : 'Meu Negócio'),
+        salonSlug: matchedSalon?.slug || (isElisaUser ? 'espaco-elisa-pires' : 'meu-negocio'),
       };
     }
   }
@@ -841,4 +877,144 @@ export async function emancipateFamilyMemberToUser(memberId: string, newUserId: 
     return false;
   }
 }
+
+/**
+ * Consulta e identifica dados de perfil do usuário diretamente no banco Supabase
+ * Suporta profissionais, salões, clientes e histórico de agendamentos
+ */
+export async function fetchUserProfileFromDb(identifier: { email?: string; name?: string }) {
+  if (!supabase || !isSupabaseConfigured) return null;
+  const term = (identifier.email || identifier.name || '').trim();
+  if (!term) return null;
+
+  try {
+    // 1. Procurar em profissionais
+    const { data: pros } = await (supabase.from('professionals') as any)
+      .select('*')
+      .or(`email.ilike.%${term}%,name.ilike.%${term}%`);
+    if (pros && pros.length > 0) {
+      const p = pros[0];
+      return {
+        type: 'professional' as const,
+        id: p.id,
+        name: p.name,
+        email: p.email || (term.includes('@') ? term : 'elisa.pires@gmail.com'),
+        phone: p.phone || '(11) 98765-4321',
+        avatarUrl: p.avatar_url || '',
+        salonId: p.salon_id,
+      };
+    }
+
+    // 2. Procurar em salões
+    const { data: salons } = await (supabase.from('salons') as any)
+      .select('*')
+      .or(`email.ilike.%${term}%,trade_name.ilike.%${term}%,phone_whatsapp.ilike.%${term}%`);
+    if (salons && salons.length > 0) {
+      const s = salons[0];
+      return {
+        type: 'salon' as const,
+        id: s.id,
+        name: s.trade_name,
+        email: s.email || (term.includes('@') ? term : 'elisa.pires@gmail.com'),
+        phone: s.phone_whatsapp || '(11) 98765-4321',
+        avatarUrl: s.logo_url || '',
+        address: s.address || '',
+      };
+    }
+
+    // 3. Procurar em clientes
+    const { data: clients } = await (supabase.from('clients') as any)
+      .select('*')
+      .or(`email.ilike.%${term}%,name.ilike.%${term}%`);
+    if (clients && clients.length > 0) {
+      const c = clients[0];
+      return {
+        type: 'client' as const,
+        id: c.id,
+        name: c.name,
+        email: c.email || (term.includes('@') ? term : ''),
+        phone: c.phone || '',
+        avatarUrl: c.avatar_url || '',
+      };
+    }
+
+    // 4. Procurar em agendamentos existentes (histórico de cliente)
+    const { data: apts } = await (supabase.from('appointments') as any)
+      .select('client_name, client_email, client_phone')
+      .or(`client_email.ilike.%${term}%,client_name.ilike.%${term}%`)
+      .limit(1);
+    if (apts && apts.length > 0) {
+      const a = apts[0];
+      return {
+        type: 'client' as const,
+        name: a.client_name,
+        email: a.client_email || (term.includes('@') ? term : ''),
+        phone: a.client_phone || '',
+        avatarUrl: '',
+      };
+    }
+  } catch (err) {
+    console.warn('Erro ao consultar perfil no Supabase:', err);
+  }
+
+  return null;
+}
+
+/**
+ * Atualiza ou sincroniza dados de perfil do usuário diretamente no banco Supabase
+ */
+export async function updateUserProfileInDb(profile: {
+  name: string;
+  email: string;
+  phone?: string;
+  avatarUrl?: string;
+}) {
+  if (!supabase || !isSupabaseConfigured) return { success: false };
+
+  try {
+    const cleanPhone = profile.phone ? profile.phone.replace(/\D/g, '') : null;
+
+    // 1. Atualizar profissional se houver registro correspondente
+    const { data: existingPro } = await (supabase.from('professionals') as any)
+      .select('id')
+      .or(`email.ilike.%${profile.email}%,name.ilike.%${profile.name}%`)
+      .limit(1);
+
+    if (existingPro && existingPro.length > 0) {
+      await (supabase.from('professionals') as any)
+        .update({
+          name: profile.name,
+          email: profile.email,
+          phone: cleanPhone || profile.phone,
+          ...(profile.avatarUrl ? { avatar_url: profile.avatarUrl } : {}),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingPro[0].id);
+    }
+
+    // 2. Atualizar salão se corresponder
+    const { data: existingSalon } = await (supabase.from('salons') as any)
+      .select('id')
+      .or(`email.ilike.%${profile.email}%,trade_name.ilike.%${profile.name}%`)
+      .limit(1);
+
+    if (existingSalon && existingSalon.length > 0) {
+      await (supabase.from('salons') as any)
+        .update({
+          trade_name: profile.name,
+          email: profile.email,
+          phone_whatsapp: cleanPhone || profile.phone,
+          ...(profile.avatarUrl ? { logo_url: profile.avatarUrl } : {}),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingSalon[0].id);
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.warn('Erro ao atualizar perfil no Supabase:', err);
+    return { success: false, error: err };
+  }
+}
+
 

@@ -11,10 +11,13 @@ import {
   Heart, 
   Calendar,
   Upload,
+  Database as DatabaseIcon,
+  RefreshCw,
   Image as ImageIcon
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess } from '../utils/haptics';
+import { fetchUserProfileFromDb, updateUserProfileInDb, isSupabaseConfigured } from '../lib/supabase';
 
 // Avatares premium pré-selecionados para o usuário escolher
 const PRESET_AVATARS = [
@@ -42,21 +45,93 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   });
   
   const [avatarUrl, setAvatarUrl] = useState(() => {
-    return localStorage.getItem('vagou_user_avatar') || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80';
+    const saved = localStorage.getItem('vagou_user_avatar');
+    if (saved && !saved.includes('unsplash.com')) return saved;
+    return '';
   });
 
   const [email, setEmail] = useState(() => {
-    return localStorage.getItem('vagou_user_email') || '';
+    const fromProfile = (() => {
+      try {
+        const p = localStorage.getItem('vagou_user_profile');
+        if (p) return JSON.parse(p).email;
+      } catch {}
+      return '';
+    })();
+    return localStorage.getItem('vagou_user_email') || fromProfile || localStorage.getItem('vagou_active_partner') || '';
   });
 
   const [phone, setPhone] = useState(() => {
-    return localStorage.getItem('vagou_user_phone') || '';
+    const fromProfile = (() => {
+      try {
+        const p = localStorage.getItem('vagou_user_profile');
+        if (p) return JSON.parse(p).phone;
+      } catch {}
+      return '';
+    })();
+    return localStorage.getItem('vagou_user_phone') || fromProfile || '';
   });
 
   const [isSavedSuccessfully, setIsSavedSuccessfully] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isSyncingDb, setIsSyncingDb] = useState(false);
+  const [isSavingDb, setIsSavingDb] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sincronizar e identificar dados do usuário diretamente no banco Supabase
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDataFromSupabase() {
+      const currentName = localStorage.getItem('vagou_user_name') || '';
+      const currentEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
+
+      setIsSyncingDb(true);
+      try {
+        const dbProfile = await fetchUserProfileFromDb({
+          name: currentName,
+          email: currentEmail
+        });
+
+        if (isMounted && dbProfile) {
+          if (dbProfile.name) {
+            setName(dbProfile.name);
+            localStorage.setItem('vagou_user_name', dbProfile.name);
+          }
+          if (dbProfile.email) {
+            setEmail(dbProfile.email);
+            localStorage.setItem('vagou_user_email', dbProfile.email);
+          }
+          if (dbProfile.phone) {
+            const formatted = formatPhone(dbProfile.phone);
+            setPhone(formatted);
+            localStorage.setItem('vagou_user_phone', formatted);
+          }
+          if (dbProfile.avatarUrl) {
+            setAvatarUrl(dbProfile.avatarUrl);
+            localStorage.setItem('vagou_user_avatar', dbProfile.avatarUrl);
+          }
+
+          try {
+            const existing = JSON.parse(localStorage.getItem('vagou_user_profile') || '{}');
+            localStorage.setItem('vagou_user_profile', JSON.stringify({
+              ...existing,
+              name: dbProfile.name || currentName,
+              email: dbProfile.email || currentEmail,
+              phone: dbProfile.phone || existing.phone || '',
+            }));
+          } catch {}
+        }
+      } catch (err) {
+        console.warn('Erro ao sincronizar do banco:', err);
+      } finally {
+        if (isMounted) setIsSyncingDb(false);
+      }
+    }
+
+    loadDataFromSupabase();
+    return () => { isMounted = false; };
+  }, []);
 
   // Contadores dinâmicos para a seção de estatísticas do cliente
   const [stats, setStats] = useState({
@@ -134,14 +209,30 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSavingDb(true);
     
     try {
       localStorage.setItem('vagou_user_name', name.trim());
       localStorage.setItem('vagou_user_avatar', avatarUrl);
       localStorage.setItem('vagou_user_email', email.trim());
       localStorage.setItem('vagou_user_phone', phone.trim());
+
+      const updatedProfile = {
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+      };
+      localStorage.setItem('vagou_user_profile', JSON.stringify(updatedProfile));
+
+      // Sincronizar em tempo real com o banco de dados Supabase
+      await updateUserProfileInDb({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        avatarUrl: avatarUrl
+      });
       
       // Chamar callback global para propagar atualizações no resto do App
       if (onUpdateProfile) {
@@ -153,12 +244,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       setTimeout(() => setIsSavedSuccessfully(false), 3000);
     } catch (err) {
       console.error('Erro ao salvar perfil:', err);
+    } finally {
+      setIsSavingDb(false);
     }
   };
 
   return (
     <div className="w-full h-full flex flex-col min-h-0 bg-transparent">
-      {/* CABEÇALHO UNIFICADO */}
+      {/* CABEÇALHO UNIFICADO COM INDICADOR DE CONEXÃO AO BANCO */}
       <header className={`sticky top-0 z-40 px-4 py-3.5 flex items-center justify-between border-b ${
         isDark ? 'bg-slate-950/95 border-slate-900/60' : 'bg-white border-slate-200'
       } backdrop-blur-md`}>
@@ -174,10 +267,26 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
-        <h1 className="text-sm font-black uppercase tracking-wider font-['Poppins'] text-emerald-400">
-          Meus Dados Pessoais
-        </h1>
-        <div className="w-8 h-8" /> {/* Spacer */}
+
+        <div className="flex flex-col items-center">
+          <h1 className="text-sm font-black uppercase tracking-wider font-['Poppins'] text-emerald-400">
+            Meus Dados Pessoais
+          </h1>
+          {isSupabaseConfigured && (
+            <div className="flex items-center gap-1 mt-0.5 text-[9px] font-bold text-emerald-400">
+              <span className={`w-1.5 h-1.5 rounded-full bg-emerald-400 ${isSyncingDb ? 'animate-ping' : ''}`} />
+              <span>{isSyncingDb ? 'Sincronizando banco...' : 'Banco Conectado'}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="w-8 h-8 flex items-center justify-end">
+          {isSyncingDb ? (
+            <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+          ) : (
+            <DatabaseIcon className="w-4 h-4 text-emerald-500/50" />
+          )}
+        </div>
       </header>
 
       {/* CONTEÚDO ROLANTE */}

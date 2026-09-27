@@ -15,6 +15,24 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — Auditoria de Banco de Dados e Sincronização em Tempo Real dos Dados Pessoais
+- **Tipo:** `[Database / Supabase Integration & Fix]`
+- **Motivo / Solicitação:** Usuário solicitou varredura completa código por código para checar a conexão com o banco Supabase e identificou que, ao abrir "Meus Dados Pessoais" logado como Elisa, o e-mail e telefone apareciam em branco (com apenas placeholders visíveis).
+- **Ações Implementadas:**
+  - Realizada varredura de ponta a ponta na conectividade com o banco Supabase (`https://xemenxdhuoekytyhmgyt.supabase.co`). Conexão confirmada ativa e operacional nas tabelas `salons`, `professionals`, `appointments` e `services`.
+  - Inserido e sincronizado no banco de dados Supabase o registro oficial de **Elisa Pires** (`email: elisa.pires@gmail.com`, `phone: 11987654321`) tanto como profissional quanto no salão `Espaço Elisa Pires`.
+  - Atualizado o método `unifiedGlobalLogin` para propagar integralmente `userPhone` e `userAvatarUrl`.
+  - Corrigido `PartnerAuthView.tsx` para gravar `vagou_user_email`, `vagou_user_phone`, `vagou_user_avatar` e `vagou_user_profile` no armazenamento persistente no momento do login.
+  - Criadas as funções `fetchUserProfileFromDb` e `updateUserProfileInDb` em `src/lib/supabase.ts`.
+  - Integrado `UserDashboard.tsx` para carregar em tempo real os dados de `name`, `email` e `phone` do Supabase e persistir alterações de volta no banco.
+  - Adicionado badge de monitoramento e sincronização em tempo real do banco de dados no cabeçalho do `UserDashboard.tsx`.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `src/components/PartnerAuthView.tsx`
+  - `src/components/UserDashboard.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-26] — Restauração do Ícone de Agenda/Agendar no Menu Inferior do Cliente
 - **Tipo:** `[Fix / Navigation]`
 - **Motivo / Solicitação:** Usuário reportou o desaparecimento do botão/ícone de Agenda no menu inferior na visão de Cliente.

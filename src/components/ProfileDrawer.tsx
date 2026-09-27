@@ -10,6 +10,7 @@ import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../utils/haptics';
 import { DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
 import { BookingAppointment, UserProfile, UserPersona, ClientSwapGovernance, SwapTargetQueueItem } from '../types';
+import { fetchUserProfileFromDb } from '../lib/supabase';
 
 interface ProfileDrawerProps {
   isOpen: boolean;
@@ -191,17 +192,59 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
   // Estado dos Dados Pessoais do Usuário
   const [profile, setProfile] = useState<UserProfile>(() => {
+    const savedName = localStorage.getItem('vagou_user_name') || userName || 'Usuário';
+    const savedEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
+    const savedPhone = localStorage.getItem('vagou_user_phone') || '';
+
     try {
       const saved = localStorage.getItem('vagou_user_profile');
       if (saved) {
         const parsed = JSON.parse(saved);
-        return { ...DEFAULT_PROFILE, ...parsed, name: userName || parsed.name };
+        return { 
+          ...DEFAULT_PROFILE, 
+          ...parsed, 
+          name: savedName || parsed.name,
+          email: parsed.email || savedEmail,
+          phone: parsed.phone || savedPhone,
+        };
       }
     } catch {
       // ignore
     }
-    return { ...DEFAULT_PROFILE, name: userName };
+    return { ...DEFAULT_PROFILE, name: savedName, email: savedEmail, phone: savedPhone };
   });
+
+  // Sincronizar dados com o banco Supabase ao abrir o menu lateral
+  useEffect(() => {
+    if (!isOpen) return;
+    let isMounted = true;
+
+    async function syncDrawerFromDb() {
+      const currentName = localStorage.getItem('vagou_user_name') || userName || '';
+      const currentEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
+      if (!currentName && !currentEmail) return;
+
+      const dbProfile = await fetchUserProfileFromDb({
+        name: currentName,
+        email: currentEmail
+      });
+
+      if (isMounted && dbProfile) {
+        setProfile(prev => ({
+          ...prev,
+          name: dbProfile.name || prev.name,
+          email: dbProfile.email || prev.email,
+          phone: dbProfile.phone || prev.phone,
+        }));
+        if (dbProfile.name) localStorage.setItem('vagou_user_name', dbProfile.name);
+        if (dbProfile.email) localStorage.setItem('vagou_user_email', dbProfile.email);
+        if (dbProfile.phone) localStorage.setItem('vagou_user_phone', dbProfile.phone);
+      }
+    }
+
+    syncDrawerFromDb();
+    return () => { isMounted = false; };
+  }, [isOpen, userName]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [savedSuccessToast, setSavedSuccessToast] = useState(false);
