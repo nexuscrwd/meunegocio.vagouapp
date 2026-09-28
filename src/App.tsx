@@ -330,6 +330,49 @@ export const App: React.FC = () => {
     applyAccentColorToDom(accentColor);
   }, [accentColor]);
 
+  // Escuta Mensagens da Tríade Sync (admvapp postMessage)
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.data && event.data.type === 'VAGOU_REGISTRATION_SUCCESS') {
+        const { email, name, user } = event.data;
+        console.log('Mensagem de cadastro/login recebida do Admin Master:', event.data);
+        
+        try {
+          if (name) {
+            localStorage.setItem('vagou_user_name', name);
+            setUserName(name);
+          }
+          if (email) {
+            localStorage.setItem('vagou_user_email', email);
+            localStorage.setItem('vagou_active_partner', email);
+          }
+          if (user?.phone) {
+            localStorage.setItem('vagou_user_phone', user.phone);
+          }
+          
+          setActiveToast({
+            id: String(Date.now()),
+            title: 'Sincronização Ativa',
+            message: `Olá ${name || 'usuário'}, login sincronizado via Vagou Central!`,
+            type: 'success'
+          });
+          
+          // Recarrega a sessão do Supabase localmente para atualizar o estado de autenticação
+          if (isSupabaseConfigured && supabase) {
+            await supabase.auth.refreshSession();
+          }
+        } catch (err) {
+          console.error('Erro ao processar postMessage do Admin Master:', err);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
+
 
   // Validação Inicial de Subdomínio Wildcard (*.vagouapp.com) e Validação Soberana de Papel (RBAC)
   useEffect(() => {

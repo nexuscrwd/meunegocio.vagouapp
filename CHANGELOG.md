@@ -15,6 +15,19 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-28] — Integração com a Rota Centralizada da Tríade (Sync via postMessage)
+- **Tipo:** `[Feature / Security & Sync / Tríade Integration]`
+- **Motivo / Solicitação:** Configuração do `mnvapp` para escutar e processar eventos de login/cadastro bem-sucedidos disparados via `postMessage` pelo `admvapp` (`adm.vagouapp.com`).
+- **Ações Implementadas:**
+  - `src/App.tsx`:
+    1. Criado `useEffect` dedicado para registrar um listener global de `message`.
+    2. Identificação e captura de eventos do tipo `VAGOU_REGISTRATION_SUCCESS`.
+    3. Sincronização local em tempo real: salva nome, e-mail e telefone no `localStorage`, atualiza estados locais de sessão e executa `supabase.auth.refreshSession()` para restaurar a sessão ativa instantaneamente.
+    4. Feedback visual integrado via toast inteligente: `"Olá [nome], login sincronizado via Vagou Central!"`.
+- **Arquivos Impactados:**
+  - `src/App.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-28] — Unificação de Login no Salão sem Seletor de Perfil
 - **Tipo:** `[UX / Security Fix]`
 - **Motivo / Solicitação:** Remover a seleção de "Parceiro / Salão vs Cliente" do modal de autenticação quando estiver em um subdomínio de salão. O formulário agora é simples e direto (Identificação e Senha ou Criar Conta). O papel do usuário (Dono/Gerente/Profissional vs Cliente) é identificado e liberado soberanamente pelo Supabase Auth + `useSalonRole` no banco `salon_members`.
