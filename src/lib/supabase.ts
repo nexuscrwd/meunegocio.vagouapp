@@ -235,9 +235,9 @@ export async function unifiedGlobalLogin(identifier: string, pass: string): Prom
     // Busca Salão
     let salonQuery = supabase.from('salons').select('*');
     if (supabaseAuthUser?.id) {
-      salonQuery = salonQuery.or(`owner_id.eq.${supabaseAuthUser.id},email.ilike.%${cleanUser}%,slug.eq.${cleanUser},phone_whatsapp.ilike.%${cleanUser}%`);
+      salonQuery = salonQuery.or(`owner_id.eq.${supabaseAuthUser.id},email.ilike.%${cleanUser}%,slug.ilike.%${cleanUser}%,subdomain.ilike.%${cleanUser}%,trade_name.ilike.%${cleanUser}%,phone_whatsapp.ilike.%${cleanUser}%`);
     } else {
-      salonQuery = salonQuery.or(`email.ilike.%${cleanUser}%,slug.eq.${cleanUser},phone_whatsapp.ilike.%${cleanUser}%`);
+      salonQuery = salonQuery.or(`email.ilike.%${cleanUser}%,slug.ilike.%${cleanUser}%,subdomain.ilike.%${cleanUser}%,trade_name.ilike.%${cleanUser}%,phone_whatsapp.ilike.%${cleanUser}%`);
     }
     const { data: salons } = await (salonQuery as any);
     if (salons && salons.length > 0) {
@@ -317,30 +317,27 @@ export async function unifiedGlobalLogin(identifier: string, pass: string): Prom
   }
 
   // Fallback Resiliente de PIN / Senha para o Salão / Profissional / Cliente cadastrado no banco
-  const isElisaUser = cleanUser.includes('elisapires') || cleanUser.includes('elisa');
-  const isPassValidForElisa = cleanPass.toLowerCase().includes('elisa') || cleanPass === '31101500' || cleanPass === 'Ae311015@';
-
-  if (matchedSalon || matchedPro || matchedClient || isElisaUser) {
+  if (matchedSalon || matchedPro || matchedClient) {
     const salonPin = matchedSalon?.pin_code || '31101500';
     const isMasterPin = cleanPass === salonPin || cleanPass === '31101500' || cleanPass === 'Ae311015@';
 
-    if (isMasterPin || isPassValidForElisa || cleanPass.length >= 6) {
-      const isProRole = Boolean(matchedSalon || matchedPro || isElisaUser);
+    if (isMasterPin || cleanPass.length >= 6) {
+      const isProRole = Boolean(matchedSalon || matchedPro);
       const userName = matchedSalon?.trade_name || 
                        matchedSalon?.legal_name || 
                        matchedPro?.name || 
                        matchedClient?.name || 
-                       (isElisaUser ? 'Elisa Pires' : cleanUser.split('@')[0]);
+                       cleanUser.split('@')[0];
 
       const userEmail = matchedClient?.email || 
                         matchedPro?.email || 
                         matchedSalon?.email || 
-                        (isElisaUser ? 'elisa.pires@gmail.com' : (cleanUser.includes('@') ? cleanUser : `${cleanUser}@vagou.app`));
+                        (cleanUser.includes('@') ? cleanUser : `${cleanUser}@vagou.app`);
 
       const userPhone = matchedClient?.phone || 
                         matchedPro?.phone || 
                         matchedSalon?.phone_whatsapp || 
-                        (isElisaUser ? '(11) 98765-4321' : '');
+                        '';
 
       const userAvatar = matchedClient?.avatar_url || 
                          matchedPro?.avatar_url || 
@@ -358,8 +355,8 @@ export async function unifiedGlobalLogin(identifier: string, pass: string): Prom
         userEmail: userEmail,
         userPhone: userPhone,
         userAvatarUrl: userAvatar,
-        salonName: matchedSalon?.trade_name || (isElisaUser ? 'Espaço Elisa Pires' : 'Meu Negócio'),
-        salonSlug: matchedSalon?.slug || (isElisaUser ? 'espaco-elisa-pires' : 'meu-negocio'),
+        salonName: matchedSalon?.trade_name || (matchedPro?.name ? `Espaço ${matchedPro.name}` : 'Meu Negócio'),
+        salonSlug: matchedSalon?.slug || (matchedPro?.name ? matchedPro.name.toLowerCase().replace(/\s+/g, '-') : 'meu-negocio'),
       };
     }
   }
@@ -909,7 +906,26 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
 
     const isGenericTerm = !term || term === 'Profissional' || term === 'Usuário' || term === 'Visitante' || term === 'Cliente';
 
-    // 1. Procurar em profissionais por termo específico
+    // 1. Procurar em perfis (profiles) por termo específico
+    if (!isGenericTerm) {
+      const { data: profiles } = await (supabase.from('profiles') as any)
+        .select('*')
+        .or(`email.ilike.%${term}%,full_name.ilike.%${term}%`)
+        .limit(1);
+      if (profiles && profiles.length > 0 && profiles[0].avatar_url) {
+        const prof = profiles[0];
+        return {
+          type: 'client' as const,
+          id: prof.id,
+          name: prof.full_name,
+          email: prof.email || (term.includes('@') ? term : ''),
+          phone: prof.phone_whatsapp || '',
+          avatarUrl: prof.avatar_url,
+        };
+      }
+    }
+
+    // 2. Procurar em profissionais por termo específico
     if (!isGenericTerm) {
       const { data: pros } = await (supabase.from('professionals') as any)
         .select('*')
@@ -929,7 +945,7 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
       }
     }
 
-    // 2. Procurar em clientes por termo específico
+    // 3. Procurar em clientes por termo específico
     if (!isGenericTerm) {
       const { data: clients } = await (supabase.from('clients') as any)
         .select('*')
@@ -942,51 +958,6 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
           id: c.id,
           name: c.name,
           email: c.email || (term.includes('@') ? term : ''),
-          phone: c.phone || '',
-          avatarUrl: c.avatar_url,
-        };
-      }
-    }
-
-    // 3. Fallback inteligente: Buscar o registro mais recente em profissionais que possui avatar_url gravado no banco
-    const { data: proAvatars } = await (supabase.from('professionals') as any)
-      .select('*')
-      .not('avatar_url', 'is', null)
-      .neq('avatar_url', '')
-      .order('updated_at', { ascending: false })
-      .limit(1);
-
-    if (proAvatars && proAvatars.length > 0) {
-      const p = proAvatars[0];
-      if (p.avatar_url && !p.avatar_url.includes('unsplash.com')) {
-        return {
-          type: 'professional' as const,
-          id: p.id,
-          name: p.name,
-          email: p.email || '',
-          phone: p.phone || '',
-          avatarUrl: p.avatar_url,
-          salonId: p.salon_id,
-        };
-      }
-    }
-
-    // 4. Fallback inteligente: Buscar em clientes que possui avatar_url gravado
-    const { data: clientAvatars } = await (supabase.from('clients') as any)
-      .select('*')
-      .not('avatar_url', 'is', null)
-      .neq('avatar_url', '')
-      .order('updated_at', { ascending: false })
-      .limit(1);
-
-    if (clientAvatars && clientAvatars.length > 0) {
-      const c = clientAvatars[0];
-      if (c.avatar_url && !c.avatar_url.includes('unsplash.com')) {
-        return {
-          type: 'client' as const,
-          id: c.id,
-          name: c.name,
-          email: c.email || '',
           phone: c.phone || '',
           avatarUrl: c.avatar_url,
         };

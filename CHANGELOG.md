@@ -15,6 +15,18 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-28] — Correção de Bug de Mistura de Perfil e Remoção de Fallbacks Globais
+- **Tipo:** `[Fix / Authentication & Profile Isolation]`
+- **Motivo / Solicitação:** Remoção de fallbacks sem filtro na função `fetchUserProfileFromDb()` e eliminação de mapeamentos legados `isElisaUser` em `src/lib/supabase.ts`, garantindo isolamento total dos dados de perfil e do salão de cada usuário (ex: José Roberto).
+- **Ações Implementadas:**
+  - `src/lib/supabase.ts`:
+    1. Removidos os Fallbacks 3 e 4 não filtrados de `fetchUserProfileFromDb()`, adicionando suporte estrito à tabela `profiles` com retorno `null` caso não haja correspondência exata para o usuário.
+    2. Removidas as variáveis e checagens legadas `isElisaUser` / `isPassValidForElisa` em `unifiedGlobalLogin`.
+    3. Aprimorada a consulta de salões (`salons`) no login para buscar dinamicamente por `owner_id`, `email`, `slug`, `subdomain` e `trade_name`, retornando com precisão os dados do estabelecimento do usuário autenticado.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `CHANGELOG.md`
+
 ### [2026-09-28] — Tríade Sync: Adoção do Gateway Soberano de Cadastro e BOL-016 (bol-015 / bol-016)
 - **Tipo:** `[Security & Sovereign Architecture / Tríade Sync]`
 - **Motivo / Solicitação:** Cumprimento das diretrizes soberanas da Tríade (`bol-015-unified-sovereign-registration-gateway` e `bol-016`). Desativação de fluxos locais/nativos de cadastro no `mnvapp` e integração com o Gateway Soberano de Cadastro do `admvapp` (`https://admin.vagouapp.com/cadastro`). Suporte a contatos dedicados de estabelecimentos (`phone_landline`, `subdomain`).
