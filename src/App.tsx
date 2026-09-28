@@ -58,7 +58,7 @@ export const App: React.FC = () => {
   // Trava anti-expulsão: enquanto valida o subdomínio, passa 'loading' para o SalonProfileView
   const effectiveRole = isValidatingSubdomain ? 'loading' : currentRole;
   const [userName, setUserName] = useState(() => {
-    return localStorage.getItem('vagou_user_name') || 'Profissional';
+    return localStorage.getItem('vagou_user_name') || '';
   });
   const [userAvatarUrl, setUserAvatarUrl] = useState(() => {
     try {
@@ -268,18 +268,67 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Ponto ÚNICO soberano de garantia da linha do cliente em public.clients no login
+  // Ponto ÚNICO soberano de garantia da linha do cliente em public.clients no login e controle de sessão
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
+
+    // Verificar sessão inicial no carregamento para evitar login fantasma/mock
+    const checkInitialSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          // Garante que se não tem usuário autenticado no Supabase, limpa os estados locais e localStorage
+          setUserName('');
+          setUserAvatarUrl('');
+          localStorage.removeItem('vagou_user_name');
+          localStorage.removeItem('vagou_user_email');
+          localStorage.removeItem('vagou_user_phone');
+          localStorage.removeItem('vagou_user_avatar');
+          localStorage.removeItem('vagou_active_partner');
+          localStorage.removeItem('vagou_user_appointments');
+        } else {
+          // Se tem usuário, garante que o nome do estado está atualizado
+          const uMeta = session.user.user_metadata;
+          const uEmail = session.user.email;
+          const nameToSet = uMeta?.full_name || uMeta?.name || uEmail?.split('@')[0] || 'Usuário';
+          setUserName(nameToSet);
+          localStorage.setItem('vagou_user_name', nameToSet);
+        }
+      } catch (err) {
+        console.warn('Erro ao verificar sessão inicial:', err);
+      }
+    };
+
+    checkInitialSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         const uid = session.user.id;
         const uEmail = session.user.email;
         const uMeta = session.user.user_metadata;
+        const nameToSet = uMeta?.full_name || uMeta?.name || uEmail?.split('@')[0] || 'Usuário';
+        
+        setUserName(nameToSet);
+        localStorage.setItem('vagou_user_name', nameToSet);
+        if (uEmail) {
+          localStorage.setItem('vagou_user_email', uEmail);
+          localStorage.setItem('vagou_active_partner', uEmail);
+        }
+        
         setTimeout(() => {
           ensureClientRow(uid, uEmail, uMeta).catch((e) => console.warn('Erro em ensureClientRow:', e));
         }, 0);
+      } else if (event === 'SIGNED_OUT' || !session?.user) {
+        setUserName('');
+        setUserAvatarUrl('');
+        try {
+          localStorage.removeItem('vagou_user_name');
+          localStorage.removeItem('vagou_user_email');
+          localStorage.removeItem('vagou_user_phone');
+          localStorage.removeItem('vagou_user_avatar');
+          localStorage.removeItem('vagou_active_partner');
+          localStorage.removeItem('vagou_user_appointments');
+        } catch {}
       }
     });
 

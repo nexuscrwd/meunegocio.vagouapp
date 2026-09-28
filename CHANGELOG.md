@@ -15,6 +15,18 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-28] — Desconexão Imediata e Correção de Login Wall Inicial
+- **Tipo:** `[UX / Session Fix / Bug]`
+- **Motivo / Solicitação:** O aplicativo estava iniciando com a sessão pré-logada como "Profissional" (mock persistente), impedindo que o cliente começasse deslogado de forma limpa em testes de produção. Adicionalmente, ao clicar em "desconectar" / "sair", a sessão localmente persistia devido a um delay e falta de limpeza do estado de usuário no componente pai (`App.tsx`).
+- **Ações Implementadas:**
+  - `src/App.tsx`:
+    1. Removido o valor de fallback `'Profissional'` no estado `userName`. Agora, se não houver usuário autenticado no Supabase, a inicialização padrão é string vazia `''` (deslogado por padrão).
+    2. Adicionado o validador `checkInitialSession` executado no mount inicial do app: se o Supabase Auth não tiver uma sessão ativa real (`session?.user` nula), todos os dados do localStorage e estados locais são expurgados imediatamente.
+    3. Atualizada a escuta soberana `onAuthStateChange`: ao disparar o evento `SIGNED_OUT`, o `mnvapp` limpa todos os dados locais e altera os estados `userName` e `userAvatarUrl` para `''`, forçando uma desmontagem e re-renderização instantânea do cabeçalho do app para o estado de visitante público.
+- **Arquivos Impactados:**
+  - `src/App.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-28] — Integração com a Rota Centralizada da Tríade (Sync via postMessage)
 - **Tipo:** `[Feature / Security & Sync / Tríade Integration]`
 - **Motivo / Solicitação:** Configuração do `mnvapp` para escutar e processar eventos de login/cadastro bem-sucedidos disparados via `postMessage` pelo `admvapp` (`adm.vagouapp.com`).
