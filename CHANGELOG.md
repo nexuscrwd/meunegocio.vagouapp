@@ -15,6 +15,17 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-28] — Garantia de Vitrine Pública Livre de Login Wall
+- **Tipo:** `[UX / Core Concept Fix]`
+- **Motivo / Solicitação:** A página do salão (`*.vagouapp.com`) deve SEMPRE abrir diretamente a vitrine pública de ofertas e serviços do dono, sem exigir login prévio do visitante. O login deve ser aberto em modal sobreposto apenas ao clicar em "Entrar", agendar um serviço ou tentar acessar áreas restritas de gestão.
+- **Ações Implementadas:**
+  - `src/components/SalonProfileView.tsx`:
+    1. Botão "Entrar" no cabeçalho superior e acionadores de login/logout/gestão agora abrem o modal `SalonClientAuthModal` diretamente sobre a vitrine do salão (`setIsClientAuthModalOpen(true)`).
+    2. Eliminado o desmonte da vitrine e redirecionamento para tela cheia de formulário de login (`PartnerAuthView`). A vitrine e as ofertas continuam visíveis ao fundo o tempo todo.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-28] — Conclusão da TAREFA 3: Agendamento Seguro, RPC get_busy_slots, ensureClientRow & RLS
 - **Tipo:** `[Feature / Security & RLS / Tarefa 3]`
 - **Motivo / Solicitação:** Implementação completa da Tarefa 3: criação resiliente de cliente em `clients` via `ensureClientRow` sem sobrescrever dados prévios, bloqueio estrito de visitantes no agendamento, consulta de horários ocupados via RPC soberano `get_busy_slots`, gravação de agendamento em `appointments` com `client_id` real, validação de dependentes e telefone, exibição transparente de mensagens de recusa do banco (ex: trigger `trg_appointments_reserve_offer`), e cancelamento seguro pelo cliente com validação de RLS.

@@ -747,9 +747,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   };
 
   const handleSalonLogin = (_pin?: string): boolean => {
-    if (onBackToAuth) {
-      onBackToAuth();
-    }
+    setIsClientAuthModalOpen(true);
     return false;
   };
 
@@ -764,24 +762,21 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       localStorage.removeItem('vagou_user_email');
       localStorage.removeItem('vagou_user_phone');
       localStorage.removeItem('vagou_user_avatar');
+      localStorage.removeItem('vagou_user_name');
     } catch {
       // ignore
     }
-    if (onBackToAuth) {
-      onBackToAuth();
-    }
+    setIsClientAuthModalOpen(false);
   };
 
   // Solicitação de acesso a Gerenciar Estabelecimento (Protegido por RBAC)
   const handleRequestManage = useCallback(() => {
     if (!isSalonLoggedIn || currentPersona === 'cliente') {
-      if (onBackToAuth) {
-        onBackToAuth();
-      }
+      setIsClientAuthModalOpen(true);
       return;
     }
     setActiveTab('personalizar');
-  }, [isSalonLoggedIn, currentPersona, onBackToAuth]);
+  }, [isSalonLoggedIn, currentPersona]);
 
   useEffect(() => {
     if (userName) {
@@ -975,9 +970,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     // 3. Abas de caixa, financeiro, equipe, personalização e utilidades só para owner e manager.
     if (tab === 'caixa' || tab === 'financeiro' || tab === 'utilidades' || tab === 'personalizar' || tab === 'equipe') {
       if (!isOwnerOrManager) {
-        if (onBackToAuth) {
-          onBackToAuth();
-        }
+        setIsClientAuthModalOpen(true);
         return;
       }
       setActiveTab(tab);
@@ -1447,11 +1440,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               type="button"
               onClick={() => {
                 hapticLight();
-                if (onBackToAuth) {
-                  onBackToAuth();
-                } else {
-                  setIsProfileDrawerOpen(true);
-                }
+                setIsClientAuthModalOpen(true);
               }}
               className={`h-8 sm:h-9.5 px-3 sm:px-3.5 rounded flex items-center justify-center font-bold text-xs sm:text-sm font-['Poppins'] tracking-wide transition active:scale-95 cursor-pointer shrink-0 ${
                 isDark
