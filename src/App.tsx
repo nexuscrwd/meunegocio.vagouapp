@@ -3,6 +3,7 @@ import { SalonProfileView } from './components/SalonProfileView';
 import { UserAppointmentsView } from './components/UserAppointmentsView';
 import { UserDashboard } from './components/UserDashboard';
 import { PartnerAuthView, PartnerAuthSuccessData } from './components/PartnerAuthView';
+import { SalonNotFoundScreen } from './components/public/SalonNotFoundScreen';
 import { ServiceOffer, BookingAppointment } from './types';
 import { initializeStoredPwaAssets } from './utils/pwaAssets';
 import { DEFAULT_FACE_CLIPART_AVATAR } from './utils/defaultSalonAssets';
@@ -17,11 +18,24 @@ import {
 
 export { ThemeContext, ThemeProvider, useTheme, applyAccentColorToDom, type ThemeContextType };
 
+// Subdomínios do sistema que NÃO são salões de beleza
+const RESERVED_SUBDOMAINS = [
+  'adm', 'admin', 'admvapp', 'portal', 'pvapp', 'meunegocio', 'mnvapp',
+  'www', 'api', 'suporte', 'ajuda', 'vagou', 'vagouapp', 'localhost',
+  'app', 'dashboard', 'status', 'auth', 'login', 'signup', 'checkout', 'pay', 'billing'
+];
+
 // Lista de ofertas padrão (vazio, carregado do banco)
 const EMPTY_OFFERS: ServiceOffer[] = [];
 
 export const App: React.FC = () => {
   const { isDark, accentColor } = useTheme();
+
+  // Validação do Subdomínio Wildcard (*.vagouapp.com)
+  const [isNotFound, setIsNotFound] = useState(false);
+  const [currentSubdomain, setCurrentSubdomain] = useState('');
+  const [isValidatingSubdomain, setIsValidatingSubdomain] = useState(true);
+
   // Início padrão na tela de Login / Cadastre-se com botão Acessar como Admin
   const [viewMode, setViewMode] = useState<'auth' | 'salon' | 'agenda' | 'dashboard'>(() => {
     try {
@@ -313,6 +327,56 @@ export const App: React.FC = () => {
   }, [accentColor]);
 
 
+  // Validação Inicial de Subdomínio Wildcard (*.vagouapp.com)
+  useEffect(() => {
+    async function validateSubdomain() {
+      try {
+        const hostname = window.location.hostname; // ex: "andersonstudio.vagouapp.com"
+        const isDevOrPreview = 
+          hostname.includes('localhost') || 
+          hostname.includes('127.0.0.1') || 
+          hostname.includes('run.app') || 
+          hostname.includes('webcontainer') || 
+          hostname.includes('stackblitz');
+
+        const parts = hostname.split('.');
+
+        if (parts.length >= 3 && !isDevOrPreview) {
+          const sub = parts[0].toLowerCase().trim();
+
+          if (!RESERVED_SUBDOMAINS.includes(sub) && !sub.startsWith('ais-')) {
+            if (isSupabaseConfigured && supabase) {
+              const { data: salon } = await (supabase.from('salons') as any)
+                .select('*')
+                .or(`slug.eq.${sub},subdomain.eq.${sub}`)
+                .eq('status', 'active')
+                .maybeSingle();
+
+              if (!salon) {
+                // 🛑 NÃO ENCONTRADO: Exibe a tela de orientação de erro
+                setCurrentSubdomain(sub);
+                setIsNotFound(true);
+                setIsValidatingSubdomain(false);
+                return;
+              }
+
+              // ✅ ENCONTRADO: Define o nome do salão ativo
+              if (salon.name) {
+                setSalonName(salon.name);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao validar subdomínio:', err);
+      } finally {
+        setIsValidatingSubdomain(false);
+      }
+    }
+
+    validateSubdomain();
+  }, []);
+
   const [isFavorite, setIsFavorite] = useState<boolean>(() => {
     try {
       return localStorage.getItem('vagou_is_favorite') === 'true';
@@ -330,6 +394,11 @@ export const App: React.FC = () => {
       return next;
     });
   };
+
+  // 🛑 Se o subdomínio não foi encontrado no Supabase (status !== 'active')
+  if (isNotFound) {
+    return <SalonNotFoundScreen subdomain={currentSubdomain} />;
+  }
 
   return (
     <div className={`w-full h-full h-dvh flex items-center justify-center overflow-hidden font-['Poppins'] ${

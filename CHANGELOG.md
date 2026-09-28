@@ -15,6 +15,28 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — Tríade Sync: Ajuste Canônico de Domínios e Redirecionamento ao Admin Master (bol-014)
+- **Tipo:** `[Domain Correction / Tríade Sync]`
+- **Motivo / Solicitação:** Comunicado Técnico Oficial `bol-014-canonical-triad-domains-and-subdomain-guard-sync` emitido pelo `admvapp`. Retificação do domínio oficial do `mnvapp` para `meunegocio.vagouapp.com` e atualização do direcionamento da tela `SalonNotFoundScreen` para o Motor Soberano de Cadastro no Admin Master (`https://admin.vagouapp.com/cadastro?type=professional&slug=xxx`).
+- **Ações Implementadas:**
+  - `src/components/public/SalonNotFoundScreen.tsx`: Criado o componente no caminho canônico `src/components/public/` com botão de redirecionamento apontando para `https://admin.vagouapp.com/cadastro?type=professional&slug=xxx`.
+  - `src/App.tsx`: Atualizada a lista estrita de `RESERVED_SUBDOMAINS` e o import de `SalonNotFoundScreen`.
+- **Arquivos Impactados:**
+  - `src/components/public/SalonNotFoundScreen.tsx`
+  - `src/App.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-27] — Tríade Sync: Guarda de Segurança e Validação de Subdomínio Wildcard (bol-011)
+- **Tipo:** `[Security / Architecture / Tríade Sync]`
+- **Motivo / Solicitação:** Comunicado Técnico Oficial `bol-011-wildcard-subdomain-security-guard` enviado pelo `admvapp`. Quando um subdomínio é acessado no Wildcard (*.vagouapp.com), o `mnvapp` valida se o salão existe no Supabase (`public.salons`) e possui `status = 'active'`. Se não existir, exibe a tela amigável `SalonNotFoundScreen` com redirecionamento para o fluxo oficial no Portal.
+- **Ações Implementadas:**
+  - `src/components/SalonNotFoundScreen.tsx`: Criado o componente de orientação e tratamento de erro de salão não encontrado/inativo, estilizado em Dark Theme com atalho para o formulário de cadastro no Portal (`https://portal.vagouapp.com/cadastrar-salao?slug=xxx`).
+  - `src/App.tsx`: Adicionada a constante `RESERVED_SUBDOMAINS` e o efeito `validateSubdomain` que consulta o Supabase por `slug` ou `subdomain`. Se `status !== 'active'` ou não for encontrado, intercepta o render exibindo `SalonNotFoundScreen`.
+- **Arquivos Impactados:**
+  - `src/components/SalonNotFoundScreen.tsx`
+  - `src/App.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-27] — Redução do Logo em 25% no Cabeçalho
 - **Tipo:** `[UI / Focus Mode Styling]`
 - **Motivo / Solicitação:** Redução direta de 25% no tamanho da imagem do logo selecionada no cabeçalho.
