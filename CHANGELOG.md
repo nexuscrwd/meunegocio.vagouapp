@@ -15,6 +15,15 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — Redução do Logo em 25% no Cabeçalho
+- **Tipo:** `[UI / Focus Mode Styling]`
+- **Motivo / Solicitação:** Redução direta de 25% no tamanho da imagem do logo selecionada no cabeçalho.
+- **Ações Implementadas:**
+  - `src/components/PartnerAuthView.tsx`: Ajustadas as classes de altura máxima da imagem de `max-h-20 sm:max-h-16` para `max-h-[60px] sm:max-h-[48px]` (redução exata de 25%) e largura máxima `max-w-[65%]`.
+- **Arquivos Impactados:**
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-27] — Aumento de 100% no Tamanho Vertical do Cabeçalho em Dispositivos Móveis
 - **Tipo:** `[UI / Mobile Responsiveness & Layout]`
 - **Motivo / Solicitação:** Aumento em 100% no tamanho vertical do cabeçalho superior no modo mobile.

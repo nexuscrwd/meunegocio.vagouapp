@@ -641,7 +641,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
           <img 
             src={salonLogo} 
             alt={currentDisplaySalonName} 
-            className="max-h-20 sm:max-h-16 max-w-[80%] h-auto w-auto object-contain block"
+            className="max-h-[60px] sm:max-h-[48px] max-w-[65%] h-auto w-auto object-contain block"
           />
         </header>
       )}
