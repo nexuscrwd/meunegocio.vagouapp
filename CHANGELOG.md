@@ -17,10 +17,10 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ### [2026-09-28] — Correção de Bug de Mistura de Perfil e Remoção de Fallbacks Globais
 - **Tipo:** `[Fix / Authentication & Profile Isolation]`
-- **Motivo / Solicitação:** Remoção de fallbacks sem filtro na função `fetchUserProfileFromDb()` e eliminação de mapeamentos legados `isElisaUser` em `src/lib/supabase.ts`, garantindo isolamento total dos dados de perfil e do salão de cada usuário (ex: José Roberto).
+- **Motivo / Solicitação:** Remoção de fallbacks sem filtro na função `fetchUserProfileFromDb()` e eliminação de mapeamentos legados `isElisaUser` em `src/lib/supabase.ts`, garantindo isolamento total dos dados de perfil e do salão de cada usuário (ex: José Roberto). Usuários sem foto explicitamente retornam `avatarUrl: ''` para renderizar iniciais/ícones padrão.
 - **Ações Implementadas:**
   - `src/lib/supabase.ts`:
-    1. Removidos os Fallbacks 3 e 4 não filtrados de `fetchUserProfileFromDb()`, adicionando suporte estrito à tabela `profiles` com retorno `null` caso não haja correspondência exata para o usuário.
+    1. Removidos os Fallbacks 3 e 4 não filtrados de `fetchUserProfileFromDb()`, adicionando suporte estrito à tabela `profiles` com retorno `avatarUrl: ''` quando não houver foto cadastrada para o usuário logado.
     2. Removidas as variáveis e checagens legadas `isElisaUser` / `isPassValidForElisa` em `unifiedGlobalLogin`.
     3. Aprimorada a consulta de salões (`salons`) no login para buscar dinamicamente por `owner_id`, `email`, `slug`, `subdomain` e `trade_name`, retornando com precisão os dados do estabelecimento do usuário autenticado.
 - **Arquivos Impactados:**

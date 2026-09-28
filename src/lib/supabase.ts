@@ -889,38 +889,46 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
       const { data: authUserResp } = await supabase.auth.getUser();
       const authUser = authUserResp?.user;
       if (authUser) {
-        const metaAvatar = authUser.user_metadata?.avatar_url || authUser.user_metadata?.avatar;
+        const metaAvatar = authUser.user_metadata?.avatar_url || authUser.user_metadata?.avatar || '';
         const metaName = authUser.user_metadata?.full_name || authUser.user_metadata?.name;
-        if (metaAvatar && !metaAvatar.includes('unsplash.com')) {
-          return {
-            type: (authUser.user_metadata?.role === 'pro' ? 'professional' : 'client') as any,
-            id: authUser.id,
-            name: metaName || authUser.email?.split('@')[0] || 'Usuário',
-            email: authUser.email || '',
-            phone: authUser.user_metadata?.phone || '',
-            avatarUrl: metaAvatar,
-          };
-        }
+
+        // Também busca na tabela profiles para o usuário autenticado
+        const { data: profile } = await (supabase.from('profiles') as any)
+          .select('*')
+          .eq('id', authUser.id)
+          .maybeSingle();
+
+        const avatar = profile?.avatar_url || (metaAvatar && !metaAvatar.includes('unsplash.com') ? metaAvatar : '');
+        const name = profile?.full_name || metaName || authUser.email?.split('@')[0] || 'Usuário';
+
+        return {
+          type: (authUser.user_metadata?.role === 'pro' ? 'professional' : 'client') as any,
+          id: authUser.id,
+          name: name,
+          email: authUser.email || '',
+          phone: profile?.phone_whatsapp || authUser.user_metadata?.phone || '',
+          avatarUrl: avatar || '',
+        };
       }
     } catch {}
 
     const isGenericTerm = !term || term === 'Profissional' || term === 'Usuário' || term === 'Visitante' || term === 'Cliente';
 
-    // 1. Procurar em perfis (profiles) por termo específico
+    // 1. Procurar em perfis (profiles) por termo específico (e-mail ou nome)
     if (!isGenericTerm) {
       const { data: profiles } = await (supabase.from('profiles') as any)
         .select('*')
         .or(`email.ilike.%${term}%,full_name.ilike.%${term}%`)
         .limit(1);
-      if (profiles && profiles.length > 0 && profiles[0].avatar_url) {
+      if (profiles && profiles.length > 0) {
         const prof = profiles[0];
         return {
           type: 'client' as const,
           id: prof.id,
-          name: prof.full_name,
+          name: prof.full_name || term,
           email: prof.email || (term.includes('@') ? term : ''),
           phone: prof.phone_whatsapp || '',
-          avatarUrl: prof.avatar_url,
+          avatarUrl: prof.avatar_url || '',
         };
       }
     }
@@ -931,15 +939,15 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
         .select('*')
         .or(`email.ilike.%${term}%,name.ilike.%${term}%`)
         .limit(1);
-      if (pros && pros.length > 0 && pros[0].avatar_url) {
+      if (pros && pros.length > 0) {
         const p = pros[0];
         return {
           type: 'professional' as const,
           id: p.id,
-          name: p.name,
+          name: p.name || term,
           email: p.email || (term.includes('@') ? term : ''),
           phone: p.phone || '',
-          avatarUrl: p.avatar_url,
+          avatarUrl: p.avatar_url || '',
           salonId: p.salon_id,
         };
       }
@@ -951,15 +959,15 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
         .select('*')
         .or(`email.ilike.%${term}%,name.ilike.%${term}%`)
         .limit(1);
-      if (clients && clients.length > 0 && clients[0].avatar_url) {
+      if (clients && clients.length > 0) {
         const c = clients[0];
         return {
           type: 'client' as const,
           id: c.id,
-          name: c.name,
+          name: c.name || term,
           email: c.email || (term.includes('@') ? term : ''),
           phone: c.phone || '',
-          avatarUrl: c.avatar_url,
+          avatarUrl: c.avatar_url || '',
         };
       }
     }
