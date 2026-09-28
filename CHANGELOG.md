@@ -15,16 +15,26 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
-### [2026-09-28] — Correção de Bug de Mistura de Perfil e Remoção de Fallbacks Globais
-- **Tipo:** `[Fix / Authentication & Profile Isolation]`
-- **Motivo / Solicitação:** Remoção de fallbacks sem filtro na função `fetchUserProfileFromDb()` e eliminação de mapeamentos legados `isElisaUser` em `src/lib/supabase.ts`, garantindo isolamento total dos dados de perfil e do salão de cada usuário (ex: José Roberto). Usuários sem foto explicitamente retornam `avatarUrl: ''` para renderizar iniciais/ícones padrão.
+### [2026-09-28] — Resolução Definitiva de Vazamento de Avatar (Exact Matching & Cache Purge)
+- **Tipo:** `[Fix / Profile Isolation & Avatar Purge]`
+- **Motivo / Solicitação:** Identificação da causa raiz do vazamento de fotos: buscas parciais com wildcard (`.ilike.%term%`) em `fetchUserProfileFromDb()` que capturavam fotos de outros perfis e persistência de avatar fantasma no `localStorage`.
 - **Ações Implementadas:**
   - `src/lib/supabase.ts`:
-    1. Removidos os Fallbacks 3 e 4 não filtrados de `fetchUserProfileFromDb()`, adicionando suporte estrito à tabela `profiles` com retorno `avatarUrl: ''` quando não houver foto cadastrada para o usuário logado.
-    2. Removidas as variáveis e checagens legadas `isElisaUser` / `isPassValidForElisa` em `unifiedGlobalLogin`.
-    3. Aprimorada a consulta de salões (`salons`) no login para buscar dinamicamente por `owner_id`, `email`, `slug`, `subdomain` e `trade_name`, retornando com precisão os dados do estabelecimento do usuário autenticado.
+    1. Alteradas todas as consultas em `profiles`, `professionals` e `clients` de `ilike.%term%` para correspondência exata (`term.includes('@') ? ilike('email', term) : or(email.ilike.${term}@%,full_name.ilike.${term})`).
+    2. Garantido retorno `avatarUrl: ''` caso a conta não possua foto cadastrada.
+  - `src/components/SalonProfileView.tsx`:
+    1. Removido default de foto externa do Unsplash (`userAvatarUrl = ''`).
+    2. Sincronização limpa que remove `vagou_user_avatar` do `localStorage` caso o usuário não tenha avatar.
+  - `src/components/ProfileDrawer.tsx`:
+    1. Removido default SVG/avatar no drawer (`userAvatarUrl = ''`).
+    2. `syncDrawerFromDb` agora limpa imediatamente o avatar do estado e do storage quando a conta não possui foto.
+  - `src/App.tsx`:
+    1. `syncUserFromSupabase` agora limpa `vagou_user_avatar` do `localStorage` e reseta o estado `userAvatarUrl`.
 - **Arquivos Impactados:**
   - `src/lib/supabase.ts`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/App.tsx`
   - `CHANGELOG.md`
 
 ### [2026-09-28] — Tríade Sync: Adoção do Gateway Soberano de Cadastro e BOL-016 (bol-015 / bol-016)

@@ -195,7 +195,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   isFavorite = false,
   onToggleFavorite,
   userName = 'Usuário',
-  userAvatarUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+  userAvatarUrl = '',
   onNavigateToUserAppointments,
   onNavigateToUserDashboard,
   onBackToAuth,
@@ -206,7 +206,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const [currentUserAvatarUrl, setCurrentUserAvatarUrl] = useState<string>(() => {
     try {
       const saved = localStorage.getItem('vagou_user_avatar');
-      if (saved && !saved.includes('unsplash.com')) return saved;
+      if (saved && !saved.includes('unsplash.com') && !saved.startsWith('data:image/svg+xml')) return saved;
     } catch {}
     return userAvatarUrl || '';
   });
@@ -218,7 +218,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
   React.useEffect(() => {
     if (userAvatarUrl !== undefined) {
-      setCurrentUserAvatarUrl(userAvatarUrl);
+      const cleanAvatar = userAvatarUrl && !userAvatarUrl.includes('unsplash.com') ? userAvatarUrl : '';
+      setCurrentUserAvatarUrl(cleanAvatar);
     }
   }, [userAvatarUrl]);
 
@@ -226,63 +227,30 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   React.useEffect(() => {
     let isMounted = true;
     async function syncAvatar() {
-      try {
-        const saved = localStorage.getItem('vagou_user_avatar');
-        if (saved && !saved.includes('unsplash.com')) {
-          if (isMounted) setCurrentUserAvatarUrl(saved);
-        }
-      } catch {}
-
       if (!isSupabaseConfigured || !supabase) return;
 
       try {
         const savedEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
         const savedName = localStorage.getItem('vagou_user_name') || currentUserName || '';
 
-        // 1. fetchUserProfileFromDb (Auth, Professionals, Salons, Clients, e fallback automático)
+        if (!savedEmail && !savedName) return;
+
+        // 1. fetchUserProfileFromDb (Auth, Professionals, Salons, Clients)
         const profile = await fetchUserProfileFromDb({ email: savedEmail, name: savedName });
-        if (isMounted && profile?.avatarUrl && !profile.avatarUrl.includes('unsplash.com')) {
-          setCurrentUserAvatarUrl(profile.avatarUrl);
-          localStorage.setItem('vagou_user_avatar', profile.avatarUrl);
-          if (profile.name && profile.name !== 'Profissional' && profile.name !== 'Usuário') {
-            setCurrentUserName(profile.name);
-            localStorage.setItem('vagou_user_name', profile.name);
-          }
-          if (profile.email) {
-            localStorage.setItem('vagou_user_email', profile.email);
-          }
-          return;
-        }
-
-        // 2. professionals table explicitly
-        if (savedEmail) {
-          const { data: pro } = await (supabase.from('professionals') as any)
-            .select('avatar_url, name, phone')
-            .ilike('email', `%${savedEmail}%`)
-            .maybeSingle();
-
-          if (pro?.avatar_url && !pro.avatar_url.includes('unsplash.com')) {
-            if (isMounted) {
-              setCurrentUserAvatarUrl(pro.avatar_url);
-              localStorage.setItem('vagou_user_avatar', pro.avatar_url);
+        if (isMounted) {
+          if (profile?.avatarUrl && !profile.avatarUrl.includes('unsplash.com') && !profile.avatarUrl.startsWith('data:image/svg+xml')) {
+            setCurrentUserAvatarUrl(profile.avatarUrl);
+            localStorage.setItem('vagou_user_avatar', profile.avatarUrl);
+            if (profile.name && profile.name !== 'Profissional' && profile.name !== 'Usuário') {
+              setCurrentUserName(profile.name);
+              localStorage.setItem('vagou_user_name', profile.name);
             }
-            return;
-          }
-        }
-
-        // 3. clients table explicitly
-        if (savedEmail) {
-          const { data: client } = await (supabase.from('clients') as any)
-            .select('avatar_url, name, phone')
-            .ilike('email', `%${savedEmail}%`)
-            .maybeSingle();
-
-          if (client?.avatar_url && !client.avatar_url.includes('unsplash.com')) {
-            if (isMounted) {
-              setCurrentUserAvatarUrl(client.avatar_url);
-              localStorage.setItem('vagou_user_avatar', client.avatar_url);
+            if (profile.email) {
+              localStorage.setItem('vagou_user_email', profile.email);
             }
-            return;
+          } else {
+            setCurrentUserAvatarUrl('');
+            localStorage.removeItem('vagou_user_avatar');
           }
         }
       } catch (err) {

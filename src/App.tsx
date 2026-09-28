@@ -221,7 +221,9 @@ export const App: React.FC = () => {
         const savedEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
         const savedName = localStorage.getItem('vagou_user_name') || '';
 
-        // 1. fetchUserProfileFromDb (Auth, Professionals, Salons, Clients, e fallback automático)
+        if (!savedEmail && !savedName) return;
+
+        // 1. fetchUserProfileFromDb (Auth, Profiles, Professionals, Clients)
         const profile = await fetchUserProfileFromDb({ email: savedEmail, name: savedName });
         if (profile) {
           if (profile.name && profile.name.trim() !== '' && profile.name !== 'Profissional' && profile.name !== 'Usuário') {
@@ -231,50 +233,16 @@ export const App: React.FC = () => {
           if (profile.email) {
             localStorage.setItem('vagou_user_email', profile.email);
           }
-          if (profile.avatarUrl && !profile.avatarUrl.includes('unsplash.com')) {
+          if (profile.avatarUrl && !profile.avatarUrl.includes('unsplash.com') && !profile.avatarUrl.startsWith('data:image/svg+xml')) {
             setUserAvatarUrl(profile.avatarUrl);
             localStorage.setItem('vagou_user_avatar', profile.avatarUrl);
-            return;
+          } else {
+            setUserAvatarUrl('');
+            localStorage.removeItem('vagou_user_avatar');
           }
-        }
-
-        // 2. professionals table
-        if (savedEmail) {
-          const { data: pro } = await (supabase.from('professionals') as any)
-            .select('avatar_url, name, phone')
-            .ilike('email', `%${savedEmail}%`)
-            .maybeSingle();
-
-          if (pro) {
-            if (pro.name && pro.name.trim() !== '') {
-              setUserName(pro.name);
-              localStorage.setItem('vagou_user_name', pro.name);
-            }
-            if (pro.avatar_url && !pro.avatar_url.includes('unsplash.com')) {
-              setUserAvatarUrl(pro.avatar_url);
-              localStorage.setItem('vagou_user_avatar', pro.avatar_url);
-            }
-            return;
-          }
-        }
-
-        // 3. clients table
-        if (savedEmail) {
-          const { data: client } = await (supabase.from('clients') as any)
-            .select('avatar_url, name, phone')
-            .ilike('email', `%${savedEmail}%`)
-            .maybeSingle();
-
-          if (client) {
-            if (client.name && client.name.trim() !== '') {
-              setUserName(client.name);
-              localStorage.setItem('vagou_user_name', client.name);
-            }
-            if (client.avatar_url && !client.avatar_url.includes('unsplash.com')) {
-              setUserAvatarUrl(client.avatar_url);
-              localStorage.setItem('vagou_user_avatar', client.avatar_url);
-            }
-          }
+        } else {
+          setUserAvatarUrl('');
+          localStorage.removeItem('vagou_user_avatar');
         }
       } catch {}
     };

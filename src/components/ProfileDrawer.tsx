@@ -124,7 +124,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   isOpen,
   onClose,
   userName = 'Usuário',
-  userAvatarUrl = DEFAULT_FACE_CLIPART_AVATAR,
+  userAvatarUrl = '',
   onUpdateUserName,
   onUpdateUserAvatar,
   onNavigateToSchedule,
@@ -232,23 +232,33 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         email: currentEmail
       });
 
-      if (isMounted && dbProfile) {
-        const validAvatar = dbProfile.avatarUrl && !dbProfile.avatarUrl.includes('unsplash.com') ? dbProfile.avatarUrl : '';
-        setProfile(prev => ({
-          ...prev,
-          name: dbProfile.name || prev.name,
-          email: dbProfile.email || prev.email,
-          phone: dbProfile.phone || prev.phone,
-          avatarUrl: validAvatar || (prev.avatarUrl && !prev.avatarUrl.includes('unsplash.com') ? prev.avatarUrl : ''),
-        }));
-        if (dbProfile.name) localStorage.setItem('vagou_user_name', dbProfile.name);
-        if (dbProfile.email) localStorage.setItem('vagou_user_email', dbProfile.email);
-        if (dbProfile.phone) localStorage.setItem('vagou_user_phone', dbProfile.phone);
-        if (validAvatar) {
-          localStorage.setItem('vagou_user_avatar', validAvatar);
-          onUpdateUserAvatar?.(validAvatar);
+      if (isMounted) {
+        if (dbProfile) {
+          const validAvatar = dbProfile.avatarUrl && !dbProfile.avatarUrl.includes('unsplash.com') && !dbProfile.avatarUrl.startsWith('data:image/svg+xml') ? dbProfile.avatarUrl : '';
+          setProfile(prev => ({
+            ...prev,
+            name: dbProfile.name || prev.name,
+            email: dbProfile.email || prev.email,
+            phone: dbProfile.phone || prev.phone,
+            avatarUrl: validAvatar,
+          }));
+          if (dbProfile.name) localStorage.setItem('vagou_user_name', dbProfile.name);
+          if (dbProfile.email) localStorage.setItem('vagou_user_email', dbProfile.email);
+          if (dbProfile.phone) localStorage.setItem('vagou_user_phone', dbProfile.phone);
+          if (validAvatar) {
+            localStorage.setItem('vagou_user_avatar', validAvatar);
+            onUpdateUserAvatar?.(validAvatar);
+          } else {
+            localStorage.removeItem('vagou_user_avatar');
+            onUpdateUserAvatar?.('');
+          }
         } else {
+          setProfile(prev => ({
+            ...prev,
+            avatarUrl: '',
+          }));
           localStorage.removeItem('vagou_user_avatar');
+          onUpdateUserAvatar?.('');
         }
       }
     }

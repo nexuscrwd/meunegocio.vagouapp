@@ -914,12 +914,15 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
 
     const isGenericTerm = !term || term === 'Profissional' || term === 'Usuário' || term === 'Visitante' || term === 'Cliente';
 
-    // 1. Procurar em perfis (profiles) por termo específico (e-mail ou nome)
+    // 1. Procurar em perfis (profiles) por correspondência exata de e-mail ou nome
     if (!isGenericTerm) {
-      const { data: profiles } = await (supabase.from('profiles') as any)
-        .select('*')
-        .or(`email.ilike.%${term}%,full_name.ilike.%${term}%`)
-        .limit(1);
+      let query = supabase.from('profiles').select('*');
+      if (term.includes('@')) {
+        query = query.ilike('email', term);
+      } else {
+        query = query.or(`email.ilike.${term}@%,full_name.ilike.${term}`);
+      }
+      const { data: profiles } = await (query as any).limit(1);
       if (profiles && profiles.length > 0) {
         const prof = profiles[0];
         return {
@@ -933,12 +936,15 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
       }
     }
 
-    // 2. Procurar em profissionais por termo específico
+    // 2. Procurar em profissionais por correspondência exata
     if (!isGenericTerm) {
-      const { data: pros } = await (supabase.from('professionals') as any)
-        .select('*')
-        .or(`email.ilike.%${term}%,name.ilike.%${term}%`)
-        .limit(1);
+      let query = supabase.from('professionals').select('*');
+      if (term.includes('@')) {
+        query = query.ilike('email', term);
+      } else {
+        query = query.or(`email.ilike.${term}@%,name.ilike.${term}`);
+      }
+      const { data: pros } = await (query as any).limit(1);
       if (pros && pros.length > 0) {
         const p = pros[0];
         return {
@@ -953,12 +959,15 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
       }
     }
 
-    // 3. Procurar em clientes por termo específico
+    // 3. Procurar em clientes por correspondência exata
     if (!isGenericTerm) {
-      const { data: clients } = await (supabase.from('clients') as any)
-        .select('*')
-        .or(`email.ilike.%${term}%,name.ilike.%${term}%`)
-        .limit(1);
+      let query = supabase.from('clients').select('*');
+      if (term.includes('@')) {
+        query = query.ilike('email', term);
+      } else {
+        query = query.or(`email.ilike.${term}@%,name.ilike.${term}`);
+      }
+      const { data: clients } = await (query as any).limit(1);
       if (clients && clients.length > 0) {
         const c = clients[0];
         return {
