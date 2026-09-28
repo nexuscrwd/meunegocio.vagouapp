@@ -15,6 +15,18 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-28] — Unificação de Login no Salão sem Seletor de Perfil
+- **Tipo:** `[UX / Security Fix]`
+- **Motivo / Solicitação:** Remover a seleção de "Parceiro / Salão vs Cliente" do modal de autenticação quando estiver em um subdomínio de salão. O formulário agora é simples e direto (Identificação e Senha ou Criar Conta). O papel do usuário (Dono/Gerente/Profissional vs Cliente) é identificado e liberado soberanamente pelo Supabase Auth + `useSalonRole` no banco `salon_members`.
+- **Ações Implementadas:**
+  - `src/components/SalonClientAuthModal.tsx`:
+    1. Removida a chave e a caixa seletora de perfil `accountType` ("Parceiro / Salão vs Cliente").
+    2. Abas renomeadas para "Criar Conta" e "Entrar".
+    3. Login unificado: após autenticar no Supabase Auth, o hook `useSalonRole` consulta a tabela `salon_members` do salão em tempo real e libera o Modo PRO do Salão se for `owner`/`professional`, ou mantém o perfil como Cliente se não constar na equipe.
+- **Arquivos Impactados:**
+  - `src/components/SalonClientAuthModal.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-28] — Garantia de Vitrine Pública Livre de Login Wall
 - **Tipo:** `[UX / Core Concept Fix]`
 - **Motivo / Solicitação:** A página do salão (`*.vagouapp.com`) deve SEMPRE abrir diretamente a vitrine pública de ofertas e serviços do dono, sem exigir login prévio do visitante. O login deve ser aberto em modal sobreposto apenas ao clicar em "Entrar", agendar um serviço ou tentar acessar áreas restritas de gestão.

@@ -31,7 +31,6 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
   onAuthenticated,
 }) => {
   const [tab, setTab] = useState<'signup' | 'login'>('signup');
-  const [accountType, setAccountType] = useState<'pro' | 'cliente'>('pro');
 
   // Campos de Cadastro
   const [name, setName] = useState('');
@@ -93,7 +92,6 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
       const { data, error } = await signUpWithSupabase(cleanEmail, password, {
         full_name: name.trim(),
         phone: phone.trim(),
-        role: accountType,
         registered_at_salon: salonName,
       });
 
@@ -127,7 +125,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
         localStorage.setItem('vagou_active_partner', authenticatedUser.email);
       } catch {}
 
-      onAuthenticated(authenticatedUser, accountType);
+      onAuthenticated(authenticatedUser);
       onClose();
     } catch (err: any) {
       setErrorMessage(err?.message || 'Falha na conexão. Tente novamente.');
@@ -175,7 +173,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
         if (result.salonSlug) localStorage.setItem('vagou_salon_slug', result.salonSlug);
       } catch {}
 
-      onAuthenticated(authenticatedUser, result.role);
+      onAuthenticated(authenticatedUser);
       onClose();
     } catch (err: any) {
       setErrorMessage(err?.message || 'Falha ao autenticar.');
@@ -243,7 +241,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Primeira vez aqui
+              Criar Conta
             </button>
             <button
               type="button"
@@ -258,7 +256,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Já sou cliente
+              Entrar
             </button>
           </div>
         </div>
@@ -275,52 +273,11 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
           {tab === 'signup' ? (
             /* Formulário de Cadastro Rápido do Salão */
             <form onSubmit={handleSignUp} className="space-y-3">
-              {/* Seletor de Tipo de Perfil */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Tipo de Conta
-                </label>
-                <div className="grid grid-cols-2 gap-1.5 p-1 rounded-lg bg-slate-100 border border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hapticLight();
-                      setAccountType('pro');
-                    }}
-                    className={`py-1.5 px-2 rounded-md text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
-                      accountType === 'pro'
-                        ? 'bg-[#00a033] text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 bg-transparent'
-                    }`}
-                  >
-                    <span>🏢 Parceiro / Salão</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hapticLight();
-                      setAccountType('cliente');
-                    }}
-                    className={`py-1.5 px-2 rounded-md text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
-                      accountType === 'cliente'
-                        ? 'bg-slate-800 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 bg-transparent'
-                    }`}
-                  >
-                    <span>👤 Cliente</span>
-                  </button>
-                </div>
-              </div>
-
               {/* Card de Boas-Vindas */}
               <div className="p-2.5 rounded bg-emerald-50/90 border border-emerald-200/80 text-emerald-950 flex items-start gap-2">
                 <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <p className="text-[11px] leading-snug">
-                  {accountType === 'pro' ? (
-                    <span><strong>Parceiro Vagou:</strong> Crie seu acesso para cadastrar seu estabelecimento, equipe, serviços e publicar vagas!</span>
-                  ) : (
-                    <span><strong>Cadastro único:</strong> Seu acesso fica salvo neste aparelho para agendamentos rápidos com 1 toque.</span>
-                  )}
+                  <span><strong>Acesso Rápido:</strong> Cadastre-se apenas uma vez para realizar agendamentos no salão.</span>
                 </p>
               </div>
 
