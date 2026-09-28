@@ -637,11 +637,11 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
 
       {/* Cabeçalho Superior: Exibido APENAS se houver logo cadastrado, sem limitação de caixa quadrada */}
       {salonLogo && salonLogo.trim() !== '' && (
-        <header className="w-full bg-white border-b border-slate-200 shrink-0 flex items-center justify-center py-3 px-4 max-h-[120px]">
+        <header className="w-full bg-white border-b border-slate-200 shrink-0 flex items-center justify-center py-6 sm:py-2.5 px-4 max-h-[192px] sm:max-h-[96px]">
           <img 
             src={salonLogo} 
             alt={currentDisplaySalonName} 
-            className="max-h-16 sm:max-h-20 max-w-[85%] h-auto w-auto object-contain block"
+            className="max-h-20 sm:max-h-16 max-w-[80%] h-auto w-auto object-contain block"
           />
         </header>
       )}

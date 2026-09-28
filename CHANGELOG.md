@@ -15,6 +15,24 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — Aumento de 100% no Tamanho Vertical do Cabeçalho em Dispositivos Móveis
+- **Tipo:** `[UI / Mobile Responsiveness & Layout]`
+- **Motivo / Solicitação:** Aumento em 100% no tamanho vertical do cabeçalho superior no modo mobile.
+- **Ações Implementadas:**
+  - `src/components/PartnerAuthView.tsx`: Dobrada a dimensão vertical do `<header>` no breakpoint mobile (`py-6 sm:py-2.5` e `max-h-[192px] sm:max-h-[96px]`), permitindo maior respiro e presença visual do cabeçalho em celulares.
+- **Arquivos Impactados:**
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-27] — Redução do Logo em 20% e Ajuste de Dimensões do Cabeçalho
+- **Tipo:** `[UI / Focus Mode Styling]`
+- **Motivo / Solicitação:** Redução proporcional de 20% no tamanho do logo no cabeçalho superior e ajuste da altura máxima/espaçamento interno do contêiner para uma proporção perfeita em dispositivos móveis.
+- **Ações Implementadas:**
+  - `src/components/PartnerAuthView.tsx`: Reduzida a altura máxima da imagem de `max-h-16 sm:max-h-20` para `max-h-12 sm:max-h-16` (redução exata de 20%), ajustando a altura do `<header>` para `max-h-[96px]` e padding `py-2.5 px-4`.
+- **Arquivos Impactados:**
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-27] — Cabeçalho Condicional de Logo na Tela Inicial (Exibição Completa sem Caixa Quadrada)
 - **Tipo:** `[UI / Header & Brand Styling]`
 - **Motivo / Solicitação:** O cabeçalho branco superior na tela inicial só deve ser exibido se houver uma imagem de logo cadastrada para o estabelecimento. Se não houver logo, o cabeçalho branco e a caixa de iniciais são ocultados por completo. Quando houver logo, a imagem é renderizada por inteiro (`object-contain`) sem corte ou confinamento em caixa quadrada.
