@@ -71,6 +71,20 @@ CREATE TABLE public.salons (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 3.1 TABELA: SALON_MEMBERS (VÍNCULO DONO / GESTOR / EQUIPE)
+CREATE TABLE IF NOT EXISTS public.salon_members (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    role VARCHAR(50) NOT NULL DEFAULT 'staff', -- 'owner', 'manager', 'staff'
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(salon_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_salon_members_user_id ON public.salon_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_salon_members_salon_id ON public.salon_members(salon_id);
+
 -- 4. TABELA: PROFESSIONALS (PROFISSIONAIS / EQUIPE)
 CREATE TABLE public.professionals (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -147,7 +161,8 @@ CREATE TABLE public.clients (
     avatar_url TEXT,
     default_address TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT clients_user_id_key UNIQUE (user_id)
 );
 
 -- 8. TABELA: APPOINTMENTS (AGENDAMENTOS E RESERVAS REALIZADAS)
@@ -310,6 +325,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 12. POLÍTICAS DE SEGURANÇA (ROW LEVEL SECURITY - RLS)
 -- ==============================================================================
 ALTER TABLE public.salons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.salon_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.professionals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.services ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.service_offers ENABLE ROW LEVEL SECURITY;
@@ -318,26 +334,60 @@ ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.salon_media_slots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.billing_invoices ENABLE ROW LEVEL SECURITY;
 
--- Leitura Pública
+-- Função auxiliar: Verifica se o usuário autenticado é membro ou dono do salão
+CREATE OR REPLACE FUNCTION public.is_salon_member(target_salon_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.salon_members sm
+        WHERE sm.salon_id = target_salon_id
+        AND sm.user_id = auth.uid()
+    ) OR EXISTS (
+        SELECT 1 FROM public.salons s
+        WHERE s.id = target_salon_id
+        AND s.owner_id = auth.uid()
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Políticas de Membros do Salão
+CREATE POLICY "Select_Salon_Members" ON public.salon_members 
+    FOR SELECT USING (auth.uid() = user_id OR public.is_salon_member(salon_id));
+
+CREATE POLICY "Manage_Salon_Members" ON public.salon_members 
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM public.salons s WHERE s.id = salon_id AND s.owner_id = auth.uid()
+        ) OR EXISTS (
+            SELECT 1 FROM public.salon_members sm WHERE sm.salon_id = salon_id AND sm.user_id = auth.uid() AND sm.role = 'owner'
+        )
+    );
+
+-- Leitura Pública (Catálogo)
 CREATE POLICY "Leitura_Salons" ON public.salons FOR SELECT USING (true);
 CREATE POLICY "Leitura_Professionals" ON public.professionals FOR SELECT USING (true);
 CREATE POLICY "Leitura_Services" ON public.services FOR SELECT USING (true);
 CREATE POLICY "Leitura_Offers" ON public.service_offers FOR SELECT USING (true);
 CREATE POLICY "Leitura_Media" ON public.salon_media_slots FOR SELECT USING (true);
-CREATE POLICY "Leitura_Appointments" ON public.appointments FOR SELECT USING (true);
 
--- Inserção e Atualização sem bloqueios
-CREATE POLICY "Insert_Salons" ON public.salons FOR INSERT WITH CHECK (true);
-CREATE POLICY "Update_Salons" ON public.salons FOR UPDATE USING (true);
-CREATE POLICY "Insert_Professionals" ON public.professionals FOR INSERT WITH CHECK (true);
-CREATE POLICY "Update_Professionals" ON public.professionals FOR UPDATE USING (true);
-CREATE POLICY "Insert_Services" ON public.services FOR INSERT WITH CHECK (true);
-CREATE POLICY "Insert_Offers" ON public.service_offers FOR INSERT WITH CHECK (true);
-CREATE POLICY "Update_Offers" ON public.service_offers FOR UPDATE USING (true);
+-- Edição de Salões e Recursos apenas para Membros Autorizados
+CREATE POLICY "Update_Salons" ON public.salons FOR UPDATE USING (public.is_salon_member(id));
+CREATE POLICY "Insert_Salons" ON public.salons FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "Manage_Professionals" ON public.professionals FOR ALL USING (public.is_salon_member(salon_id));
+CREATE POLICY "Manage_Services" ON public.services FOR ALL USING (public.is_salon_member(salon_id));
+CREATE POLICY "Manage_Offers" ON public.service_offers FOR ALL USING (public.is_salon_member(salon_id));
+
+-- Agendamentos: Cliente lê seus próprios agendamentos; Membros leem agendamentos do seu salão
+CREATE POLICY "Select_Appointments" ON public.appointments FOR SELECT USING (
+    client_id = auth.uid() OR public.is_salon_member(salon_id)
+);
 CREATE POLICY "Insert_Appointments" ON public.appointments FOR INSERT WITH CHECK (true);
-CREATE POLICY "Update_Appointments" ON public.appointments FOR UPDATE USING (true);
+CREATE POLICY "Update_Appointments" ON public.appointments FOR UPDATE USING (
+    client_id = auth.uid() OR public.is_salon_member(salon_id)
+);
+
 CREATE POLICY "Insert_Clients" ON public.clients FOR INSERT WITH CHECK (true);
-CREATE POLICY "Update_Clients" ON public.clients FOR UPDATE USING (true);
+CREATE POLICY "Update_Clients" ON public.clients FOR UPDATE USING (auth.uid() = user_id);
 
 -- ==============================================================================
 -- 13. DADOS INICIAIS (SEEDS DE SALÕES, PROFISSIONAIS E VAGAS ATIVAS)

@@ -30,7 +30,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
   const [salonPhone, setSalonPhone] = useState(adminSettings.salonPhone || '');
   const [salonAddress, setSalonAddress] = useState(adminSettings.salonAddress || '');
   const [openingHours, setOpeningHours] = useState(adminSettings.openingHours || 'Seg a Sáb • 09:00 às 20:00');
-  const [pinCode, setPinCode] = useState(adminSettings.pinCode || '');
   
   // Ativos visuais separados: Logo Retangular (Cabeçalho) vs Ícone Quadrado (PWA)
   const [salonLogo, setSalonLogo] = useState(adminSettings.salonLogo || '');
@@ -113,7 +112,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
       salonPhone,
       salonAddress,
       openingHours,
-      pinCode,
       salonLogo,
       salonLogoLight,
       salonLogoDark,
@@ -516,33 +514,18 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                WhatsApp / Contato
-              </label>
-              <input
-                type="text"
-                value={salonPhone}
-                onChange={(e) => setSalonPhone(e.target.value)}
-                className={`w-full px-3 py-2 rounded-lg border text-xs font-medium outline-hidden ${
-                  isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-emerald-500' : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                PIN de Acesso
-              </label>
-              <input
-                type="text"
-                value={pinCode}
-                onChange={(e) => setPinCode(e.target.value)}
-                className={`w-full px-3 py-2 rounded-lg border text-xs font-medium outline-hidden ${
-                  isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-emerald-500' : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
-            </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+              WhatsApp / Contato
+            </label>
+            <input
+              type="text"
+              value={salonPhone}
+              onChange={(e) => setSalonPhone(e.target.value)}
+              className={`w-full px-3 py-2 rounded-lg border text-xs font-medium outline-hidden ${
+                isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-emerald-500' : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-500'
+              }`}
+            />
           </div>
 
           <div>

@@ -92,14 +92,14 @@ export async function signInWithSupabase(userOrEmail: string, password: string) 
     return { data: null, error: new Error('Supabase não conectado') };
   }
 
-  // Normalizar email se o usuário inseriu apenas o username/slug
-  const emailToUse = userOrEmail.includes('@')
-    ? userOrEmail.trim().toLowerCase()
-    : `${userOrEmail.trim().toLowerCase()}@vagou.app`;
+  const cleanEmail = userOrEmail.trim().toLowerCase();
+  if (!cleanEmail.includes('@')) {
+    return { data: null, error: new Error('Informe um endereço de e-mail válido.') };
+  }
 
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: emailToUse,
+      email: cleanEmail,
       password: password.trim(),
     });
 
@@ -115,7 +115,7 @@ export async function signInWithSupabase(userOrEmail: string, password: string) 
 
 export interface UnifiedLoginResult {
   success: boolean;
-  user?: any;
+  user?: User;
   salonData?: any;
   professionalData?: any;
   clientData?: any;
@@ -131,10 +131,150 @@ export interface UnifiedLoginResult {
 }
 
 /**
- * Protocolo de Autenticação Unificada Global do Ecossistema Vagou
- * Integra Supabase Auth + Tabelas Salons, Professionals e Clients + Fallbacks Master
+ * Verificação Soberana de Papel e Vínculo com Estabelecimento (RBAC)
+ * Regra Inegociável: Consulta salon_members estritamente por user_id E pelo salão do targetSalonSlug.
+ * Sem usar owner_id, e-mail ou ilike. Retorna 'cliente' quando não houver vínculo naquele salão específico.
  */
-export async function unifiedGlobalLogin(identifier: string, pass: string): Promise<UnifiedLoginResult> {
+export async function checkUserSalonMembership(
+  userId: string,
+  salonIdentifier?: string
+): Promise<{
+  isMember: boolean;
+  role: 'owner' | 'manager' | 'professional' | 'cliente';
+  salonId?: string;
+  salonData?: any;
+}> {
+  if (!supabase || !isSupabaseConfigured || !userId) {
+    return { isMember: false, role: 'cliente' };
+  }
+
+  // (a) Se salonIdentifier vier vazio, retorne { isMember: false, role: 'cliente' } (nunca consulte vínculos de todos os salões)
+  if (!salonIdentifier || !salonIdentifier.trim()) {
+    return { isMember: false, role: 'cliente' };
+  }
+
+  const cleanIdent = salonIdentifier.trim().toLowerCase();
+
+  // (c) Valide o slug com /^[a-z0-9-]+$/ (ou UUID) antes de usar na consulta; se inválido, retorne 'cliente'
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanIdent);
+  const isValidSlug = /^[a-z0-9-]+$/.test(cleanIdent);
+
+  if (!isUuid && !isValidSlug) {
+    return { isMember: false, role: 'cliente' };
+  }
+
+  try {
+    // (b) Confirmação: a coluna subdomain NÃO existe na tabela salons, usamos estritamente slug ou id.
+    // Verificamos o campo error; se houver erro, logamos no console e retornamos 'cliente'.
+    let salonQuery = supabase.from('salons').select('id, trade_name, slug, is_active');
+    if (isUuid) {
+      salonQuery = salonQuery.eq('id', cleanIdent);
+    } else {
+      salonQuery = salonQuery.eq('slug', cleanIdent);
+    }
+
+    const { data: salonRes, error: salonErr } = await (salonQuery.maybeSingle() as any);
+    if (salonErr) {
+      console.warn('Erro ao consultar salão por identificador:', salonErr.message);
+      return { isMember: false, role: 'cliente' };
+    }
+
+    if (!salonRes) {
+      return { isMember: false, role: 'cliente' };
+    }
+
+    const targetSalonId = salonRes.id;
+    const targetSalonData = salonRes;
+
+    // Consulta soberana na tabela salon_members por user_id E salon_id (sem owner_id, sem email, sem ilike)
+    const { data: members, error: memErr } = await (supabase
+      .from('salon_members')
+      .select('id, salon_id, user_id, role, salon:salons(*)')
+      .eq('user_id', userId)
+      .eq('salon_id', targetSalonId) as any);
+
+    if (memErr) {
+      console.warn('Erro ao consultar salon_members:', memErr.message);
+      return { isMember: false, role: 'cliente' };
+    }
+
+    if (members && members.length > 0) {
+      const mem = members[0];
+      const memberRole = mem.role === 'owner' ? 'owner' : mem.role === 'manager' ? 'manager' : 'professional';
+      return {
+        isMember: true,
+        role: memberRole,
+        salonId: mem.salon_id,
+        salonData: mem.salon || targetSalonData,
+      };
+    }
+  } catch (err) {
+    console.warn('Erro inesperado ao consultar salon_members:', err);
+  }
+
+  // Sem linha em salon_members para este salão = cliente estrito
+  return { isMember: false, role: 'cliente' };
+}
+
+/**
+ * Garante a linha do cliente em public.clients sem sobrescrever dados existentes.
+ * Trata concorrência com retry no erro 23505 (unique constraint).
+ */
+export async function ensureClientRow(
+  userId: string,
+  userEmail?: string | null,
+  userMetadata?: Record<string, any> | null
+): Promise<{ client: any; error: any }> {
+  if (!supabase || !isSupabaseConfigured || !userId) {
+    return { client: null, error: new Error('Sessão ou Supabase indisponível') };
+  }
+
+  try {
+    // 1. Verifica se já existe
+    const { data: existingClient } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (existingClient) {
+      return { client: existingClient, error: null };
+    }
+
+    // 2. Se não existir, insere com metadados reais
+    const resolvedName = userMetadata?.full_name || userMetadata?.name || (userEmail ? userEmail.split('@')[0] : 'Usuário');
+    const { data: insertedClient, error: insertErr } = await (supabase.from('clients') as any)
+      .insert({
+        user_id: userId,
+        name: resolvedName.trim(),
+        phone: userMetadata?.phone || null,
+        email: userEmail || null,
+        avatar_url: userMetadata?.avatar_url || null,
+      })
+      .select()
+      .single();
+
+    // Se colidiu em corrida concorrente (23505), reconsulta e retorna a linha existente
+    if (insertErr && (insertErr.code === '23505' || insertErr.message?.includes('duplicate'))) {
+      const { data: reFetched } = await (supabase.from('clients') as any).select('*').eq('user_id', userId).maybeSingle();
+      return { client: reFetched, error: null };
+    }
+
+    return { client: insertedClient, error: insertErr };
+  } catch (err: any) {
+    return { client: null, error: err };
+  }
+}
+
+/**
+ * Protocolo de Autenticação Unificada Global do Ecossistema Vagou
+ * Integra Supabase Auth estrito + Validação de RBAC em salon_members
+ */
+export async function unifiedGlobalLogin(
+  identifier: string, 
+  pass: string,
+  targetSalonSlug?: string
+): Promise<UnifiedLoginResult> {
   const cleanUser = identifier.trim().toLowerCase();
   const cleanPass = pass.trim();
 
@@ -149,73 +289,37 @@ export async function unifiedGlobalLogin(identifier: string, pass: string): Prom
     };
   }
 
-  // 1. Checagem Master Admin de Segurança
-  const isMasterAdmin = (cleanUser === 'anderson' || cleanUser === 'anderson.hpires@gmail.com' || cleanUser === 'admin') && 
-                        (cleanPass === '31101500' || cleanPass === 'Ae311015@');
-  if (isMasterAdmin) {
+  if (!cleanUser.includes('@')) {
     return {
-      success: true,
-      persona: 'pro',
-      role: 'admin',
-      userName: 'Administrador Master',
-      userEmail: cleanUser.includes('@') ? cleanUser : 'admin@vagou.app',
-      salonName: 'Meu Negócio',
-      salonSlug: 'meu-negocio',
+      success: false,
+      persona: 'cliente',
+      role: 'cliente',
+      userName: '',
+      userEmail: cleanUser,
+      errorMessage: 'Informe um endereço de e-mail válido.',
     };
   }
 
   if (!isSupabaseConfigured || !supabase) {
-    // Modo offline / local de emergência
     return {
-      success: true,
-      persona: 'pro',
-      role: 'pro',
-      userName: cleanUser.split('@')[0],
+      success: false,
+      persona: 'cliente',
+      role: 'cliente',
+      userName: '',
       userEmail: cleanUser,
-      salonName: 'Meu Negócio',
-      salonSlug: 'meu-negocio',
+      errorMessage: 'Erro: O cliente Supabase não está configurado. Conexão necessária.',
     };
   }
 
-  // 2. Tentar autenticação via Supabase Auth com resiliência a variações de caixa de senha
+  // 1. Autenticação REAL exclusivamente via Supabase Auth (sem atalhos, sem PIN, sem variações)
   let supabaseAuthUser: User | null = null;
   let authError: any = null;
 
   try {
-    const emailToUse = cleanUser.includes('@') ? cleanUser : `${cleanUser}@vagou.app`;
-    
-    // Tentativa 1: Senha exatamente como digitada
-    let { data: authData, error: err } = await supabase.auth.signInWithPassword({
-      email: emailToUse,
+    const { data: authData, error: err } = await supabase.auth.signInWithPassword({
+      email: cleanUser,
       password: cleanPass,
     });
-
-    // Tentativa 2: Caso falhe por senha incorreta, testar caixa baixa
-    if (err && cleanPass.toLowerCase() !== cleanPass) {
-      const { data: authDataLow, error: errLow } = await supabase.auth.signInWithPassword({
-        email: emailToUse,
-        password: cleanPass.toLowerCase(),
-      });
-      if (!errLow && authDataLow?.user) {
-        authData = authDataLow;
-        err = null;
-      }
-    }
-
-    // Tentativa 3: Primeira letra maiúscula
-    if (err) {
-      const capPass = cleanPass.charAt(0).toUpperCase() + cleanPass.slice(1).toLowerCase();
-      if (capPass !== cleanPass && capPass !== cleanPass.toLowerCase()) {
-        const { data: authDataCap, error: errCap } = await supabase.auth.signInWithPassword({
-          email: emailToUse,
-          password: capPass,
-        });
-        if (!errCap && authDataCap?.user) {
-          authData = authDataCap;
-          err = null;
-        }
-      }
-    }
 
     if (!err && authData?.user) {
       supabaseAuthUser = authData.user;
@@ -226,191 +330,85 @@ export async function unifiedGlobalLogin(identifier: string, pass: string): Prom
     authError = e;
   }
 
-  // 3. Consultar o banco de dados Supabase para dados do salão, profissional e cliente
-  let matchedSalon: any = null;
-  let matchedPro: any = null;
-  let matchedClient: any = null;
-
-  try {
-    // Busca Salão
-    let salonQuery = supabase.from('salons').select('*');
-    if (supabaseAuthUser?.id) {
-      salonQuery = salonQuery.or(`owner_id.eq.${supabaseAuthUser.id},email.ilike.%${cleanUser}%,slug.ilike.%${cleanUser}%,subdomain.ilike.%${cleanUser}%,trade_name.ilike.%${cleanUser}%,phone_whatsapp.ilike.%${cleanUser}%`);
-    } else {
-      salonQuery = salonQuery.or(`email.ilike.%${cleanUser}%,slug.ilike.%${cleanUser}%,subdomain.ilike.%${cleanUser}%,trade_name.ilike.%${cleanUser}%,phone_whatsapp.ilike.%${cleanUser}%`);
+  // Se falhou no Supabase Auth, exibe a mensagem amigável ou o erro real do Supabase
+  if (!supabaseAuthUser) {
+    const message = authError?.message || 'Falha na autenticação com o Supabase.';
+    let friendlyMessage = message;
+    if (message.includes('Invalid login credentials')) {
+      friendlyMessage = 'E-mail ou senha incorretos.';
+    } else if (message.includes('Email not confirmed')) {
+      friendlyMessage = 'E-mail pendente de confirmação. Verifique sua caixa de entrada.';
     }
-    const { data: salons } = await (salonQuery as any);
-    if (salons && salons.length > 0) {
-      matchedSalon = salons[0];
-    }
-  } catch {}
-
-  try {
-    // Busca Profissional
-    let proQuery = supabase.from('professionals').select('*');
-    if (supabaseAuthUser?.id) {
-      proQuery = proQuery.or(`user_id.eq.${supabaseAuthUser.id},email.ilike.%${cleanUser}%,phone.ilike.%${cleanUser}%`);
-    } else {
-      proQuery = proQuery.or(`email.ilike.%${cleanUser}%,phone.ilike.%${cleanUser}%`);
-    }
-    const { data: pros } = await (proQuery as any);
-    if (pros && pros.length > 0) {
-      matchedPro = pros[0];
-    }
-  } catch {}
-
-  try {
-    // Busca Cliente
-    let clientQuery = supabase.from('clients').select('*');
-    if (supabaseAuthUser?.id) {
-      clientQuery = clientQuery.or(`user_id.eq.${supabaseAuthUser.id},email.ilike.%${cleanUser}%,phone.ilike.%${cleanUser}%`);
-    } else {
-      clientQuery = clientQuery.or(`email.ilike.%${cleanUser}%,phone.ilike.%${cleanUser}%`);
-    }
-    const { data: clients } = await (clientQuery as any);
-    if (clients && clients.length > 0) {
-      matchedClient = clients[0];
-    }
-  } catch {}
-
-  // 4. Decisão e Validação Final
-  if (supabaseAuthUser) {
-    const userRoleInMeta = supabaseAuthUser.user_metadata?.role;
-    const isPro = Boolean(matchedSalon || matchedPro || userRoleInMeta === 'pro' || userRoleInMeta === 'admin');
-    const resolvedName = supabaseAuthUser.user_metadata?.full_name || 
-                         supabaseAuthUser.user_metadata?.name || 
-                         matchedPro?.name || 
-                         matchedClient?.name || 
-                         matchedSalon?.trade_name || 
-                         cleanUser.split('@')[0];
-    const resolvedEmail = supabaseAuthUser.email || 
-                          matchedClient?.email || 
-                          matchedPro?.email || 
-                          matchedSalon?.email || 
-                          cleanUser;
-    const resolvedPhone = matchedClient?.phone || 
-                          matchedPro?.phone || 
-                          matchedSalon?.phone_whatsapp || 
-                          supabaseAuthUser.user_metadata?.phone || 
-                          '';
-    const resolvedAvatar = matchedClient?.avatar_url || 
-                           matchedPro?.avatar_url || 
-                           matchedSalon?.logo_url || 
-                           supabaseAuthUser.user_metadata?.avatar_url || 
-                           '';
-
     return {
-      success: true,
-      user: supabaseAuthUser,
-      salonData: matchedSalon,
-      professionalData: matchedPro,
-      clientData: matchedClient,
-      persona: isPro ? 'pro' : 'cliente',
-      role: isPro ? 'pro' : 'cliente',
-      userName: resolvedName,
-      userEmail: resolvedEmail,
-      userPhone: resolvedPhone,
-      userAvatarUrl: resolvedAvatar,
-      salonName: matchedSalon?.trade_name || 'Meu Negócio',
-      salonSlug: matchedSalon?.slug || 'meu-negocio',
+      success: false,
+      persona: 'cliente',
+      role: 'cliente',
+      userName: '',
+      userEmail: cleanUser,
+      errorMessage: friendlyMessage,
     };
   }
 
-  // Fallback Resiliente de PIN / Senha para o Salão / Profissional / Cliente cadastrado no banco
-  if (matchedSalon || matchedPro || matchedClient) {
-    const salonPin = matchedSalon?.pin_code || '31101500';
-    const isMasterPin = cleanPass === salonPin || cleanPass === '31101500' || cleanPass === 'Ae311015@';
+  // 2. Consulta o papel do usuário no banco por user_id e salon_id via salon_members
+  const membership = await checkUserSalonMembership(supabaseAuthUser.id, targetSalonSlug);
 
-    if (isMasterPin || cleanPass.length >= 6) {
-      const isProRole = Boolean(matchedSalon || matchedPro);
-      const userName = matchedSalon?.trade_name || 
-                       matchedSalon?.legal_name || 
-                       matchedPro?.name || 
-                       matchedClient?.name || 
+  // 3. Obter dados pessoais do perfil estritamente por user_id (igualdade exata, sem ilike)
+  let profileName = '';
+  let profileAvatar = '';
+  let profilePhone = '';
+
+  try {
+    const { data: profile } = await (supabase.from('profiles') as any)
+      .select('*')
+      .eq('id', supabaseAuthUser.id)
+      .maybeSingle();
+
+    if (profile) {
+      profileName = profile.full_name || '';
+      profileAvatar = (profile.avatar_url && !profile.avatar_url.includes('unsplash.com')) ? profile.avatar_url : '';
+      profilePhone = profile.phone_whatsapp || '';
+    }
+  } catch {}
+
+  // Se não encontrou em profiles, busca na tabela clients estritamente por user_id
+  if (!profileName) {
+    try {
+      const { data: clientRow } = await (supabase.from('clients') as any)
+        .select('*')
+        .eq('user_id', supabaseAuthUser.id)
+        .maybeSingle();
+
+      if (clientRow) {
+        profileName = clientRow.name || '';
+        profilePhone = profilePhone || clientRow.phone || '';
+      }
+    } catch {}
+  }
+
+  const metaAvatar = supabaseAuthUser.user_metadata?.avatar_url || supabaseAuthUser.user_metadata?.avatar;
+  const resolvedName = profileName || 
+                       supabaseAuthUser.user_metadata?.full_name || 
+                       supabaseAuthUser.user_metadata?.name || 
                        cleanUser.split('@')[0];
+  const resolvedEmail = supabaseAuthUser.email || cleanUser;
+  const resolvedPhone = profilePhone || supabaseAuthUser.user_metadata?.phone || '';
+  const resolvedAvatar = profileAvatar || (metaAvatar && !metaAvatar.includes('unsplash.com') ? metaAvatar : '');
 
-      const userEmail = matchedClient?.email || 
-                        matchedPro?.email || 
-                        matchedSalon?.email || 
-                        (cleanUser.includes('@') ? cleanUser : `${cleanUser}@vagou.app`);
-
-      const userPhone = matchedClient?.phone || 
-                        matchedPro?.phone || 
-                        matchedSalon?.phone_whatsapp || 
-                        '';
-
-      const userAvatar = matchedClient?.avatar_url || 
-                         matchedPro?.avatar_url || 
-                         matchedSalon?.logo_url || 
-                         '';
-
-      return {
-        success: true,
-        salonData: matchedSalon,
-        professionalData: matchedPro,
-        clientData: matchedClient,
-        persona: isProRole ? 'pro' : 'cliente',
-        role: isProRole ? 'pro' : 'cliente',
-        userName: userName,
-        userEmail: userEmail,
-        userPhone: userPhone,
-        userAvatarUrl: userAvatar,
-        salonName: matchedSalon?.trade_name || (matchedPro?.name ? `Espaço ${matchedPro.name}` : 'Meu Negócio'),
-        salonSlug: matchedSalon?.slug || (matchedPro?.name ? matchedPro.name.toLowerCase().replace(/\s+/g, '-') : 'meu-negocio'),
-      };
-    }
-  }
-
-  // Tratar erros específicos com clareza
-  if (matchedSalon || matchedPro || matchedClient) {
-    return {
-      success: false,
-      persona: 'cliente',
-      role: 'cliente',
-      userName: '',
-      userEmail: cleanUser,
-      errorMessage: 'Senha incorreta para a conta cadastrada no banco. Verifique sua senha e tente novamente.',
-    };
-  }
-
-  if (authError && authError.message) {
-    if (authError.message.includes('Email not confirmed')) {
-      return {
-        success: false,
-        persona: 'cliente',
-        role: 'cliente',
-        userName: '',
-        userEmail: cleanUser,
-        errorMessage: 'E-mail cadastrado, mas pendente de confirmação. Verifique seu e-mail ou redefina sua senha.',
-      };
-    }
-    if (authError.message.includes('Invalid login credentials')) {
-      return {
-        success: false,
-        persona: 'cliente',
-        role: 'cliente',
-        userName: '',
-        userEmail: cleanUser,
-        errorMessage: 'E-mail ou senha incorretos. Confira seus dados de acesso.',
-      };
-    }
-    return {
-      success: false,
-      persona: 'cliente',
-      role: 'cliente',
-      userName: '',
-      userEmail: cleanUser,
-      errorMessage: authError.message,
-    };
-  }
+  const isPro = membership.isMember;
+  const salon = membership.salonData;
 
   return {
-    success: false,
-    persona: 'cliente',
-    role: 'cliente',
-    userName: '',
-    userEmail: cleanUser,
-    errorMessage: 'Conta não encontrada no sistema. Verifique o e-mail ou crie um novo cadastro.',
+    success: true,
+    user: supabaseAuthUser,
+    salonData: salon || null,
+    persona: isPro ? 'pro' : 'cliente',
+    role: isPro ? 'pro' : 'cliente',
+    userName: resolvedName,
+    userEmail: resolvedEmail,
+    userPhone: resolvedPhone,
+    userAvatarUrl: resolvedAvatar,
+    salonName: salon?.trade_name || 'Meu Negócio',
+    salonSlug: salon?.slug || targetSalonSlug || 'meu-negocio',
   };
 }
 
@@ -1216,7 +1214,6 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
         themeMode: 'dark',
       };
     }
-    if (settings.pinCode !== undefined) payload.pin_code = settings.pinCode;
     if (settings.bio !== undefined) payload.bio = settings.bio;
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonIdOrSlug);
@@ -1225,17 +1222,6 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug })
       .select()
       .maybeSingle();
-
-    // Se não encontrou pelo match primário, tenta por slug aproximado ou trade_name
-    if (!data && !error && settings.salonName) {
-      const fallbackQuery = await (supabase.from('salons') as any)
-        .update(payload)
-        .ilike('trade_name', `%${settings.salonName}%`)
-        .select()
-        .maybeSingle();
-      data = fallbackQuery.data;
-      error = fallbackQuery.error;
-    }
 
     if (error) {
       console.warn('Erro ao atualizar configurações do salão no Supabase:', error.message);

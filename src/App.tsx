@@ -4,10 +4,11 @@ import { UserAppointmentsView } from './components/UserAppointmentsView';
 import { UserDashboard } from './components/UserDashboard';
 import { PartnerAuthView, PartnerAuthSuccessData } from './components/PartnerAuthView';
 import { SalonNotFoundScreen } from './components/public/SalonNotFoundScreen';
+import { useSalonRole } from './hooks/useSalonRole';
 import { ServiceOffer, BookingAppointment } from './types';
 import { initializeStoredPwaAssets } from './utils/pwaAssets';
 import { DEFAULT_FACE_CLIPART_AVATAR } from './utils/defaultSalonAssets';
-import { supabase, isSupabaseConfigured, fetchUserProfileFromDb } from './lib/supabase';
+import { supabase, isSupabaseConfigured, fetchUserProfileFromDb, checkUserSalonMembership, ensureClientRow } from './lib/supabase';
 import { 
   ThemeContext, 
   ThemeProvider, 
@@ -36,15 +37,8 @@ export const App: React.FC = () => {
   const [currentSubdomain, setCurrentSubdomain] = useState('');
   const [isValidatingSubdomain, setIsValidatingSubdomain] = useState(true);
 
-  // Início padrão na tela de Login / Cadastre-se com botão Acessar como Admin
-  const [viewMode, setViewMode] = useState<'auth' | 'salon' | 'agenda' | 'dashboard'>(() => {
-    try {
-      const isLoggedIn = localStorage.getItem('vagou_salon_logged_in') === 'true';
-      return isLoggedIn ? 'salon' : 'auth';
-    } catch {
-      return 'auth';
-    }
-  });
+  // Início padrão na vitrine do estabelecimento ('salon')
+  const [viewMode, setViewMode] = useState<'auth' | 'salon' | 'agenda' | 'dashboard'>('salon');
   const [salonName, setSalonName] = useState(() => {
     try {
       const saved = localStorage.getItem('vagou_partner_data');
@@ -55,6 +49,14 @@ export const App: React.FC = () => {
     } catch {}
     return '';
   });
+
+  // Slug de desenvolvimento em DEV (configurado nos Secrets do AI Studio: VITE_DEV_SALON_SLUG)
+  const devSlug = import.meta.env.DEV ? (import.meta.env.VITE_DEV_SALON_SLUG as string | undefined) : undefined;
+  const activeSalonIdentifier = devSlug || currentSubdomain;
+  const { role: currentRole } = useSalonRole(activeSalonIdentifier);
+
+  // Trava anti-expulsão: enquanto valida o subdomínio, passa 'loading' para o SalonProfileView
+  const effectiveRole = isValidatingSubdomain ? 'loading' : currentRole;
   const [userName, setUserName] = useState(() => {
     return localStorage.getItem('vagou_user_name') || 'Profissional';
   });
@@ -266,13 +268,46 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  // Ponto ÚNICO soberano de garantia da linha do cliente em public.clients no login
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const uid = session.user.id;
+        const uEmail = session.user.email;
+        const uMeta = session.user.user_metadata;
+        setTimeout(() => {
+          ensureClientRow(uid, uEmail, uMeta).catch((e) => console.warn('Erro em ensureClientRow:', e));
+        }, 0);
+      }
+    });
+
+    return () => {
+      authListener?.subscription.unsubscribe();
+    };
+  }, []);
+
   const handleNavigateToAgenda = () => {
     loadAppointments();
     setViewMode('agenda');
   };
 
-  const handleCancelAppointment = (protocolCode: string) => {
+  const handleCancelAppointment = async (protocolCode: string) => {
     try {
+      if (isSupabaseConfigured && supabase) {
+        // RLS restringe update do cliente estritamente para status: CANCELADO
+        const { data, error } = await (supabase.from('appointments') as any)
+          .update({ status: 'CANCELADO', updated_at: new Date().toISOString() })
+          .eq('protocol_code', protocolCode)
+          .select('id');
+
+        if (error || !data || data.length !== 1) {
+          alert('Não foi possível cancelar este agendamento. Verifique suas permissões ou contate o salão.');
+          return;
+        }
+      }
+
       const saved = localStorage.getItem('vagou_user_appointments');
       if (saved) {
         const list: BookingAppointment[] = JSON.parse(saved);
@@ -287,6 +322,7 @@ export const App: React.FC = () => {
       }
     } catch (e) {
       console.error('Erro ao cancelar agendamento:', e);
+      alert('Falha ao processar o cancelamento.');
     }
   };
 
@@ -295,9 +331,9 @@ export const App: React.FC = () => {
   }, [accentColor]);
 
 
-  // Validação Inicial de Subdomínio Wildcard (*.vagouapp.com)
+  // Validação Inicial de Subdomínio Wildcard (*.vagouapp.com) e Validação Soberana de Papel (RBAC)
   useEffect(() => {
-    async function validateSubdomain() {
+    async function validateSubdomainAndSession() {
       try {
         const hostname = window.location.hostname; // ex: "andersonstudio.vagouapp.com"
         const isDevOrPreview = 
@@ -308,30 +344,34 @@ export const App: React.FC = () => {
           hostname.includes('stackblitz');
 
         const parts = hostname.split('.');
+        let detectedSubdomain = '';
 
         if (parts.length >= 3 && !isDevOrPreview) {
           const sub = parts[0].toLowerCase().trim();
 
           if (!RESERVED_SUBDOMAINS.includes(sub) && !sub.startsWith('ais-')) {
+            detectedSubdomain = sub;
             if (isSupabaseConfigured && supabase) {
-              const { data: salon } = await (supabase.from('salons') as any)
-                .select('*')
-                .or(`slug.eq.${sub},subdomain.eq.${sub}`)
-                .eq('status', 'active')
+              const { data: salon, error: salonErr } = await (supabase.from('salons') as any)
+                .select('id, trade_name, slug, is_active')
+                .eq('slug', sub)
+                .eq('is_active', true)
                 .maybeSingle();
 
-              if (!salon) {
-                // 🛑 NÃO ENCONTRADO: Exibe a tela de orientação de erro
+              if (salonErr || !salon) {
+                if (salonErr) console.warn('Erro ao validar subdomínio:', salonErr.message);
                 setCurrentSubdomain(sub);
                 setIsNotFound(true);
                 setIsValidatingSubdomain(false);
                 return;
               }
 
-              // ✅ ENCONTRADO: Define o nome do salão ativo
-              if (salon.name) {
-                setSalonName(salon.name);
-              }
+              // ✅ ENCONTRADO: Define o nome do salão ativo a partir da coluna real trade_name
+              setCurrentSubdomain(sub);
+              const displayName = salon.trade_name || sub;
+              setSalonName(displayName);
+              localStorage.setItem('vagou_salon_name', displayName);
+              localStorage.setItem('vagou_salon_slug', salon.slug || sub);
             }
           }
         }
@@ -342,7 +382,7 @@ export const App: React.FC = () => {
       }
     }
 
-    validateSubdomain();
+    validateSubdomainAndSession();
   }, []);
 
   const [isFavorite, setIsFavorite] = useState<boolean>(() => {
@@ -419,18 +459,9 @@ export const App: React.FC = () => {
         <main className="flex-1 w-full min-h-0 overflow-hidden relative flex flex-col">
           {viewMode === 'auth' ? (
             <PartnerAuthView
-              onSuccess={(partnerData?: PartnerAuthSuccessData, userRole?: 'pro' | 'cliente') => {
+              onSuccess={(partnerData?: PartnerAuthSuccessData) => {
                 if (partnerData?.salonName) {
                   setSalonName(partnerData.salonName);
-                }
-                if (userRole === 'pro') {
-                  localStorage.setItem('vagou_salon_logged_in', 'true');
-                  localStorage.setItem('vagou_current_persona', 'pro');
-                  localStorage.setItem('vagou_user_role', 'pro');
-                } else if (userRole === 'cliente') {
-                  localStorage.setItem('vagou_salon_logged_in', 'false');
-                  localStorage.setItem('vagou_current_persona', 'cliente');
-                  localStorage.setItem('vagou_user_role', 'cliente');
                 }
                 const currentName = localStorage.getItem('vagou_user_name');
                 if (currentName) {
@@ -441,8 +472,9 @@ export const App: React.FC = () => {
             />
           ) : viewMode === 'salon' ? (
             <SalonProfileView
-              key={`salon-${localStorage.getItem('vagou_user_role') || 'default'}-${localStorage.getItem('vagou_current_persona') || 'default'}`}
+              key={salonName || 'salon-profile'}
               salonName={salonName}
+              userRole={effectiveRole}
               offers={offers}
               onDirectBook={(_offer) => {
                 // Booking callback

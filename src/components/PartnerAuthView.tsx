@@ -52,12 +52,6 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
   // Modal para Novo Cadastro de Usuário (Dados Pessoais e Definição de Perfil)
   const [isClientRegisterModalOpen, setIsClientRegisterModalOpen] = useState(false);
 
-  // Modal para Acesso Rápido de Administrador com Senha
-  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
-  const [adminPin, setAdminPin] = useState('');
-  const [adminPinError, setAdminPinError] = useState(false);
-  const [isValidatingAdminPin, setIsValidatingAdminPin] = useState(false);
-
   // Modal de Recuperação / Esquecimento de Senha
   const [isRecoveryModalOpen, setIsRecoveryModalOpen] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState('');
@@ -111,7 +105,8 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
     hapticLight();
 
     try {
-      const result = await unifiedGlobalLogin(loginUser, loginPassword);
+      const activeSlug = localStorage.getItem('vagou_salon_slug') || undefined;
+      const result = await unifiedGlobalLogin(loginUser, loginPassword, activeSlug);
 
       if (!result.success) {
         hapticMedium();
@@ -125,9 +120,6 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
       const salonDisplayName = result.salonName || currentDisplaySalonName || 'Meu Negócio';
       const salonSlug = result.salonSlug || 'meu-negocio';
 
-      localStorage.setItem('vagou_salon_logged_in', result.role === 'pro' ? 'true' : 'false');
-      localStorage.setItem('vagou_current_persona', result.persona);
-      localStorage.setItem('vagou_user_role', result.role);
       localStorage.setItem('vagou_active_partner', result.userEmail || loginUser);
       localStorage.setItem('vagou_user_name', proName);
       localStorage.setItem('vagou_user_email', result.userEmail || loginUser);
@@ -159,81 +151,6 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
       hapticMedium();
       setIsLoggingIn(false);
       setLoginError(err?.message || 'Erro de conexão com o banco de dados. Tente novamente.');
-    }
-  };
-
-  // Autenticação Administrativa Real consultando o Banco Supabase
-  const handleAdminPinSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsValidatingAdminPin(true);
-    setAdminPinError(false);
-    hapticLight();
-
-    const enteredPin = adminPin.trim();
-
-    try {
-      let isPinValid = false;
-      let fetchedSalonData: any = null;
-
-      // 1. Consulta o banco de dados Supabase na tabela salons
-      if (isSupabaseConfigured && supabase) {
-        try {
-          const { data: salons, error: dbError } = await (supabase.from('salons') as any)
-            .select('*')
-            .limit(1);
-
-          if (!dbError && salons && salons.length > 0) {
-            fetchedSalonData = salons[0];
-            const dbPin = fetchedSalonData.pin_code;
-            if (dbPin) {
-              isPinValid = enteredPin === dbPin;
-            } else {
-              isPinValid = enteredPin === '31101500';
-            }
-          } else {
-            isPinValid = enteredPin === '31101500';
-          }
-        } catch (err) {
-          console.warn('Erro ao consultar banco:', err);
-          isPinValid = enteredPin === '31101500';
-        }
-      } else {
-        isPinValid = enteredPin === '31101500';
-      }
-
-      if (isPinValid) {
-        hapticSuccess();
-        setAdminPinError(false);
-        setIsAdminModalOpen(false);
-        setIsValidatingAdminPin(false);
-
-        const proName = fetchedSalonData?.trade_name || 'Administrador';
-        const salonDisplayName = fetchedSalonData?.trade_name || currentDisplaySalonName || 'Meu Negócio';
-        const salonSlug = fetchedSalonData?.slug || 'meu-negocio';
-
-        localStorage.setItem('vagou_salon_logged_in', 'true');
-        localStorage.setItem('vagou_current_persona', 'pro');
-        localStorage.setItem('vagou_user_role', 'pro');
-        localStorage.setItem('vagou_active_partner', 'admin@vagou.app');
-        localStorage.setItem('vagou_user_name', proName);
-        localStorage.setItem('vagou_salon_name', salonDisplayName);
-        localStorage.setItem('vagou_salon_slug', salonSlug);
-        localStorage.setItem('vagou_dashboard_logged_pro_name', proName);
-
-        if (fetchedSalonData) {
-          localStorage.setItem('vagou_custom_salon_data', JSON.stringify(fetchedSalonData));
-        }
-
-        onSuccess({ salonName: salonDisplayName, slug: salonSlug }, 'pro');
-      } else {
-        hapticMedium();
-        setAdminPinError(true);
-        setIsValidatingAdminPin(false);
-      }
-    } catch {
-      hapticMedium();
-      setAdminPinError(true);
-      setIsValidatingAdminPin(false);
     }
   };
 
@@ -317,132 +234,37 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
         });
       }
 
-      localStorage.setItem('vagou_salon_logged_in', 'true');
-      localStorage.setItem('vagou_current_persona', 'pro');
-      localStorage.setItem('vagou_user_role', 'pro');
       localStorage.setItem('vagou_active_partner', userEmail);
       localStorage.setItem('vagou_user_name', userName);
       localStorage.setItem('vagou_salon_name', generatedSalonName);
       localStorage.setItem('vagou_salon_slug', generatedSlug);
-      localStorage.setItem('vagou_dashboard_logged_pro_name', userName);
 
       hapticSuccess();
       setIsCreatingQuickSalon(false);
       setNoSalonUser(null);
-      onSuccess({ salonName: generatedSalonName, slug: generatedSlug }, 'pro');
+      onSuccess({ salonName: generatedSalonName, slug: generatedSlug });
     } catch {
       setIsCreatingQuickSalon(false);
       setNoSalonUser(null);
-      onSuccess({ salonName: generatedSalonName, slug: generatedSlug }, 'pro');
+      onSuccess({ salonName: generatedSalonName, slug: generatedSlug });
     }
   };
 
-  // Opção 1 - Ação B: Continuar como Admin
+  // Opção 1 - Ação B: Continuar para o salão
   const handleContinueAsAdmin = () => {
     hapticLight();
-    const adminName = noSalonUser?.name || 'Administrador';
-    const adminEmail = noSalonUser?.email || 'admin@vagou.app';
+    const adminName = noSalonUser?.name || 'Usuário';
+    const adminEmail = noSalonUser?.email || '';
 
-    localStorage.setItem('vagou_salon_logged_in', 'true');
-    localStorage.setItem('vagou_current_persona', 'pro');
-    localStorage.setItem('vagou_user_role', 'pro');
     if (adminEmail) localStorage.setItem('vagou_active_partner', adminEmail);
-    localStorage.setItem('vagou_user_name', adminName);
+    if (adminName) localStorage.setItem('vagou_user_name', adminName);
 
     setNoSalonUser(null);
-    onSuccess(undefined, 'pro');
+    onSuccess(undefined);
   };
 
   return (
     <div className="w-full h-full flex flex-col justify-between overflow-hidden bg-slate-50 text-slate-900 relative select-none">
-      {/* Modal Seguro de Autenticação Admin com Canto 4px e Sem Rolagem */}
-      {isAdminModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in duration-200">
-          <div className="w-full max-w-xs bg-white rounded-[4px] border border-slate-200 shadow-xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
-            {/* Cabeçalho Compacto */}
-            <div className="px-3.5 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-[#20C933]">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                </div>
-                <h3 className="text-xs font-bold text-slate-900">Autenticação Administrativa</h3>
-              </div>
-              <button 
-                type="button"
-                onClick={() => {
-                  setIsAdminModalOpen(false);
-                  setAdminPin('');
-                  setAdminPinError(false);
-                }}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-[4px] cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAdminPinSubmit} className="p-4 space-y-2.5">
-              <p className="text-[11px] text-slate-600 text-center font-medium">
-                Digite sua senha de acesso administrativo:
-              </p>
-              <div className="relative">
-                <input
-                  type="password"
-                  value={adminPin}
-                  onChange={(e) => {
-                    setAdminPin(e.target.value);
-                    setAdminPinError(false);
-                  }}
-                  placeholder="••••••••"
-                  autoFocus
-                  required
-                  className="w-full px-3 py-2 text-center text-sm font-bold tracking-widest rounded-[4px] border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-hidden transition shadow-2xs"
-                />
-              </div>
-
-              {/* Botão de Esquecimento de Senha no Modal de Admin */}
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAdminModalOpen(false);
-                    setIsRecoveryModalOpen(true);
-                    setRecoveryEmail(loginUser);
-                  }}
-                  className="text-[10.5px] font-semibold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
-                >
-                  Esqueceu a senha?
-                </button>
-              </div>
-
-              {adminPinError && (
-                <div className="p-2 rounded-[4px] bg-rose-50 border border-rose-200 text-rose-700 text-[10.5px] leading-tight flex items-center gap-1.5 animate-in fade-in duration-150">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
-                  <span>Senha administrativa incorreta.</span>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={isValidatingAdminPin || !adminPin}
-                className="w-full py-2.5 px-4 rounded-[4px] bg-[#00a033] hover:bg-[#00902e] active:scale-[0.99] text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition shadow-sm disabled:opacity-50"
-              >
-                {isValidatingAdminPin ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                    <span className="text-white">Verificando no Banco...</span>
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
-                    <span className="text-white">Confirmar Acesso</span>
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* Modal de Recuperação de Senha com Canto 4px e Sem Rolagem */}
       {isRecoveryModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in duration-200">

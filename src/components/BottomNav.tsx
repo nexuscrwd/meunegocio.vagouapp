@@ -14,6 +14,8 @@ export interface SalonNavContext {
   isProfessionalMode?: boolean;
   currentPersona?: UserPersona;
   isProAdmin?: boolean;
+  isOwnerOrManager?: boolean;
+  isProfessionalStaff?: boolean;
 }
 
 interface BottomNavProps {
@@ -27,6 +29,8 @@ interface BottomNavProps {
   isProfessionalMode?: boolean;
   currentPersona?: UserPersona;
   isProAdmin?: boolean;
+  isOwnerOrManager?: boolean;
+  isProfessionalStaff?: boolean;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
@@ -40,19 +44,17 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   isProfessionalMode: propIsProfessionalMode,
   currentPersona: propPersona,
   isProAdmin: propIsProAdmin,
+  isOwnerOrManager: propIsOwnerOrManager,
+  isProfessionalStaff: propIsProfessionalStaff,
 }) => {
   const { isDark } = useTheme();
 
   const activeTab = propActiveTab || salonContext?.activeTab || 'home';
   const onSelectTab = propOnSelectTab || salonContext?.onSelectTab;
   const currentPersona = propPersona || salonContext?.currentPersona || (propIsProfessionalMode ? 'pro' : 'cliente');
-  const isProfessionalMode = currentPersona !== 'cliente';
-  const isProAdmin = propIsProAdmin !== undefined 
-    ? propIsProAdmin 
-    : salonContext?.isProAdmin !== undefined 
-    ? salonContext.isProAdmin 
-    : currentPersona === 'admin';
-  const vagasTabLabel = propVagasTabLabel || salonContext?.vagasTabLabel || (isProfessionalMode ? 'Agenda' : 'Agendar');
+  const isOwnerOrManager = propIsOwnerOrManager ?? salonContext?.isOwnerOrManager ?? (currentPersona !== 'cliente');
+  const isProfessionalStaff = propIsProfessionalStaff ?? salonContext?.isProfessionalStaff ?? false;
+  const vagasTabLabel = propVagasTabLabel || salonContext?.vagasTabLabel || (isOwnerOrManager || isProfessionalStaff ? 'Agenda' : 'Agendar');
   const spaceTabLabel = propSpaceTabLabel || salonContext?.spaceTabLabel || 'Espaço';
   const ServicesIconComponent = propServicesIcon || salonContext?.ServicesIcon || Scissors;
   const SpaceIconComponent = propSpaceIcon || salonContext?.SpaceIcon || Store;
@@ -67,12 +69,17 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     icon: React.ComponentType<{ className?: string }>;
   }> = [];
 
-  if (isProfessionalMode) {
+  if (isOwnerOrManager) {
     establishmentTabs = [
       { id: 'home', label: 'Painel', icon: LayoutDashboard },
       { id: 'caixa', label: 'Caixa', icon: Wallet },
       { id: 'vagas', label: vagasTabLabel, icon: Calendar },
       { id: 'utilidades', label: 'Utilidades', icon: Wrench },
+    ];
+  } else if (isProfessionalStaff) {
+    establishmentTabs = [
+      { id: 'home', label: 'Painel', icon: LayoutDashboard },
+      { id: 'vagas', label: vagasTabLabel, icon: Calendar },
     ];
   } else {
     establishmentTabs = [

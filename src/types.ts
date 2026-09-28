@@ -182,7 +182,7 @@ export interface SalonAdminSettings {
   salonAddress: string;
   openingHours: string;
   isOpenNow: boolean;
-  pinCode: string;
+  pinCode?: string;
   accentColor?: string;
   salonLogo?: string; // Logo padrão / fallback
   salonLogoLight?: string; // Logo horizontal para o tema claro (fundo claro)

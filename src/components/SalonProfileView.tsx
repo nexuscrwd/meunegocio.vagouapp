@@ -18,15 +18,16 @@ import { ProfessionalSpaceManager } from './professional/ProfessionalSpaceManage
 import { TeamManager } from './professional/TeamManager';
 import { FinancialManagerView } from './professional/FinancialManagerView';
 import { CaixaManagerView } from './professional/CaixaManagerView';
-import { ProfessionalLoginModal } from './professional/ProfessionalLoginModal';
 import { SalonCustomizationHub } from './professional/SalonCustomizationHub';
 import { UtilitiesAndToolsView } from './professional/UtilitiesAndToolsView';
+import { useSalonRole, SalonRole } from '../hooks/useSalonRole';
 import { useTheme } from '../context/ThemeContext';
 import { getSalonLogo } from '../utils/salonLogos';
 import { DEFAULT_ROTA99_LOGO_DARK, DEFAULT_ROTA99_LOGO_LIGHT, DEFAULT_ROTA99_ICON, DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
 import { updateDynamicPwaAssets } from '../utils/pwaAssets';
 import { BottomNav } from './BottomNav';
 import { ProfileDrawer } from './ProfileDrawer';
+import { SalonClientAuthModal } from './SalonClientAuthModal';
 import { hapticSuccess, hapticLight } from '../utils/haptics';
 import { 
   supabase, 
@@ -39,11 +40,14 @@ import {
   updateSalonSettingsInDb,
   syncAllServicesToDb,
   syncAllProfessionalsToDb,
-  fetchUserProfileFromDb
+  fetchUserProfileFromDb,
+  checkUserSalonMembership,
+  ensureClientRow
 } from '../lib/supabase';
 
 export interface SalonProfileViewProps {
   salonName: string;
+  userRole?: SalonRole;
   offers: ServiceOffer[];
   onBack?: () => void;
   onDirectBook: (offer: ServiceOffer) => void;
@@ -189,6 +193,7 @@ const SectionHeader: React.FC<SectionHeaderProps> = React.memo(({ title, action,
 
 export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   salonName,
+  userRole,
   offers,
   onBack,
   onDirectBook,
@@ -202,6 +207,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 }) => {
   const { isDark, accentColor, setAccentColor: setAccentColorContext } = useTheme();
   const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState<boolean>(false);
+  const [isClientAuthModalOpen, setIsClientAuthModalOpen] = useState<boolean>(false);
   const [currentUserName, setCurrentUserName] = useState<string>(userName);
   const [currentUserAvatarUrl, setCurrentUserAvatarUrl] = useState<string>(() => {
     try {
@@ -265,47 +271,29 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       window.removeEventListener('storage', syncAvatar);
     };
   }, [currentUserName]);
-  const [isLoginPinModalOpen, setIsLoginPinModalOpen] = useState<boolean>(false);
 
-  // Personalidade Ativa: 'cliente' | 'pro' (mapeando legados 'profissional'/'admin' para 'pro')
-  const [currentPersona, setCurrentPersona] = useState<UserPersona>(() => {
-    try {
-      const isLogged = localStorage.getItem('vagou_salon_logged_in') === 'true';
-      if (!isLogged) return 'cliente';
-      const saved = localStorage.getItem('vagou_current_persona') as UserPersona;
-      if (saved === 'cliente') return 'cliente';
-      if (saved === 'pro' || saved === 'profissional' || saved === 'admin') {
-        return 'pro';
-      }
-      return 'pro';
-    } catch {
-      return 'cliente';
-    }
-  });
-
-  // Estado de Autenticação do Salão / Modo Gestor
-  const [isSalonLoggedIn, setIsSalonLoggedIn] = useState<boolean>(() => {
-    try {
-      const isLogged = localStorage.getItem('vagou_salon_logged_in') === 'true';
-      if (!isLogged) return false;
-      const saved = localStorage.getItem('vagou_current_persona');
-      if (saved === 'cliente') return false;
-      return true;
-    } catch {
-      return false;
-    }
-  });
+  // 1. Papel Soberano recebido via prop do App (ou fallback de segurança)
+  const activeRole = userRole || 'guest';
+  const isRoleLoading = activeRole === 'loading';
+  const isOwnerOrManager = activeRole === 'owner' || activeRole === 'manager';
+  const isProfessional = activeRole === 'professional';
+  const isSalonLoggedIn = isOwnerOrManager || isProfessional;
+  const currentPersona: UserPersona = isSalonLoggedIn ? 'pro' : 'cliente';
+  const isGerMode = isSalonLoggedIn;
+  const isUserProRole = isSalonLoggedIn;
+  const isActiveProAdmin = isOwnerOrManager;
 
   // Identificação do estado de login do usuário (Exibe o ícone de avatar se logado; botão "Entrar" se não logado)
   const [isUserLoggedInState, setIsUserLoggedInState] = useState<boolean>(() => {
     try {
-      const isSalonLogged = localStorage.getItem('vagou_salon_logged_in') === 'true';
-      const isClientLogged = localStorage.getItem('vagou_client_logged_in') === 'true';
       const activePartner = localStorage.getItem('vagou_active_partner');
       const userEmail = localStorage.getItem('vagou_user_email');
       const storedName = localStorage.getItem('vagou_user_name');
       
-      if (isSalonLogged || isClientLogged || !!activePartner || !!userEmail) {
+      if (activeRole !== 'guest' && activeRole !== 'loading') {
+        return true;
+      }
+      if (!!activePartner || !!userEmail) {
         return true;
       }
       if (storedName && storedName.trim() !== '' && storedName !== 'Usuário' && storedName !== 'Visitante') {
@@ -323,13 +311,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   useEffect(() => {
     const checkLoginState = () => {
       try {
-        const isSalonLogged = localStorage.getItem('vagou_salon_logged_in') === 'true';
-        const isClientLogged = localStorage.getItem('vagou_client_logged_in') === 'true';
         const activePartner = localStorage.getItem('vagou_active_partner');
         const userEmail = localStorage.getItem('vagou_user_email');
         const storedName = localStorage.getItem('vagou_user_name');
         
-        const logged = isSalonLoggedIn || isSalonLogged || isClientLogged || !!activePartner || !!userEmail || 
+        const logged = (activeRole !== 'guest' && activeRole !== 'loading') || isSalonLoggedIn || !!activePartner || !!userEmail || 
           (!!storedName && storedName.trim() !== '' && storedName !== 'Usuário' && storedName !== 'Visitante') ||
           (!!userName && userName.trim() !== '' && userName !== 'Usuário' && userName !== 'Visitante');
         
@@ -345,33 +331,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   }, [userName, isSalonLoggedIn, currentPersona]);
 
   // Modo de visualização quando logado: 'ger' (Gerenciamento) ou 'pub' (Público / Visão do Cliente)
-  const [viewMode, setViewMode] = useState<'ger' | 'pub'>(() => {
-    try {
-      const isLogged = localStorage.getItem('vagou_salon_logged_in') === 'true';
-      if (!isLogged) return 'pub';
-      const saved = localStorage.getItem('vagou_current_persona');
-      return saved === 'cliente' ? 'pub' : 'ger';
-    } catch {
-      return 'pub';
-    }
-  });
-
-  // Modo ativo operacional/gerenciamento
-  const isGerMode = currentPersona !== 'cliente';
-
-  // Identifica se o usuário conectado possui perfil de profissional/dono
-  const isUserProRole = useMemo(() => {
-    try {
-      const userRole = localStorage.getItem('vagou_user_role');
-      if (userRole === 'cliente') return false;
-      if (userRole === 'pro' || userRole === 'admin') return true;
-      const loggedPartner = localStorage.getItem('vagou_active_partner');
-      const isLoggedSalon = localStorage.getItem('vagou_salon_logged_in') === 'true';
-      return isLoggedSalon || currentPersona === 'pro' || !!loggedPartner;
-    } catch {
-      return true;
-    }
-  }, [currentPersona]);
+  const viewMode = isSalonLoggedIn ? 'ger' : 'pub';
 
   // Identificação do Profissional Logado / Ativo no modo Pro
   const [activeProId, setActiveProId] = useState<string>(() => {
@@ -446,8 +406,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     return teamMembersList.find(m => m.id === activeProId) || teamMembersList.find(m => m.role === 'admin') || teamMembersList[0];
   }, [teamMembersList, activeProId]);
 
-  const isActiveProAdmin = activeProMember?.role === 'admin';
-
   const handleSelectActiveProId = (id: string) => {
     setActiveProId(id);
     try {
@@ -460,33 +418,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     } catch {}
   };
 
-  // Alternador das 2 Personalidades: Cliente | Pro
-  const handleSelectPersona = (persona: UserPersona) => {
-    hapticLight();
-    const effectivePersona = persona === 'cliente' ? 'cliente' : 'pro';
-    setCurrentPersona(effectivePersona);
-    try {
-      localStorage.setItem('vagou_current_persona', effectivePersona);
-    } catch {
-      // ignore
-    }
-
-    if (effectivePersona === 'cliente') {
-      setViewMode('pub');
-      setIsSalonLoggedIn(false);
-      setActiveTab('home');
-      try {
-        localStorage.setItem('vagou_salon_logged_in', 'false');
-      } catch {}
-    } else {
-      // 'pro'
-      setViewMode('ger');
-      setIsSalonLoggedIn(true);
-      setActiveTab('home');
-      try {
-        localStorage.setItem('vagou_salon_logged_in', 'true');
-      } catch {}
-    }
+  // Alternador de Navegação Interna
+  const handleSelectPersona = (_persona?: UserPersona) => {
+    setActiveTab('home');
   };
 
   // Configurações do Salão editáveis pelo gestor
@@ -513,7 +447,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       salonAddress: fullAddr,
       openingHours: 'Seg a Sáb: 09:00 às 20:00',
       isOpenNow: true,
-      pinCode: '1234',
       accentColor: effectiveColor,
       salonLogoDark: localStorage.getItem('vagou_salon_logo_dark') || (partnerInfo ? '' : DEFAULT_ROTA99_LOGO_DARK),
       salonLogoLight: localStorage.getItem('vagou_salon_logo_light') || (partnerInfo ? '' : DEFAULT_ROTA99_LOGO_LIGHT),
@@ -674,7 +607,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           if (salonRecord.city) updatedSettings.cidade = salonRecord.city;
           if (salonRecord.state) updatedSettings.uf = salonRecord.state;
           if (salonRecord.cep) updatedSettings.cep = salonRecord.cep;
-          if (salonRecord.pin_code) updatedSettings.pinCode = salonRecord.pin_code;
           if (salonRecord.logo_light_url) {
             updatedSettings.salonLogoLight = salonRecord.logo_light_url;
             localStorage.setItem('vagou_salon_logo_light', salonRecord.logo_light_url);
@@ -814,30 +746,24 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
   };
 
-  const handleSalonLogin = (pin: string): boolean => {
-    let validPin = adminSettings.pinCode || '1234';
-    if (pin.trim() === validPin.trim()) {
-      setIsSalonLoggedIn(true);
-      setViewMode('ger');
-      setCurrentPersona('admin');
-      try {
-        localStorage.setItem('vagou_salon_logged_in', 'true');
-        localStorage.setItem('vagou_current_persona', 'admin');
-      } catch {
-        // ignore
-      }
-      return true;
+  const handleSalonLogin = (_pin?: string): boolean => {
+    if (onBackToAuth) {
+      onBackToAuth();
     }
     return false;
   };
 
-  const handleSalonLogout = () => {
-    setIsSalonLoggedIn(false);
-    setViewMode('pub');
-    setCurrentPersona('cliente');
+  const handleSalonLogout = async () => {
+    if (supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch {}
+    }
     try {
-      localStorage.removeItem('vagou_salon_logged_in');
-      localStorage.setItem('vagou_current_persona', 'cliente');
+      localStorage.removeItem('vagou_active_partner');
+      localStorage.removeItem('vagou_user_email');
+      localStorage.removeItem('vagou_user_phone');
+      localStorage.removeItem('vagou_user_avatar');
     } catch {
       // ignore
     }
@@ -846,15 +772,16 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
   };
 
-  // Solicitação de acesso a Gerenciar Estabelecimento com acesso direto sem caixa de senha
+  // Solicitação de acesso a Gerenciar Estabelecimento (Protegido por RBAC)
   const handleRequestManage = useCallback(() => {
-    if (currentPersona === 'cliente') {
-      setCurrentPersona('admin');
-      setIsSalonLoggedIn(true);
-      setViewMode('ger');
+    if (!isSalonLoggedIn || currentPersona === 'cliente') {
+      if (onBackToAuth) {
+        onBackToAuth();
+      }
+      return;
     }
     setActiveTab('personalizar');
-  }, [currentPersona]);
+  }, [isSalonLoggedIn, currentPersona, onBackToAuth]);
 
   useEffect(() => {
     if (userName) {
@@ -863,6 +790,17 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   }, [userName]);
 
   const [activeTab, setActiveTab] = useState<'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades'>('home');
+
+  // Reset de abas de gestão seguro: NÃO reseta enquanto role === 'loading'
+  useEffect(() => {
+    if (isRoleLoading) return; // Aguarda a resolução final do papel no banco
+
+    const managementTabs = ['caixa', 'financeiro', 'equipe', 'personalizar', 'utilidades'];
+    if (managementTabs.includes(activeTab) && !isOwnerOrManager) {
+      setActiveTab('home');
+    }
+  }, [activeTab, isOwnerOrManager, isRoleLoading]);
+
   const [bookingService, setBookingService] = useState<CatalogServiceItem | null>(null);
   const [skipDateStep, setSkipDateStep] = useState<boolean>(false);
   const [activeSlideIndex, setActiveSlideIndex] = useState<number>(0);
@@ -1034,76 +972,25 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
   // Navegação direta: no modo público rola para a seção; no modo gerenciamento alterna a aba diretamente
   const handleSelectTab = useCallback((tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades') => {
-    if (tab === 'caixa') {
-      if (currentPersona === 'cliente') {
-        setCurrentPersona('admin');
-        setIsSalonLoggedIn(true);
-        setViewMode('ger');
-      }
-      setActiveTab('caixa');
-      return;
-    }
-
-    if (tab === 'utilidades') {
-      if (currentPersona === 'cliente') {
-        setCurrentPersona('admin');
-        setIsSalonLoggedIn(true);
-        setViewMode('ger');
-      }
-      setActiveTab('utilidades');
-      return;
-    }
-
-    if (tab === 'personalizar') {
-      if (isGerMode && !isActiveProAdmin) {
-        setActiveTab('home');
-        return;
-      }
-      handleRequestManage();
-      return;
-    }
-
-    if (tab === 'financeiro') {
-      if (currentPersona === 'cliente') {
-        setCurrentPersona('admin');
-        setIsSalonLoggedIn(true);
-        setViewMode('ger');
-      }
-      setActiveTab('financeiro');
-      return;
-    }
-
-    if (tab === 'equipe') {
-      if (isGerMode) {
-        if (!isActiveProAdmin) {
-          setActiveTab('home');
-          return;
+    // 3. Abas de caixa, financeiro, equipe, personalização e utilidades só para owner e manager.
+    if (tab === 'caixa' || tab === 'financeiro' || tab === 'utilidades' || tab === 'personalizar' || tab === 'equipe') {
+      if (!isOwnerOrManager) {
+        if (onBackToAuth) {
+          onBackToAuth();
         }
-        handleRequestManage();
         return;
       }
-      setActiveTab('equipe');
-      setEspacoSlideIndex(0);
-      isProgrammaticScroll.current = true;
-      if (espacoSectionRef.current && scrollContainerRef.current) {
-        scrollContainerRef.current.scrollTo({
-          top: espacoSectionRef.current.offsetTop,
-          behavior: 'smooth',
-        });
-      }
-      setTimeout(() => {
-        isProgrammaticScroll.current = false;
-      }, 600);
+      setActiveTab(tab);
       return;
     }
 
     if (tab === 'espaco') {
       if (isGerMode) {
-        if (!isActiveProAdmin) {
+        if (!isOwnerOrManager) {
           setActiveTab('home');
           return;
         }
-        handleRequestManage();
+        setActiveTab('espaco');
         return;
       }
       setActiveTab('espaco');
@@ -1221,6 +1108,12 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const catalogServices: CatalogServiceItem[] = filteredCatalogServices;
 
   const handleOpenBooking = (srv?: CatalogServiceItem, directToTimeGrid = false, timeSlot?: string, dateIso?: string) => {
+    if (activeRole === 'loading') return;
+    if (activeRole === 'guest') {
+      if (srv) setBookingService(srv);
+      setIsClientAuthModalOpen(true);
+      return;
+    }
     setBookingService(srv || catalogServices[0]);
     setSkipDateStep(directToTimeGrid);
     setSelectedTimeSlotForBooking(timeSlot || null);
@@ -1266,7 +1159,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     return () => clearInterval(timer);
   }, [portfolioSlides.length]);
 
-  const handleConfirmSchedule = (bookingData: {
+  const handleConfirmSchedule = async (bookingData: {
     service: CatalogServiceItem;
     professional: string;
     professionalAvatar?: string;
@@ -1276,20 +1169,114 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     salonName: string;
     salonAddress: string;
     price: number;
-  }) => {
-    hapticSuccess();
-    const rawCode = `VGA-${Math.floor(10000 + Math.random() * 90000)}`;
-    if (primaryOffer) {
-      onDirectBook({
-        ...primaryOffer,
-        id: `sched-${Date.now()}`,
-        salonName: bookingData.salonName,
-        serviceTitle: bookingData.service.title,
-        price: bookingData.price,
-        timeSlot: `${bookingData.dateFormatted} às ${bookingData.timeSlot}`,
-        dayLabel: bookingData.dateFormatted,
-        serviceCategory: (bookingData.service.category.toLowerCase().includes('barba') ? 'barba' : 'cabelo') as any,
-      });
+    offerId?: string;
+    isDependentBooking?: boolean;
+    dependentName?: string;
+    clientPhone?: string;
+    notes?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const rawCode = `VGA-${Math.floor(10000 + Math.random() * 90000)}`;
+
+      if (isSupabaseConfigured && supabase) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          setIsClientAuthModalOpen(true);
+          return { success: false, error: 'Faça login para concluir o agendamento.' };
+        }
+
+        // Garante linha do cliente em public.clients
+        let clientRow: any = null;
+        const { data: existingClient } = await (supabase.from('clients') as any)
+          .select('id, name, phone')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (existingClient) {
+          clientRow = existingClient;
+        } else {
+          const ensured = await ensureClientRow(session.user.id, session.user.email, session.user.user_metadata);
+          clientRow = ensured.client;
+        }
+
+        if (!clientRow?.id) {
+          return { success: false, error: 'Não foi possível registrar seu perfil de cliente.' };
+        }
+
+        const finalClientName = bookingData.isDependentBooking && bookingData.dependentName
+          ? bookingData.dependentName
+          : (clientRow.name || currentUserName || 'Cliente');
+        const finalPhone = (bookingData.clientPhone || clientRow.phone || localStorage.getItem('vagou_user_phone') || '').trim();
+
+        if (!finalPhone) {
+          return { success: false, error: 'Informe um telefone de contato.' };
+        }
+
+        // Determina horário de início e fim
+        const [h, m] = bookingData.timeSlot.split(':').map(Number);
+        const startTimeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+        const endMinutes = (h * 60 + m) + 45;
+        const endH = Math.floor(endMinutes / 60) % 24;
+        const endM = endMinutes % 60;
+        const endTimeStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`;
+
+        // Localiza salon_id do banco
+        let targetSalonId = salonInfo.id;
+        if (!targetSalonId || targetSalonId === 'temp') {
+          const activeSlug = localStorage.getItem('vagou_salon_slug') || '';
+          if (activeSlug) {
+            const { data: foundSalon } = await (supabase.from('salons') as any)
+              .select('id')
+              .eq('slug', activeSlug)
+              .maybeSingle();
+            if (foundSalon?.id) targetSalonId = foundSalon.id;
+          }
+        }
+
+        const appointmentPayload = {
+          protocol_code: `#${rawCode}`,
+          salon_id: targetSalonId,
+          offer_id: bookingData.offerId || null,
+          client_id: clientRow.id,
+          client_name: finalClientName,
+          client_phone: finalPhone,
+          client_email: session.user.email || null,
+          service_title: bookingData.service.title,
+          service_category: bookingData.service.category || 'cabelo',
+          price: bookingData.price,
+          date_str: bookingData.dateIso,
+          start_time: startTimeStr,
+          end_time: endTimeStr,
+          status: 'CONFIRMADO',
+          notes: bookingData.notes || null,
+        };
+
+        const { error: insertErr } = await (supabase.from('appointments') as any)
+          .insert(appointmentPayload)
+          .select()
+          .single();
+
+        if (insertErr) {
+          console.warn('Erro ao inserir appointment:', insertErr);
+          // Mensagem de erro real do banco (ex: 'Esta vaga não está mais disponível')
+          return { success: false, error: insertErr.message || 'Falha ao gravar agendamento no banco.' };
+        }
+      }
+
+      hapticSuccess();
+      if (primaryOffer) {
+        onDirectBook({
+          ...primaryOffer,
+          id: `sched-${Date.now()}`,
+          salonName: bookingData.salonName,
+          serviceTitle: bookingData.service.title,
+          price: bookingData.price,
+          timeSlot: `${bookingData.dateFormatted} às ${bookingData.timeSlot}`,
+          dayLabel: bookingData.dateFormatted,
+          serviceCategory: (bookingData.service.category.toLowerCase().includes('barba') ? 'barba' : 'cabelo') as any,
+        });
+      }
+
       setConfirmedBookingData({
         protocolCode: `#${rawCode}`,
         serviceTitle: bookingData.service.title,
@@ -1319,6 +1306,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       } catch {
         // ignore
       }
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Falha inesperada ao agendar.' };
     }
   };
 
@@ -1386,47 +1377,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           )}
         </div>
 
-        {/* Lado Direito: Modo Profissional (Seletor Ger. / Púb. quando logado) + Compartilhar + Favoritar + Foto do Usuário */}
+        {/* Lado Direito: Compartilhar + Foto do Usuário */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-auto">
-          {/* Seletor Cliente | Pro (Exibido exclusivamente para Dono ou Profissional) */}
-          {isUserProRole && (
-            <div 
-              id="header-persona-selector"
-              className={`flex items-center p-0.5 rounded border shrink-0 ${
-                isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-300 shadow-xs'
-              }`}
-            >
-              <button
-                type="button"
-                id="persona-btn-cliente"
-                onClick={() => handleSelectPersona('cliente')}
-                style={currentPersona === 'cliente' ? { backgroundColor: accentColor } : undefined}
-                className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded text-[9.5px] sm:text-[11px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
-                  currentPersona === 'cliente'
-                    ? 'bg-emerald-500 text-white shadow-xs'
-                    : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-950'
-                }`}
-                title="Visualizar como Cliente"
-              >
-                Cliente
-              </button>
-              <button
-                type="button"
-                id="persona-btn-pro"
-                onClick={() => handleSelectPersona('pro')}
-                style={currentPersona !== 'cliente' ? { backgroundColor: accentColor } : undefined}
-                className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded text-[9.5px] sm:text-[11px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer flex items-center justify-center ${
-                  currentPersona !== 'cliente'
-                    ? 'bg-emerald-500 text-white shadow-xs'
-                    : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-950'
-                }`}
-                title="Visualizar como Profissional (Estabelecimento)"
-              >
-                Pro
-              </button>
-            </div>
-          )}
-
           {/* Botão Compartilhar Perfil (Web Share API) */}
           <button
             type="button"
@@ -1661,7 +1613,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
                 <div className="min-w-0">
                   <h2 className={`text-xs sm:text-sm font-bold truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                    Seja bem-vindo, <span className="text-emerald-500">{currentUserName ? currentUserName.trim().split(' ')[0] : ''}</span>
+                    {currentUserName && currentUserName !== 'Profissional' && currentUserName !== 'Usuário' ? (
+                      <>Seja bem-vindo, <span className="text-emerald-500">{currentUserName.trim().split(' ')[0]}</span></>
+                    ) : (
+                      'Seja bem-vindo'
+                    )}
                   </h2>
                 </div>
               </div>
@@ -2340,6 +2296,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           isProfessionalMode={isGerMode}
           currentPersona={currentPersona}
           isProAdmin={isActiveProAdmin}
+          isOwnerOrManager={isOwnerOrManager}
+          isProfessionalStaff={isProfessional}
         />
       </footer>
 
@@ -2480,23 +2438,20 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         onNavigateToUserDashboard={onNavigateToUserDashboard}
       />
 
-      {/* Modal de Autenticação / Login Inicial do Profissional */}
-      <ProfessionalLoginModal
-        isOpen={isLoginPinModalOpen}
-        onClose={() => setIsLoginPinModalOpen(false)}
-        onLogin={handleSalonLogin}
-        onSuccess={() => {
-          setIsSalonLoggedIn(true);
-          setViewMode('ger');
-          try {
-            localStorage.setItem('vagou_salon_logged_in', 'true');
-          } catch {
-            // ignore
-          }
-        }}
-        savedPin={adminSettings.pinCode || '1234'}
-        salonName={salonInfo.name}
-      />
+      {/* Modal de Autenticação/Cadastro Seguro do Cliente */}
+      {isClientAuthModalOpen && (
+        <SalonClientAuthModal
+          isOpen={isClientAuthModalOpen}
+          onClose={() => setIsClientAuthModalOpen(false)}
+          salonName={salonInfo.name}
+          onAuthenticated={(_user, _role) => {
+            setIsClientAuthModalOpen(false);
+            if (bookingService) {
+              handleSelectTab('vagas');
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

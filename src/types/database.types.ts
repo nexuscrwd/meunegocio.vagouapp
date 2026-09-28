@@ -111,6 +111,34 @@ export interface Database {
         };
         Update: Partial<Database['public']['Tables']['salons']['Insert']>;
       };
+      salon_members: {
+        Row: {
+          id: string;
+          salon_id: string;
+          user_id: string;
+          role: 'owner' | 'manager' | 'professional';
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          salon_id: string;
+          user_id: string;
+          role: 'owner' | 'manager' | 'professional';
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['salon_members']['Insert']>;
+      };
+      platform_admins: {
+        Row: {
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['platform_admins']['Insert']>;
+      };
       professionals: {
         Row: {
           id: string;

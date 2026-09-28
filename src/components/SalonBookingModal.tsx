@@ -2,8 +2,9 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   X, Calendar, Clock, User, CheckCircle2, ChevronLeft, ChevronRight, 
   Sparkles, Star, Scissors, ArrowLeft, Building2, ChevronDown, AlertCircle,
-  Check, Video, Images
+  Check, Video, Images, Phone
 } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { ServiceOffer, CatalogServiceItem } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { getAvailableSlotsForDate } from '../utils/bookingSlots';
@@ -48,7 +49,12 @@ interface SalonBookingModalProps {
     salonName: string;
     salonAddress: string;
     price: number;
-  }) => void;
+    offerId?: string;
+    isDependentBooking?: boolean;
+    dependentName?: string;
+    clientPhone?: string;
+    notes?: string;
+  }) => Promise<{ success: boolean; error?: string } | void> | void;
 }
 
 type Step = 'service' | 'date' | 'professionals_and_time' | 'confirmation';
@@ -157,6 +163,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
 
   // Estado do Modal de Autenticação do Cliente no Salão
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isDependentBooking, setIsDependentBooking] = useState(false);
+  const [dependentName, setDependentName] = useState('');
+  const [clientPhoneInput, setClientPhoneInput] = useState(() => {
+    return localStorage.getItem('vagou_user_phone') || '';
+  });
+  const [bookingErrorMessage, setBookingErrorMessage] = useState('');
+  const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
 
   // Rastrear estado anterior de abertura para inicializar APENAS na transição de fechado -> aberto
   const prevIsOpenRef = useRef(false);
@@ -287,39 +300,63 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   const resolvedProfessionalName = activeProfObj?.name || (professionals[0]?.name ?? 'Equipe do Salão');
   const resolvedProfessionalAvatar = activeProfObj?.avatar || professionals[0]?.avatar;
 
-  const handleConfirmFinal = () => {
+  const handleConfirmFinal = async () => {
+    setBookingErrorMessage('');
     if (!selectedTimeSlot) return;
 
-    // Verificar se o cliente já possui identificação cadastrada
-    const savedName = localStorage.getItem('vagou_user_name');
-    const savedPhone = localStorage.getItem('vagou_user_phone');
-    if (!savedName || !savedPhone) {
-      // Cliente ainda não logado/cadastrado: abre o modal de cadastro/login com a cara do salão!
-      hapticMedium();
-      setIsAuthModalOpen(true);
+    if (isDependentBooking && !dependentName.trim()) {
+      setBookingErrorMessage('Informe o nome do dependente para concluir o agendamento.');
       return;
     }
 
-    executeFinalBooking();
-  };
+    const cleanPhone = clientPhoneInput.trim() || localStorage.getItem('vagou_user_phone') || '';
+    if (!cleanPhone) {
+      setBookingErrorMessage('Informe um telefone de contato para concluir o agendamento.');
+      return;
+    }
 
-  const executeFinalBooking = () => {
-    if (!selectedTimeSlot) return;
+    // Verificar se o cliente tem sessão ativa no Supabase
+    if (isSupabaseConfigured && supabase) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        hapticMedium();
+        setIsAuthModalOpen(true);
+        return;
+      }
+    }
 
-    hapticSuccess();
+    setIsSubmittingBooking(true);
+    try {
+      const result = await onConfirmAppointment({
+        service: selectedService,
+        professional: selectedProfessional === 'any' ? `${resolvedProfessionalName} (Designado)` : selectedProfessional,
+        professionalAvatar: resolvedProfessionalAvatar,
+        dateIso: selectedDateIso,
+        dateFormatted: shortDateFormatted,
+        timeSlot: selectedTimeSlot,
+        salonName,
+        salonAddress,
+        price: selectedService.price,
+        offerId: baseOffer?.id,
+        isDependentBooking,
+        dependentName: dependentName.trim(),
+        clientPhone: cleanPhone,
+        notes: isDependentBooking ? `Dependente: ${dependentName.trim()}` : undefined,
+      });
 
-    onConfirmAppointment({
-      service: selectedService,
-      professional: selectedProfessional === 'any' ? `${resolvedProfessionalName} (Designado)` : selectedProfessional,
-      professionalAvatar: resolvedProfessionalAvatar,
-      dateIso: selectedDateIso,
-      dateFormatted: shortDateFormatted,
-      timeSlot: selectedTimeSlot,
-      salonName,
-      salonAddress,
-      price: selectedService.price,
-    });
-    onClose?.();
+      if (result && !result.success && result.error) {
+        setBookingErrorMessage(result.error);
+        setIsSubmittingBooking(false);
+        return;
+      }
+
+      hapticSuccess();
+      onClose?.();
+    } catch (err: any) {
+      setBookingErrorMessage(err?.message || 'Falha ao realizar agendamento.');
+    } finally {
+      setIsSubmittingBooking(false);
+    }
   };
 
   const bookingContent = (
@@ -887,6 +924,61 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     <span className={`font-black text-lg ${isDark ? 'text-emerald-400' : 'text-[#087A2A]'}`}>R$ {selectedService?.price ? selectedService.price.toFixed(0) : '0'}</span>
                   </div>
                 </div>
+
+                {/* Banner de Erro Soberano (ex: 'Esta vaga não está mais disponível') */}
+                {bookingErrorMessage && (
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded text-rose-400 text-xs font-medium flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+                    <span>{bookingErrorMessage}</span>
+                  </div>
+                )}
+
+                {/* Telefone de Contato (NOT NULL no banco) */}
+                <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Telefone de Contato (WhatsApp)</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={clientPhoneInput}
+                    onChange={(e) => setClientPhoneInput(e.target.value)}
+                    placeholder="(00) 00000-0000"
+                    className={`w-full px-3 py-2 text-xs rounded border transition-colors outline-hidden ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-600'
+                    }`}
+                  />
+                </div>
+
+                {/* Agendamento para Dependente / Terceiro */}
+                <div className="pt-2 border-t border-slate-800/60 space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold">
+                    <input
+                      type="checkbox"
+                      checked={isDependentBooking}
+                      onChange={(e) => setIsDependentBooking(e.target.checked)}
+                      className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                    />
+                    <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>
+                      Agendamento para outra pessoa / dependente
+                    </span>
+                  </label>
+
+                  {isDependentBooking && (
+                    <div className="space-y-1 pl-6 pt-1 animate-in fade-in duration-150">
+                      <label className="text-[11px] font-bold text-slate-400">Nome do Dependente</label>
+                      <input
+                        type="text"
+                        value={dependentName}
+                        onChange={(e) => setDependentName(e.target.value)}
+                        placeholder="Ex: Pedro Silva (Filho)"
+                        className={`w-full px-3 py-2 text-xs rounded border transition-colors outline-hidden ${
+                          isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-600'
+                        }`}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -983,11 +1075,16 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           {currentStep === 'confirmation' && (
             <button
               id="btn-confirmar-agendamento-final"
+              disabled={isSubmittingBooking}
               onClick={handleConfirmFinal}
-              className="w-full py-2.5 px-4 bg-[#20C933] hover:bg-[#1bb32d] active:scale-98 text-white drop-shadow-xs font-black text-xs uppercase tracking-wider rounded transition shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer font-['Poppins']"
+              className={`w-full py-2.5 px-4 font-black text-xs uppercase tracking-wider rounded transition flex items-center justify-center gap-2 font-['Poppins'] ${
+                isSubmittingBooking
+                  ? 'bg-slate-700 text-slate-400 cursor-wait'
+                  : 'bg-[#20C933] hover:bg-[#1bb32d] active:scale-98 text-white drop-shadow-xs shadow-lg shadow-emerald-500/25 cursor-pointer'
+              }`}
             >
               <CheckCircle2 className="w-4 h-4 text-white" />
-              <span>Confirmar Agendamento</span>
+              <span>{isSubmittingBooking ? 'Processando...' : 'Confirmar Agendamento'}</span>
             </button>
           )}
         </div>
@@ -1014,7 +1111,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         onAuthenticated={() => {
           setIsAuthModalOpen(false);
           // Executar o agendamento imediatamente após a autenticação bem-sucedida!
-          executeFinalBooking();
+          handleConfirmFinal();
         }}
       />
     </>

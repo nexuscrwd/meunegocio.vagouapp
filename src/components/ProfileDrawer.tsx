@@ -1177,10 +1177,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       localStorage.removeItem('vagou_active_partner');
                       localStorage.removeItem('vagou_user_email');
                       localStorage.removeItem('vagou_user_phone');
-                      localStorage.removeItem('vagou_client_logged_in');
-                      localStorage.removeItem('vagou_salon_logged_in');
+                      localStorage.removeItem('vagou_user_avatar');
                       localStorage.setItem('vagou_user_name', 'Usuário');
-                      localStorage.setItem('vagou_current_persona', 'cliente');
                       onClose();
                       if (onLogoutSalon) {
                         onLogoutSalon();

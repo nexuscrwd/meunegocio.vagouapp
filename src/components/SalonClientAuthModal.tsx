@@ -119,22 +119,12 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
         email: cleanEmail,
       };
 
-      // Gravar sessão de acordo com o tipo de conta selecionado
+      // Gravar dados visuais do usuário autenticado
       try {
         localStorage.setItem('vagou_user_name', authenticatedUser.name);
         localStorage.setItem('vagou_user_phone', authenticatedUser.phone);
         localStorage.setItem('vagou_user_email', authenticatedUser.email);
         localStorage.setItem('vagou_active_partner', authenticatedUser.email);
-        
-        if (accountType === 'pro') {
-          localStorage.setItem('vagou_salon_logged_in', 'true');
-          localStorage.setItem('vagou_current_persona', 'pro');
-          localStorage.setItem('vagou_user_role', 'pro');
-        } else {
-          localStorage.setItem('vagou_salon_logged_in', 'false');
-          localStorage.setItem('vagou_current_persona', 'cliente');
-          localStorage.setItem('vagou_user_role', 'cliente');
-        }
       } catch {}
 
       onAuthenticated(authenticatedUser, accountType);
@@ -181,11 +171,8 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
         if (authenticatedUser.phone) localStorage.setItem('vagou_user_phone', authenticatedUser.phone);
         localStorage.setItem('vagou_user_email', result.userEmail);
         localStorage.setItem('vagou_active_partner', result.userEmail);
-        localStorage.setItem('vagou_current_persona', result.persona);
-        localStorage.setItem('vagou_user_role', result.role);
         if (result.salonName) localStorage.setItem('vagou_salon_name', result.salonName);
         if (result.salonSlug) localStorage.setItem('vagou_salon_slug', result.salonSlug);
-        if (result.role === 'pro') localStorage.setItem('vagou_salon_logged_in', 'true');
       } catch {}
 
       onAuthenticated(authenticatedUser, result.role);

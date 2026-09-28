@@ -15,6 +15,122 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-28] — Conclusão da TAREFA 3: Agendamento Seguro, RPC get_busy_slots, ensureClientRow & RLS
+- **Tipo:** `[Feature / Security & RLS / Tarefa 3]`
+- **Motivo / Solicitação:** Implementação completa da Tarefa 3: criação resiliente de cliente em `clients` via `ensureClientRow` sem sobrescrever dados prévios, bloqueio estrito de visitantes no agendamento, consulta de horários ocupados via RPC soberano `get_busy_slots`, gravação de agendamento em `appointments` com `client_id` real, validação de dependentes e telefone, exibição transparente de mensagens de recusa do banco (ex: trigger `trg_appointments_reserve_offer`), e cancelamento seguro pelo cliente com validação de RLS.
+- **Ações Implementadas:**
+  - `src/hooks/useSalonRole.ts`:
+    1. Adicionado `lastUserIdRef` para evitar reavaliação desnecessária em `SIGNED_IN` quando o usuário não mudou.
+    2. Adicionado contador de requisições `currentReqIdRef` para descartar race conditions de respostas assíncronas antigas.
+    3. Ignorados eventos `TOKEN_REFRESHED` e `INITIAL_SESSION`.
+  - `src/lib/supabase.ts`:
+    1. Implementada a função `ensureClientRow`: primeiro consulta por `user_id`. Se existir, retorna sem alterar. Se não existir, insere com metadados reais. Em caso de colisão de concorrência (erro `23505`), reconsulta e retorna a linha existente.
+  - `src/App.tsx`:
+    1. `ensureClientRow` chamado exclusivamente no listener de `SIGNED_IN` dentro de `setTimeout(..., 0)` com `unsubscribe()` no cleanup do `useEffect`.
+    2. `setCurrentSubdomain(sub)` chamado no ramo de sucesso da validação do salão.
+    3. Identificador passado ao hook: `devSlug || currentSubdomain` (com `devSlug` ativo apenas em `import.meta.env.DEV`).
+    4. `effectiveRole = isValidatingSubdomain ? 'loading' : currentRole` para proteger o dono contra expulsão prematura de abas.
+    5. Passagem de `userRole={effectiveRole}` para `SalonProfileView` e chave desacoplada `key={salonName || 'salon-profile'}`.
+    6. `handleCancelAppointment`: Atualização com `.select('id')` tratando `data?.length !== 1` como bloqueio de RLS com alerta claro.
+  - `src/components/SalonProfileView.tsx`:
+    1. Importação de `SalonRole` e `SalonClientAuthModal`.
+    2. Prop `userRole?: SalonRole`.
+    3. Reset de abas de gestão posicionado após a declaração de `activeTab`, com guarda `if (isRoleLoading) return`.
+    4. Saudação de boas-vindas: exibe "Seja bem-vindo" quando não houver nome específico.
+    5. `handleOpenBooking`: Se `activeRole === 'loading'`, ignora; se `activeRole === 'guest'`, salva o serviço e abre `SalonClientAuthModal`.
+    6. `handleConfirmSchedule`: Insere em `public.appointments` com `client_id` real, propaga `insertErr.message` do banco e exibe no modal.
+    7. Purga de `getItem('vagou_salon_logged_in')` na checagem de estado de login.
+  - `src/components/SalonBookingModal.tsx`:
+    1. Validação de dependentes: se `isDependentBooking` estiver marcado e `dependentName` vazio, bloqueia o envio com mensagem.
+    2. Campo de telefone de contato com validação (`NOT NULL` no banco).
+    3. Banner de alerta de erro para exibir exceções soberanas do banco (ex: `'Esta vaga não está mais disponível'`).
+  - `src/utils/bookingSlots.ts`:
+    1. Função `fetchBusySlotsDirectly` chamando exclusivamente `supabase.rpc('get_busy_slots', ...)`.
+  - `supabase/migrations/`: Diretório criado pronto para receber `vagou_rbac_rls.sql`.
+- **Arquivos Impactados:**
+  - `src/hooks/useSalonRole.ts`
+  - `src/lib/supabase.ts`
+  - `src/App.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/utils/bookingSlots.ts`
+  - `CHANGELOG.md`
+
+### [2026-09-28] — Conclusão da TAREFA 2: Hook Soberano `useSalonRole` & Purga de `localStorage` de Papéis
+- **Tipo:** `[Security & RBAC Architecture / Tarefa 2]`
+- **Motivo / Solicitação:** Erradicar definitivamente o uso de `localStorage` para decidir permissões e papéis de usuário. Implementação do hook soberano `useSalonRole(salonIdentifier)`, recalibrado em `onAuthStateChange`, garantindo que abas de gestão (`caixa`, `financeiro`, `equipe`, `personalizar`, `utilidades`) sejam exclusivas de `owner` e `manager`, enquanto `professional` acessa apenas sua agenda, e clientes/visitantes não têm acesso a nenhuma gestão.
+- **Ações Implementadas:**
+  - `src/hooks/useSalonRole.ts`:
+    1. Criado hook reativo que consome `supabase.auth.getSession()` e `onAuthStateChange`.
+    2. Retorna `'loading' | 'owner' | 'manager' | 'professional' | 'client' | 'guest'`. Em caso de erro retorna `'client'`; sem sessão retorna `'guest'`.
+  - `src/lib/supabase.ts`:
+    1. `checkUserSalonMembership`: Bloqueio imediato quando `salonIdentifier` for vazio; validação regex de slug e id; tratamento do campo `error` retornando `'cliente'`; remoção de `subdomain` inexistente.
+    2. Removido campo `pin_code` e busca `ilike` aproximada em `updateSalonSettingsInDb`.
+  - `src/components/SalonProfileView.tsx`:
+    1. Integração com `useSalonRole`, eliminando estados e sincronizadores de `localStorage` para `vagou_salon_logged_in`, `vagou_current_persona` e `vagou_user_role`.
+    2. Abas `caixa`, `financeiro`, `equipe`, `personalizar`, `utilidades` estritamente bloqueadas para não-gestores (`!isOwnerOrManager`).
+    3. Removido `ProfessionalLoginModal` e campo `pinCode` de `adminSettings`.
+    4. Repasse de `isOwnerOrManager` e `isProfessionalStaff` para `BottomNav`.
+  - `src/components/professional/ProfessionalSpaceManager.tsx`:
+    1. Removido o campo `pinCode` do estado, da gravação e do formulário visual JSX.
+  - `src/App.tsx`:
+    1. Integração com `useSalonRole`.
+    2. Consulta de subdomínio corrigida para `.eq('slug', sub).eq('is_active', true)`.
+    3. `viewMode` inicial configurado para a vitrine pública (`'salon'`).
+    4. Chave de remontagem de `SalonProfileView` atualizada para `key="salon-${currentRole}-${salonName}"`.
+    5. Removida mutação de permissões no `onSuccess` de `PartnerAuthView`.
+  - `src/components/PartnerAuthView.tsx` & `src/components/SalonClientAuthModal.tsx`:
+    1. Removida a escrita de chaves de permissão no `localStorage`.
+  - `src/components/BottomNav.tsx`:
+    1. Suporte a `isOwnerOrManager` e `isProfessionalStaff`, renderizando apenas as abas condizentes com o papel.
+- **Arquivos Impactados:**
+  - `src/hooks/useSalonRole.ts`
+  - `src/lib/supabase.ts`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/ProfessionalSpaceManager.tsx`
+  - `src/App.tsx`
+  - `src/components/PartnerAuthView.tsx`
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/BottomNav.tsx`
+  - `src/types.ts`
+  - `CHANGELOG.md`
+
+### [2026-09-28] — Arquitetura de Segurança Soberana & RBAC Estrito (salon_members)
+- **Tipo:** `[Security & Architecture / RBAC Soberano]`
+- **Motivo / Solicitação:** Implementação da diretriz inegociável de separação Dono × Cliente: (1) o papel vem da tabela `salon_members` consultada após login real no Supabase Auth, nunca do `localStorage`; (2) remoção de Master Admin hardcoded, bypass de PIN e modo offline; (3) sem vínculo em `salon_members`, o usuário é cliente estrito sem menus de gestão; (4) correção das colunas da tabela `salons` (`is_active` e `trade_name`).
+- **Ações Implementadas:**
+  - `src/lib/supabase.ts`:
+    1. Criada a função soberana `checkUserSalonMembership(userId, salonIdentifier)` que valida a relação em `salon_members`, com fallback de segurança para `salons.owner_id` e `professionals.user_id`.
+    2. Removidos Master Admin hardcoded (`anderson`, `admin`), senhas fixas e modo offline que concediam papel `pro`.
+    3. `unifiedGlobalLogin` agora depende estritamente de `supabase.auth.signInWithPassword`. Se falhar, retorna erro real; se passar, define o papel consultando `salon_members`.
+  - `src/types/database.types.ts`: Adicionada tipagem da tabela `salon_members` (`id`, `salon_id`, `user_id`, `role: 'owner' | 'manager' | 'professional'`) e `platform_admins` (`user_id`, `created_at`).
+  - `src/lib/supabase.ts`:
+    1. Criada a função soberana `checkUserSalonMembership(userId, salonIdentifier)` integrada à RPC `is_platform_admin()` e com consulta segura em `salon_members`.
+    2. Removidos todos os atalhos de bypass de senha, PIN e modo offline.
+  - `src/components/SalonProfileView.tsx`:
+    1. Eliminada a promoção automática a admin em `handleSelectTab` (ao clicar em caixa, financeiro, utilidades ou personalizar).
+    2. Removido o seletor visual `#header-persona-selector` que permitia alternar livremente entre Cliente e Pro no frontend.
+    3. `isUserProRole` e `isGerMode` agora dependem da validação de sessão e `salon_members`.
+    4. Limpeza de avatar e papéis no logout do cliente em `ProfileDrawer.tsx`.
+  - `src/App.tsx`:
+    1. Corrigida a consulta de validação de subdomínio para utilizar as colunas reais `.eq('is_active', true)` (em vez de `status: 'active'`) e `salon.trade_name` (em vez de `salon.name`).
+    2. Adicionada validação assíncrona de sessão real no Supabase Auth com `checkUserSalonMembership`. Sem vínculo, o usuário é rebaixado a cliente.
+  - `src/components/SalonProfileView.tsx`:
+    1. Removido o seletor visual `#header-persona-selector` que permitia alternar livremente entre Cliente e Pro no frontend.
+    2. `isUserProRole` e `isGerMode` agora dependem da validação de sessão e `salon_members`.
+    3. `handleRequestManage` agora redireciona usuários sem credencial para autenticação (`onBackToAuth`), eliminando a promoção automática a admin sem senha.
+    4. `handleSalonLogout` agora encerra a sessão via `supabase.auth.signOut()`.
+  - `src/components/PartnerAuthView.tsx`: Removido modal de PIN administrativo e consulta aberta `.limit(1)` em `salons`.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `src/types/database.types.ts`
+  - `supabase/schema.sql`
+  - `src/App.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/PartnerAuthView.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-28] — Resolução Definitiva de Vazamento de Avatar (Exact Matching & Cache Purge)
 - **Tipo:** `[Fix / Profile Isolation & Avatar Purge]`
 - **Motivo / Solicitação:** Identificação da causa raiz do vazamento de fotos: buscas parciais com wildcard (`.ilike.%term%`) em `fetchUserProfileFromDb()` que capturavam fotos de outros perfis e persistência de avatar fantasma no `localStorage`.
