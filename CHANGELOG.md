@@ -15,6 +15,19 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-28] — Tríade Sync: Adoção do Gateway Soberano de Cadastro e BOL-016 (bol-015 / bol-016)
+- **Tipo:** `[Security & Sovereign Architecture / Tríade Sync]`
+- **Motivo / Solicitação:** Cumprimento das diretrizes soberanas da Tríade (`bol-015-unified-sovereign-registration-gateway` e `bol-016`). Desativação de fluxos locais/nativos de cadastro no `mnvapp` e integração com o Gateway Soberano de Cadastro do `admvapp` (`https://admin.vagouapp.com/cadastro`). Suporte a contatos dedicados de estabelecimentos (`phone_landline`, `subdomain`).
+- **Ações Implementadas:**
+  - `src/components/public/UnifiedRegisterEmbedModal.tsx`: Criado o modal com embed fluido do motor soberano de cadastro do `admvapp`, escutando eventos `postMessage` (`VAGOU_REGISTRATION_SUCCESS`).
+  - `src/components/PartnerAuthView.tsx`: Substituído o modal de cadastro local pelo `UnifiedRegisterEmbedModal` direcionado para `type="professional"`.
+  - `src/types/database.types.ts`: Atualizada a tipagem de `salons` para incluir `phone_landline` e `subdomain`.
+- **Arquivos Impactados:**
+  - `src/components/public/UnifiedRegisterEmbedModal.tsx`
+  - `src/components/PartnerAuthView.tsx`
+  - `src/types/database.types.ts`
+  - `CHANGELOG.md`
+
 ### [2026-09-27] — Tríade Sync: Ajuste Canônico de Domínios e Redirecionamento ao Admin Master (bol-014)
 - **Tipo:** `[Domain Correction / Tríade Sync]`
 - **Motivo / Solicitação:** Comunicado Técnico Oficial `bol-014-canonical-triad-domains-and-subdomain-guard-sync` emitido pelo `admvapp`. Retificação do domínio oficial do `mnvapp` para `meunegocio.vagouapp.com` e atualização do direcionamento da tela `SalonNotFoundScreen` para o Motor Soberano de Cadastro no Admin Master (`https://admin.vagouapp.com/cadastro?type=professional&slug=xxx`).

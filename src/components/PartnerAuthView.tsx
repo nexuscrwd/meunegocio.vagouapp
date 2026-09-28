@@ -8,12 +8,12 @@ import {
 import { hapticSuccess, hapticLight, hapticMedium } from '../utils/haptics';
 import { 
   signInWithSupabase, 
-  supabase,
+  supabase, 
   isSupabaseConfigured,
   syncSalonDataToSupabase,
   unifiedGlobalLogin
 } from '../lib/supabase';
-import { SalonClientAuthModal, SalonClientAuthUser } from './SalonClientAuthModal';
+import { UnifiedRegisterEmbedModal } from './public/UnifiedRegisterEmbedModal';
 
 export interface PartnerAuthSuccessData {
   salonName: string;
@@ -743,35 +743,17 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
         </form>
       </section>
 
-      {/* Modal Completo de Cadastro de Usuários e Autenticação Supabase */}
-      <SalonClientAuthModal
+      {/* Modal Soberano Unificado de Cadastro (ADMVAPP) */}
+      <UnifiedRegisterEmbedModal
         isOpen={isClientRegisterModalOpen}
         onClose={() => setIsClientRegisterModalOpen(false)}
-        salonName={currentDisplaySalonName}
-        salonLogo={salonLogo}
-        primaryColor="#00a033"
-        onAuthenticated={(user: SalonClientAuthUser, role?: 'pro' | 'cliente') => {
+        type="professional"
+        slug={localStorage.getItem('vagou_salon_slug') || ''}
+        onSuccess={(userData) => {
           setIsClientRegisterModalOpen(false);
           hapticSuccess();
-          const targetRole = role || 'pro';
-          if (targetRole === 'pro') {
-            localStorage.setItem('vagou_salon_logged_in', 'true');
-            localStorage.setItem('vagou_current_persona', 'pro');
-            localStorage.setItem('vagou_user_role', 'pro');
-            if (user.name) localStorage.setItem('vagou_user_name', user.name);
-            if (user.email) localStorage.setItem('vagou_active_partner', user.email);
-            const userSlug = `espaco-${user.name.toLowerCase().replace(/\s+/g, '-')}-${Math.floor(1000 + Math.random() * 9000)}`;
-            const userSalonName = `Espaço ${user.name}`;
-            localStorage.setItem('vagou_salon_name', userSalonName);
-            localStorage.setItem('vagou_salon_slug', userSlug);
-            onSuccess({ salonName: userSalonName, slug: userSlug }, 'pro');
-          } else {
-            localStorage.setItem('vagou_salon_logged_in', 'false');
-            localStorage.setItem('vagou_current_persona', 'cliente');
-            localStorage.setItem('vagou_user_role', 'cliente');
-            if (user.name) localStorage.setItem('vagou_user_name', user.name);
-            if (user.email) localStorage.setItem('vagou_active_partner', user.email);
-            onSuccess(undefined, 'cliente');
+          if (userData?.email) {
+            setLoginUser(userData.email);
           }
         }}
       />

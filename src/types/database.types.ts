@@ -24,7 +24,9 @@ export interface Database {
           document_type: string;
           document_number: string | null;
           phone_whatsapp: string | null;
+          phone_landline?: string | null;
           email: string | null;
+          subdomain?: string | null;
           operating_model: OperatingModel;
           home_delivery_enabled: boolean;
           home_delivery_area: string | null;
@@ -70,7 +72,9 @@ export interface Database {
           document_type?: string;
           document_number?: string | null;
           phone_whatsapp?: string | null;
+          phone_landline?: string | null;
           email?: string | null;
+          subdomain?: string | null;
           operating_model?: OperatingModel;
           home_delivery_enabled?: boolean;
           home_delivery_area?: string | null;
