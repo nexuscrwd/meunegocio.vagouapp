@@ -561,6 +561,7 @@ export const App: React.FC = () => {
                 }
                 setViewMode('salon');
               }}
+              onBack={() => setViewMode('salon')}
             />
           ) : viewMode === 'salon' ? (
             <SalonProfileView

@@ -15,6 +15,48 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-01] — Correção de Enquadramento Vertical e Corte Superior no Modal Embed
+- **Tipo:** `[UI / Alignment Fix / Responsive]`
+- **Motivo / Solicitação:** O topo do formulário do Admin Master (logo do Vagou e botão de fechar) estava sendo cortado na margem superior da tela devido a uma altura fixa de 620px que excedia a altura visível do canvas de preview.
+- **Ações Implementadas:**
+  - `src/components/SalonClientAuthModal.tsx`:
+    1. Ajustada a altura do contêiner para `h-[92dvh] max-h-[580px]` com `my-auto` dinâmico e padding de respiro `p-3 sm:p-5`.
+    2. Adicionado `overflow-y-auto` no container do backdrop para garantir que em qualquer resolução ou tela com barras de navegação o topo nunca seja cortado.
+- **Arquivos Impactados:**
+  - `src/components/SalonClientAuthModal.tsx`
+  - `CHANGELOG.md`
+
+### [2026-10-01] — Erradicação de Caixa Dupla (Zero Box-in-Box) no Modal de Autenticação Embed
+- **Tipo:** `[UI / UX Fix / Anti-Slop]`
+- **Motivo / Solicitação:** Abertura do modal apresentava duplicidade de elementos ("box dentro de box"): uma moldura cinza externa com o primeiro botão "X" gerado pelo `mnvapp`, e dentro do iframe uma segunda caixa com o segundo botão "X" do Admin Master.
+- **Ações Implementadas:**
+  - `src/components/SalonClientAuthModal.tsx`:
+    1. Removida a barra superior/cabeçalho redundante com o botão "X" externo e o texto "Meu Estabelecimento".
+    2. Fundo do contêiner modal agora é plano e transparente (`bg-transparent`), integrando perfeitamente a renderização do card soberano do Admin Master.
+    3. Habilitada a escuta do evento `VAGOU_MODAL_CLOSE` e suporte à tecla `ESC` e clique no backdrop para fechamento suave.
+- **Arquivos Impactados:**
+  - `src/components/SalonClientAuthModal.tsx`
+  - `CHANGELOG.md`
+
+### [2026-09-29] — Erradicação Total dos Formulários Nativos de Autenticação em Favor do Admin Master
+- **Tipo:** `[Architecture / Tríade Centralization / Clean Code]`
+- **Motivo / Solicitação:** Decisão soberana da Tríade de eliminar 100% dos formulários e inputs nativos de cadastro, login e recuperação de senha de dentro do `mnvapp`. Toda e qualquer operação de autenticação e registro agora é delegada exclusivamente ao Admin Master centralizado (`admvapp`).
+- **Ações Implementadas:**
+  - `src/components/SalonClientAuthModal.tsx`:
+    1. Removidos todos os formulários nativos (`handleSignUp`, `handleLogin`, inputs de senha, máscaras manuais, validações duplicadas).
+    2. Convertido em modal responsivo que renderiza diretamente o `<iframe>` oficial do Admin Master (`https://admin.vagouapp.com/cadastro?embed=true`).
+    3. Escuta do evento de sucesso `VAGOU_REGISTRATION_SUCCESS` via `postMessage`: fecha o iframe e autentica o usuário localmente sem atritos.
+  - `src/components/PartnerAuthView.tsx`:
+    1. Eliminados formulários nativos de login (`handleLoginSubmit`) e recuperação de senha (`handleSendPasswordRecovery`).
+    2. Substituído pelo carregamento direto do frame do Admin Master (`type=professional`), com botão de retorno ("Voltar") e sincronização via `postMessage`.
+  - `src/App.tsx`:
+    1. Suporte a retorno (`onBack`) na visualização de autenticação do parceiro.
+- **Arquivos Impactados:**
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/components/PartnerAuthView.tsx`
+  - `src/App.tsx`
+  - `CHANGELOG.md`
+
 ### [2026-09-28] — Desconexão Imediata e Correção de Login Wall Inicial
 - **Tipo:** `[UX / Session Fix / Bug]`
 - **Motivo / Solicitação:** O aplicativo estava iniciando com a sessão pré-logada como "Profissional" (mock persistente), impedindo que o cliente começasse deslogado de forma limpa em testes de produção. Adicionalmente, ao clicar em "desconectar" / "sair", a sessão localmente persistia devido a um delay e falta de limpeza do estado de usuário no componente pai (`App.tsx`).
