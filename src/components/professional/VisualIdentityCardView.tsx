@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { 
   Palette, Upload, Trash2, Smartphone, Image as ImageIcon,
-  Check, Sparkles, ArrowLeft, Sun, Moon, RefreshCw, Save
+  Check, Sparkles, ArrowLeft, Sun, Moon, RefreshCw, Save, Type, Copy
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { SalonAdminSettings } from '../../types';
@@ -24,6 +24,8 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
 
   const [salonName] = useState(adminSettings.salonName || '');
   const [pwaName, setPwaName] = useState(adminSettings.pwaName || adminSettings.salonName || '');
+  const [slogan, setSlogan] = useState(adminSettings.slogan || '');
+  const [brandFont, setBrandFont] = useState<string>(adminSettings.brandFont || 'Poppins');
   const [salonLogoLight, setSalonLogoLight] = useState(adminSettings.salonLogoLight || adminSettings.salonLogo || '');
   const [salonLogoDark, setSalonLogoDark] = useState(adminSettings.salonLogoDark || adminSettings.salonLogo || '');
   const [salonIcon, setSalonIcon] = useState(adminSettings.salonIcon || '');
@@ -43,6 +45,36 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
     { label: 'Rubi', hex: '#ef4444' },
     { label: 'Violeta', hex: '#8b5cf6' },
   ];
+
+  const BRAND_FONT_PRESETS = [
+    {
+      id: 'Poppins',
+      label: 'Poppins',
+      subtitle: 'Moderna & Geométrica',
+      family: "'Poppins', sans-serif",
+    },
+    {
+      id: 'Cormorant Garamond',
+      label: 'Cormorant Garamond',
+      subtitle: 'Elegante & Editorial',
+      family: "'Cormorant Garamond', Georgia, serif",
+    },
+    {
+      id: 'Oswald',
+      label: 'Oswald',
+      subtitle: 'Clássica & Forte',
+      family: "'Oswald', sans-serif",
+    },
+    {
+      id: 'Plus Jakarta Sans',
+      label: 'Plus Jakarta Sans',
+      subtitle: 'Minimalista & Clean',
+      family: "'Plus Jakarta Sans', sans-serif",
+    },
+  ];
+
+  const activeBrandFontFamily =
+    BRAND_FONT_PRESETS.find((f) => f.id === brandFont)?.family || "'Poppins', sans-serif";
 
   // Upload Logo Tema Claro (com compressão automática para caber no localStorage e PWA)
   const handleLogoLightFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -155,6 +187,8 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
       salonIcon,
       accentColor,
       pwaName: pwaName.trim() || salonName,
+      slogan: slogan.trim(),
+      brandFont,
     });
 
     setIsSaving(false);
@@ -578,9 +612,9 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
                 ) : (
                   <div 
                     className="w-full h-full flex items-center justify-center text-white font-bold text-base"
-                    style={{ backgroundColor: accentColor }}
+                    style={{ backgroundColor: accentColor, fontFamily: activeBrandFontFamily }}
                   >
-                    ✂️
+                    {(pwaName || salonName || 'VG').slice(0, 2).toUpperCase()}
                   </div>
                 )}
               </div>
@@ -596,7 +630,7 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
               </div>
             </div>
 
-            {/* Upload e Nome */}
+            {/* Upload, Espelhamento Rápido e Nome */}
             <div className="space-y-2">
               <div>
                 <div className="flex items-center justify-between mb-1">
@@ -632,41 +666,185 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
               <div
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleIconDrop}
-                className="flex items-center gap-2 pt-1"
+                className="flex flex-col gap-1.5 pt-1"
               >
-                <button
-                  type="button"
-                  onClick={() => iconInputRef.current?.click()}
-                  className="flex-1 py-1.5 px-3 rounded text-white text-[10px] font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
-                  style={{ backgroundColor: accentColor }}
-                >
-                  <Upload className="w-3 h-3 text-white" />
-                  <span>{salonIcon ? 'Substituir Ícone' : 'Enviar Ícone (1:1)'}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => iconInputRef.current?.click()}
+                    className="flex-1 py-1.5 px-3 rounded text-white text-[10px] font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                    style={{ backgroundColor: accentColor }}
+                  >
+                    <Upload className="w-3 h-3 text-white" />
+                    <span>{salonIcon ? 'Substituir Ícone' : 'Enviar Ícone (1:1)'}</span>
+                  </button>
 
-                {salonIcon && (
+                  {salonIcon && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setSalonIcon('');
+                      }}
+                      className="p-1.5 rounded text-rose-400 hover:bg-rose-500/10 border border-slate-700 transition cursor-pointer"
+                      title="Remover ícone do app"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+
+                  <input 
+                    ref={iconInputRef}
+                    type="file" 
+                    accept="image/png,image/jpeg,image/svg+xml,image/webp" 
+                    className="hidden" 
+                    onChange={handleIconFileChange} 
+                  />
+                </div>
+
+                {(salonLogoDark || salonLogoLight) && (
                   <button
                     type="button"
                     onClick={() => {
-                      hapticLight();
-                      setSalonIcon('');
+                      hapticSuccess();
+                      const sourceLogo = salonLogoDark || salonLogoLight;
+                      setSalonIcon(sourceLogo);
                     }}
-                    className="p-1.5 rounded text-rose-400 hover:bg-rose-500/10 border border-slate-700 transition cursor-pointer"
-                    title="Remover ícone do app"
+                    className={`w-full py-1.5 px-2.5 rounded border text-[10px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      isDark
+                        ? 'bg-slate-950 border-slate-800 text-slate-300 hover:border-emerald-500/60 hover:text-white'
+                        : 'bg-slate-50 border-slate-300 text-slate-700 hover:border-emerald-500/60'
+                    }`}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Copy className="w-3 h-3" style={{ color: accentColor }} />
+                    <span>Usar mesmo do logotipo</span>
                   </button>
                 )}
-
-                <input 
-                  ref={iconInputRef}
-                  type="file" 
-                  accept="image/png,image/jpeg,image/svg+xml,image/webp" 
-                  className="hidden" 
-                  onChange={handleIconFileChange} 
-                />
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* 4. SLOGAN CURTO & ESTILO DE FONTE DA MARCA (Boletim bol-017) */}
+        <div className={`p-3.5 rounded border space-y-3.5 ${
+          isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+        }`}>
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+            <div className="flex items-center gap-2">
+              <Type className="w-4 h-4" style={{ color: accentColor }} />
+              <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                Tipografia & Slogan da Marca
+              </h3>
+            </div>
+            <span className="text-[10px] font-bold" style={{ color: accentColor }}>
+              {brandFont}
+            </span>
+          </div>
+
+          {/* Campo Slogan Curto */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Slogan Curto da Marca
+              </label>
+              <span className="text-[10px] text-slate-500 font-mono">
+                {slogan.length}/60
+              </span>
+            </div>
+            <input
+              type="text"
+              maxLength={60}
+              value={slogan}
+              onChange={(e) => setSlogan(e.target.value)}
+              placeholder="Ex: Especialistas em cortes clássicos e visagismo"
+              className={`w-full px-3 py-2 rounded border text-xs font-medium outline-hidden transition ${
+                isDark 
+                  ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                  : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+              }`}
+            />
+          </div>
+
+          {/* Seletor Rápido dos 4 Estilos de Fonte de Marca */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+              Fonte de Destaque do Nome (Cabeçalho & Vitrine)
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {BRAND_FONT_PRESETS.map((font) => {
+                const isSelected = brandFont === font.id;
+                return (
+                  <button
+                    key={font.id}
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      setBrandFont(font.id);
+                    }}
+                    className={`p-2.5 rounded border text-left transition cursor-pointer flex items-center justify-between gap-2 ${
+                      isSelected
+                        ? isDark
+                          ? 'bg-slate-950 border-white text-white shadow-xs'
+                          : 'bg-slate-100 border-slate-900 text-slate-900 shadow-xs'
+                        : isDark
+                        ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
+                    }`}
+                    style={isSelected ? { borderColor: accentColor } : undefined}
+                  >
+                    <div className="min-w-0">
+                      <span
+                        className="text-sm font-bold block truncate leading-tight"
+                        style={{ fontFamily: font.family }}
+                      >
+                        {salonName || font.label}
+                      </span>
+                      <span className="text-[9.5px] text-slate-400 block truncate mt-0.5 font-['Poppins']">
+                        {font.label} • {font.subtitle}
+                      </span>
+                    </div>
+                    {isSelected && (
+                      <span
+                        className="w-4 h-4 rounded-full flex items-center justify-center text-white shrink-0"
+                        style={{ backgroundColor: accentColor }}
+                      >
+                        <Check className="w-2.5 h-2.5 text-white" />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Preview ao Vivo do Cabeçalho com Fonte e Slogan */}
+          <div className={`p-3 rounded border flex items-center gap-2.5 ${
+            isDark ? 'bg-[#151A1E] border-slate-800' : 'bg-slate-100 border-slate-200'
+          }`}>
+            {salonIcon ? (
+              <img src={salonIcon} alt="Ícone" className="w-8 h-8 rounded-lg object-cover shrink-0" />
+            ) : (
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
+                style={{ backgroundColor: accentColor, fontFamily: activeBrandFontFamily }}
+              >
+                {(salonName || 'VG').slice(0, 2).toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <span
+                className={`text-sm font-extrabold block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}
+                style={{ fontFamily: activeBrandFontFamily }}
+              >
+                {salonName || 'Meu Salão'}
+              </span>
+              <span className="text-[10px] text-slate-400 block truncate leading-tight font-['Poppins']">
+                {slogan || 'Seu slogan curto aparecerá aqui no cabeçalho'}
+              </span>
+            </div>
+            <span className="text-[8.5px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500 text-white shrink-0">
+              Ao Vivo
+            </span>
           </div>
         </div>
       </form>

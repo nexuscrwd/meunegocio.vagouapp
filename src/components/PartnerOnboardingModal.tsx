@@ -121,11 +121,14 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
   };
 
   // ----------------------------------------------------
-  // ETAPA 2: IDENTIDADE VISUAL (LOGOS & ÍCONE DO APP)
+  // ETAPA 2: BIO / APRESENTAÇÃO DO ESPAÇO, REDES SOCIAIS & HORÁRIOS (Boletim bol-017)
   // ----------------------------------------------------
-  const [logoLight, setLogoLight] = useState<string>('');
-  const [logoDark, setLogoDark] = useState<string>('');
-  const [appIcon, setAppIcon] = useState<string>('');
+  const [logoLight] = useState<string>(() => localStorage.getItem('vagou_salon_logo_light') || '');
+  const [logoDark] = useState<string>(() => localStorage.getItem('vagou_salon_logo_dark') || '');
+  const [appIcon] = useState<string>(() => localStorage.getItem('vagou_salon_icon') || '');
+  const [salonBio, setSalonBio] = useState<string>('');
+  const [instagramUrl, setInstagramUrl] = useState<string>('');
+  const [openingHoursText, setOpeningHoursText] = useState<string>('Seg a Sáb: 09:00 às 20:00');
 
   const handleFileUpload = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -346,6 +349,9 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
         salonLogoDark: logoDark || currentSettings.salonLogoDark,
         salonLogo: logoDark || logoLight || currentSettings.salonLogo,
         salonIcon: appIcon || currentSettings.salonIcon,
+        bio: salonBio.trim() || currentSettings.bio,
+        instagramUrl: instagramUrl.trim() || currentSettings.instagramUrl,
+        openingHours: openingHoursText.trim() || currentSettings.openingHours || 'Seg a Sáb: 09:00 às 20:00',
         operatingModel: operatingModel,
         homeDeliverySettings: {
           enabled: operatingModel === 'home_delivery' || operatingModel === 'hybrid',
@@ -369,9 +375,13 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
         latitude: -23.55052,
         longitude: -46.633308,
         operatingModel,
-        logoLightUrl: logoLight || undefined,
-        logoDarkUrl: logoDark || undefined,
-        appIconUrl: appIcon || undefined,
+        logoLightUrl: logoLight || currentSettings.salonLogoLight || undefined,
+        logoDarkUrl: logoDark || currentSettings.salonLogoDark || undefined,
+        appIconUrl: appIcon || currentSettings.salonIcon || undefined,
+        slogan: currentSettings.slogan,
+        brandFont: currentSettings.brandFont || 'Poppins',
+        bio: salonBio.trim() || currentSettings.bio || undefined,
+        instagramUrl: instagramUrl.trim() || currentSettings.instagramUrl || undefined,
         homeDeliverySettings: {
           enabled: operatingModel === 'home_delivery' || operatingModel === 'hybrid',
           areaDescription: condoAreaDescription,
@@ -442,7 +452,7 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
               <p className="text-[10px] text-slate-500">
                 Passo {currentStep} de {totalSteps} • {
                   currentStep === 1 ? 'Modelo Operacional' :
-                  currentStep === 2 ? 'Identidade Visual (Logos & Ícone)' :
+                  currentStep === 2 ? 'Apresentação, Instagram & Horários' :
                   currentStep === 3 ? (operatingModel === 'team' ? 'Primeiro Profissional da Equipe' : 'Perfil do Profissional') :
                   currentStep === 4 ? 'Criação dos Primeiros Serviços' :
                   'Seu Aplicativo Está Pronto!'
@@ -725,111 +735,69 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
           )}
 
           {/* ======================================================== */}
-          {/* ETAPA 2: IDENTIDADE VISUAL (LOGOS CLARO/ESCURO & ÍCONE)  */}
+          {/* ETAPA 2: BIO / APRESENTAÇÃO, INSTAGRAM & HORÁRIOS        */}
           {/* ======================================================== */}
           {currentStep === 2 && (
             <div className="space-y-4 animate-in fade-in duration-200">
               <div className="text-center py-1">
                 <h3 className="text-sm font-black font-['Poppins']">
-                  Logotipo & Marca Visual do Seu Negócio
+                  Apresentação do Espaço & Redes Sociais
                 </h3>
                 <p className="text-[11px] text-slate-400 max-w-md mx-auto mt-0.5">
-                  Tanto quem atende em salão próprio quanto em condomínio ou solo merece uma marca forte.
+                  Sua identidade visual já foi sincronizada no Cadastro Soberano. Complete agora sua Bio, @instagram e horário de atendimento.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* 1. Logo Modo Claro (para fundos escuros) */}
-                <div className={`p-3 rounded-[6px] border flex flex-col items-center justify-between text-center ${
-                  isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-                }`}>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                    Logo para Fundo Escuro
-                  </span>
-                  <div className="w-full h-20 rounded bg-slate-950 border border-slate-800 flex items-center justify-center p-2 mb-2">
-                    {logoLight ? (
-                      <img src={logoLight} alt="Logo Claro" className="max-h-16 max-w-full object-contain" />
-                    ) : (
-                      <div className="text-center text-slate-600 text-[10px]">
-                        <ImageIcon className="w-5 h-5 mx-auto mb-1 opacity-50" />
-                        <span>Letras/Traços Claros</span>
-                      </div>
-                    )}
-                  </div>
-                  <label className="w-full py-1.5 px-2 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-white font-bold text-[10px] flex items-center justify-center gap-1.5 cursor-pointer transition">
-                    <Upload className="w-3 h-3" />
-                    <span>{logoLight ? 'Substituir' : 'Enviar Logo Claro'}</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handleFileUpload(e, setLogoLight)}
-                    />
+              <div className={`p-3.5 rounded-[6px] border space-y-3 ${
+                isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+              }`}>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Bio / Apresentação do Salão
                   </label>
+                  <textarea
+                    rows={3}
+                    maxLength={280}
+                    value={salonBio}
+                    onChange={(e) => setSalonBio(e.target.value)}
+                    placeholder={`Conte brevemente sobre o diferencial de ${initialData.salonName}...`}
+                    className={`w-full px-3 py-2 text-xs rounded-[4px] border outline-hidden resize-none ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
+                    }`}
+                  />
                 </div>
 
-                {/* 2. Logo Modo Escuro (para fundos claros) */}
-                <div className={`p-3 rounded-[6px] border flex flex-col items-center justify-between text-center ${
-                  isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-                }`}>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                    Logo para Fundo Claro
-                  </span>
-                  <div className="w-full h-20 rounded bg-white border border-slate-200 flex items-center justify-center p-2 mb-2">
-                    {logoDark ? (
-                      <img src={logoDark} alt="Logo Escuro" className="max-h-16 max-w-full object-contain" />
-                    ) : (
-                      <div className="text-center text-slate-400 text-[10px]">
-                        <ImageIcon className="w-5 h-5 mx-auto mb-1 opacity-50" />
-                        <span>Letras/Traços Escuros</span>
-                      </div>
-                    )}
-                  </div>
-                  <label className="w-full py-1.5 px-2 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-white font-bold text-[10px] flex items-center justify-center gap-1.5 cursor-pointer transition">
-                    <Upload className="w-3 h-3" />
-                    <span>{logoDark ? 'Substituir' : 'Enviar Logo Escuro'}</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Instagram Oficial (@perfil)
+                    </label>
                     <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handleFileUpload(e, setLogoDark)}
+                      type="text"
+                      value={instagramUrl}
+                      onChange={(e) => setInstagramUrl(e.target.value)}
+                      placeholder="Ex: @meusalaooficial"
+                      className={`w-full px-3 py-2 text-xs rounded-[4px] border outline-hidden ${
+                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      }`}
                     />
-                  </label>
-                </div>
-
-                {/* 3. Ícone do App (Quadrado PWA) */}
-                <div className={`p-3 rounded-[6px] border flex flex-col items-center justify-between text-center ${
-                  isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-                }`}>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                    Ícone do App (PWA)
-                  </span>
-                  <div className="w-16 h-16 rounded-[12px] bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center overflow-hidden mb-2 mx-auto">
-                    {appIcon ? (
-                      <img src={appIcon} alt="Ícone App" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-sm font-black text-emerald-400">
-                        {initialData.salonName.slice(0, 2).toUpperCase()}
-                      </span>
-                    )}
                   </div>
-                  <label className="w-full py-1.5 px-2 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-white font-bold text-[10px] flex items-center justify-center gap-1.5 cursor-pointer transition">
-                    <Upload className="w-3 h-3" />
-                    <span>{appIcon ? 'Substituir' : 'Enviar Ícone 1:1'}</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handleFileUpload(e, setAppIcon)}
-                    />
-                  </label>
-                </div>
-              </div>
 
-              <div className="text-center pt-1">
-                <p className="text-[10px] text-slate-500 italic">
-                  Você também pode avançar e configurar ou trocar esses logos a qualquer momento no seu painel.
-                </p>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Horário de Funcionamento
+                    </label>
+                    <input
+                      type="text"
+                      value={openingHoursText}
+                      onChange={(e) => setOpeningHoursText(e.target.value)}
+                      placeholder="Ex: Ter a Sáb: 09:00 às 19:00"
+                      className={`w-full px-3 py-2 text-xs rounded-[4px] border outline-hidden ${
+                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      }`}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           )}

@@ -36,7 +36,7 @@ export const UnifiedRegisterEmbedModal: React.FC<UnifiedRegisterEmbedModalProps>
   if (!isOpen) return null;
 
   const currentUrl = typeof window !== 'undefined' ? encodeURIComponent(window.location.href) : '';
-  const iframeSrc = `https://admin.vagouapp.com/cadastro?embed=true&type=${type}&slug=${encodeURIComponent(slug)}&redirect=${currentUrl}`;
+  const iframeSrc = `https://adm.vagouapp.com/cadastro?embed=true&mode=cadastro&type=${type}&slug=${encodeURIComponent(slug)}&redirect=${currentUrl}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-3">

@@ -15,6 +15,38 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-18] — Alinhamento Canônico do Domínio do Iframe de Autenticação (`adm.vagouapp.com`)
+- **Tipo:** `[Fix / Sync]`
+- **Motivo / Solicitação:** Comunicado Técnico Oficial (`admvapp ➔ mnvapp`) para substituir `https://admin.vagouapp.com` pelo domínio canônico `https://adm.vagouapp.com` nos modais de login/cadastro embutidos, evitando colisão com o wildcard `*.vagouapp.com`.
+- **Arquivos Impactados:**
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/components/PartnerAuthView.tsx`
+  - `src/components/public/UnifiedRegisterEmbedModal.tsx`
+- **Resumo Técnico:** Atualizada a URL `iframeSrc` nos 3 componentes para `https://adm.vagouapp.com/cadastro?embed=true...` com parâmetros explícitos de `mode=login` e `mode=cadastro`.
+
+---
+
+### [2026-10-18] — Sincronização da Tríade: Identidade Visual, Fonte da Marca, Favicon 1:1, Slogan e Pós-Cadastro (`Boletim bol-017`)
+- **Tipo:** `[Feat / Sync / Supabase / UI]`
+- **Motivo / Solicitação:** Comunicado Técnico Oficial da Tríade (`bol-017-visual-identity-font-favicon-slogan-sync`) para sincronizar `favicon_url`, `slogan`, `brand_font` e `branding` JSONB entre `admvapp`, `mnvapp` e `pvapp`, além de desacoplar o fluxo pós-cadastro.
+- **Ações Implementadas:**
+  - `index.html`: Importada a fonte `Oswald:wght@500;600;700` no Google Fonts, completando os 4 estilos homologados (`Poppins`, `Cormorant Garamond`, `Oswald` e `Plus Jakarta Sans`).
+  - `src/types.ts`: Adicionados `slogan`, `brandFont`, `bio` e `instagramUrl` em `SalonAdminSettings`.
+  - `src/lib/supabase.ts`: Atualizadas `syncSalonDataToSupabase` e `updateSalonSettingsInDb` para persistir `favicon_url`, `slogan` e `brand_font` tanto nas colunas físicas de `public.salons` quanto dentro de `branding` JSONB (com fallback resiliente).
+  - `src/components/SalonProfileView.tsx`: Hidratação de `salonIcon` (`favicon_url`), `slogan`, `brandFont`, `bio` e `instagramUrl` a partir do Supabase e aplicação visual de `brandFont` e `slogan` no cabeçalho do salão.
+  - `src/components/professional/VisualIdentityCardView.tsx`: Adicionado campo de Slogan Curto (60 caracteres), seletor dos 4 Estilos de Fonte de Marca com preview ao vivo e botão "Usar mesmo do logotipo" para o Ícone 1:1.
+  - `src/components/PartnerOnboardingModal.tsx`: Etapa pós-cadastro desacoplada para coletar Bio, `@instagram` e Horário de Funcionamento sem obrigar reenvio do logotipo.
+  - `supabase/schema.sql`: Adicionadas as colunas `status`, `favicon_url`, `slogan`, `brand_font`, `pix_key`, `operating_hours` e `phone_landline` em `public.salons`.
+- **Arquivos Impactados:**
+  - `index.html`
+  - `src/types.ts`
+  - `src/lib/supabase.ts`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/VisualIdentityCardView.tsx`
+  - `src/components/PartnerOnboardingModal.tsx`
+  - `supabase/schema.sql`
+  - `CHANGELOG.md`
+
 ### [2026-10-01] — Correção de Enquadramento Vertical e Corte Superior no Modal Embed
 - **Tipo:** `[UI / Alignment Fix / Responsive]`
 - **Motivo / Solicitação:** O topo do formulário do Admin Master (logo do Vagou e botão de fechar) estava sendo cortado na margem superior da tela devido a uma altura fixa de 620px que excedia a altura visível do canvas de preview.

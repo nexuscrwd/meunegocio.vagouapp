@@ -453,6 +453,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       salonLogo: localStorage.getItem('vagou_salon_logo_dark') || (partnerInfo ? '' : DEFAULT_ROTA99_LOGO_DARK),
       salonIcon: localStorage.getItem('vagou_salon_icon') || (partnerInfo ? '' : DEFAULT_ROTA99_ICON),
       pwaName: effectiveSalonName,
+      slogan: '',
+      brandFont: 'Poppins',
+      bio: '',
+      instagramUrl: '',
     };
     try {
       const saved = localStorage.getItem('vagou_salon_admin_settings');
@@ -466,6 +470,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           salonLogo: parsed.salonLogo || parsed.salonLogoDark || localStorage.getItem('vagou_salon_logo_dark') || defaults.salonLogo,
           salonIcon: parsed.salonIcon || localStorage.getItem('vagou_salon_icon') || defaults.salonIcon,
           accentColor: parsed.accentColor || localStorage.getItem('vagou_accent_color') || defaults.accentColor,
+          slogan: parsed.slogan || defaults.slogan,
+          brandFont: parsed.brandFont || defaults.brandFont,
+          bio: parsed.bio || defaults.bio,
+          instagramUrl: parsed.instagramUrl || defaults.instagramUrl,
           isOpenNow: parsed.isOpenNow !== undefined ? parsed.isOpenNow : true,
         };
       }
@@ -618,13 +626,49 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           if (salonRecord.logo_url) {
             updatedSettings.salonLogo = salonRecord.logo_url;
           }
-          if (salonRecord.primary_color) {
-            updatedSettings.accentColor = salonRecord.primary_color;
-            localStorage.setItem('vagou_accent_color', salonRecord.primary_color);
-            setAccentColorContext(salonRecord.primary_color);
+
+          // Hidratação canônica Boletim bol-017 (favicon_url / salonIcon, slogan, brand_font, bio, instagramUrl)
+          const resolvedSalonIcon =
+            salonRecord.favicon_url ||
+            salonRecord.branding?.salonIcon ||
+            salonRecord.branding?.faviconUrl ||
+            salonRecord.logo_url ||
+            '';
+          if (resolvedSalonIcon) {
+            updatedSettings.salonIcon = resolvedSalonIcon;
+            localStorage.setItem('vagou_salon_icon', resolvedSalonIcon);
           }
 
-          setAdminSettings((prev) => ({ ...prev, ...updatedSettings }));
+          const resolvedSlogan = salonRecord.slogan || salonRecord.branding?.slogan || '';
+          updatedSettings.slogan = resolvedSlogan;
+
+          const resolvedBrandFont = salonRecord.brand_font || salonRecord.branding?.brandFont || 'Poppins';
+          updatedSettings.brandFont = resolvedBrandFont;
+
+          if (salonRecord.bio || salonRecord.branding?.bio) {
+            updatedSettings.bio = salonRecord.bio || salonRecord.branding?.bio;
+          }
+          if (salonRecord.branding?.instagramUrl) {
+            updatedSettings.instagramUrl = salonRecord.branding.instagramUrl;
+          }
+          if (salonRecord.branding?.pwaName) {
+            updatedSettings.pwaName = salonRecord.branding.pwaName;
+          }
+
+          const resolvedColor = salonRecord.primary_color || salonRecord.branding?.primaryColor;
+          if (resolvedColor) {
+            updatedSettings.accentColor = resolvedColor;
+            localStorage.setItem('vagou_accent_color', resolvedColor);
+            setAccentColorContext(resolvedColor);
+          }
+
+          setAdminSettings((prev) => {
+            const next = { ...prev, ...updatedSettings };
+            try {
+              localStorage.setItem('vagou_salon_admin_settings', JSON.stringify(next));
+            } catch {}
+            return next;
+          });
         }
 
         // 2. Buscar serviços reais do banco
@@ -850,6 +894,16 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         ? (adminSettings.salonLogoDark || adminSettings.salonLogo || '')
         : (adminSettings.salonLogoLight || adminSettings.salonLogo || ''))
     : '';
+
+  const activeBrandFont = adminSettings.brandFont || 'Poppins';
+  const activeBrandFontFamily =
+    activeBrandFont === 'Cormorant Garamond'
+      ? "'Cormorant Garamond', Georgia, serif"
+      : activeBrandFont === 'Oswald'
+      ? "'Oswald', sans-serif"
+      : activeBrandFont === 'Plus Jakarta Sans'
+      ? "'Plus Jakarta Sans', sans-serif"
+      : "'Poppins', sans-serif";
 
   const salonInfo = useMemo(() => ({
     name: adminSettings.salonName || salonName,
@@ -1349,24 +1403,60 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         id="salon-profile-header"
         className={`sticky top-0 z-40 ${isDark ? 'bg-[#151A1E]/95 border-slate-800/80' : 'bg-white/95 border-slate-200/90 shadow-xs'} backdrop-blur-md border-b px-2 sm:px-4 shadow-md flex items-center justify-between gap-1.5 sm:gap-3 transition-colors h-14 sm:h-16 overflow-hidden shrink-0 w-full max-w-full`}
       >
-        {/* Lado Esquerdo: Logotipia / Logo do Salão no Cabeçalho (Retangular ou Tipografia) */}
+        {/* Lado Esquerdo: Logotipia / Logo do Salão no Cabeçalho + Slogan e Fonte de Marca (Boletim bol-017) */}
         <div 
           onClick={() => handleSelectTab('home')}
-          className="h-full min-w-0 max-w-[125px] xs:max-w-[145px] sm:max-w-[190px] pl-1 pr-0.5 flex items-center shrink select-none cursor-pointer overflow-hidden"
+          className="h-full min-w-0 max-w-[180px] xs:max-w-[210px] sm:max-w-[260px] pl-1 pr-0.5 flex items-center gap-2 shrink select-none cursor-pointer overflow-hidden"
           title={salonInfo.name}
         >
           {activeLogo ? (
-            <img 
-              src={activeLogo} 
-              alt={salonInfo.name}
-              className="max-h-7.5 sm:max-h-9.5 w-auto max-w-full object-contain object-left shrink-0"
-            />
+            <div className="flex flex-col justify-center min-w-0">
+              <img 
+                src={activeLogo} 
+                alt={salonInfo.name}
+                className="max-h-7 sm:max-h-8.5 w-auto max-w-full object-contain object-left shrink-0"
+              />
+              {adminSettings.slogan && (
+                <span className="text-[9px] sm:text-[10px] font-medium text-slate-400 truncate leading-none mt-0.5">
+                  {adminSettings.slogan}
+                </span>
+              )}
+            </div>
           ) : (
-            <span className={`font-sans text-[11px] sm:text-[13px] font-extrabold tracking-tight uppercase leading-tight truncate ${
-              isDark ? 'text-white' : 'text-slate-900'
-            }`}>
-              {salonInfo.name}
-            </span>
+            <div className="flex items-center gap-2 min-w-0">
+              {adminSettings.salonIcon ? (
+                <img
+                  src={adminSettings.salonIcon}
+                  alt={salonInfo.name}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg object-cover shrink-0 border border-slate-700/60"
+                />
+              ) : (
+                <div
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-xs"
+                  style={{
+                    backgroundColor: adminSettings.accentColor || '#20C933',
+                    fontFamily: activeBrandFontFamily,
+                  }}
+                >
+                  {salonInfo.name.slice(0, 2).toUpperCase()}
+                </div>
+              )}
+              <div className="flex flex-col justify-center min-w-0">
+                <span
+                  style={{ fontFamily: activeBrandFontFamily }}
+                  className={`text-xs sm:text-sm font-extrabold tracking-tight leading-tight truncate ${
+                    isDark ? 'text-white' : 'text-slate-900'
+                  }`}
+                >
+                  {salonInfo.name}
+                </span>
+                {adminSettings.slogan && (
+                  <span className="text-[9px] sm:text-[10px] font-medium text-slate-400 truncate leading-tight">
+                    {adminSettings.slogan}
+                  </span>
+                )}
+              </div>
+            </div>
           )}
         </div>
 

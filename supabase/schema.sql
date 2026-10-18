@@ -48,6 +48,13 @@ CREATE TABLE public.salons (
     longitude DOUBLE PRECISION DEFAULT -46.4520,
     
     -- Identidade Visual & Branding
+    status VARCHAR(30) DEFAULT 'active',
+    favicon_url TEXT,
+    slogan VARCHAR(120),
+    brand_font VARCHAR(60) DEFAULT 'Poppins',
+    pix_key VARCHAR(100),
+    operating_hours JSONB,
+    phone_landline TEXT,
     logo_url TEXT,
     logo_light_url TEXT,
     logo_dark_url TEXT,

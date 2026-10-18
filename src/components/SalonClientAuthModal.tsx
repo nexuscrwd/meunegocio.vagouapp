@@ -85,7 +85,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
 
   const currentSlug = typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') || '' : '';
   const currentUrl = typeof window !== 'undefined' ? encodeURIComponent(window.location.href) : '';
-  const iframeSrc = `https://admin.vagouapp.com/cadastro?embed=true&type=client&slug=${encodeURIComponent(currentSlug)}&redirect=${currentUrl}`;
+  const iframeSrc = `https://adm.vagouapp.com/cadastro?embed=true&mode=login&type=client&slug=${encodeURIComponent(currentSlug)}&redirect=${currentUrl}`;
 
   return (
     <div 

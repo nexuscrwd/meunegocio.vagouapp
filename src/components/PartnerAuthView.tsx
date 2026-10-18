@@ -64,7 +64,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
 
   const currentSlug = typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') || '' : '';
   const currentUrl = typeof window !== 'undefined' ? encodeURIComponent(window.location.href) : '';
-  const iframeSrc = `https://admin.vagouapp.com/cadastro?embed=true&type=professional&slug=${encodeURIComponent(currentSlug)}&redirect=${currentUrl}`;
+  const iframeSrc = `https://adm.vagouapp.com/cadastro?embed=true&type=professional&slug=${encodeURIComponent(currentSlug)}&redirect=${currentUrl}`;
 
   return (
     <div className="w-full h-full flex flex-col bg-slate-950 font-['Poppins']">

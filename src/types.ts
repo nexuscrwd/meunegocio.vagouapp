@@ -189,6 +189,10 @@ export interface SalonAdminSettings {
   salonLogoDark?: string; // Logo horizontal para o tema escuro (fundo escuro)
   salonIcon?: string; // Ícone quadrado (1:1) para o PWA (instalação no celular)
   pwaName?: string;   // Nome curto/completo exibido na tela inicial do celular
+  slogan?: string;    // Assinatura curta da marca (até 60 caracteres) exibida abaixo do nome do salão
+  brandFont?: 'Poppins' | 'Cormorant Garamond' | 'Oswald' | 'Plus Jakarta Sans' | string; // Fonte de destaque do Nome/Cabeçalho
+  bio?: string;       // História/apresentação do espaço (preenchida pós-cadastro no painel do salão)
+  instagramUrl?: string; // @instagram (preenchido pós-cadastro no painel do salão)
 
   // Dados Cadastrais e Fiscais
   razaoSocial?: string;

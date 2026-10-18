@@ -497,7 +497,12 @@ export async function syncSalonDataToSupabase(salonData: {
   logoLightUrl?: string;
   logoDarkUrl?: string;
   appIconUrl?: string;
+  faviconUrl?: string;
   primaryColor?: string;
+  slogan?: string;
+  brandFont?: string;
+  bio?: string;
+  instagramUrl?: string;
   ownerUserId?: string;
   homeDeliverySettings?: {
     enabled: boolean;
@@ -512,6 +517,7 @@ export async function syncSalonDataToSupabase(salonData: {
   }
 
   try {
+    const resolvedIcon = salonData.appIconUrl || salonData.faviconUrl || salonData.logoDarkUrl || salonData.logoLightUrl || null;
     const payload: any = {
       slug: salonData.slug,
       trade_name: salonData.tradeName,
@@ -530,12 +536,23 @@ export async function syncSalonDataToSupabase(salonData: {
       operating_model: salonData.operatingModel,
       logo_light_url: salonData.logoLightUrl || null,
       logo_dark_url: salonData.logoDarkUrl || null,
+      favicon_url: resolvedIcon,
+      slogan: salonData.slogan ?? undefined,
+      brand_font: salonData.brandFont || 'Poppins',
+      bio: salonData.bio ?? undefined,
       primary_color: salonData.primaryColor || '#20C933',
       secondary_color: '#0F172A',
       branding: {
         primaryColor: salonData.primaryColor || '#20C933',
         secondaryColor: '#0F172A',
-        themeMode: 'light',
+        pwaName: salonData.tradeName,
+        themeMode: 'dark',
+        faviconUrl: resolvedIcon || '',
+        salonIcon: resolvedIcon || '',
+        slogan: salonData.slogan || '',
+        brandFont: salonData.brandFont || 'Poppins',
+        ...(salonData.instagramUrl ? { instagramUrl: salonData.instagramUrl } : {}),
+        ...(salonData.bio ? { bio: salonData.bio } : {}),
       },
       home_delivery_enabled: salonData.homeDeliverySettings?.enabled ?? false,
       home_delivery_area: salonData.homeDeliverySettings?.areaDescription || null,
@@ -548,7 +565,17 @@ export async function syncSalonDataToSupabase(salonData: {
       payload.owner_id = salonData.ownerUserId;
     }
 
-    const { data, error } = await supabase.from('salons').upsert(payload, { onConflict: 'slug' }).select().single();
+    let { data, error } = await (supabase.from('salons') as any).upsert(payload, { onConflict: 'slug' }).select().single();
+
+    if (error && (error.message?.includes('column') || error.code === '42703' || error.code === 'PGRST204')) {
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.favicon_url;
+      delete fallbackPayload.slogan;
+      delete fallbackPayload.brand_font;
+      const retry = await (supabase.from('salons') as any).upsert(fallbackPayload, { onConflict: 'slug' }).select().single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       console.warn('Erro ao sincronizar salão no Supabase:', error.message);
@@ -1181,6 +1208,20 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
     return { success: false, error: 'Supabase não configurado ou identificador vazio' };
   }
   try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonIdOrSlug);
+
+    // Obter registro atual para preservar o objeto JSONB branding existente sem perda de chaves
+    let existingRow: any = null;
+    try {
+      const { data: currentSalon } = await (supabase.from('salons') as any)
+        .select('branding, primary_color, trade_name, logo_url, logo_dark_url, logo_light_url')
+        .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug })
+        .maybeSingle();
+      existingRow = currentSalon;
+    } catch {}
+
+    const existingBranding = (existingRow?.branding && typeof existingRow.branding === 'object') ? existingRow.branding : {};
+
     const payload: any = {
       updated_at: new Date().toISOString(),
     };
@@ -1206,22 +1247,62 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
     if (settings.salonLogo !== undefined || settings.logoUrl !== undefined) {
       payload.logo_url = settings.salonLogo || settings.logoUrl || settings.salonLogoDark || settings.salonLogoLight || null;
     }
+
+    // Colunas sincronizadas pelo Boletim bol-017 (favicon_url, slogan, brand_font)
+    if (settings.salonIcon !== undefined || settings.faviconUrl !== undefined) {
+      payload.favicon_url = settings.salonIcon || settings.faviconUrl || settings.salonLogo || null;
+    }
+    if (settings.slogan !== undefined) {
+      payload.slogan = settings.slogan ?? undefined;
+    }
+    if (settings.brandFont !== undefined) {
+      payload.brand_font = settings.brandFont || 'Poppins';
+    }
     if (settings.accentColor || settings.primaryColor) {
       payload.primary_color = settings.accentColor || settings.primaryColor;
-      payload.branding = {
-        primaryColor: settings.accentColor || settings.primaryColor,
-        pwaName: settings.pwaName || settings.salonName,
-        themeMode: 'dark',
-      };
     }
     if (settings.bio !== undefined) payload.bio = settings.bio;
 
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonIdOrSlug);
+    const resolvedIcon =
+      settings.salonIcon !== undefined
+        ? (settings.salonIcon || settings.salonLogo || '')
+        : (settings.faviconUrl !== undefined
+            ? settings.faviconUrl
+            : (existingBranding.salonIcon || existingBranding.faviconUrl || existingRow?.logo_url || ''));
+
+    payload.branding = {
+      ...existingBranding,
+      primaryColor: settings.accentColor || settings.primaryColor || existingBranding.primaryColor || existingRow?.primary_color || '#20C933',
+      pwaName: settings.pwaName || settings.salonName || existingBranding.pwaName || existingRow?.trade_name,
+      themeMode: 'dark',
+      faviconUrl: resolvedIcon,
+      salonIcon: resolvedIcon,
+      slogan: settings.slogan !== undefined ? (settings.slogan || '') : (existingBranding.slogan || ''),
+      brandFont: settings.brandFont || existingBranding.brandFont || 'Poppins',
+      ...(settings.instagramUrl !== undefined ? { instagramUrl: settings.instagramUrl || '' } : {}),
+      ...(settings.bio !== undefined ? { bio: settings.bio || '' } : {}),
+    };
+
     let { data, error } = await (supabase.from('salons') as any)
       .update(payload)
       .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug })
       .select()
       .maybeSingle();
+
+    // Fallback resiliente caso alguma coluna física (favicon_url, slogan, brand_font) ainda não exista no banco remoto
+    if (error && (error.message?.includes('column') || error.code === '42703' || error.code === 'PGRST204')) {
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.favicon_url;
+      delete fallbackPayload.slogan;
+      delete fallbackPayload.brand_font;
+      const retry = await (supabase.from('salons') as any)
+        .update(fallbackPayload)
+        .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug })
+        .select()
+        .maybeSingle();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       console.warn('Erro ao atualizar configurações do salão no Supabase:', error.message);
