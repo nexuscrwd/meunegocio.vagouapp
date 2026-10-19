@@ -9,6 +9,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
 import { CatalogServiceItem } from '../../types';
 import { ServicePublicAdPreview } from './ServicePublicAdPreview';
+import { generateUuidV4 } from '../../lib/supabase';
 
 interface ProfessionalServicesManagerProps {
   services: CatalogServiceItem[];
@@ -346,9 +347,9 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
       hapticSuccess();
       showToast('Serviço atualizado com sucesso!');
     } else {
-      // Criar novo serviço sem mídia inicialmente (preview limpo)
+      // Criar novo serviço com UUID v4 nativo (compatível 100% com public.services do Supabase)
       const newService: CatalogServiceItem = {
-        id: `srv-${Date.now()}`,
+        id: generateUuidV4(),
         title: formTitle.trim(),
         price: parsedPrice,
         duration: calculatedDuration,

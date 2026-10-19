@@ -9,8 +9,9 @@ import {
   LayoutGrid, List, Zap, Baby, Heart
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
-import { BookingAppointment, CatalogServiceItem, SalonProfessionalItem } from '../../types';
+import { BookingAppointment, CatalogServiceItem, SalonAdminSettings, SalonProfessionalItem } from '../../types';
 import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
+import { PixCheckoutModal } from './PixCheckoutModal';
 
 export interface ProfessionalAgendaViewProps {
   appointments: BookingAppointment[];
@@ -18,6 +19,7 @@ export interface ProfessionalAgendaViewProps {
   services?: CatalogServiceItem[];
   professionals?: SalonProfessionalItem[];
   salonName?: string;
+  adminSettings?: SalonAdminSettings;
 }
 
 export type DemandStatusKey = 'confirmados' | 'pendentes' | 'trocas' | 'concluidos' | 'cancelados';
@@ -296,6 +298,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
   services = [],
   professionals = [],
   salonName = 'Meu Estabelecimento',
+  adminSettings,
 }) => {
   const { isDark } = useTheme();
 
@@ -308,6 +311,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
   
   // Modais
   const [selectedAppointment, setSelectedAppointment] = useState<BookingAppointment | null>(null);
+  const [pixCheckoutAppointment, setPixCheckoutAppointment] = useState<BookingAppointment | null>(null);
   const [isNewModalOpen, setIsNewModalOpen] = useState(() => {
     try {
       const shouldOpen = localStorage.getItem('vagou_pending_open_schedule');
@@ -1930,13 +1934,15 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                             type="button"
                             onClick={() => {
                               hapticSuccess();
+                              const finishedApp = selectedAppointment;
                               handleStatusChange(selectedAppointment.protocolCode, 'CONCLUÍDO');
                               setSelectedAppointment(null);
+                              setPixCheckoutAppointment(finishedApp);
                             }}
                             className="flex-1 py-2 px-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 active:scale-98 shadow-xs"
                           >
                             <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
-                            <span>Finalizar Atendimento</span>
+                            <span>Finalizar Serviço</span>
                           </button>
                         </div>
                       );
@@ -2541,6 +2547,41 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
           </div>
         </div>
       )}
+      {/* Modal de Checkout PIX Pós-Serviço */}
+      <PixCheckoutModal
+        isOpen={Boolean(pixCheckoutAppointment)}
+        onClose={() => setPixCheckoutAppointment(null)}
+        salonName={adminSettings?.salonName || salonName}
+        salonCity={adminSettings?.cidade || 'BRASIL'}
+        clientName={pixCheckoutAppointment?.customerName || pixCheckoutAppointment?.clientName || 'Cliente'}
+        clientPhone={pixCheckoutAppointment?.customerPhone || pixCheckoutAppointment?.clientPhone || ''}
+        serviceTitle={pixCheckoutAppointment?.serviceTitle || pixCheckoutAppointment?.service || 'Atendimento'}
+        initialAmount={Number(pixCheckoutAppointment?.totalPrice || 45)}
+        protocolCode={pixCheckoutAppointment?.protocolCode}
+        pixKeys={adminSettings?.pixKeys}
+        fallbackPixKey={adminSettings?.pixKey}
+        onConfirmPaid={(paidAmount, method) => {
+          if (!pixCheckoutAppointment) return;
+          const targetCode = pixCheckoutAppointment.protocolCode || pixCheckoutAppointment.id;
+          const updated = appointments.map((a) => {
+            if (a.protocolCode === targetCode || a.id === targetCode) {
+              return {
+                ...a,
+                status: 'CONCLUÍDO',
+                totalPrice: paidAmount,
+                isPaid: true,
+                paymentMethod: method,
+                paidAt: new Date().toISOString(),
+              };
+            }
+            return a;
+          });
+          onUpdateAppointments(updated);
+          try {
+            localStorage.setItem('vagou_salon_appointments', JSON.stringify(updated));
+          } catch {}
+        }}
+      />
     </div>
   );
 };

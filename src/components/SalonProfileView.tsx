@@ -454,11 +454,32 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       const resolvedName = initialSalonData.trade_name || salonName || '';
       const resolvedColor = initialSalonData.primary_color || initialSalonData.branding?.primaryColor || '#20C933';
 
+      const rawInitialDoc = (initialSalonData.document_number || '').replace(/\D/g, '');
+      const isInitialCnpj14 = rawInitialDoc.length === 14;
+      const resolvedOwnerCpf =
+        initialSalonData.owner_cpf ||
+        initialSalonData.branding?.ownerCpf ||
+        (rawInitialDoc.length === 11 ? initialSalonData.document_number : '') ||
+        '';
+      const resolvedPixKeys = Array.isArray(initialSalonData.pix_keys)
+        ? initialSalonData.pix_keys
+        : (Array.isArray(initialSalonData.branding?.pixKeys) ? initialSalonData.branding.pixKeys : []);
+      const resolvedPixKey =
+        initialSalonData.pix_key ||
+        initialSalonData.branding?.pixKey ||
+        resolvedPixKeys.find((k: any) => k?.isPrimary)?.key ||
+        resolvedPixKeys[0]?.key ||
+        '';
+
       return {
         salonName: resolvedName,
         salonSlug: initialSalonData.slug || activeSubdomain || '',
-        razaoSocial: initialSalonData.legal_name || '',
-        cnpj: initialSalonData.document_number || '',
+        razaoSocial: isInitialCnpj14 ? (initialSalonData.legal_name || '') : '',
+        cnpj: isInitialCnpj14 ? (initialSalonData.document_number || '') : '',
+        ownerCpf: resolvedOwnerCpf,
+        legalManagerCpf: resolvedOwnerCpf,
+        pixKey: resolvedPixKey,
+        pixKeys: resolvedPixKeys,
         salonPhone: initialSalonData.phone_whatsapp || '',
         salonAddress: initialSalonData.address || '',
         numero: initialSalonData.street_number || '',
@@ -582,45 +603,86 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
   }, [adminSettings.salonName, salonName]);
 
-  // Lista dinâmica de serviços
+  const effectiveSalonCacheSlug = (
+    activeSubdomain ||
+    initialSalonData?.slug ||
+    adminSettings.salonSlug ||
+    (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') : '') ||
+    ''
+  ).trim().toLowerCase();
+
+  // Lista dinâmica de serviços isolada por salão (sem vazar serviços demo em salões reais do Supabase)
   const [catalogServicesList, setCatalogServicesList] = useState<CatalogServiceItem[]>(() => {
+    const isRealTenant = Boolean(hasActiveSubdomain || initialSalonData?.id);
     try {
-      const saved = localStorage.getItem('vagou_custom_catalog_services');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (effectiveSalonCacheSlug) {
+        const scopedSaved = localStorage.getItem(`vagou_services_${effectiveSalonCacheSlug}`);
+        if (scopedSaved) {
+          const parsed = JSON.parse(scopedSaved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      }
+      if (!isRealTenant) {
+        const saved = localStorage.getItem('vagou_custom_catalog_services');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
       }
     } catch {
       // ignore
     }
-    return INITIAL_CATALOG_SERVICES;
+    return isRealTenant ? [] : INITIAL_CATALOG_SERVICES;
   });
 
-  // Lista dinâmica de profissionais da equipe
+  // Lista dinâmica de profissionais da equipe isolada por salão
   const [professionalsList, setProfessionalsList] = useState<SalonProfessionalItem[]>(() => {
+    const isRealTenant = Boolean(hasActiveSubdomain || initialSalonData?.id);
     try {
-      const savedTeam = localStorage.getItem('vagou_team_members');
-      if (savedTeam) {
-        const parsedTeam = JSON.parse(savedTeam);
-        if (Array.isArray(parsedTeam) && parsedTeam.length > 0) {
-          return parsedTeam.map(member => ({
-            id: member.id,
-            name: member.name,
-            role: member.role === 'admin' ? 'Dono / Gerente' : member.role === 'receptionist' ? 'Recepcionista' : 'Profissional',
-            avatar: member.avatarUrl,
-            avatarUrl: member.avatarUrl,
-            rating: 5.0
-          }));
+      if (effectiveSalonCacheSlug) {
+        const scopedPros = localStorage.getItem(`vagou_pros_${effectiveSalonCacheSlug}`);
+        if (scopedPros) {
+          const parsed = JSON.parse(scopedPros);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
         }
       }
+      if (!isRealTenant) {
+        const savedTeam = localStorage.getItem('vagou_team_members');
+        if (savedTeam) {
+          const parsedTeam = JSON.parse(savedTeam);
+          if (Array.isArray(parsedTeam) && parsedTeam.length > 0) {
+            return parsedTeam.map(member => ({
+              id: member.id,
+              name: member.name,
+              role: member.role === 'admin' ? 'Dono / Gerente' : member.role === 'receptionist' ? 'Recepcionista' : 'Profissional',
+              avatar: member.avatarUrl,
+              avatarUrl: member.avatarUrl,
+              rating: 5.0
+            }));
+          }
+        }
 
-      const saved = localStorage.getItem('vagou_custom_professionals');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        const saved = localStorage.getItem('vagou_custom_professionals');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
       }
     } catch {
       // ignore
+    }
+    if (isRealTenant) {
+      const ownerDisplayName = initialSalonData?.trade_name || salonName || 'Profissional';
+      return [
+        {
+          id: initialSalonData?.id || 'owner-1',
+          name: ownerDisplayName,
+          role: 'Dono / Gerente',
+          avatar: initialSalonData?.favicon_url || initialSalonData?.logo_url || '',
+          avatarUrl: initialSalonData?.favicon_url || initialSalonData?.logo_url || '',
+          rating: 5.0,
+        },
+      ];
     }
     return INITIAL_PROFESSIONALS;
   });
@@ -674,8 +736,35 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           // Sincronizar dados visuais e administrativos vindos do Supabase
           const updatedSettings: Partial<SalonAdminSettings> = {};
           if (salonRecord.trade_name) updatedSettings.salonName = salonRecord.trade_name;
-          if (salonRecord.legal_name) updatedSettings.razaoSocial = salonRecord.legal_name;
-          if (salonRecord.document_number) updatedSettings.cnpj = salonRecord.document_number;
+
+          const rawRecordDoc = (salonRecord.document_number || '').replace(/\D/g, '');
+          const isRecordCnpj14 = rawRecordDoc.length === 14;
+          updatedSettings.cnpj = isRecordCnpj14 ? (salonRecord.document_number || '') : '';
+          updatedSettings.razaoSocial = isRecordCnpj14 ? (salonRecord.legal_name || '') : '';
+
+          const resolvedOwnerCpf =
+            salonRecord.owner_cpf ||
+            salonRecord.branding?.ownerCpf ||
+            (rawRecordDoc.length === 11 ? salonRecord.document_number : '');
+          if (resolvedOwnerCpf) {
+            updatedSettings.ownerCpf = resolvedOwnerCpf;
+            updatedSettings.legalManagerCpf = resolvedOwnerCpf;
+          }
+
+          const resolvedPixKeys = Array.isArray(salonRecord.pix_keys)
+            ? salonRecord.pix_keys
+            : (Array.isArray(salonRecord.branding?.pixKeys) ? salonRecord.branding.pixKeys : undefined);
+          if (resolvedPixKeys !== undefined) {
+            updatedSettings.pixKeys = resolvedPixKeys;
+          }
+          const resolvedPixKey =
+            salonRecord.pix_key ||
+            salonRecord.branding?.pixKey ||
+            (Array.isArray(resolvedPixKeys) ? (resolvedPixKeys.find((k: any) => k?.isPrimary)?.key || resolvedPixKeys[0]?.key) : '');
+          if (resolvedPixKey) {
+            updatedSettings.pixKey = resolvedPixKey;
+          }
+
           if (salonRecord.phone_whatsapp) updatedSettings.salonPhone = salonRecord.phone_whatsapp;
           if (salonRecord.address) updatedSettings.salonAddress = salonRecord.address;
           if (salonRecord.street_number) updatedSettings.numero = salonRecord.street_number;
@@ -740,9 +829,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           });
         }
 
-        // 2. Buscar serviços reais do banco
+        const resolvedSlugKey = (salonRecord.slug || activeSlug || '').trim().toLowerCase();
+
+        // 2. Buscar serviços reais do banco (respeitando lista vazia em salões reais sem injetar serviços demo)
         const servicesFromDb = await fetchSalonServices(salonRecord.id);
-        if (isMounted && servicesFromDb && servicesFromDb.length > 0) {
+        if (isMounted && Array.isArray(servicesFromDb)) {
           const mappedServices: CatalogServiceItem[] = servicesFromDb.map((s: any) => ({
             id: s.id,
             title: s.title || s.name || 'Serviço',
@@ -753,22 +844,46 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             image: s.image_url || '',
           }));
           setCatalogServicesList(mappedServices);
-          localStorage.setItem('vagou_custom_catalog_services', JSON.stringify(mappedServices));
+          try {
+            if (resolvedSlugKey) {
+              localStorage.setItem(`vagou_services_${resolvedSlugKey}`, JSON.stringify(mappedServices));
+            }
+            localStorage.setItem('vagou_custom_catalog_services', JSON.stringify(mappedServices));
+          } catch {}
         }
 
         // 3. Buscar profissionais reais do banco
         const prosFromDb = await fetchSalonProfessionals(salonRecord.id);
-        if (isMounted && prosFromDb && prosFromDb.length > 0) {
-          const mappedPros: SalonProfessionalItem[] = prosFromDb.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            role: p.role === 'admin' ? 'Dono / Gerente' : 'Profissional',
-            avatar: p.avatar_url || '',
-            avatarUrl: p.avatar_url || '',
-            rating: 5.0,
-          }));
-          setProfessionalsList(mappedPros);
-          localStorage.setItem('vagou_custom_professionals', JSON.stringify(mappedPros));
+        if (isMounted && Array.isArray(prosFromDb)) {
+          if (prosFromDb.length > 0) {
+            const mappedPros: SalonProfessionalItem[] = prosFromDb.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              role: p.role === 'admin' ? 'Dono / Gerente' : 'Profissional',
+              avatar: p.avatar_url || '',
+              avatarUrl: p.avatar_url || '',
+              rating: 5.0,
+            }));
+            setProfessionalsList(mappedPros);
+            try {
+              if (resolvedSlugKey) {
+                localStorage.setItem(`vagou_pros_${resolvedSlugKey}`, JSON.stringify(mappedPros));
+              }
+              localStorage.setItem('vagou_custom_professionals', JSON.stringify(mappedPros));
+            } catch {}
+          } else {
+            const fallbackOwnerPro: SalonProfessionalItem[] = [
+              {
+                id: salonRecord.id,
+                name: salonRecord.trade_name || salonName || 'Profissional',
+                role: 'Dono / Gerente',
+                avatar: salonRecord.favicon_url || salonRecord.logo_url || '',
+                avatarUrl: salonRecord.favicon_url || salonRecord.logo_url || '',
+                rating: 5.0,
+              },
+            ];
+            setProfessionalsList(fallbackOwnerPro);
+          }
         }
       } catch (err) {
         console.warn('Consulta Supabase em segundo plano:', err);
@@ -786,6 +901,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const handleUpdateServices = async (newServices: CatalogServiceItem[]) => {
     setCatalogServicesList(newServices);
     try {
+      if (effectiveSalonCacheSlug) {
+        localStorage.setItem(`vagou_services_${effectiveSalonCacheSlug}`, JSON.stringify(newServices));
+      }
       localStorage.setItem('vagou_custom_catalog_services', JSON.stringify(newServices));
     } catch {
       // ignore
@@ -800,6 +918,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const handleUpdateProfessionals = async (newPros: SalonProfessionalItem[]) => {
     setProfessionalsList(newPros);
     try {
+      if (effectiveSalonCacheSlug) {
+        localStorage.setItem(`vagou_pros_${effectiveSalonCacheSlug}`, JSON.stringify(newPros));
+      }
       localStorage.setItem('vagou_custom_professionals', JSON.stringify(newPros));
     } catch {
       // ignore
@@ -875,6 +996,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       } catch {}
     }
     try {
+      localStorage.removeItem('vagou_auth_user_id');
       localStorage.removeItem('vagou_active_partner');
       localStorage.removeItem('vagou_user_email');
       localStorage.removeItem('vagou_user_phone');
@@ -883,6 +1005,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     } catch {
       // ignore
     }
+    window.dispatchEvent(new CustomEvent('vagou:auth-updated'));
     setIsClientAuthModalOpen(false);
   };
 
@@ -1662,6 +1785,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 onUpdateAppointments={handleUpdateAppointments}
                 services={catalogServicesList}
                 professionals={professionalsList}
+                salonName={salonInfo.name}
+                adminSettings={adminSettings}
               />
             </div>
           )}
@@ -1912,6 +2037,32 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
               {/* Grid de Serviços Fullwidth sem Espaçamentos (Laterais, Topo e Rodapé zerados) */}
               <div className="relative overflow-hidden select-none w-full flex-1 min-h-0 flex flex-col justify-between">
+                {catalogServices.length === 0 ? (
+                  <div className={`w-full flex-1 flex flex-col items-center justify-center p-6 text-center space-y-3 ${
+                    isDark ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-800'
+                  }`}>
+                    <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                      <Scissors className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1 max-w-xs">
+                      <h3 className="text-sm font-bold font-['Poppins']">
+                        Catálogo em atualização
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Os serviços e valores deste estabelecimento estão sendo configurados.
+                      </p>
+                    </div>
+                    {!isUserLoggedInState && (
+                      <button
+                        type="button"
+                        onClick={() => setIsClientAuthModalOpen(true)}
+                        className="mt-1 px-4 py-2 rounded bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer"
+                      >
+                        Sou o Proprietário • Entrar
+                      </button>
+                    )}
+                  </div>
+                ) : (
                 <AnimatePresence mode="wait" custom={swapDirection}>
                   <motion.div
                     key={servicePage}
@@ -1977,6 +2128,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     ))}
                   </motion.div>
                 </AnimatePresence>
+                )}
 
                 {/* Barra de Paginação e Navegação de Alta Precisão */}
                 {totalServicePages > 1 && (

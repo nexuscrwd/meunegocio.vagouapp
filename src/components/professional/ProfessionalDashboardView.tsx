@@ -9,6 +9,7 @@ import { SalonAdminSettings, CatalogServiceItem, BookingAppointment, SalonProfes
 import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
 import { DayEvolutionData } from './dashboard/ClientEvolutionChart';
 import { GoalsAndShiftsCard } from './dashboard/GoalsAndShiftsCard';
+import { PixCheckoutModal } from './PixCheckoutModal';
 
 const getAppointmentDurationMinutes = (app: BookingAppointment): number => {
   if (typeof app.durationMinutes === 'number' && app.durationMinutes > 0) {
@@ -363,8 +364,11 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     }
   }, [appointments, onUpdateAppointments]);
 
-  // Ação de finalizar atendimento em andamento
-  const handleCompleteAppointment = useCallback((protocolCode?: string) => {
+  // Estado para o Checkout PIX Pós-Serviço
+  const [pixCheckoutAppointment, setPixCheckoutAppointment] = useState<BookingAppointment | null>(null);
+
+  // Ação de finalizar atendimento em andamento e abrir o PixCheckoutModal
+  const handleCompleteAppointment = useCallback((protocolCode?: string, targetApp?: BookingAppointment) => {
     if (!protocolCode) return;
     hapticSuccess();
     setLocalAppointmentStatuses((prev) => ({
@@ -372,9 +376,14 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       [protocolCode]: 'CONCLUÍDO'
     }));
 
+    const matchedApp =
+      targetApp ||
+      appointments.find((a) => a.protocolCode === protocolCode || a.id === protocolCode) ||
+      null;
+
     if (onUpdateAppointments && appointments.length > 0) {
       const updated = appointments.map((a) => {
-        if (a.protocolCode === protocolCode) {
+        if (a.protocolCode === protocolCode || a.id === protocolCode) {
           return { ...a, status: 'CONCLUÍDO' };
         }
         return a;
@@ -383,6 +392,10 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       try {
         localStorage.setItem('vagou_salon_appointments', JSON.stringify(updated));
       } catch {}
+    }
+
+    if (matchedApp) {
+      setPixCheckoutAppointment(matchedApp);
     }
   }, [appointments, onUpdateAppointments]);
 
@@ -603,7 +616,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
   const handleCompleteFromModal = useCallback(() => {
     if (!actionModalAppointment) return;
     const protocolCode = actionModalAppointment.protocolCode || actionModalAppointment.id;
-    handleCompleteAppointment(protocolCode);
+    handleCompleteAppointment(protocolCode, actionModalAppointment);
     setIsActionModalOpen(false);
     setActionModalAppointment(null);
   }, [actionModalAppointment, handleCompleteAppointment]);
@@ -855,13 +868,13 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                   onClick={(e) => {
                     e.stopPropagation();
                     const protocolCode = app.protocolCode || app.id;
-                    handleCompleteAppointment(protocolCode);
+                    handleCompleteAppointment(protocolCode, app);
                   }}
                   className="h-9 px-3 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
-                  title="Concluir Atendimento"
+                  title="Finalizar Serviço & Cobrar PIX"
                 >
-                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span className="hidden sm:inline">Concluir</span>
+                  <Check className="w-3.5 h-3.5 stroke-[2.5] text-white" />
+                  <span className="hidden sm:inline">Finalizar Serviço</span>
                 </button>
               ) : (
                 <button
@@ -1402,7 +1415,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     </div>
                   </div>
 
-                  {/* Ação 3: Concluir Atendimento */}
+                  {/* Ação 3: Finalizar Serviço & Cobrar PIX */}
                   <button
                     type="button"
                     id="modal-btn-complete-appointment"
@@ -1410,7 +1423,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     className="w-full py-2.5 px-4 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition cursor-pointer active:scale-98"
                   >
                     <Check className="w-4 h-4 text-white stroke-[2.5]" />
-                    <span>Concluir Atendimento</span>
+                    <span>Finalizar Serviço</span>
                   </button>
 
                   {/* Ação 4: Repassar / Transferir Atendimento para Colega do Estabelecimento (Apenas atendimentos NÃO iniciados) */}
@@ -1454,6 +1467,42 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
           </div>
         );
       })()}
+
+      {/* Modal de Checkout PIX Pós-Serviço */}
+      <PixCheckoutModal
+        isOpen={Boolean(pixCheckoutAppointment)}
+        onClose={() => setPixCheckoutAppointment(null)}
+        salonName={adminSettings?.salonName || salonName}
+        salonCity={adminSettings?.cidade || 'BRASIL'}
+        clientName={pixCheckoutAppointment?.clientName || pixCheckoutAppointment?.customerName || 'Cliente'}
+        clientPhone={pixCheckoutAppointment?.clientPhone || pixCheckoutAppointment?.customerPhone || ''}
+        serviceTitle={pixCheckoutAppointment?.serviceTitle || pixCheckoutAppointment?.service || 'Atendimento'}
+        initialAmount={Number(pixCheckoutAppointment?.totalPrice || 45)}
+        protocolCode={pixCheckoutAppointment?.protocolCode}
+        pixKeys={adminSettings?.pixKeys}
+        fallbackPixKey={adminSettings?.pixKey}
+        onConfirmPaid={(paidAmount, method) => {
+          if (!pixCheckoutAppointment || !onUpdateAppointments) return;
+          const targetCode = pixCheckoutAppointment.protocolCode || pixCheckoutAppointment.id;
+          const updated = appointments.map((a) => {
+            if (a.protocolCode === targetCode || a.id === targetCode) {
+              return {
+                ...a,
+                status: 'CONCLUÍDO',
+                totalPrice: paidAmount,
+                isPaid: true,
+                paymentMethod: method,
+                paidAt: new Date().toISOString(),
+              };
+            }
+            return a;
+          });
+          onUpdateAppointments(updated);
+          try {
+            localStorage.setItem('vagou_salon_appointments', JSON.stringify(updated));
+          } catch {}
+        }}
+      />
     </div>
   );
 };

@@ -1,17 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Building2, MapPin, Clock, UserCheck, 
   Save, Check, Search, Loader2, Sparkles, 
-  ArrowLeft, CheckCircle2, AlertCircle 
+  ArrowLeft, AlertCircle, QrCode, Plus, Trash2, Star, Printer, FileText
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
-import { SalonAdminSettings, DayOperatingHours, OperatingSchedule } from '../../types';
+import { SalonAdminSettings, DayOperatingHours, OperatingSchedule, SalonPixKeyItem, PixKeyType } from '../../types';
 import { hapticSuccess, hapticLight, hapticMedium } from '../../utils/haptics';
+import { SalonPixPrintModal } from './SalonPixPrintModal';
+import { getPixQrCodeUrl } from '../../services/pixGenerator';
+
+export type BusinessDataTabId = 'comercial' | 'fiscal' | 'pix_billing';
 
 export interface BusinessDataCardViewProps {
   adminSettings: SalonAdminSettings;
   onUpdateSettings: (settings: Partial<SalonAdminSettings>) => void;
   onBack: () => void;
+  initialTab?: BusinessDataTabId;
 }
 
 const DEFAULT_DAYS: DayOperatingHours[] = [
@@ -28,13 +33,18 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
   adminSettings,
   onUpdateSettings,
   onBack,
+  initialTab = 'comercial',
 }) => {
   const { isDark } = useTheme();
+  const [activeSubTab, setActiveSubTab] = useState<BusinessDataTabId>(initialTab);
+  const [isPixPrintModalOpen, setIsPixPrintModalOpen] = useState(false);
 
-  // 1. Dados do Estabelecimento
+  // 1. Dados do Estabelecimento (Separação Comercial vs Fiscal CNPJ)
   const [salonName, setSalonName] = useState(adminSettings.salonName || '');
-  const [razaoSocial, setRazaoSocial] = useState(adminSettings.razaoSocial || '');
-  const [cnpj, setCnpj] = useState(adminSettings.cnpj || '');
+  const initialCnpjDigits = (adminSettings.cnpj || '').replace(/\D/g, '');
+  const [hasCnpj, setHasCnpj] = useState<boolean>(initialCnpjDigits.length === 14);
+  const [razaoSocial, setRazaoSocial] = useState(initialCnpjDigits.length === 14 ? (adminSettings.razaoSocial || '') : '');
+  const [cnpj, setCnpj] = useState(initialCnpjDigits.length === 14 ? (adminSettings.cnpj || '') : '');
 
   // 2. Localização & CEP
   const [cep, setCep] = useState(adminSettings.cep || '');
@@ -60,11 +70,35 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
   const [batchOpenTime, setBatchOpenTime] = useState('09:00');
   const [batchCloseTime, setBatchCloseTime] = useState('20:00');
 
-  // 4. Responsável Legal
+  // 4. Responsável Legal / Titular Pessoal (clients.cpf & salons.owner_cpf)
   const [legalManagerName, setLegalManagerName] = useState(adminSettings.legalManagerName || '');
-  const [legalManagerCpf, setLegalManagerCpf] = useState(adminSettings.legalManagerCpf || '');
+  const [legalManagerCpf, setLegalManagerCpf] = useState(adminSettings.ownerCpf || adminSettings.legalManagerCpf || '');
   const [legalManagerPhone, setLegalManagerPhone] = useState(adminSettings.legalManagerPhone || adminSettings.salonPhone || '');
   const [legalManagerEmail, setLegalManagerEmail] = useState(adminSettings.legalManagerEmail || '');
+
+  // 5. Múltiplas Chaves PIX (pix_keys JSONB + pix_key Principal)
+  const [pixKeys, setPixKeys] = useState<SalonPixKeyItem[]>(() => {
+    if (Array.isArray(adminSettings.pixKeys) && adminSettings.pixKeys.length > 0) {
+      return adminSettings.pixKeys;
+    }
+    if (adminSettings.pixKey && adminSettings.pixKey.trim()) {
+      return [
+        {
+          id: 'pix_primary_1',
+          type: 'cpf',
+          key: adminSettings.pixKey.trim(),
+          holderName: adminSettings.legalManagerName || adminSettings.salonName || '',
+          isPrimary: true,
+          verified: true,
+        },
+      ];
+    }
+    return [];
+  });
+  const [newPixType, setNewPixType] = useState<PixKeyType>('cpf');
+  const [newPixKey, setNewPixKey] = useState('');
+  const [newPixHolder, setNewPixHolder] = useState('');
+  const [newPixInstitution, setNewPixInstitution] = useState('');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -225,6 +259,47 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     return `${openDays.map((d) => d.dayLabel).join(', ')} • ${batchOpenTime} às ${batchCloseTime}`;
   };
 
+  const handleAddPixKey = () => {
+    const cleanKey = newPixKey.trim();
+    if (!cleanKey) return;
+    hapticSuccess();
+    const isFirst = pixKeys.length === 0;
+    const item: SalonPixKeyItem = {
+      id: `pix_${Date.now()}`,
+      type: newPixType,
+      key: cleanKey,
+      holderName: newPixHolder.trim() || legalManagerName.trim() || salonName.trim() || undefined,
+      institution: newPixInstitution.trim() || undefined,
+      isPrimary: isFirst,
+      verified: true,
+    };
+    setPixKeys((prev) => [...prev, item]);
+    setNewPixKey('');
+    setNewPixHolder('');
+    setNewPixInstitution('');
+  };
+
+  const handleSetPrimaryPixKey = (id: string) => {
+    hapticLight();
+    setPixKeys((prev) =>
+      prev.map((item) => ({
+        ...item,
+        isPrimary: item.id === id,
+      }))
+    );
+  };
+
+  const handleRemovePixKey = (id: string) => {
+    hapticMedium();
+    setPixKeys((prev) => {
+      const filtered = prev.filter((item) => item.id !== id);
+      if (filtered.length > 0 && !filtered.some((k) => k.isPrimary)) {
+        filtered[0] = { ...filtered[0], isPrimary: true };
+      }
+      return filtered;
+    });
+  };
+
   // Salvar Dados
   const handleSave = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -248,10 +323,19 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
       defaultCloseTime: batchCloseTime,
     };
 
+    const rawCnpjDigits = cnpj.replace(/\D/g, '');
+    const isValidCnpj = hasCnpj && rawCnpjDigits.length === 14;
+    const finalCnpj = isValidCnpj ? cnpj.trim() : '';
+    const finalRazaoSocial = isValidCnpj ? razaoSocial.trim() : '';
+    const primaryPix = pixKeys.find((k) => k.isPrimary)?.key || pixKeys[0]?.key || '';
+
     onUpdateSettings({
       salonName: salonName.trim() || 'Meu Estabelecimento',
-      razaoSocial: razaoSocial.trim(),
-      cnpj: cnpj.trim(),
+      razaoSocial: finalRazaoSocial,
+      cnpj: finalCnpj,
+      ownerCpf: legalManagerCpf.trim(),
+      pixKey: primaryPix,
+      pixKeys,
       cep: cep.trim(),
       logradouro: logradouro.trim(),
       numero: numero.trim(),
@@ -276,108 +360,108 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     <div className={`w-full h-full flex flex-col justify-between overflow-y-auto no-scrollbar ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
-      {/* Barra de Topo com Ação de Voltar */}
-      <div className={`px-3 py-2.5 border-b shrink-0 flex items-center justify-between gap-2 sticky top-0 z-30 ${
+      {/* Barra de Topo com Ação de Voltar + Abas Separadas (Comercial | Fiscal | PIX & Placa) */}
+      <div className={`px-3 py-2.5 border-b shrink-0 flex flex-col gap-2 sticky top-0 z-30 ${
         isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-xs'
       }`}>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              hapticLight();
-              onBack();
-            }}
-            className={`p-1.5 rounded transition cursor-pointer active:scale-95 ${
-              isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
-            }`}
-            title="Voltar ao Gerenciamento"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <div className="flex items-center gap-1.5">
-            <Building2 className="w-4 h-4 text-emerald-500 shrink-0" />
-            <h2 className="text-xs sm:text-sm font-bold font-['Poppins']">
-              Dados do Negócio
-            </h2>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                hapticLight();
+                onBack();
+              }}
+              className={`p-1.5 rounded transition cursor-pointer active:scale-95 ${
+                isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
+              }`}
+              title="Voltar ao Gerenciamento"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-1.5">
+              <Building2 className="w-4 h-4 text-emerald-500 shrink-0" />
+              <h2 className="text-xs sm:text-sm font-bold font-['Poppins']">
+                Dados do Negócio
+              </h2>
+            </div>
           </div>
+
+          {savedSuccess && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-emerald-500 px-2 py-0.5 rounded shadow-xs animate-in fade-in">
+              <Check className="w-3 h-3 text-white" />
+              Salvo
+            </span>
+          )}
         </div>
 
-        {savedSuccess && (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-emerald-500 px-2 py-0.5 rounded shadow-xs animate-in fade-in">
-            <Check className="w-3 h-3 text-white" />
-            Salvo
-          </span>
-        )}
+        {/* Navegação de Abas: Comercial | Fiscal ('fiscal') | Recebimentos PIX ('pix_billing') */}
+        <div className="grid grid-cols-3 gap-1.5">
+          {[
+            { id: 'comercial' as BusinessDataTabId, label: 'Comercial & Local', icon: Building2 },
+            { id: 'fiscal' as BusinessDataTabId, label: 'Fiscal (CNPJ/CPF)', icon: FileText },
+            { id: 'pix_billing' as BusinessDataTabId, label: 'PIX & Placa', icon: QrCode },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isSel = activeSubTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setActiveSubTab(tab.id);
+                }}
+                className={`py-1.5 px-2 rounded text-[11px] font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  isSel
+                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                    : isDark
+                    ? 'bg-slate-950 border-slate-800 text-slate-300 hover:border-emerald-500/40'
+                    : 'bg-slate-100 border-slate-200 text-slate-700 hover:border-emerald-500/40'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 shrink-0 ${isSel ? 'text-white' : 'text-emerald-400'}`} />
+                <span className="truncate">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Formulário Principal */}
-      <form onSubmit={handleSave} className="p-3.5 space-y-4 pb-24">
+      <form onSubmit={handleSave} className="p-3.5 space-y-4 pb-24 flex-1">
         
-        {/* SEÇÃO 1: DADOS DO ESTABELECIMENTO */}
-        <div className={`p-3.5 rounded border space-y-3 ${
-          isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-        }`}>
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
-            <Building2 className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
-              Dados do Estabelecimento
-            </h3>
-          </div>
+        {/* ABA 1: COMERCIAL, ENDEREÇO & HORÁRIOS */}
+        {activeSubTab === 'comercial' && (
+          <>
+            <div className={`p-3.5 rounded border space-y-3 ${
+              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+            }`}>
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                <Building2 className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                  Identificação Comercial
+                </h3>
+              </div>
 
-          <div>
-            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-              Nome Fantasia <span className="text-rose-400">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={salonName}
-              onChange={(e) => setSalonName(e.target.value)}
-              placeholder="Ex: Studio Bella, Barbearia Silva..."
-              className={`w-full px-3 py-2 rounded border text-xs font-semibold outline-hidden transition ${
-                isDark 
-                  ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                  : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-              }`}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                Razão Social <span className="text-[10px] font-normal text-slate-500">(Opcional)</span>
-              </label>
-              <input
-                type="text"
-                value={razaoSocial}
-                onChange={(e) => setRazaoSocial(e.target.value)}
-                placeholder="Ex: Empresa de Beleza LTDA"
-                className={`w-full px-3 py-2 rounded border text-xs outline-hidden transition ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Nome Fantasia <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={salonName}
+                  onChange={(e) => setSalonName(e.target.value)}
+                  placeholder="Ex: Studio Bella, Barbearia Silva..."
+                  className={`w-full px-3 py-2 rounded border text-xs font-semibold outline-hidden transition ${
+                    isDark 
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
             </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                CNPJ {razaoSocial.trim() && <span className="text-emerald-400 font-bold">*</span>}
-              </label>
-              <input
-                type="text"
-                value={cnpj}
-                onChange={(e) => setCnpj(formatCnpj(e.target.value))}
-                placeholder="00.000.000/0000-00"
-                className={`w-full px-3 py-2 rounded border text-xs font-mono outline-hidden transition ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
-            </div>
-          </div>
-        </div>
 
         {/* SEÇÃO 2: LOCALIZAÇÃO INTELIGENTE (ViaCEP) */}
         <div className={`p-3.5 rounded border space-y-3 ${
@@ -716,92 +800,422 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
           </div>
         </div>
 
-        {/* SEÇÃO 4: RESPONSÁVEL LEGAL */}
-        <div className={`p-3.5 rounded border space-y-3 ${
-          isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-        }`}>
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
-            <UserCheck className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
-              Responsável Legal
-            </h3>
+          </>
+        )}
+
+        {/* ABA 2 ('fiscal'): EXCLUSIVO PARA TRIBUTAÇÃO (AUTÔNOMO VS CNPJ / RAZÃO SOCIAL & TITULAR CPF) */}
+        {activeSubTab === 'fiscal' && (
+          <>
+            <div className={`p-3.5 rounded border space-y-3 ${
+              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+            }`}>
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                <FileText className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                  Tributação & Regime Fiscal
+                </h3>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  Modalidade Fiscal do Estabelecimento
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      setHasCnpj(false);
+                      setCnpj('');
+                      setRazaoSocial('');
+                    }}
+                    className={`py-2 px-3 rounded text-xs font-bold border transition cursor-pointer whitespace-nowrap ${
+                      !hasCnpj
+                        ? 'bg-emerald-500 border-emerald-500 text-white'
+                        : isDark
+                        ? 'bg-slate-950 border-slate-800 text-slate-300 hover:border-emerald-500/50'
+                        : 'bg-slate-100 border-slate-200 text-slate-700 hover:border-emerald-500/50'
+                    }`}
+                  >
+                    Autônomo (Sem CNPJ)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      setHasCnpj(true);
+                    }}
+                    className={`py-2 px-3 rounded text-xs font-bold border transition cursor-pointer whitespace-nowrap ${
+                      hasCnpj
+                        ? 'bg-emerald-500 border-emerald-500 text-white'
+                        : isDark
+                        ? 'bg-slate-950 border-slate-800 text-slate-300 hover:border-emerald-500/50'
+                        : 'bg-slate-100 border-slate-200 text-slate-700 hover:border-emerald-500/50'
+                    }`}
+                  >
+                    Pessoa Jurídica (CNPJ)
+                  </button>
+                </div>
+              </div>
+
+              {hasCnpj ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      CNPJ (14 dígitos) <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={cnpj}
+                      onChange={(e) => setCnpj(formatCnpj(e.target.value))}
+                      placeholder="00.000.000/0000-00"
+                      className={`w-full px-3 py-2 rounded border text-xs font-mono outline-hidden transition ${
+                        isDark 
+                          ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                          : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      Razão Social <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={razaoSocial}
+                      onChange={(e) => setRazaoSocial(e.target.value)}
+                      placeholder="Ex: Empresa de Beleza LTDA"
+                      className={`w-full px-3 py-2 rounded border text-xs outline-hidden transition ${
+                        isDark 
+                          ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                          : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      }`}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-400">
+                  Atuação como profissional autônomo (Pessoa Física). Os campos fiscais de CNPJ e Razão Social permanecem isentos.
+                </p>
+              )}
+            </div>
+
+            {/* RESPONSÁVEL LEGAL / CPF DO TITULAR */}
+            <div className={`p-3.5 rounded border space-y-3 ${
+              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+            }`}>
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                <UserCheck className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                  Titular & Responsável Legal (CPF Pessoal)
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Nome Completo do Titular <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={legalManagerName}
+                    onChange={(e) => setLegalManagerName(e.target.value)}
+                    placeholder="Ex: Anderson Henrique Pires"
+                    className={`w-full px-3 py-2 rounded border text-xs outline-hidden transition ${
+                      isDark 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    CPF Pessoal do Titular <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={legalManagerCpf}
+                    onChange={(e) => setLegalManagerCpf(formatCpf(e.target.value))}
+                    placeholder="000.000.000-00"
+                    className={`w-full px-3 py-2 rounded border text-xs font-mono outline-hidden transition ${
+                      isDark 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Telefone / WhatsApp <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={legalManagerPhone}
+                    onChange={(e) => setLegalManagerPhone(formatPhone(e.target.value))}
+                    placeholder="(00) 00000-0000"
+                    className={`w-full px-3 py-2 rounded border text-xs font-mono outline-hidden transition ${
+                      isDark 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    E-mail de Contato <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={legalManagerEmail}
+                    onChange={(e) => setLegalManagerEmail(e.target.value)}
+                    placeholder="seu.email@exemplo.com"
+                    className={`w-full px-3 py-2 rounded border text-xs outline-hidden transition ${
+                      isDark 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ABA 3 ('pix_billing'): EXCLUSIVO PARA RECEBIMENTOS PIX, QR CODE BACEN E PLAQUINHA DE BALCÃO */}
+        {activeSubTab === 'pix_billing' && (
+          <div className={`p-3.5 rounded border space-y-3.5 ${
+            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+          }`}>
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800/60 gap-2">
+              <div className="flex items-center gap-2">
+                <QrCode className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                  Chaves PIX & Plaquinha ({pixKeys.length})
+                </h3>
+              </div>
+              {pixKeys.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    setIsPixPrintModalOpen(true);
+                  }}
+                  className="px-2.5 py-1 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow-xs"
+                >
+                  <Printer className="w-3.5 h-3.5 text-white" />
+                  <span>Gerar Plaquinha QR</span>
+                </button>
+              )}
+            </div>
+
+            {/* Preview Rápido do QR Code BACEN da Chave Principal */}
+            {pixKeys.length > 0 && (() => {
+              const primaryItem = pixKeys.find((k) => k.isPrimary) || pixKeys[0];
+              const previewQrUrl = getPixQrCodeUrl({
+                pixKey: primaryItem.key,
+                keyType: primaryItem.type,
+                merchantName: primaryItem.holderName || salonName || 'ESTABELECIMENTO',
+                merchantCity: cidade || 'BRASIL',
+              }, 160);
+
+              return (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-2 border-b border-slate-800/60">
+                  <div className="flex items-center gap-3">
+                    {previewQrUrl && (
+                      <div className="p-1.5 rounded bg-white shrink-0">
+                        <img
+                          src={previewQrUrl}
+                          alt="QR Code PIX BACEN"
+                          className="w-16 h-16 object-contain"
+                        />
+                      </div>
+                    )}
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
+                        QR Code Oficial BACEN Ativo
+                      </span>
+                      <p className="text-xs font-mono font-bold">
+                        {primaryItem.type.toUpperCase()}: {primaryItem.key}
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        Usado na Plaquinha de Balcão e no Checkout Pós-Serviço
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      setIsPixPrintModalOpen(true);
+                    }}
+                    className="w-full sm:w-auto px-3 py-2 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                  >
+                    <QrCode className="w-3.5 h-3.5 text-white" />
+                    <span>Abrir Plaquinha Acrílico</span>
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* Lista de Chaves Cadastradas (Flat Layout) */}
+            {pixKeys.length > 0 && (
+              <div className="divide-y divide-slate-800/60">
+                {pixKeys.map((item) => (
+                  <div
+                    key={item.id}
+                    className="py-2.5 flex items-center justify-between gap-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-200">
+                          {item.type.toUpperCase()}
+                        </span>
+                        <span className="text-xs font-mono font-bold truncate">
+                          {item.key}
+                        </span>
+                        {item.isPrimary && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500 text-white whitespace-nowrap">
+                            Principal
+                          </span>
+                        )}
+                      </div>
+                      {(item.holderName || item.institution) && (
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                          {[item.holderName, item.institution].filter(Boolean).join(' • ')}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {!item.isPrimary && (
+                        <button
+                          type="button"
+                          onClick={() => handleSetPrimaryPixKey(item.id)}
+                          className="px-2 py-1 rounded text-[10px] font-bold bg-slate-800 hover:bg-emerald-500 text-slate-300 hover:text-white transition cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                          title="Definir como Chave Principal"
+                        >
+                          <Star className="w-3 h-3" />
+                          Tornar Principal
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePixKey(item.id)}
+                        className="p-1.5 rounded text-slate-400 hover:text-rose-400 transition cursor-pointer"
+                        title="Remover chave PIX"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Adicionar Nova Chave PIX */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Tipo de Chave
+                </label>
+                <select
+                  value={newPixType}
+                  onChange={(e) => setNewPixType(e.target.value as PixKeyType)}
+                  className={`w-full px-2.5 py-2 rounded border text-xs font-bold outline-hidden ${
+                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  }`}
+                >
+                  <option value="cpf">CPF</option>
+                  <option value="cnpj">CNPJ</option>
+                  <option value="phone">Celular</option>
+                  <option value="email">E-mail</option>
+                  <option value="evp">Aleatória (EVP)</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Chave PIX
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={newPixKey}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (newPixType === 'cpf') setNewPixKey(formatCpf(v));
+                      else if (newPixType === 'cnpj') setNewPixKey(formatCnpj(v));
+                      else if (newPixType === 'phone') setNewPixKey(formatPhone(v));
+                      else setNewPixKey(v);
+                    }}
+                    placeholder={
+                      newPixType === 'cpf'
+                        ? '000.000.000-00'
+                        : newPixType === 'cnpj'
+                        ? '00.000.000/0000-00'
+                        : newPixType === 'phone'
+                        ? '(00) 00000-0000'
+                        : newPixType === 'email'
+                        ? 'pix@estabelecimento.com'
+                        : 'Chave aleatória EVP'
+                    }
+                    className={`flex-1 px-3 py-2 rounded border text-xs font-mono outline-hidden transition ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddPixKey}
+                    className="px-3 py-2 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer shrink-0 whitespace-nowrap"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-white" />
+                    Adicionar
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input
+                type="text"
+                value={newPixHolder}
+                onChange={(e) => setNewPixHolder(e.target.value)}
+                placeholder="Titular da conta (opcional)"
+                className={`w-full px-3 py-1.5 rounded border text-xs outline-hidden transition ${
+                  isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                }`}
+              />
+              <input
+                type="text"
+                value={newPixInstitution}
+                onChange={(e) => setNewPixInstitution(e.target.value)}
+                placeholder="Banco / Instituição (opcional)"
+                className={`w-full px-3 py-1.5 rounded border text-xs outline-hidden transition ${
+                  isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                }`}
+              />
+            </div>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                Nome Completo <span className="text-rose-400">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={legalManagerName}
-                onChange={(e) => setLegalManagerName(e.target.value)}
-                placeholder="Ex: Anderson Henrique Pires"
-                className={`w-full px-3 py-2 rounded border text-xs outline-hidden transition ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                CPF <span className="text-rose-400">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={legalManagerCpf}
-                onChange={(e) => setLegalManagerCpf(formatCpf(e.target.value))}
-                placeholder="000.000.000-00"
-                className={`w-full px-3 py-2 rounded border text-xs font-mono outline-hidden transition ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                Telefone / WhatsApp <span className="text-rose-400">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={legalManagerPhone}
-                onChange={(e) => setLegalManagerPhone(formatPhone(e.target.value))}
-                placeholder="(00) 00000-0000"
-                className={`w-full px-3 py-2 rounded border text-xs font-mono outline-hidden transition ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                E-mail de Contato <span className="text-rose-400">*</span>
-              </label>
-              <input
-                type="email"
-                required
-                value={legalManagerEmail}
-                onChange={(e) => setLegalManagerEmail(e.target.value)}
-                placeholder="seu.email@exemplo.com"
-                className={`w-full px-3 py-2 rounded border text-xs outline-hidden transition ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
-            </div>
-          </div>
-        </div>
+        )}
       </form>
+
+      {/* Modal de Impressão da Plaquinha Acrílica PIX */}
+      <SalonPixPrintModal
+        isOpen={isPixPrintModalOpen}
+        onClose={() => setIsPixPrintModalOpen(false)}
+        salonName={salonName || adminSettings.salonName || 'Meu Estabelecimento'}
+        salonCity={cidade || adminSettings.cidade || 'BRASIL'}
+        salonLogo={adminSettings.salonLogo || adminSettings.salonIcon}
+        slogan={adminSettings.slogan}
+        pixKeys={pixKeys}
+        fallbackPixKey={adminSettings.pixKey}
+      />
 
       {/* RODAPÉ FIXO DE AÇÃO */}
       <div className={`p-3 border-t shrink-0 sticky bottom-0 z-20 flex items-center justify-between gap-3 ${

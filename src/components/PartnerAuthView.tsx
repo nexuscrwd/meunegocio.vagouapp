@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, ShieldCheck, Loader2 } from 'lucide-react';
 import { hapticLight } from '../utils/haptics';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export interface PartnerAuthSuccessData {
   salonName: string;
@@ -34,15 +35,54 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
   const [isLoadingIframe, setIsLoadingIframe] = useState(true);
 
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'VAGOU_REGISTRATION_SUCCESS') {
-        const { accountType, email, name, user } = event.data;
+    const handleMessage = async (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
 
-        const proName = name || user?.name || user?.user_metadata?.full_name || 'Profissional';
-        const userEmail = email || user?.email || '';
-        const userPhone = user?.phone || user?.user_metadata?.phone || '';
+      const isAuthSuccess =
+        data.type === 'VAGOU_REGISTRATION_SUCCESS' ||
+        data.type === 'VAGOU_LOGIN_SUCCESS' ||
+        data.type === 'VAGOU_AUTH_SUCCESS' ||
+        ((data.source === 'VAGOUAPP_EMBED' || data.source === 'VAGOUAPP_FORM') &&
+          (data.event === 'USER_LOGIN_SUCCESS' ||
+            data.event === 'USER_REGISTER_SUCCESS' ||
+            data.event === 'SALON_MASTER_SUCCESS' ||
+            data.action === 'USER_LOGIN_SUCCESS' ||
+            data.action === 'USER_REGISTER_SUCCESS' ||
+            data.action === 'SALON_MASTER_SUCCESS'));
+
+      if (isAuthSuccess) {
+        const payload = data.payload || {};
+        const userObj = data.user || payload.user || {};
+
+        const resolvedId = userObj.id || data.userId || payload.userId || '';
+        const userEmail = (data.email || userObj.email || payload.email || '').trim().toLowerCase();
+        const proName =
+          data.name ||
+          userObj.name ||
+          userObj.user_metadata?.full_name ||
+          payload.name ||
+          payload.fullName ||
+          'Profissional';
+        const userPhone = data.phone || userObj.phone || userObj.user_metadata?.phone || payload.phone || '';
+        const accountType = data.accountType || data.role || payload.accountType || payload.role || '';
+
+        const sessionObj = data.session || payload.session || (data.access_token ? {
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+        } : null);
+
+        if (isSupabaseConfigured && supabase && sessionObj?.access_token && sessionObj?.refresh_token) {
+          try {
+            await supabase.auth.setSession({
+              access_token: sessionObj.access_token,
+              refresh_token: sessionObj.refresh_token,
+            });
+          } catch {}
+        }
 
         try {
+          if (resolvedId) localStorage.setItem('vagou_auth_user_id', resolvedId);
           if (proName) localStorage.setItem('vagou_user_name', proName);
           if (userEmail) {
             localStorage.setItem('vagou_user_email', userEmail);
@@ -51,8 +91,16 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
           if (userPhone) localStorage.setItem('vagou_user_phone', userPhone);
         } catch {}
 
+        window.dispatchEvent(
+          new CustomEvent('vagou:auth-updated', {
+            detail: { userId: resolvedId, email: userEmail, name: proName, accountType },
+          })
+        );
+
         const role: 'pro' | 'cliente' =
-          accountType === 'professional' || accountType === 'pro' || accountType === 'owner' ? 'pro' : 'cliente';
+          accountType === 'professional' || accountType === 'pro' || accountType === 'owner' || accountType === 'admin'
+            ? 'pro'
+            : 'cliente';
 
         onSuccess(undefined, role);
       }

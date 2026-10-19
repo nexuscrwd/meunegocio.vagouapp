@@ -154,10 +154,23 @@ export interface UserProfile {
   name: string;
   email: string;
   phone: string;
+  cpf?: string;
   address: string;
   avatarUrl?: string;
   swapGovernance?: ClientSwapGovernance;
   familyMembers?: FamilyMember[];
+}
+
+export type PixKeyType = 'cpf' | 'cnpj' | 'phone' | 'email' | 'evp';
+
+export interface SalonPixKeyItem {
+  id: string;
+  type: PixKeyType;
+  key: string;
+  holderName?: string;
+  institution?: string;
+  isPrimary: boolean;
+  verified?: boolean;
 }
 
 export interface DayOperatingHours {
@@ -194,9 +207,13 @@ export interface SalonAdminSettings {
   bio?: string;       // História/apresentação do espaço (preenchida pós-cadastro no painel do salão)
   instagramUrl?: string; // @instagram (preenchido pós-cadastro no painel do salão)
 
-  // Dados Cadastrais e Fiscais
+  // Dados Cadastrais e Fiscais (Exclusivos para CNPJ 14 dígitos; vazios '' quando Autônomo)
   razaoSocial?: string;
   cnpj?: string;
+
+  // Chaves PIX do Estabelecimento (Principal + Múltiplas Chaves JSONB)
+  pixKey?: string;
+  pixKeys?: SalonPixKeyItem[];
 
   // Localização Detalhada
   cep?: string;
@@ -210,7 +227,8 @@ export interface SalonAdminSettings {
   // Atendimento Inteligente
   operatingSchedule?: OperatingSchedule;
 
-  // Responsável Legal
+  // Responsável Legal / Titular Pessoal (clients.cpf & salons.owner_cpf)
+  ownerCpf?: string;
   legalManagerName?: string;
   legalManagerCpf?: string;
   legalManagerPhone?: string;

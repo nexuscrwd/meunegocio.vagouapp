@@ -81,7 +81,12 @@ export const App: React.FC = () => {
 
   // Slug de desenvolvimento em DEV (configurado nos Secrets do AI Studio: VITE_DEV_SALON_SLUG)
   const devSlug = import.meta.env.DEV ? (import.meta.env.VITE_DEV_SALON_SLUG as string | undefined) : undefined;
-  const activeSalonIdentifier = devSlug || currentSubdomain;
+  const activeSalonIdentifier =
+    devSlug ||
+    currentSubdomain ||
+    initialSalonData?.slug ||
+    initialSalonData?.id ||
+    (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') || '' : '');
   const { role: currentRole } = useSalonRole(activeSalonIdentifier);
 
   // Trava anti-expulsão: enquanto valida o subdomínio, passa 'loading' para o SalonProfileView
@@ -301,27 +306,31 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
 
-    // Verificar sessão inicial no carregamento para evitar login fantasma/mock
+    // Verificar sessão inicial no carregamento preservando login SSO via admvapp
     const checkInitialSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
-          // Garante que se não tem usuário autenticado no Supabase, limpa os estados locais e localStorage
-          setUserName('');
-          setUserAvatarUrl('');
-          localStorage.removeItem('vagou_user_name');
-          localStorage.removeItem('vagou_user_email');
-          localStorage.removeItem('vagou_user_phone');
-          localStorage.removeItem('vagou_user_avatar');
-          localStorage.removeItem('vagou_active_partner');
-          localStorage.removeItem('vagou_user_appointments');
-        } else {
-          // Se tem usuário, garante que o nome do estado está atualizado
+        if (session?.user) {
           const uMeta = session.user.user_metadata;
           const uEmail = session.user.email;
           const nameToSet = uMeta?.full_name || uMeta?.name || uEmail?.split('@')[0] || 'Usuário';
           setUserName(nameToSet);
           localStorage.setItem('vagou_user_name', nameToSet);
+          if (session.user.id) localStorage.setItem('vagou_auth_user_id', session.user.id);
+          if (uEmail) {
+            localStorage.setItem('vagou_user_email', uEmail);
+            localStorage.setItem('vagou_active_partner', uEmail);
+          }
+        } else {
+          // Se não há token no domínio local, verifica se há login SSO ativo vindo do iframe admvapp
+          const ssoEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner');
+          const ssoName = localStorage.getItem('vagou_user_name');
+          if (ssoEmail) {
+            if (ssoName) setUserName(ssoName);
+          } else {
+            setUserName('');
+            setUserAvatarUrl('');
+          }
         }
       } catch (err) {
         console.warn('Erro ao verificar sessão inicial:', err);
@@ -336,21 +345,23 @@ export const App: React.FC = () => {
         const uEmail = session.user.email;
         const uMeta = session.user.user_metadata;
         const nameToSet = uMeta?.full_name || uMeta?.name || uEmail?.split('@')[0] || 'Usuário';
-        
+
         setUserName(nameToSet);
+        localStorage.setItem('vagou_auth_user_id', uid);
         localStorage.setItem('vagou_user_name', nameToSet);
         if (uEmail) {
           localStorage.setItem('vagou_user_email', uEmail);
           localStorage.setItem('vagou_active_partner', uEmail);
         }
-        
+
         setTimeout(() => {
           ensureClientRow(uid, uEmail, uMeta).catch((e) => console.warn('Erro em ensureClientRow:', e));
         }, 0);
-      } else if (event === 'SIGNED_OUT' || !session?.user) {
+      } else if (event === 'SIGNED_OUT') {
         setUserName('');
         setUserAvatarUrl('');
         try {
+          localStorage.removeItem('vagou_auth_user_id');
           localStorage.removeItem('vagou_user_name');
           localStorage.removeItem('vagou_user_email');
           localStorage.removeItem('vagou_user_phone');
@@ -411,11 +422,37 @@ export const App: React.FC = () => {
   // Escuta Mensagens da Tríade Sync (admvapp postMessage)
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
-      if (event.data && event.data.type === 'VAGOU_REGISTRATION_SUCCESS') {
-        const { email, name, user } = event.data;
-        console.log('Mensagem de cadastro/login recebida do Admin Master:', event.data);
-        
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+
+      const isAuthSuccess =
+        data.type === 'VAGOU_REGISTRATION_SUCCESS' ||
+        data.type === 'VAGOU_LOGIN_SUCCESS' ||
+        data.type === 'VAGOU_AUTH_SUCCESS' ||
+        ((data.source === 'VAGOUAPP_EMBED' || data.source === 'VAGOUAPP_FORM') &&
+          (data.event === 'USER_LOGIN_SUCCESS' ||
+            data.event === 'USER_REGISTER_SUCCESS' ||
+            data.event === 'SALON_MASTER_SUCCESS' ||
+            data.action === 'USER_LOGIN_SUCCESS' ||
+            data.action === 'USER_REGISTER_SUCCESS' ||
+            data.action === 'SALON_MASTER_SUCCESS'));
+
+      if (isAuthSuccess) {
+        const payload = data.payload || {};
+        const userObj = data.user || payload.user || {};
+        const resolvedId = userObj.id || data.userId || payload.userId || '';
+        const email = (data.email || userObj.email || payload.email || '').trim().toLowerCase();
+        const name =
+          data.name ||
+          userObj.name ||
+          userObj.user_metadata?.full_name ||
+          payload.name ||
+          payload.fullName ||
+          (email ? email.split('@')[0] : 'Usuário');
+        const phone = data.phone || userObj.phone || userObj.user_metadata?.phone || payload.phone || '';
+
         try {
+          if (resolvedId) localStorage.setItem('vagou_auth_user_id', resolvedId);
           if (name) {
             localStorage.setItem('vagou_user_name', name);
             setUserName(name);
@@ -424,21 +461,38 @@ export const App: React.FC = () => {
             localStorage.setItem('vagou_user_email', email);
             localStorage.setItem('vagou_active_partner', email);
           }
-          if (user?.phone) {
-            localStorage.setItem('vagou_user_phone', user.phone);
+          if (phone) {
+            localStorage.setItem('vagou_user_phone', phone);
           }
-          
+
+          const sessionObj = data.session || payload.session || (data.access_token ? {
+            access_token: data.access_token,
+            refresh_token: data.refresh_token,
+          } : null);
+
+          if (isSupabaseConfigured && supabase) {
+            if (sessionObj?.access_token && sessionObj?.refresh_token) {
+              await supabase.auth.setSession({
+                access_token: sessionObj.access_token,
+                refresh_token: sessionObj.refresh_token,
+              });
+            } else {
+              await supabase.auth.refreshSession().catch(() => {});
+            }
+          }
+
+          window.dispatchEvent(
+            new CustomEvent('vagou:auth-updated', {
+              detail: { userId: resolvedId, email, name },
+            })
+          );
+
           setActiveToast({
             id: String(Date.now()),
-            title: 'Sincronização Ativa',
-            message: `Olá ${name || 'usuário'}, login sincronizado via Vagou Central!`,
-            type: 'success'
+            title: 'Acesso Sincronizado',
+            message: `Olá ${name || 'usuário'}, seu perfil foi conectado com sucesso!`,
+            type: 'success',
           });
-          
-          // Recarrega a sessão do Supabase localmente para atualizar o estado de autenticação
-          if (isSupabaseConfigured && supabase) {
-            await supabase.auth.refreshSession();
-          }
         } catch (err) {
           console.error('Erro ao processar postMessage do Admin Master:', err);
         }
@@ -462,7 +516,7 @@ export const App: React.FC = () => {
           setCurrentSubdomain(sub);
           if (isSupabaseConfigured && supabase) {
             let { data: salon, error: salonErr } = await (supabase.from('salons') as any)
-              .select('id, trade_name, slug, is_active, logo_url, primary_color, slogan, phone_whatsapp, address, neighborhood, city, state, branding')
+              .select('id, trade_name, legal_name, document_number, owner_cpf, pix_key, pix_keys, slug, is_active, logo_url, primary_color, slogan, phone_whatsapp, address, neighborhood, city, state, branding')
               .eq('slug', sub)
               .eq('is_active', true)
               .maybeSingle();

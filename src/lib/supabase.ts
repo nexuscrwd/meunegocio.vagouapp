@@ -135,27 +135,43 @@ export interface UnifiedLoginResult {
  * Regra Inegociável: Consulta salon_members estritamente por user_id E pelo salão do targetSalonSlug.
  * Sem usar owner_id, e-mail ou ilike. Retorna 'cliente' quando não houver vínculo naquele salão específico.
  */
+export function generateUuidV4(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/**
+ * Verificação Soberana Multi-Camada de Papel e Vínculo com Estabelecimento (RBAC)
+ * Suporta login direto Supabase Auth e login cross-subdomain via iframe do admvapp:
+ * Camada 1: Vínculo direto de Titular/Dono em public.salons (owner_id, email, owner_cpf, branding)
+ * Camada 2: Vínculo formal em public.salon_members (user_id + salon_id)
+ * Camada 3: Vínculo de equipe em public.professionals (salon_id + email)
+ */
 export async function checkUserSalonMembership(
   userId: string,
-  salonIdentifier?: string
+  salonIdentifier?: string,
+  userEmail?: string
 ): Promise<{
   isMember: boolean;
   role: 'owner' | 'manager' | 'professional' | 'cliente';
   salonId?: string;
   salonData?: any;
 }> {
-  if (!supabase || !isSupabaseConfigured || !userId) {
+  if (!supabase || !isSupabaseConfigured || (!userId && !userEmail)) {
     return { isMember: false, role: 'cliente' };
   }
 
-  // (a) Se salonIdentifier vier vazio, retorne { isMember: false, role: 'cliente' } (nunca consulte vínculos de todos os salões)
   if (!salonIdentifier || !salonIdentifier.trim()) {
     return { isMember: false, role: 'cliente' };
   }
 
   const cleanIdent = salonIdentifier.trim().toLowerCase();
-
-  // (c) Valide o slug com /^[a-z0-9-]+$/ (ou UUID) antes de usar na consulta; se inválido, retorne 'cliente'
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanIdent);
   const isValidSlug = /^[a-z0-9-]+$/.test(cleanIdent);
 
@@ -164,55 +180,149 @@ export async function checkUserSalonMembership(
   }
 
   try {
-    // (b) Confirmação: a coluna subdomain NÃO existe na tabela salons, usamos estritamente slug ou id.
-    // Verificamos o campo error; se houver erro, logamos no console e retornamos 'cliente'.
-    let salonQuery = supabase.from('salons').select('id, trade_name, slug, is_active');
+    let salonQuery = (supabase.from('salons') as any).select('*');
     if (isUuid) {
       salonQuery = salonQuery.eq('id', cleanIdent);
     } else {
       salonQuery = salonQuery.eq('slug', cleanIdent);
     }
 
-    const { data: salonRes, error: salonErr } = await (salonQuery.maybeSingle() as any);
-    if (salonErr) {
-      console.warn('Erro ao consultar salão por identificador:', salonErr.message);
-      return { isMember: false, role: 'cliente' };
-    }
-
-    if (!salonRes) {
+    const { data: salonRes, error: salonErr } = await salonQuery.maybeSingle();
+    if (salonErr || !salonRes) {
+      if (salonErr) console.warn('Erro ao consultar salão por identificador:', salonErr.message);
       return { isMember: false, role: 'cliente' };
     }
 
     const targetSalonId = salonRes.id;
     const targetSalonData = salonRes;
+    const cleanEmail = (userEmail || '').trim().toLowerCase();
 
-    // Consulta soberana na tabela salon_members por user_id E salon_id (sem owner_id, sem email, sem ilike)
-    const { data: members, error: memErr } = await (supabase
-      .from('salon_members')
-      .select('id, salon_id, user_id, role, salon:salons(*)')
-      .eq('user_id', userId)
-      .eq('salon_id', targetSalonId) as any);
+    // Coletar todos os IDs candidatos do usuário (auth.uid, clients.user_id, clients.id, profiles.id)
+    const candidateIds = new Set<string>();
+    if (userId && userId.trim()) {
+      candidateIds.add(userId.trim());
+    }
+    let userCpfDigits = '';
 
-    if (memErr) {
-      console.warn('Erro ao consultar salon_members:', memErr.message);
-      return { isMember: false, role: 'cliente' };
+    if (cleanEmail) {
+      try {
+        const { data: clientRows } = await (supabase.from('clients') as any)
+          .select('id, user_id, cpf')
+          .ilike('email', cleanEmail)
+          .limit(3);
+        if (Array.isArray(clientRows)) {
+          for (const c of clientRows) {
+            if (c?.id) candidateIds.add(String(c.id));
+            if (c?.user_id) candidateIds.add(String(c.user_id));
+            if (c?.cpf && !userCpfDigits) userCpfDigits = String(c.cpf).replace(/\D/g, '');
+          }
+        }
+      } catch {}
+
+      try {
+        const { data: profileRows } = await (supabase.from('profiles') as any)
+          .select('id')
+          .ilike('email', cleanEmail)
+          .limit(2);
+        if (Array.isArray(profileRows)) {
+          for (const p of profileRows) {
+            if (p?.id) candidateIds.add(String(p.id));
+          }
+        }
+      } catch {}
     }
 
-    if (members && members.length > 0) {
-      const mem = members[0];
-      const memberRole = mem.role === 'owner' ? 'owner' : mem.role === 'manager' ? 'manager' : 'professional';
+    // CAMADA 1: Checagem Direta de Dono em public.salons (owner_id, email, branding, owner_cpf)
+    if (targetSalonData.owner_id && candidateIds.has(String(targetSalonData.owner_id))) {
       return {
         isMember: true,
-        role: memberRole,
-        salonId: mem.salon_id,
-        salonData: mem.salon || targetSalonData,
+        role: 'owner',
+        salonId: targetSalonId,
+        salonData: targetSalonData,
       };
     }
+
+    if (cleanEmail) {
+      const salonEmails = [
+        targetSalonData.email,
+        targetSalonData.branding?.ownerEmail,
+        targetSalonData.branding?.legalManagerEmail,
+        targetSalonData.branding?.email,
+      ]
+        .filter(Boolean)
+        .map((e) => String(e).trim().toLowerCase());
+
+      if (salonEmails.includes(cleanEmail)) {
+        return {
+          isMember: true,
+          role: 'owner',
+          salonId: targetSalonId,
+          salonData: targetSalonData,
+        };
+      }
+    }
+
+    const salonOwnerCpfDigits = String(
+      targetSalonData.owner_cpf || targetSalonData.branding?.ownerCpf || ''
+    ).replace(/\D/g, '');
+    if (userCpfDigits.length === 11 && salonOwnerCpfDigits.length === 11 && userCpfDigits === salonOwnerCpfDigits) {
+      return {
+        isMember: true,
+        role: 'owner',
+        salonId: targetSalonId,
+        salonData: targetSalonData,
+      };
+    }
+
+    // CAMADA 2: Consulta na tabela salon_members por user_id E salon_id
+    if (candidateIds.size > 0) {
+      const { data: members } = await (supabase
+        .from('salon_members')
+        .select('id, salon_id, user_id, role')
+        .eq('salon_id', targetSalonId)
+        .in('user_id', Array.from(candidateIds)) as any);
+
+      if (members && members.length > 0) {
+        const mem = members[0];
+        const memberRole = mem.role === 'owner' ? 'owner' : mem.role === 'manager' ? 'manager' : 'professional';
+        return {
+          isMember: true,
+          role: memberRole,
+          salonId: targetSalonId,
+          salonData: targetSalonData,
+        };
+      }
+    }
+
+    // CAMADA 3: Consulta na tabela professionals (Equipe do Salão) por salon_id + email
+    if (cleanEmail) {
+      const { data: pros } = await (supabase
+        .from('professionals')
+        .select('id, role, email, is_active')
+        .eq('salon_id', targetSalonId)
+        .ilike('email', cleanEmail) as any);
+
+      if (pros && pros.length > 0) {
+        const activePro = pros.find((p: any) => p.is_active !== false) || pros[0];
+        const rawProRole = String(activePro.role || '').toLowerCase();
+        const mappedProRole: 'owner' | 'manager' | 'professional' =
+          rawProRole.includes('admin') || rawProRole.includes('owner') || rawProRole.includes('dono')
+            ? 'owner'
+            : rawProRole.includes('gerente') || rawProRole.includes('manager')
+            ? 'manager'
+            : 'professional';
+        return {
+          isMember: true,
+          role: mappedProRole,
+          salonId: targetSalonId,
+          salonData: targetSalonData,
+        };
+      }
+    }
   } catch (err) {
-    console.warn('Erro inesperado ao consultar salon_members:', err);
+    console.warn('Erro inesperado ao consultar vínculo do salão:', err);
   }
 
-  // Sem linha em salon_members para este salão = cliente estrito
   return { isMember: false, role: 'cliente' };
 }
 
@@ -243,14 +353,16 @@ export async function ensureClientRow(
 
     // 2. Se não existir, insere com metadados reais
     const resolvedName = userMetadata?.full_name || userMetadata?.name || (userEmail ? userEmail.split('@')[0] : 'Usuário');
+    const insertPayload: Record<string, any> = {
+      user_id: userId,
+      name: resolvedName.trim(),
+      phone: userMetadata?.phone || null,
+      email: userEmail || null,
+      avatar_url: userMetadata?.avatar_url || null,
+      ...(userMetadata?.cpf ? { cpf: String(userMetadata.cpf).trim() } : {}),
+    };
     const { data: insertedClient, error: insertErr } = await (supabase.from('clients') as any)
-      .insert({
-        user_id: userId,
-        name: resolvedName.trim(),
-        phone: userMetadata?.phone || null,
-        email: userEmail || null,
-        avatar_url: userMetadata?.avatar_url || null,
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
@@ -483,6 +595,9 @@ export async function syncSalonDataToSupabase(salonData: {
   legalName?: string;
   documentType?: string;
   documentNumber?: string;
+  ownerCpf?: string;
+  pixKey?: string;
+  pixKeys?: any[];
   phoneWhatsapp: string;
   phoneLandline?: string;
   email: string;
@@ -518,12 +633,24 @@ export async function syncSalonDataToSupabase(salonData: {
 
   try {
     const resolvedIcon = salonData.appIconUrl || salonData.faviconUrl || salonData.logoDarkUrl || salonData.logoLightUrl || null;
+    const rawDocDigits = (salonData.documentNumber || '').replace(/\D/g, '');
+    const isCnpj14 = rawDocDigits.length === 14;
+    const resolvedDocumentNumber = isCnpj14 ? (salonData.documentNumber || '').trim() : '';
+    const resolvedLegalName = isCnpj14 ? (salonData.legalName || '').trim() : '';
+    const resolvedOwnerCpf = (salonData.ownerCpf || (rawDocDigits.length === 11 ? salonData.documentNumber : '') || '').trim();
+    const resolvedPixKeys = Array.isArray(salonData.pixKeys) ? salonData.pixKeys : [];
+    const primaryPixFromList = resolvedPixKeys.find((k: any) => k?.isPrimary)?.key || resolvedPixKeys[0]?.key || '';
+    const resolvedPixKey = (salonData.pixKey || primaryPixFromList || '').trim();
+
     const payload: any = {
       slug: salonData.slug,
       trade_name: salonData.tradeName,
-      legal_name: salonData.legalName || salonData.tradeName,
-      document_type: salonData.documentType || 'CNPJ',
-      document_number: salonData.documentNumber || null,
+      legal_name: resolvedLegalName,
+      document_type: isCnpj14 ? 'CNPJ' : '',
+      document_number: resolvedDocumentNumber,
+      owner_cpf: resolvedOwnerCpf || undefined,
+      pix_key: resolvedPixKey || undefined,
+      pix_keys: resolvedPixKeys.length > 0 ? resolvedPixKeys : undefined,
       phone_whatsapp: salonData.phoneWhatsapp,
       email: salonData.email,
       address: salonData.address,
@@ -551,6 +678,9 @@ export async function syncSalonDataToSupabase(salonData: {
         salonIcon: resolvedIcon || '',
         slogan: salonData.slogan || '',
         brandFont: salonData.brandFont || 'Poppins',
+        ownerCpf: resolvedOwnerCpf,
+        pixKey: resolvedPixKey,
+        pixKeys: resolvedPixKeys,
         ...(salonData.instagramUrl ? { instagramUrl: salonData.instagramUrl } : {}),
         ...(salonData.bio ? { bio: salonData.bio } : {}),
       },
@@ -572,6 +702,9 @@ export async function syncSalonDataToSupabase(salonData: {
       delete fallbackPayload.favicon_url;
       delete fallbackPayload.slogan;
       delete fallbackPayload.brand_font;
+      delete fallbackPayload.owner_cpf;
+      delete fallbackPayload.pix_key;
+      delete fallbackPayload.pix_keys;
       const retry = await (supabase.from('salons') as any).upsert(fallbackPayload, { onConflict: 'slug' }).select().single();
       data = retry.data;
       error = retry.error;
@@ -1094,6 +1227,7 @@ export async function updateUserProfileInDb(profile: {
   name: string;
   email: string;
   phone?: string;
+  cpf?: string;
   address?: string;
   avatarUrl?: string;
   type?: 'client' | 'pro' | 'admin';
@@ -1106,6 +1240,7 @@ export async function updateUserProfileInDb(profile: {
     const cleanEmail = profile.email.trim().toLowerCase();
     const cleanName = profile.name.trim();
     const cleanPhone = profile.phone?.trim() || '';
+    const cleanCpf = profile.cpf?.trim() || '';
     const cleanAvatar = profile.avatarUrl || '';
 
     // 1. Espelhar metadados globais no auth.users (Fonte da Verdade Global da Tríade)
@@ -1114,6 +1249,7 @@ export async function updateUserProfileInDb(profile: {
         data: {
           full_name: cleanName,
           phone: cleanPhone,
+          ...(cleanCpf ? { cpf: cleanCpf } : {}),
           avatar_url: cleanAvatar || undefined,
         },
       });
@@ -1133,7 +1269,7 @@ export async function updateUserProfileInDb(profile: {
         .ilike('email', `%${cleanEmail}%`);
     }
 
-    // 3. Atualizar ou inserir na tabela clients (Unificada para Single Source of Truth)
+    // 3. Atualizar ou inserir na tabela clients (Unificada para Single Source of Truth, incluindo clients.cpf)
     if (cleanEmail) {
       const { data: existingClient } = await (supabase.from('clients') as any)
         .select('id')
@@ -1145,6 +1281,7 @@ export async function updateUserProfileInDb(profile: {
           .update({
             name: cleanName,
             phone: cleanPhone,
+            ...(cleanCpf ? { cpf: cleanCpf } : {}),
             avatar_url: cleanAvatar || null,
             default_address: profile.address || null,
             updated_at: new Date().toISOString(),
@@ -1156,6 +1293,7 @@ export async function updateUserProfileInDb(profile: {
             name: cleanName,
             email: cleanEmail,
             phone: cleanPhone,
+            ...(cleanCpf ? { cpf: cleanCpf } : {}),
             avatar_url: cleanAvatar || null,
             default_address: profile.address || null,
           });
@@ -1214,7 +1352,7 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
     let existingRow: any = null;
     try {
       const { data: currentSalon } = await (supabase.from('salons') as any)
-        .select('branding, primary_color, trade_name, logo_url, logo_dark_url, logo_light_url')
+        .select('owner_id, branding, primary_color, trade_name, logo_url, logo_dark_url, logo_light_url')
         .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug })
         .maybeSingle();
       existingRow = currentSalon;
@@ -1227,8 +1365,52 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
     };
 
     if (settings.salonName || settings.tradeName) payload.trade_name = settings.salonName || settings.tradeName;
-    if (settings.razaoSocial || settings.legalName) payload.legal_name = settings.razaoSocial || settings.legalName;
-    if (settings.cnpj || settings.documentNumber) payload.document_number = settings.cnpj || settings.documentNumber;
+
+    // Separação Comercial vs Fiscal (CNPJ 14 dígitos): Quando Autônomo (sem CNPJ), document_number e legal_name permanecem ''
+    if (settings.cnpj !== undefined || settings.documentNumber !== undefined || settings.razaoSocial !== undefined || settings.legalName !== undefined) {
+      const rawDoc = (settings.cnpj ?? settings.documentNumber ?? '').replace(/\D/g, '');
+      const isCnpj14 = rawDoc.length === 14;
+      payload.document_number = isCnpj14 ? (settings.cnpj ?? settings.documentNumber ?? '').trim() : '';
+      payload.legal_name = isCnpj14 ? (settings.razaoSocial ?? settings.legalName ?? '').trim() : '';
+      payload.document_type = isCnpj14 ? 'CNPJ' : '';
+    }
+
+    // Isolamento do CPF Pessoal do Titular (salons.owner_cpf + espelho em clients.cpf)
+    const rawOwnerCpf = settings.ownerCpf ?? settings.legalManagerCpf;
+    if (rawOwnerCpf !== undefined) {
+      payload.owner_cpf = String(rawOwnerCpf).trim();
+      // Espelha o CPF na tabela public.clients do proprietário/titular
+      try {
+        const ownerUserId = existingRow?.owner_id;
+        const ownerEmail = settings.legalManagerEmail || settings.email;
+        if (ownerUserId) {
+          await (supabase.from('clients') as any)
+            .update({ cpf: String(rawOwnerCpf).trim(), updated_at: new Date().toISOString() })
+            .eq('user_id', ownerUserId);
+        } else if (ownerEmail) {
+          await (supabase.from('clients') as any)
+            .update({ cpf: String(rawOwnerCpf).trim(), updated_at: new Date().toISOString() })
+            .ilike('email', ownerEmail.trim().toLowerCase());
+        }
+      } catch {}
+    }
+
+    // Suporte a Múltiplas Chaves PIX (pix_keys JSONB) e Chave PIX Principal (pix_key text)
+    if (settings.pixKeys !== undefined || settings.pixKey !== undefined) {
+      const pixKeysList = Array.isArray(settings.pixKeys)
+        ? settings.pixKeys
+        : (Array.isArray(existingBranding.pixKeys) ? existingBranding.pixKeys : []);
+      const primaryFromArray = pixKeysList.find((k: any) => k?.isPrimary)?.key || pixKeysList[0]?.key || '';
+      const resolvedPrimaryPix = settings.pixKey !== undefined
+        ? (settings.pixKey || primaryFromArray || '')
+        : primaryFromArray;
+
+      payload.pix_key = resolvedPrimaryPix;
+      if (settings.pixKeys !== undefined) {
+        payload.pix_keys = pixKeysList;
+      }
+    }
+
     if (settings.salonPhone || settings.phoneWhatsapp || settings.legalManagerPhone) {
       payload.phone_whatsapp = settings.salonPhone || settings.phoneWhatsapp || settings.legalManagerPhone;
     }
@@ -1279,6 +1461,9 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       salonIcon: resolvedIcon,
       slogan: settings.slogan !== undefined ? (settings.slogan || '') : (existingBranding.slogan || ''),
       brandFont: settings.brandFont || existingBranding.brandFont || 'Poppins',
+      ...(rawOwnerCpf !== undefined ? { ownerCpf: String(rawOwnerCpf).trim() } : {}),
+      ...(payload.pix_key !== undefined ? { pixKey: payload.pix_key } : {}),
+      ...(payload.pix_keys !== undefined ? { pixKeys: payload.pix_keys } : {}),
       ...(settings.instagramUrl !== undefined ? { instagramUrl: settings.instagramUrl || '' } : {}),
       ...(settings.bio !== undefined ? { bio: settings.bio || '' } : {}),
     };
@@ -1289,12 +1474,15 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       .select()
       .maybeSingle();
 
-    // Fallback resiliente caso alguma coluna física (favicon_url, slogan, brand_font) ainda não exista no banco remoto
+    // Fallback resiliente caso alguma coluna física ainda não exista no banco remoto
     if (error && (error.message?.includes('column') || error.code === '42703' || error.code === 'PGRST204')) {
       const fallbackPayload = { ...payload };
       delete fallbackPayload.favicon_url;
       delete fallbackPayload.slogan;
       delete fallbackPayload.brand_font;
+      delete fallbackPayload.owner_cpf;
+      delete fallbackPayload.pix_key;
+      delete fallbackPayload.pix_keys;
       const retry = await (supabase.from('salons') as any)
         .update(fallbackPayload)
         .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug })
@@ -1316,18 +1504,31 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
 }
 
 /**
- * Sincroniza a lista completa de serviços do Salão com o Supabase (CRUD Total)
+ * Sincroniza a lista completa de serviços do Salão com o Supabase (CRUD Total: Upsert + Remoção Real)
  */
 export async function syncAllServicesToDb(salonId: string, services: any[]) {
   if (!supabase || !isSupabaseConfigured || !salonId) return { success: false };
   try {
-    // 1. Para cada serviço fornecido, realiza upsert no banco
+    // 1. Buscar serviços atualmente ativos deste salão no banco para detectar exclusões
+    const { data: existingRows } = await (supabase.from('services') as any)
+      .select('id')
+      .eq('salon_id', salonId);
+
+    const activeServiceIds: string[] = [];
+
+    // 2. Para cada serviço fornecido, garante UUID v4 e realiza upsert por 'id'
     for (const s of services) {
-      const durationMinutes = typeof s.duration === 'string' 
-        ? parseInt(s.duration.replace(/\D/g, '')) || 40 
+      const durationMinutes = typeof s.duration === 'string'
+        ? parseInt(s.duration.replace(/\D/g, '')) || 40
         : (s.duration_minutes || s.durationMinutes || 40);
 
+      const isUuid = s.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s.id));
+      const serviceUuid = isUuid ? String(s.id) : generateUuidV4();
+      s.id = serviceUuid;
+      activeServiceIds.push(serviceUuid);
+
       const payload: any = {
+        id: serviceUuid,
         salon_id: salonId,
         title: s.title || s.name || 'Serviço',
         category: s.category || 'Geral',
@@ -1339,12 +1540,28 @@ export async function syncAllServicesToDb(salonId: string, services: any[]) {
         updated_at: new Date().toISOString(),
       };
 
-      const isUuid = s.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.id);
-      if (isUuid) {
-        payload.id = s.id;
-      }
+      await (supabase.from('services') as any).upsert(payload, { onConflict: 'id' });
+    }
 
-      await (supabase.from('services') as any).upsert(payload, { onConflict: isUuid ? 'id' : undefined });
+    // 3. Remover/desativar no banco os serviços que foram excluídos pelo proprietário
+    const activeSet = new Set(activeServiceIds);
+    const removedIds = (existingRows || [])
+      .map((r: any) => r.id)
+      .filter((id: string) => id && !activeSet.has(id));
+
+    if (removedIds.length > 0) {
+      const { error: delError } = await (supabase.from('services') as any)
+        .delete()
+        .eq('salon_id', salonId)
+        .in('id', removedIds);
+
+      if (delError) {
+        // Fallback seguro (soft-delete) caso o serviço já tenha agendamentos históricos vinculados por FK
+        await (supabase.from('services') as any)
+          .update({ is_active: false, updated_at: new Date().toISOString() })
+          .eq('salon_id', salonId)
+          .in('id', removedIds);
+      }
     }
 
     return { success: true };
@@ -1360,8 +1577,20 @@ export async function syncAllServicesToDb(salonId: string, services: any[]) {
 export async function syncAllProfessionalsToDb(salonId: string, professionals: any[]) {
   if (!supabase || !isSupabaseConfigured || !salonId) return { success: false };
   try {
+    const { data: existingPros } = await (supabase.from('professionals') as any)
+      .select('id')
+      .eq('salon_id', salonId);
+
+    const activeProIds: string[] = [];
+
     for (const p of professionals) {
+      const isUuid = p.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(p.id));
+      const proUuid = isUuid ? String(p.id) : generateUuidV4();
+      p.id = proUuid;
+      activeProIds.push(proUuid);
+
       const payload: any = {
+        id: proUuid,
         salon_id: salonId,
         name: p.name || 'Profissional',
         role: p.role || 'Profissional',
@@ -1373,13 +1602,27 @@ export async function syncAllProfessionalsToDb(salonId: string, professionals: a
         updated_at: new Date().toISOString(),
       };
 
-      const isUuid = p.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.id);
-      if (isUuid) {
-        payload.id = p.id;
-      }
-
-      await (supabase.from('professionals') as any).upsert(payload, { onConflict: isUuid ? 'id' : undefined });
+      await (supabase.from('professionals') as any).upsert(payload, { onConflict: 'id' });
     }
+
+    const activeProSet = new Set(activeProIds);
+    const removedProIds = (existingPros || [])
+      .map((r: any) => r.id)
+      .filter((id: string) => id && !activeProSet.has(id));
+
+    if (removedProIds.length > 0) {
+      const { error: delErr } = await (supabase.from('professionals') as any)
+        .delete()
+        .eq('salon_id', salonId)
+        .in('id', removedProIds);
+      if (delErr) {
+        await (supabase.from('professionals') as any)
+          .update({ is_active: false, updated_at: new Date().toISOString() })
+          .eq('salon_id', salonId)
+          .in('id', removedProIds);
+      }
+    }
+
     return { success: true };
   } catch (err: any) {
     console.error('Falha ao sincronizar profissionais no Supabase:', err);

@@ -15,6 +15,58 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-19] — Detecção Soberana de Dono/Membro via Login Iframe (`admvapp`) e Blindagem Multi-Tenant de Serviços e Preços (`UUID v4` + Exclusão Real)
+- **Tipo:** `[Fix / Feature / Tríade Sync]`
+- **Motivo / Solicitação:** Resolver a detecção de proprietário (ex: Fabio em `fabio-foos.vagouapp.com`) quando o login ocorre dentro do iframe cross-subdomain (`adm.vagouapp.com/cadastro?embed=true...`), liberando imediatamente o Painel de Gerenciamento (`Painel`, `Serviços`, `Agenda`, `Gerenciar`), além de aplicar UUID v4 nativo, exclusão real em `public.services` e isolamento de catálogo por subdomínio.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `src/hooks/useSalonRole.ts`
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/components/PartnerAuthView.tsx`
+  - `src/App.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/ProfessionalServicesManager.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Sincronização Cross-Subdomain SSO (`SalonClientAuthModal.tsx`, `PartnerAuthView.tsx`, `App.tsx`):** Captura de todos os eventos `postMessage` do `admvapp`, hidratação de sessão JWT com `supabase.auth.setSession` quando tokens estiverem presentes, persistência de `vagou_auth_user_id` e `vagou_user_email` sem limpeza indevida no reload e disparo do evento customizado `vagou:auth-updated`.
+  - **Resolução Soberana Multi-Camada de Papel (`useSalonRole.ts` & `checkUserSalonMembership`):** Verificação em 3 camadas do vínculo com o salão (`public.salons` via `owner_id`, `email`, `owner_cpf` e `branding`; `public.salon_members` via `user_id` + `salon_id`; e `public.professionals` via `salon_id` + `email`).
+  - **Blindagem de Serviços e Preços (`syncAllServicesToDb` & `ProfessionalServicesManager.tsx`):** Criação de serviços já com UUID v4 nativo (`generateUuidV4`), remoção/desativação real no Supabase ao excluir serviços do catálogo e isolamento de cache por `slug` (`vagou_services_${slug}`) sem vazar serviços demo (`INITIAL_CATALOG_SERVICES`) em salões reais do Supabase.
+
+---
+
+### [2026-10-19] — Separação de Abas Fiscal (`fiscal`) e PIX (`pix_billing`), Gerador QR Code BACEN, Plaquinha de Balcão e Checkout Pós-Serviço (`PixCheckoutModal`)
+- **Tipo:** `[Feature / Tríade Sync]`
+- **Motivo / Solicitação:** Comunicado Técnico Oficial (`admvapp ➔ mnvapp & pvapp`) determinando a separação das abas `'fiscal'` e `'pix_billing'`, criação do motor de QR Code BACEN (`src/services/pixGenerator.ts`), Plaquinha de Balcão (`SalonPixPrintModal`) e Checkout Pós-Serviço (`PixCheckoutModal`) ao clicar em "Finalizar Serviço".
+- **Arquivos Impactados:**
+  - `src/services/pixGenerator.ts`
+  - `src/components/professional/SalonPixPrintModal.tsx`
+  - `src/components/professional/PixCheckoutModal.tsx`
+  - `src/components/professional/BusinessDataCardView.tsx`
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `src/components/professional/ProfessionalAgendaView.tsx`
+  - `src/components/SalonProfileView.tsx`
+- **Resumo Técnico:**
+  - Criado `src/services/pixGenerator.ts` com `generatePixPayload` (padrão EMV® QRCPS-MPM BACEN + CRC16-CCITT), `getPixQrCodeUrl` e `buildWhatsAppPixChargeUrl`.
+  - Criado `SalonPixPrintModal.tsx` para geração e impressão nativa (`window.print`) da plaquinha acrílica de balcão com QR Code BACEN.
+  - Criado `PixCheckoutModal.tsx` para acerto pós-serviço com QR Code na tela, cópia 1-toque do PIX Copia e Cola e envio instantâneo da cobrança para o WhatsApp do cliente.
+  - Em `BusinessDataCardView.tsx`, separadas as abas `'comercial'`, `'fiscal'` (Autônomo vs CNPJ / Razão Social e CPF do titular) e `'pix_billing'` (Múltiplas chaves PIX, QR Code BACEN e Plaquinha de Balcão).
+  - Em `ProfessionalDashboardView.tsx` e `ProfessionalAgendaView.tsx`, integrado o disparo automático do `PixCheckoutModal` ao clicar em "Finalizar Serviço".
+
+### [2026-10-19] — Isolamento de CPF Pessoal do Titular, Separação Comercial vs Fiscal (CNPJ) e Suporte a Múltiplas Chaves PIX (`pix_keys`)
+- **Tipo:** `[Feature / Schema Sync]`
+- **Motivo / Solicitação:** Comunicado Técnico Oficial Cruzado (`admvapp ➔ mnvapp & pvapp`) estabelecendo o isolamento do CPF pessoal (`clients.cpf` e `salons.owner_cpf`), separação estrita entre atuação Autônoma (sem CNPJ, mantendo `document_number` e `legal_name` vazios `''`) e Pessoa Jurídica (CNPJ de 14 dígitos), além do suporte a múltiplas chaves PIX (`pix_keys` JSONB + `pix_key` principal).
+- **Arquivos Impactados:**
+  - `src/types.ts`
+  - `src/types/database.types.ts`
+  - `src/lib/supabase.ts`
+  - `src/App.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/BusinessDataCardView.tsx`
+- **Resumo Técnico:**
+  - Adicionados os tipos `PixKeyType` e `SalonPixKeyItem`, além de `cpf` em `UserProfile` e `ownerCpf`, `pixKey`, `pixKeys` em `SalonAdminSettings`.
+  - Em `src/lib/supabase.ts` (`syncSalonDataToSupabase` e `updateSalonSettingsInDb`), garantido que `document_number` e `legal_name` armazenem exclusivamente CNPJ (14 dígitos) e Razão Social (permanecendo `''` quando Autônomo), isolando o CPF pessoal em `salons.owner_cpf` e `clients.cpf`, e persistindo `pix_key` + `pix_keys`.
+  - Em `BusinessDataCardView.tsx`, adicionados o seletor de Regime Fiscal (`Autônomo (Sem CNPJ)` vs `Pessoa Jurídica (CNPJ)`) e a seção de gestão de Múltiplas Chaves PIX (`pix_keys` e chave principal `isPrimary`).
+
 ### [2026-10-19] — Eliminação do Flash de Template Inicial (Zero FOUC) em Subdomínios (`*.vagouapp.com`)
 - **Tipo:** `[Fix / Performance / Sync]`
 - **Motivo / Solicitação:** Comunicado Técnico Oficial Cruzado (`admvapp ➔ mnvapp`) para eliminar o flash de ~1 segundo do template padrão ("Meu Estabelecimento") ao abrir um subdomínio de salão (`*.vagouapp.com`).

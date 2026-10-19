@@ -23,6 +23,9 @@ export interface Database {
           slug: string;
           document_type: string;
           document_number: string | null;
+          owner_cpf?: string | null;
+          pix_key?: string | null;
+          pix_keys?: Json | null;
           phone_whatsapp: string | null;
           phone_landline?: string | null;
           email: string | null;
@@ -46,6 +49,9 @@ export interface Database {
           logo_url: string | null;
           logo_light_url: string | null;
           logo_dark_url: string | null;
+          favicon_url?: string | null;
+          slogan?: string | null;
+          brand_font?: string | null;
           cover_url: string | null;
           branding: Json;
           primary_color: string;
@@ -71,6 +77,9 @@ export interface Database {
           slug: string;
           document_type?: string;
           document_number?: string | null;
+          owner_cpf?: string | null;
+          pix_key?: string | null;
+          pix_keys?: Json | null;
           phone_whatsapp?: string | null;
           phone_landline?: string | null;
           email?: string | null;
@@ -94,6 +103,9 @@ export interface Database {
           logo_url?: string | null;
           logo_light_url?: string | null;
           logo_dark_url?: string | null;
+          favicon_url?: string | null;
+          slogan?: string | null;
+          brand_font?: string | null;
           cover_url?: string | null;
           branding?: Json;
           primary_color?: string;
@@ -263,6 +275,7 @@ export interface Database {
           id: string;
           user_id: string | null;
           name: string;
+          cpf?: string | null;
           phone: string | null;
           email: string | null;
           avatar_url: string | null;
@@ -274,6 +287,7 @@ export interface Database {
           id?: string;
           user_id?: string | null;
           name: string;
+          cpf?: string | null;
           phone?: string | null;
           email?: string | null;
           avatar_url?: string | null;

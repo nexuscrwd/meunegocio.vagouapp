@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, checkUserSalonMembership } from '../lib/supabase';
 
 export type SalonRole = 'loading' | 'owner' | 'manager' | 'professional' | 'client' | 'guest';
 
@@ -16,13 +16,13 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
   const [userId, setUserId] = useState<string | null>(null);
   const [salonId, setSalonId] = useState<string | null>(null);
   const [salonData, setSalonData] = useState<any | null>(null);
-  const lastUserIdRef = useRef<string | null>(null);
+  const lastIdentityKeyRef = useRef<string | null>(null);
   const currentReqIdRef = useRef<number>(0);
 
   useEffect(() => {
     let isMounted = true;
 
-    async function evaluateRole(isBackgroundRefresh = false) {
+    async function evaluateRole() {
       const reqId = ++currentReqIdRef.current;
 
       if (!isSupabaseConfigured || !supabase) {
@@ -36,81 +36,68 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
       }
 
       try {
-        const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
-        if (sessionErr || !session?.user) {
-          if (isMounted) {
+        // 1. Tenta obter sessão nativa do Supabase no subdomínio atual
+        const { data: { session } } = await supabase.auth.getSession();
+
+        // 2. Suporte Cross-Subdomain SSO (Login realizado no iframe adm.vagouapp.com via postMessage)
+        const storedUserId = typeof window !== 'undefined' ? (localStorage.getItem('vagou_auth_user_id') || '').trim() : '';
+        const storedUserEmail = typeof window !== 'undefined'
+          ? (localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '').trim().toLowerCase()
+          : '';
+
+        const currentUserId = session?.user?.id || storedUserId || '';
+        const currentUserEmail = (session?.user?.email || storedUserEmail || '').trim().toLowerCase();
+
+        // Se não há sessão Supabase nem identidade autenticada pelo admvapp, é visitante ('guest')
+        if (!currentUserId && !currentUserEmail) {
+          if (isMounted && reqId === currentReqIdRef.current) {
             setRole('guest');
             setUserId(null);
             setSalonId(null);
             setSalonData(null);
-            lastUserIdRef.current = null;
+            lastIdentityKeyRef.current = null;
           }
           return;
         }
 
-        const currentUserId = session.user.id;
+        const identityKey = `${currentUserId}::${currentUserEmail}::${salonIdentifier || ''}`;
         if (isMounted) {
-          setUserId(currentUserId);
-          lastUserIdRef.current = currentUserId;
+          setUserId(currentUserId || currentUserEmail);
+          lastIdentityKeyRef.current = identityKey;
         }
 
-        if (!salonIdentifier || !salonIdentifier.trim()) {
+        const effectiveSalonIdent =
+          (salonIdentifier && salonIdentifier.trim()) ||
+          (typeof window !== 'undefined' ? (localStorage.getItem('vagou_salon_slug') || localStorage.getItem('vagou_salon_db_id') || '').trim() : '');
+
+        if (!effectiveSalonIdent) {
           if (isMounted && reqId === currentReqIdRef.current) setRole('client');
           return;
         }
 
-        const cleanIdent = salonIdentifier.trim().toLowerCase();
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanIdent);
-        const isValidSlug = /^[a-z0-9-]+$/.test(cleanIdent);
+        // 3. Verificação Multi-Camada Soberana (salons.owner_id/email/owner_cpf + salon_members + professionals)
+        const membership = await checkUserSalonMembership(
+          currentUserId,
+          effectiveSalonIdent,
+          currentUserEmail
+        );
 
-        if (!isUuid && !isValidSlug) {
-          if (isMounted && reqId === currentReqIdRef.current) setRole('client');
-          return;
+        if (!isMounted || reqId !== currentReqIdRef.current) return;
+
+        if (membership.salonId) {
+          setSalonId(membership.salonId);
+        }
+        if (membership.salonData) {
+          setSalonData(membership.salonData);
         }
 
-        // Busca o salão estritamente por id ou slug (sem ilike, sem subdomain inexistente)
-        let salonQuery = supabase.from('salons').select('id, trade_name, slug, is_active');
-        if (isUuid) {
-          salonQuery = salonQuery.eq('id', cleanIdent);
+        if (membership.isMember) {
+          if (membership.role === 'owner') setRole('owner');
+          else if (membership.role === 'manager') setRole('manager');
+          else if (membership.role === 'professional') setRole('professional');
+          else setRole('client');
         } else {
-          salonQuery = salonQuery.eq('slug', cleanIdent);
-        }
-
-        const { data: foundSalon, error: salonErr } = await (salonQuery.maybeSingle() as any);
-        if (salonErr || !foundSalon) {
-          if (salonErr) console.warn('Erro ao consultar salão:', salonErr.message);
-          if (isMounted && reqId === currentReqIdRef.current) setRole('client');
-          return;
-        }
-
-        if (isMounted) {
-          setSalonId(foundSalon.id);
-          setSalonData(foundSalon);
-        }
-
-        // Consulta formal na tabela salon_members por user_id E salon_id
-        const { data: members, error: memErr } = await (supabase
-          .from('salon_members')
-          .select('role')
-          .eq('salon_id', foundSalon.id)
-          .eq('user_id', currentUserId) as any);
-
-        if (memErr) {
-          console.warn('Erro ao consultar salon_members no useSalonRole:', memErr.message);
-          if (isMounted && reqId === currentReqIdRef.current) setRole('client');
-          return;
-        }
-
-        if (isMounted && reqId === currentReqIdRef.current) {
-          if (members && members.length > 0) {
-            const memberRole = members[0].role;
-            if (memberRole === 'owner') setRole('owner');
-            else if (memberRole === 'manager') setRole('manager');
-            else if (memberRole === 'professional') setRole('professional');
-            else setRole('client');
-          } else {
-            setRole('client');
-          }
+          setRole('client');
         }
       } catch (err) {
         console.warn('Erro inesperado em useSalonRole:', err);
@@ -121,34 +108,47 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
     setRole('loading');
     evaluateRole();
 
-    // Recalcula o papel em eventos de autenticação seletivos
+    // Escuta eventos nativos do Supabase Auth
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session?.user) {
-        lastUserIdRef.current = null;
-        if (isMounted) {
-          setRole('guest');
-          setUserId(null);
-          setSalonId(null);
-          setSalonData(null);
+      if (event === 'SIGNED_OUT') {
+        const hasSsoEmail = typeof window !== 'undefined' && Boolean(localStorage.getItem('vagou_user_email'));
+        if (!hasSsoEmail) {
+          lastIdentityKeyRef.current = null;
+          if (isMounted) {
+            setRole('guest');
+            setUserId(null);
+            setSalonId(null);
+            setSalonData(null);
+          }
         }
       } else if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        // Só reavalia se o user.id mudou; não volta a 'loading' se já havia papel para o mesmo usuário
-        const incomingUserId = session?.user?.id || null;
-        const hasUserChanged = incomingUserId !== lastUserIdRef.current;
-
-        if (hasUserChanged) {
+        const incomingId = session?.user?.id || '';
+        const incomingEmail = session?.user?.email || '';
+        const newKey = `${incomingId}::${incomingEmail}::${salonIdentifier || ''}`;
+        if (newKey !== lastIdentityKeyRef.current) {
           if (isMounted) setRole('loading');
           setTimeout(() => {
-            if (isMounted) evaluateRole(false);
-          }, 50);
+            if (isMounted) evaluateRole();
+          }, 30);
         }
       }
-      // TOKEN_REFRESHED e INITIAL_SESSION são ignorados
     });
+
+    // Escuta sincronização imediata disparada pelo modal de Login do admvapp (postMessage)
+    const handleAuthUpdated = () => {
+      if (isMounted) {
+        evaluateRole();
+      }
+    };
+
+    window.addEventListener('vagou:auth-updated', handleAuthUpdated);
+    window.addEventListener('storage', handleAuthUpdated);
 
     return () => {
       isMounted = false;
       authListener?.subscription.unsubscribe();
+      window.removeEventListener('vagou:auth-updated', handleAuthUpdated);
+      window.removeEventListener('storage', handleAuthUpdated);
     };
   }, [salonIdentifier]);
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export interface SalonClientAuthUser {
   id?: string;
@@ -28,19 +29,81 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleMessage = (event: MessageEvent) => {
-      // Evento de Sucesso no Login / Cadastro
-      if (event.data?.type === 'VAGOU_REGISTRATION_SUCCESS') {
-        const { accountType, email, name, user } = event.data;
+    const handleMessage = async (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+
+      // Suporte universal a todos os formatos de evento de Login/Cadastro emitidos pelo admvapp
+      const isAuthSuccess =
+        data.type === 'VAGOU_REGISTRATION_SUCCESS' ||
+        data.type === 'VAGOU_LOGIN_SUCCESS' ||
+        data.type === 'VAGOU_AUTH_SUCCESS' ||
+        ((data.source === 'VAGOUAPP_EMBED' || data.source === 'VAGOUAPP_FORM') &&
+          (data.event === 'USER_LOGIN_SUCCESS' ||
+            data.event === 'USER_REGISTER_SUCCESS' ||
+            data.event === 'SALON_MASTER_SUCCESS' ||
+            data.action === 'USER_LOGIN_SUCCESS' ||
+            data.action === 'USER_REGISTER_SUCCESS' ||
+            data.action === 'SALON_MASTER_SUCCESS'));
+
+      if (isAuthSuccess) {
+        const payload = data.payload || {};
+        const userObj = data.user || payload.user || {};
+
+        const resolvedId = userObj.id || data.userId || payload.userId || '';
+        const resolvedEmail = (
+          data.email ||
+          userObj.email ||
+          payload.email ||
+          ''
+        ).trim().toLowerCase();
+        const resolvedName =
+          data.name ||
+          userObj.name ||
+          userObj.user_metadata?.full_name ||
+          payload.name ||
+          payload.fullName ||
+          (resolvedEmail ? resolvedEmail.split('@')[0] : 'Usuário');
+        const resolvedPhone =
+          data.phone ||
+          userObj.phone ||
+          userObj.user_metadata?.phone ||
+          payload.phone ||
+          '';
+        const accountType =
+          data.accountType ||
+          data.role ||
+          payload.accountType ||
+          payload.role ||
+          userObj.user_metadata?.role ||
+          '';
+
+        // Hidratação de sessão JWT cross-subdomain se o admvapp enviar access_token e refresh_token
+        const sessionObj = data.session || payload.session || (data.access_token ? {
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+        } : null);
+
+        if (isSupabaseConfigured && supabase && sessionObj?.access_token && sessionObj?.refresh_token) {
+          try {
+            await supabase.auth.setSession({
+              access_token: sessionObj.access_token,
+              refresh_token: sessionObj.refresh_token,
+            });
+          } catch (err) {
+            console.warn('Aviso ao hidratar sessão Supabase do iframe:', err);
+          }
+        }
 
         const authenticatedUser: SalonClientAuthUser = {
-          id: user?.id,
-          name: name || user?.name || user?.user_metadata?.full_name || 'Usuário',
-          phone: user?.phone || user?.user_metadata?.phone || '',
-          email: email || user?.email || '',
+          id: resolvedId || undefined,
+          name: resolvedName,
+          phone: resolvedPhone,
+          email: resolvedEmail,
         };
 
         try {
+          if (resolvedId) localStorage.setItem('vagou_auth_user_id', resolvedId);
           if (authenticatedUser.name) localStorage.setItem('vagou_user_name', authenticatedUser.name);
           if (authenticatedUser.email) {
             localStorage.setItem('vagou_user_email', authenticatedUser.email);
@@ -49,8 +112,22 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
           if (authenticatedUser.phone) localStorage.setItem('vagou_user_phone', authenticatedUser.phone);
         } catch {}
 
+        // Notificar useSalonRole e App imediatamente para reavaliar vínculo de Dono/Membro do salão
+        window.dispatchEvent(
+          new CustomEvent('vagou:auth-updated', {
+            detail: {
+              userId: resolvedId,
+              email: resolvedEmail,
+              name: resolvedName,
+              accountType,
+            },
+          })
+        );
+
         const mappedRole: 'pro' | 'cliente' =
-          accountType === 'professional' || accountType === 'pro' || accountType === 'owner' ? 'pro' : 'cliente';
+          accountType === 'professional' || accountType === 'pro' || accountType === 'owner' || accountType === 'admin'
+            ? 'pro'
+            : 'cliente';
 
         onAuthenticated(authenticatedUser, mappedRole);
         onClose();
@@ -59,9 +136,11 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
 
       // Evento de Fechamento disparado pelo "X" interno do Admin Master
       if (
-        event.data?.type === 'VAGOU_MODAL_CLOSE' || 
-        event.data?.type === 'VAGOU_CLOSE_MODAL' ||
-        event.data?.type === 'CLOSE_MODAL'
+        data.type === 'VAGOU_MODAL_CLOSE' ||
+        data.type === 'VAGOU_CLOSE_MODAL' ||
+        data.type === 'CLOSE_MODAL' ||
+        data.event === 'CLOSE_MODAL' ||
+        data.action === 'CLOSE_MODAL'
       ) {
         onClose();
       }
