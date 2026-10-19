@@ -15,6 +15,29 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-19] — Eliminação do Flash de Template Inicial (Zero FOUC) em Subdomínios (`*.vagouapp.com`)
+- **Tipo:** `[Fix / Performance / Sync]`
+- **Motivo / Solicitação:** Comunicado Técnico Oficial Cruzado (`admvapp ➔ mnvapp`) para eliminar o flash de ~1 segundo do template padrão ("Meu Estabelecimento") ao abrir um subdomínio de salão (`*.vagouapp.com`).
+- **Arquivos Impactados:**
+  - `src/App.tsx`
+  - `src/components/SalonProfileView.tsx`
+- **Resumo Técnico:**
+  - Em `src/App.tsx`, enquanto `isValidatingSubdomain === true`, exibe tela limpa Dark Theme (`bg-slate-950`) com spinner sutil em `#20C933` sem montar o template genérico antes da resposta do Supabase.
+  - A query `validateSubdomainAndSession()` em `src/App.tsx` busca de uma só vez `id, trade_name, slug, is_active, logo_url, primary_color, slogan, phone_whatsapp, address, neighborhood, city, state, branding` de `public.salons` e repassa `initialSalonData` e `activeSubdomain` diretamente para `<SalonProfileView />`, evitando duas requisições seguidas ao banco.
+  - Em `src/components/SalonProfileView.tsx`, hidrata `adminSettings` sincronamente a partir de `initialSalonData` e bloqueia qualquer fallback para `"Meu Estabelecimento"` ou logos padrão quando há subdomínio ativo (`*.vagouapp.com`).
+
+---
+
+### [2026-10-19] — Recebimento de Comunicado Oficial da Tríade: Roteamento Embed `?form=estabelecimento` e Ciclo de Vida `SALON_MASTER_SUCCESS` (`admvapp`)
+- **Tipo:** `[Docs / Sync]`
+- **Motivo / Solicitação:** Registro de governança referente ao Comunicado Técnico Oficial Cruzado emitido pelo `admvapp` (`adm.vagouapp.com`).
+- **Resumo Técnico:**
+  - O endpoint `https://adm.vagouapp.com/embed?embed=true&form=estabelecimento` passa a renderizar estritamente o `TriadeEstablishmentMasterForm` (6 etapas).
+  - O evento `postMessage` (`SALON_MASTER_SUCCESS`) passa a ser emitido apenas após o fechamento do `SalonWelcomeModal` (Kit de Lançamento com Link e QR Code), com `suppressParentPostMessage={true}` nos sub-fluxos de autenticação/cadastro da Etapa 1.
+  - Nenhuma alteração de código necessária no `mnvapp`.
+
+---
+
 ### [2026-10-18] — Alinhamento Canônico do Domínio do Iframe de Autenticação (`adm.vagouapp.com`)
 - **Tipo:** `[Fix / Sync]`
 - **Motivo / Solicitação:** Comunicado Técnico Oficial (`admvapp ➔ mnvapp`) para substituir `https://admin.vagouapp.com` pelo domínio canônico `https://adm.vagouapp.com` nos modais de login/cadastro embutidos, evitando colisão com o wildcard `*.vagouapp.com`.

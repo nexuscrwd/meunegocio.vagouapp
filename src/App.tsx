@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { SalonProfileView } from './components/SalonProfileView';
 import { UserAppointmentsView } from './components/UserAppointmentsView';
 import { UserDashboard } from './components/UserDashboard';
@@ -7,8 +8,7 @@ import { SalonNotFoundScreen } from './components/public/SalonNotFoundScreen';
 import { useSalonRole } from './hooks/useSalonRole';
 import { ServiceOffer, BookingAppointment } from './types';
 import { initializeStoredPwaAssets } from './utils/pwaAssets';
-import { DEFAULT_FACE_CLIPART_AVATAR } from './utils/defaultSalonAssets';
-import { supabase, isSupabaseConfigured, fetchUserProfileFromDb, checkUserSalonMembership, ensureClientRow } from './lib/supabase';
+import { supabase, isSupabaseConfigured, fetchUserProfileFromDb, ensureClientRow } from './lib/supabase';
 import { 
   ThemeContext, 
   ThemeProvider, 
@@ -26,6 +26,26 @@ const RESERVED_SUBDOMAINS = [
   'app', 'dashboard', 'status', 'auth', 'login', 'signup', 'checkout', 'pay', 'billing'
 ];
 
+function detectActiveSubdomain(): string {
+  if (typeof window === 'undefined') return '';
+  const hostname = window.location.hostname;
+  const isDevOrPreview =
+    hostname.includes('localhost') ||
+    hostname.includes('127.0.0.1') ||
+    hostname.includes('run.app') ||
+    hostname.includes('webcontainer') ||
+    hostname.includes('stackblitz');
+
+  const parts = hostname.split('.');
+  if (parts.length >= 3 && !isDevOrPreview) {
+    const sub = parts[0].toLowerCase().trim();
+    if (!RESERVED_SUBDOMAINS.includes(sub) && !sub.startsWith('ais-')) {
+      return sub;
+    }
+  }
+  return '';
+}
+
 // Lista de ofertas padrão (vazio, carregado do banco)
 const EMPTY_OFFERS: ServiceOffer[] = [];
 
@@ -34,12 +54,21 @@ export const App: React.FC = () => {
 
   // Validação do Subdomínio Wildcard (*.vagouapp.com)
   const [isNotFound, setIsNotFound] = useState(false);
-  const [currentSubdomain, setCurrentSubdomain] = useState('');
-  const [isValidatingSubdomain, setIsValidatingSubdomain] = useState(true);
+  const [currentSubdomain, setCurrentSubdomain] = useState<string>(() => detectActiveSubdomain());
+  const [isValidatingSubdomain, setIsValidatingSubdomain] = useState<boolean>(true);
+  const [initialSalonData, setInitialSalonData] = useState<any>(null);
 
   // Início padrão na vitrine do estabelecimento ('salon')
   const [viewMode, setViewMode] = useState<'auth' | 'salon' | 'agenda' | 'dashboard'>('salon');
   const [salonName, setSalonName] = useState(() => {
+    const activeSub = detectActiveSubdomain();
+    if (activeSub) {
+      const cachedSlug = localStorage.getItem('vagou_salon_slug');
+      if (cachedSlug === activeSub) {
+        return localStorage.getItem('vagou_salon_name') || '';
+      }
+      return '';
+    }
     try {
       const saved = localStorage.getItem('vagou_partner_data');
       if (saved) {
@@ -427,43 +456,46 @@ export const App: React.FC = () => {
   useEffect(() => {
     async function validateSubdomainAndSession() {
       try {
-        const hostname = window.location.hostname; // ex: "andersonstudio.vagouapp.com"
-        const isDevOrPreview = 
-          hostname.includes('localhost') || 
-          hostname.includes('127.0.0.1') || 
-          hostname.includes('run.app') || 
-          hostname.includes('webcontainer') || 
-          hostname.includes('stackblitz');
+        const sub = detectActiveSubdomain();
 
-        const parts = hostname.split('.');
-        let detectedSubdomain = '';
+        if (sub) {
+          setCurrentSubdomain(sub);
+          if (isSupabaseConfigured && supabase) {
+            let { data: salon, error: salonErr } = await (supabase.from('salons') as any)
+              .select('id, trade_name, slug, is_active, logo_url, primary_color, slogan, phone_whatsapp, address, neighborhood, city, state, branding')
+              .eq('slug', sub)
+              .eq('is_active', true)
+              .maybeSingle();
 
-        if (parts.length >= 3 && !isDevOrPreview) {
-          const sub = parts[0].toLowerCase().trim();
-
-          if (!RESERVED_SUBDOMAINS.includes(sub) && !sub.startsWith('ais-')) {
-            detectedSubdomain = sub;
-            if (isSupabaseConfigured && supabase) {
-              const { data: salon, error: salonErr } = await (supabase.from('salons') as any)
-                .select('id, trade_name, slug, is_active')
+            if (salonErr) {
+              const fallbackRes = await (supabase.from('salons') as any)
+                .select('*')
                 .eq('slug', sub)
                 .eq('is_active', true)
                 .maybeSingle();
+              salon = fallbackRes.data;
+              salonErr = fallbackRes.error;
+            }
 
-              if (salonErr || !salon) {
-                if (salonErr) console.warn('Erro ao validar subdomínio:', salonErr.message);
-                setCurrentSubdomain(sub);
-                setIsNotFound(true);
-                setIsValidatingSubdomain(false);
-                return;
-              }
+            if (salonErr || !salon) {
+              if (salonErr) console.warn('Erro ao validar subdomínio:', salonErr.message);
+              setIsNotFound(true);
+              setIsValidatingSubdomain(false);
+              return;
+            }
 
-              // ✅ ENCONTRADO: Define o nome do salão ativo a partir da coluna real trade_name
-              setCurrentSubdomain(sub);
-              const displayName = salon.trade_name || sub;
-              setSalonName(displayName);
-              localStorage.setItem('vagou_salon_name', displayName);
-              localStorage.setItem('vagou_salon_slug', salon.slug || sub);
+            // ✅ ENCONTRADO: Armazena os dados iniciais completos e define o nome do salão ativo
+            setInitialSalonData(salon);
+            const displayName = salon.trade_name || sub;
+            setSalonName(displayName);
+            localStorage.setItem('vagou_salon_db_id', salon.id);
+            localStorage.setItem('vagou_salon_name', displayName);
+            localStorage.setItem('vagou_salon_slug', salon.slug || sub);
+
+            const resolvedColor = salon.primary_color || salon.branding?.primaryColor;
+            if (resolvedColor) {
+              localStorage.setItem('vagou_accent_color', resolvedColor);
+              applyAccentColorToDom(resolvedColor);
             }
           }
         }
@@ -494,6 +526,15 @@ export const App: React.FC = () => {
       return next;
     });
   };
+
+  // ⏳ Enquanto valida o subdomínio no Supabase, exibe tela limpa Dark Theme com spinner sutil em #20C933 (Zero FOUC)
+  if (isValidatingSubdomain) {
+    return (
+      <div className="w-full h-dvh flex items-center justify-center bg-slate-950 font-['Poppins']">
+        <Loader2 className="w-7 h-7 animate-spin text-[#20C933]" />
+      </div>
+    );
+  }
 
   // 🛑 Se o subdomínio não foi encontrado no Supabase (status !== 'active')
   if (isNotFound) {
@@ -565,8 +606,10 @@ export const App: React.FC = () => {
             />
           ) : viewMode === 'salon' ? (
             <SalonProfileView
-              key={salonName || 'salon-profile'}
+              key={initialSalonData?.id || currentSubdomain || salonName || 'salon-profile'}
               salonName={salonName}
+              activeSubdomain={currentSubdomain}
+              initialSalonData={initialSalonData}
               userRole={effectiveRole}
               offers={offers}
               onDirectBook={(_offer) => {

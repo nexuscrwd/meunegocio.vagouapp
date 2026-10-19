@@ -6,7 +6,7 @@ import {
   Check, MessageCircle, MessageSquare,
   Scissors, Hand, Smile, Eye, Sparkles, LayoutDashboard,
   Store, Car, MapPin, Clock, Users, Wifi, Coffee, Wind,
-  LogOut, ShieldCheck, EyeOff, User, Share2
+  LogOut, ShieldCheck, EyeOff, User, Share2, Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ServiceOffer, BookingAppointment, SalonAdminSettings, UserPersona, ProfessionalTeamMember } from '../types';
@@ -47,6 +47,8 @@ import {
 
 export interface SalonProfileViewProps {
   salonName: string;
+  activeSubdomain?: string;
+  initialSalonData?: any;
   userRole?: SalonRole;
   offers: ServiceOffer[];
   onBack?: () => void;
@@ -193,6 +195,8 @@ const SectionHeader: React.FC<SectionHeaderProps> = React.memo(({ title, action,
 
 export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   salonName,
+  activeSubdomain = '',
+  initialSalonData,
   userRole,
   offers,
   onBack,
@@ -423,62 +427,122 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     setActiveTab('home');
   };
 
-  // Configurações do Salão editáveis pelo gestor
+  const hasActiveSubdomain = Boolean(activeSubdomain);
+  const [isLoadingSalon, setIsLoadingSalon] = useState<boolean>(() => {
+    if (initialSalonData) return false;
+    if (hasActiveSubdomain && isSupabaseConfigured) return true;
+    return false;
+  });
+
+  // Configurações do Salão editáveis pelo gestor (Zero FOUC em subdomínios *.vagouapp.com)
   const [adminSettings, setAdminSettings] = useState<SalonAdminSettings>(() => {
+    if (initialSalonData) {
+      const resolvedIcon =
+        initialSalonData.favicon_url ||
+        initialSalonData.branding?.salonIcon ||
+        initialSalonData.branding?.faviconUrl ||
+        initialSalonData.logo_url ||
+        '';
+      const resolvedLogoDark =
+        initialSalonData.logo_dark_url ||
+        initialSalonData.logo_url ||
+        resolvedIcon;
+      const resolvedLogoLight =
+        initialSalonData.logo_light_url ||
+        initialSalonData.logo_url ||
+        resolvedIcon;
+      const resolvedName = initialSalonData.trade_name || salonName || '';
+      const resolvedColor = initialSalonData.primary_color || initialSalonData.branding?.primaryColor || '#20C933';
+
+      return {
+        salonName: resolvedName,
+        salonSlug: initialSalonData.slug || activeSubdomain || '',
+        razaoSocial: initialSalonData.legal_name || '',
+        cnpj: initialSalonData.document_number || '',
+        salonPhone: initialSalonData.phone_whatsapp || '',
+        salonAddress: initialSalonData.address || '',
+        numero: initialSalonData.street_number || '',
+        complemento: initialSalonData.complement || '',
+        bairro: initialSalonData.neighborhood || '',
+        cidade: initialSalonData.city || '',
+        uf: initialSalonData.state || '',
+        cep: initialSalonData.cep || '',
+        openingHours: 'Seg a Sáb: 09:00 às 20:00',
+        isOpenNow: true,
+        accentColor: resolvedColor,
+        salonLogoDark: resolvedLogoDark,
+        salonLogoLight: resolvedLogoLight,
+        salonLogo: initialSalonData.logo_url || resolvedLogoDark,
+        salonIcon: resolvedIcon,
+        pwaName: initialSalonData.branding?.pwaName || resolvedName,
+        slogan: initialSalonData.slogan || initialSalonData.branding?.slogan || '',
+        brandFont: initialSalonData.brand_font || initialSalonData.branding?.brandFont || 'Poppins',
+        bio: initialSalonData.bio || initialSalonData.branding?.bio || '',
+        instagramUrl: initialSalonData.branding?.instagramUrl || '',
+      };
+    }
+
     let partnerInfo: any = null;
-    try {
-      const partnerDataStr = localStorage.getItem('vagou_partner_data');
-      if (partnerDataStr) {
-        partnerInfo = JSON.parse(partnerDataStr);
-      }
-    } catch {}
+    if (!hasActiveSubdomain) {
+      try {
+        const partnerDataStr = localStorage.getItem('vagou_partner_data');
+        if (partnerDataStr) {
+          partnerInfo = JSON.parse(partnerDataStr);
+        }
+      } catch {}
+    }
 
     const fullAddr = partnerInfo 
       ? `${partnerInfo.logradouro || ''}, ${partnerInfo.numero || ''}${partnerInfo.complemento ? ' - ' + partnerInfo.complemento : ''} - ${partnerInfo.bairro || ''}, ${partnerInfo.cidade || ''}/${partnerInfo.uf || ''}`.replace(/^, /, '').trim()
       : '';
 
-    const effectiveSalonName = salonName || partnerInfo?.salonName || 'Meu Estabelecimento';
+    const effectiveSalonName = hasActiveSubdomain
+      ? (salonName || '')
+      : (salonName || partnerInfo?.salonName || 'Meu Estabelecimento');
     const effectivePhone = partnerInfo?.phoneWhatsapp || '';
     const effectiveColor = partnerInfo?.primaryColor || localStorage.getItem('vagou_accent_color') || '#20C933';
 
     const defaults: SalonAdminSettings = {
       salonName: effectiveSalonName,
+      salonSlug: activeSubdomain || undefined,
       salonPhone: effectivePhone,
       salonAddress: fullAddr,
       openingHours: 'Seg a Sáb: 09:00 às 20:00',
       isOpenNow: true,
       accentColor: effectiveColor,
-      salonLogoDark: localStorage.getItem('vagou_salon_logo_dark') || (partnerInfo ? '' : DEFAULT_ROTA99_LOGO_DARK),
-      salonLogoLight: localStorage.getItem('vagou_salon_logo_light') || (partnerInfo ? '' : DEFAULT_ROTA99_LOGO_LIGHT),
-      salonLogo: localStorage.getItem('vagou_salon_logo_dark') || (partnerInfo ? '' : DEFAULT_ROTA99_LOGO_DARK),
-      salonIcon: localStorage.getItem('vagou_salon_icon') || (partnerInfo ? '' : DEFAULT_ROTA99_ICON),
+      salonLogoDark: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_logo_dark') || (partnerInfo ? '' : DEFAULT_ROTA99_LOGO_DARK)),
+      salonLogoLight: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_logo_light') || (partnerInfo ? '' : DEFAULT_ROTA99_LOGO_LIGHT)),
+      salonLogo: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_logo_dark') || (partnerInfo ? '' : DEFAULT_ROTA99_LOGO_DARK)),
+      salonIcon: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_icon') || (partnerInfo ? '' : DEFAULT_ROTA99_ICON)),
       pwaName: effectiveSalonName,
       slogan: '',
       brandFont: 'Poppins',
       bio: '',
       instagramUrl: '',
     };
-    try {
-      const saved = localStorage.getItem('vagou_salon_admin_settings');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          ...defaults,
-          ...parsed,
-          salonLogoDark: parsed.salonLogoDark || localStorage.getItem('vagou_salon_logo_dark') || defaults.salonLogoDark,
-          salonLogoLight: parsed.salonLogoLight || localStorage.getItem('vagou_salon_logo_light') || defaults.salonLogoLight,
-          salonLogo: parsed.salonLogo || parsed.salonLogoDark || localStorage.getItem('vagou_salon_logo_dark') || defaults.salonLogo,
-          salonIcon: parsed.salonIcon || localStorage.getItem('vagou_salon_icon') || defaults.salonIcon,
-          accentColor: parsed.accentColor || localStorage.getItem('vagou_accent_color') || defaults.accentColor,
-          slogan: parsed.slogan || defaults.slogan,
-          brandFont: parsed.brandFont || defaults.brandFont,
-          bio: parsed.bio || defaults.bio,
-          instagramUrl: parsed.instagramUrl || defaults.instagramUrl,
-          isOpenNow: parsed.isOpenNow !== undefined ? parsed.isOpenNow : true,
-        };
+    if (!hasActiveSubdomain) {
+      try {
+        const saved = localStorage.getItem('vagou_salon_admin_settings');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return {
+            ...defaults,
+            ...parsed,
+            salonLogoDark: parsed.salonLogoDark || localStorage.getItem('vagou_salon_logo_dark') || defaults.salonLogoDark,
+            salonLogoLight: parsed.salonLogoLight || localStorage.getItem('vagou_salon_logo_light') || defaults.salonLogoLight,
+            salonLogo: parsed.salonLogo || parsed.salonLogoDark || localStorage.getItem('vagou_salon_logo_dark') || defaults.salonLogo,
+            salonIcon: parsed.salonIcon || localStorage.getItem('vagou_salon_icon') || defaults.salonIcon,
+            accentColor: parsed.accentColor || localStorage.getItem('vagou_accent_color') || defaults.accentColor,
+            slogan: parsed.slogan || defaults.slogan,
+            brandFont: parsed.brandFont || defaults.brandFont,
+            bio: parsed.bio || defaults.bio,
+            instagramUrl: parsed.instagramUrl || defaults.instagramUrl,
+            isOpenNow: parsed.isOpenNow !== undefined ? parsed.isOpenNow : true,
+          };
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
     }
     return defaults;
   });
@@ -577,24 +641,29 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
   // Estado do ID do salão no Supabase para sincronização em tempo real
   const [currentSalonDbId, setCurrentSalonDbId] = useState<string>(() => {
-    return localStorage.getItem('vagou_salon_db_id') || '';
+    return initialSalonData?.id || localStorage.getItem('vagou_salon_db_id') || '';
   });
 
   // Carregar dados reais do Supabase (Identidade Visual, Configurações, Serviços e Equipe)
   useEffect(() => {
     let isMounted = true;
     async function loadDataFromSupabase() {
-      if (!isSupabaseConfigured || !supabase) return;
+      if (!isSupabaseConfigured || !supabase) {
+        if (isMounted) setIsLoadingSalon(false);
+        return;
+      }
       try {
-        const activeSlug = localStorage.getItem('vagou_salon_slug') || adminSettings.salonSlug || salonName.toLowerCase().replace(/\s+/g, '-');
+        const activeSlug = activeSubdomain || localStorage.getItem('vagou_salon_slug') || adminSettings.salonSlug || salonName.toLowerCase().replace(/\s+/g, '-');
         const activeEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
         
-        // 1. Obter o registro completo do salão no Supabase
-        const salonRecord = await fetchCompleteSalonData({
-          slug: activeSlug,
-          name: salonName,
-          email: activeEmail
-        });
+        // 1. Reaproveitar initialSalonData vindo do App.tsx (evita duas queries seguidas em public.salons) ou buscar do banco
+        const salonRecord = (initialSalonData && initialSalonData.id)
+          ? initialSalonData
+          : await fetchCompleteSalonData({
+              slug: activeSlug,
+              name: salonName,
+              email: activeEmail
+            });
 
         if (!salonRecord || !salonRecord.id) return;
         if (isMounted) {
@@ -703,11 +772,15 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         }
       } catch (err) {
         console.warn('Consulta Supabase em segundo plano:', err);
+      } finally {
+        if (isMounted) {
+          setIsLoadingSalon(false);
+        }
       }
     }
     loadDataFromSupabase();
     return () => { isMounted = false; };
-  }, [salonName, adminSettings.salonSlug]);
+  }, [salonName, activeSubdomain, initialSalonData, adminSettings.salonSlug]);
 
   // Handlers para persistência e sincronização em tempo real no Supabase
   const handleUpdateServices = async (newServices: CatalogServiceItem[]) => {
@@ -907,7 +980,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
   const salonInfo = useMemo(() => ({
     name: adminSettings.salonName || salonName,
-    avatar: adminSettings.salonIcon || activeLogo || DEFAULT_ROTA99_ICON,
+    avatar: adminSettings.salonIcon || activeLogo || (hasActiveSubdomain ? '' : DEFAULT_ROTA99_ICON),
     coverImage: primaryOffer?.galleryImages?.[0] || primaryOffer?.imageUrl || 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=1200&q=80',
     rating: primaryOffer?.rating || 4.9,
     reviewsCount: primaryOffer?.reviewsCount || 84,
@@ -1395,6 +1468,14 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     setEspacoSwipeDirection(-1);
     setEspacoSlideIndex((prev) => (prev - 1 + 3) % 3);
   };
+
+  if (isLoadingSalon && hasActiveSubdomain) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-slate-950 font-['Poppins']">
+        <Loader2 className="w-7 h-7 animate-spin text-[#20C933]" />
+      </div>
+    );
+  }
 
   return (
     <div className={`w-full h-full flex flex-col overflow-hidden ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'} font-['Poppins'] transition-colors duration-200`}>
