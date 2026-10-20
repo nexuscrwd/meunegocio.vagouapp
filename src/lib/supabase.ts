@@ -26,8 +26,10 @@ export const supabase = isSupabaseConfigured
   : null;
 
 // Cliente Supabase com privilégios de Service Role (Bypassa RLS no navegador / cliente)
-const serviceRoleKey = (typeof import.meta !== 'undefined' && (import.meta.env as any).VITE_SUPABASE_SERVICE_ROLE_KEY) || '';
-export const supabaseAdmin = (supabaseUrl && serviceRoleKey)
+const serviceRoleKey = 
+  (typeof import.meta !== 'undefined' && ((import.meta.env as any).VITE_SUPABASE_SERVICE_ROLE_KEY || (import.meta.env as any).service_role)) || '';
+
+export const supabaseAdmin = (supabaseUrl && serviceRoleKey && serviceRoleKey.length > 20)
   ? createClient<Database>(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false },
     })
