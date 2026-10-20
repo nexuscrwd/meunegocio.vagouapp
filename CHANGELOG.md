@@ -15,6 +15,17 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-20] — Auditoria Abrangente de Persistência no Banco Supabase & Proteção Contra RLS (`src/lib/supabase.ts` & `SalonProfileView.tsx`)
+- **Tipo:** `[Refactor / Architecture / Resiliência Supabase]`
+- **Motivo / Solicitação:** Mapear e corrigir preventivamente a gravação e sincronização de todos os dados do aplicativo (identidade visual, catálogo de serviços, equipe, agendamentos, clientes e dependentes), evitando perda de preferências locais quando o banco de dados remoto for protegido por RLS sem sessão ativa.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Detecção Soberana de RLS:** Atualizada a função `updateSalonSettingsInDb` para verificar se `data` realmente retornou a linha modificada. Se `data` retornar `null` (devido à execução de RLS no Postgres sem autenticação de proprietário), o sistema retorna `isRlsBlocked: true` e alerta sobre a gravação local no dispositivo sem mascarar a falha.
+  - **Mecanismo Anti-Sobrescrita por Timestamp (`vagou_accent_color_timestamp`):** Implementado timestamp reativo no `localStorage`. Durante a hidratação inicial de dados do Supabase, o sistema compara a data da atualização no banco (`updated_at`) com a data da escolha do usuário no dispositivo (`localTimestamp`). Se a escolha do usuário for mais recente, o tema local é preservado e não é sobrescrito pelos dados antigos da nuvem.
+
 ### [2026-10-20] — Harmonização da Cor do Tema nos Botões do Cabeçalho (`SalonProfileView.tsx`)
 - **Tipo:** `[Fix / UI-UX / Design System]`
 - **Motivo / Solicitação:** Atender ao foco nos botões de ação do cabeçalho superior (`header#salon-profile-header > div > button > svg`), garantindo que os ícones (Compartilhar, Favoritar, Perfil e Alternador) utilizem dinamicamente a cor do tema/destaque do estabelecimento (`effectiveAccentColor`) e nunca cinza genérico.

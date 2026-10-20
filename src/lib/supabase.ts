@@ -1596,6 +1596,17 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       console.warn('Erro ao atualizar configurações do salão no Supabase:', error.message);
       return { success: false, error: error.message };
     }
+
+    if (!data) {
+      console.warn('Aviso Supabase: Nenhuma linha do salão foi atualizada no banco remoto (RLS impediu a gravação sem sessão de proprietário). Dados preservados localmente.');
+      return {
+        success: false,
+        error: 'Gravado localmente no dispositivo. (Aviso: Para sincronizar permanentemente na nuvem Supabase, efetue o login no painel de gestão).',
+        isRlsBlocked: true,
+        localOnly: true,
+      };
+    }
+
     return { success: true, data };
   } catch (err: any) {
     console.error('Falha ao atualizar salão no Supabase:', err);

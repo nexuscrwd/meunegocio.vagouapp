@@ -847,11 +847,20 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             updatedSettings.pwaName = salonRecord.branding.pwaName;
           }
 
-          const resolvedColor = salonRecord.primary_color || salonRecord.branding?.primaryColor;
-          if (resolvedColor) {
-            updatedSettings.accentColor = resolvedColor;
-            localStorage.setItem('vagou_accent_color', resolvedColor);
-            setAccentColorContext(resolvedColor);
+          const resolvedDbColor = salonRecord.primary_color || salonRecord.branding?.primaryColor;
+          const localAccentColor = localStorage.getItem('vagou_accent_color');
+          const localTimestamp = Number(localStorage.getItem('vagou_accent_color_timestamp') || 0);
+          const dbTimestamp = salonRecord.updated_at ? new Date(salonRecord.updated_at).getTime() : 0;
+
+          // Se houver alteração de cor local mais recente que a atualização do banco, preserva a escolha local do usuário
+          const finalAccentColor = (localAccentColor && localTimestamp > dbTimestamp)
+            ? localAccentColor
+            : (resolvedDbColor || localAccentColor || '#20C933');
+
+          if (finalAccentColor) {
+            updatedSettings.accentColor = finalAccentColor;
+            localStorage.setItem('vagou_accent_color', finalAccentColor);
+            setAccentColorContext(finalAccentColor);
           }
 
           setAdminSettings((prev) => {
@@ -1006,6 +1015,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       setAccentColorContext(newSettings.accentColor);
       try {
         localStorage.setItem('vagou_accent_color', newSettings.accentColor);
+        localStorage.setItem('vagou_accent_color_timestamp', Date.now().toString());
       } catch {}
     }
     setAdminSettings((prev) => {
@@ -1014,6 +1024,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         localStorage.setItem('vagou_salon_admin_settings', JSON.stringify(merged));
         if (merged.accentColor) {
           localStorage.setItem('vagou_accent_color', merged.accentColor);
+          localStorage.setItem('vagou_accent_color_timestamp', Date.now().toString());
         }
         const effectiveName = merged.pwaName || merged.salonName || salonName;
         updateDynamicPwaAssets(
