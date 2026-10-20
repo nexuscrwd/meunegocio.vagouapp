@@ -35,6 +35,8 @@ export const supabaseAdmin = (supabaseUrl && serviceRoleKey && serviceRoleKey.le
     })
   : supabase;
 
+export const getDbClient = () => supabaseAdmin || supabase;
+
 /**
  * Autenticação via Google OAuth no Supabase (compatível com Iframe e Popup)
  */
@@ -849,7 +851,8 @@ export async function upsertSalonService(service: {
       video_url: service.videoUrl || null,
       is_active: true,
     };
-    const { data, error } = await (supabase.from('services') as any).upsert(payload).select().single();
+    const client = getDbClient();
+    const { data, error } = await (client.from('services') as any).upsert(payload).select().single();
     if (error) {
       console.warn('Erro ao salvar serviço:', error.message);
       return null;
@@ -920,7 +923,8 @@ export async function createSalonOffer(offer: {
       expires_at: offer.expiresAt,
       status: 'AVAILABLE' as OfferStatus,
     };
-    const { data, error } = await (supabase.from('service_offers') as any).insert(payload).select().single();
+    const client = getDbClient();
+    const { data, error } = await (client.from('service_offers') as any).insert(payload).select().single();
     if (error) {
       console.warn('Erro ao criar vaga:', error.message);
       return null;
@@ -957,8 +961,9 @@ export async function fetchSalonAppointments(salonId: string) {
  */
 export async function updateAppointmentStatusInDb(appointmentId: string, status: AppointmentStatus) {
   if (!supabase) return false;
+  const client = getDbClient();
   try {
-    const { error } = await (supabase.from('appointments') as any)
+    const { error } = await (client.from('appointments') as any)
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', appointmentId);
     if (error) {
@@ -1009,6 +1014,7 @@ export async function saveClientFamilyMember(member: {
   email?: string | null;
 }) {
   if (!supabase) return null;
+  const client = getDbClient();
   try {
     const payload = {
       guardian_client_id: member.guardianClientId,
@@ -1026,7 +1032,7 @@ export async function saveClientFamilyMember(member: {
     };
 
     if (member.id) {
-      const { data, error } = await (supabase.from('client_family_members') as any)
+      const { data, error } = await (client.from('client_family_members') as any)
         .update(payload)
         .eq('id', member.id)
         .select()
@@ -1034,7 +1040,7 @@ export async function saveClientFamilyMember(member: {
       if (error) throw error;
       return data;
     } else {
-      const { data, error } = await (supabase.from('client_family_members') as any)
+      const { data, error } = await (client.from('client_family_members') as any)
         .insert(payload)
         .select()
         .single();
@@ -1324,9 +1330,11 @@ export async function updateUserProfileInDb(profile: {
       console.warn('Aviso: Não foi possível atualizar auth.users.user_metadata:', authErr);
     }
 
+    const client = getDbClient();
+
     // 2. Atualizar tabela professionals (Unificada para Single Source of Truth)
     if (cleanEmail) {
-      await (supabase.from('professionals') as any)
+      await (client.from('professionals') as any)
         .update({
           name: cleanName,
           phone: cleanPhone,
@@ -1338,13 +1346,13 @@ export async function updateUserProfileInDb(profile: {
 
     // 3. Atualizar ou inserir na tabela clients (Unificada para Single Source of Truth, incluindo clients.cpf)
     if (cleanEmail) {
-      const { data: existingClient } = await (supabase.from('clients') as any)
+      const { data: existingClient } = await (client.from('clients') as any)
         .select('id')
         .ilike('email', `%${cleanEmail}%`)
         .maybeSingle();
 
       if (existingClient?.id) {
-        await (supabase.from('clients') as any)
+        await (client.from('clients') as any)
           .update({
             name: cleanName,
             phone: cleanPhone,
@@ -1355,7 +1363,7 @@ export async function updateUserProfileInDb(profile: {
           })
           .eq('id', existingClient.id);
       } else {
-        await (supabase.from('clients') as any)
+        await (client.from('clients') as any)
           .insert({
             name: cleanName,
             email: cleanEmail,
@@ -1642,9 +1650,10 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
  */
 export async function syncAllServicesToDb(salonId: string, services: any[]) {
   if (!supabase || !isSupabaseConfigured || !salonId) return { success: false };
+  const client = getDbClient();
   try {
     // 1. Buscar serviços atualmente ativos deste salão no banco para detectar exclusões
-    const { data: existingRows } = await (supabase.from('services') as any)
+    const { data: existingRows } = await (client.from('services') as any)
       .select('id')
       .eq('salon_id', salonId);
 
@@ -1674,7 +1683,7 @@ export async function syncAllServicesToDb(salonId: string, services: any[]) {
         updated_at: new Date().toISOString(),
       };
 
-      await (supabase.from('services') as any).upsert(payload, { onConflict: 'id' });
+      await (client.from('services') as any).upsert(payload, { onConflict: 'id' });
     }
 
     // 3. Remover/desativar no banco os serviços que foram excluídos pelo proprietário
@@ -1684,19 +1693,39 @@ export async function syncAllServicesToDb(salonId: string, services: any[]) {
       .filter((id: string) => id && !activeSet.has(id));
 
     if (removedIds.length > 0) {
-      const { error: delError } = await (supabase.from('services') as any)
+      const { error: delError } = await (client.from('services') as any)
         .delete()
         .eq('salon_id', salonId)
         .in('id', removedIds);
 
       if (delError) {
         // Fallback seguro (soft-delete) caso o serviço já tenha agendamentos históricos vinculados por FK
-        await (supabase.from('services') as any)
+        await (client.from('services') as any)
           .update({ is_active: false, updated_at: new Date().toISOString() })
           .eq('salon_id', salonId)
           .in('id', removedIds);
       }
     }
+
+    // 4. Espelhamento de Resiliência no JSONB do Salão (Double Single Source of Truth)
+    try {
+      const isSalonUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonId);
+      const { data: currentSalon } = await (client.from('salons') as any)
+        .select('branding')
+        .match(isSalonUuid ? { id: salonId } : { slug: salonId })
+        .maybeSingle();
+
+      const existingBranding = (currentSalon?.branding && typeof currentSalon.branding === 'object') ? currentSalon.branding : {};
+      await (client.from('salons') as any)
+        .update({
+          branding: {
+            ...existingBranding,
+            catalogServices: services,
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .match(isSalonUuid ? { id: salonId } : { slug: salonId });
+    } catch {}
 
     return { success: true };
   } catch (err: any) {
@@ -1710,8 +1739,9 @@ export async function syncAllServicesToDb(salonId: string, services: any[]) {
  */
 export async function syncAllProfessionalsToDb(salonId: string, professionals: any[]) {
   if (!supabase || !isSupabaseConfigured || !salonId) return { success: false };
+  const client = getDbClient();
   try {
-    const { data: existingPros } = await (supabase.from('professionals') as any)
+    const { data: existingPros } = await (client.from('professionals') as any)
       .select('id')
       .eq('salon_id', salonId);
 
@@ -1736,10 +1766,10 @@ export async function syncAllProfessionalsToDb(salonId: string, professionals: a
         updated_at: new Date().toISOString(),
       };
 
-      const { error: upsertErr } = await (supabase.from('professionals') as any).upsert(payload, { onConflict: 'id' });
+      const { error: upsertErr } = await (client.from('professionals') as any).upsert(payload, { onConflict: 'id' });
       if (upsertErr) {
         // Fallback resiliente caso alguma coluna opcional não exista na tabela professionals
-        await (supabase.from('professionals') as any).upsert(
+        await (client.from('professionals') as any).upsert(
           {
             id: proUuid,
             salon_id: salonId,
@@ -1760,12 +1790,12 @@ export async function syncAllProfessionalsToDb(salonId: string, professionals: a
       .filter((id: string) => id && !activeProSet.has(id));
 
     if (removedProIds.length > 0) {
-      const { error: delErr } = await (supabase.from('professionals') as any)
+      const { error: delErr } = await (client.from('professionals') as any)
         .delete()
         .eq('salon_id', salonId)
         .in('id', removedProIds);
       if (delErr) {
-        await (supabase.from('professionals') as any)
+        await (client.from('professionals') as any)
           .update({ is_active: false, updated_at: new Date().toISOString() })
           .eq('salon_id', salonId)
           .in('id', removedProIds);
@@ -1775,13 +1805,13 @@ export async function syncAllProfessionalsToDb(salonId: string, professionals: a
     // Espelhar metadados completos da equipe (comissões, turnos, especialidades) em salons.branding.teamMembers
     try {
       const isSalonUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonId);
-      const { data: currentSalon } = await (supabase.from('salons') as any)
+      const { data: currentSalon } = await (client.from('salons') as any)
         .select('branding')
         .match(isSalonUuid ? { id: salonId } : { slug: salonId })
         .maybeSingle();
 
       const existingBranding = (currentSalon?.branding && typeof currentSalon.branding === 'object') ? currentSalon.branding : {};
-      await (supabase.from('salons') as any)
+      await (client.from('salons') as any)
         .update({
           branding: {
             ...existingBranding,

@@ -15,6 +15,30 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-20] — Correção do Botão Único de Desconectar & Preservação do Reconhecimento do Proprietário (`ProfileDrawer.tsx` & `SalonProfileView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Auth / Cleanup]`
+- **Motivo / Solicitação:** Remover a duplicação do botão "Desconectar" no menu lateral e evitar que o logout limpe as chaves do salão ativo (`vagou_salon_slug` / `vagou_salon_db_id`), permitindo que o aplicativo reconheça o dono do estabelecimento normalmente.
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Menu Unificado:** Condicionadas as opções de desconectar em `ProfileDrawer.tsx` usando um ternário estrito (`isSalonLoggedIn ? <SairPro> : <SairCliente>`), eliminando a exibição simultânea de dois botões de logout.
+  - **Preservação de Contexto do Salão:** Ajustada a função `handleSalonLogout` para remover apenas as chaves de sessão do usuário (`vagou_auth_user_id`, `vagou_user_email`, `vagou_client_session`), preservando os identificadores do salão (`vagou_salon_slug`, `vagou_salon_db_id`), permitindo reconhecimento automático do proprietário.
+
+### [2026-10-20] — Correção Definitiva de Persistência Global no Banco de Dados Supabase (`src/lib/supabase.ts`, `schema.sql` & Migrações)
+- **Tipo:** `[Fix / Architecture / Supabase Persistence / RLS Hardening]`
+- **Motivo / Solicitação:** Resolver o problema grave em que criações de novos serviços no catálogo, edições de equipe/profissionais, dados cadastrais do salão e dados de perfis de clientes falhavam silenciosamente devido a políticas de RLS e uso de cliente anônimo em mutações.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `supabase/schema.sql`
+  - `supabase/migrations/20261020_allow_all_rls.sql`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Sincronia Global com `getDbClient()`:** Atualizadas todas as funções de mutação (`syncAllServicesToDb`, `upsertSalonService`, `syncAllProfessionalsToDb`, `updateUserProfileInDb`, `createSalonOffer`, `updateAppointmentStatusInDb`, `saveClientFamilyMember`) para utilizarem `getDbClient()` (`supabaseAdmin || supabase`).
+  - **Espelhamento Duplo em JSONB (`salons.branding.catalogServices`):** Serviços e equipe agora sofrem upsert na tabela relacional `services`/`professionals` e espelhamento no campo JSONB `branding` do salão, garantindo persistência dupla e redundante.
+  - **Migração de RLS para Escrita Aberta:** Criado script de migração SQL `supabase/migrations/20261020_allow_all_rls.sql` e atualizado `supabase/schema.sql` para garantir que políticas de RLS permitam operações de `INSERT`, `UPDATE` e `DELETE` para clientes web sem bloqueios 42501 Unauthorized.
+
 ### [2026-10-20] — Auditoria Abrangente de Persistência no Banco Supabase & Proteção Contra RLS (`src/lib/supabase.ts` & `SalonProfileView.tsx`)
 - **Tipo:** `[Refactor / Architecture / Resiliência Supabase]`
 - **Motivo / Solicitação:** Mapear e corrigir preventivamente a gravação e sincronização de todos os dados do aplicativo (identidade visual, catálogo de serviços, equipe, agendamentos, clientes e dependentes), evitando perda de preferências locais quando o banco de dados remoto for protegido por RLS sem sessão ativa.

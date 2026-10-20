@@ -1083,18 +1083,16 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       localStorage.removeItem('vagou_user_phone');
       localStorage.removeItem('vagou_user_avatar');
       localStorage.removeItem('vagou_user_name');
-      localStorage.removeItem('vagou_salon_db_id');
-      localStorage.removeItem('vagou_salon_slug');
-      localStorage.removeItem('vagou_salon_name');
+      localStorage.removeItem('vagou_client_session');
+      localStorage.removeItem('vagou_dashboard_user_role');
+      localStorage.removeItem('vagou_dashboard_logged_pro_name');
     } catch {
       // ignore
     }
     window.dispatchEvent(new CustomEvent('vagou:auth-updated'));
     setIsProfileDrawerOpen(false);
     setIsClientAuthModalOpen(false);
-    setTimeout(() => {
-      window.location.reload();
-    }, 200);
+    setIsPublicPreviewMode(true);
   };
 
   // Solicitação de acesso a Gerenciar Estabelecimento (Protegido por RBAC)
