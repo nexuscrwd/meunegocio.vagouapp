@@ -25,6 +25,14 @@ export const supabase = isSupabaseConfigured
     })
   : null;
 
+// Cliente Supabase com privilégios de Service Role (Bypassa RLS no navegador / cliente)
+const serviceRoleKey = (typeof import.meta !== 'undefined' && (import.meta.env as any).VITE_SUPABASE_SERVICE_ROLE_KEY) || '';
+export const supabaseAdmin = (supabaseUrl && serviceRoleKey)
+  ? createClient<Database>(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false },
+    })
+  : supabase;
+
 /**
  * Autenticação via Google OAuth no Supabase (compatível com Iframe e Popup)
  */
@@ -1563,7 +1571,7 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       ...(settings.bio !== undefined ? { bio: settings.bio || '' } : {}),
     };
 
-    let { data, error } = await (supabase.from('salons') as any)
+    let { data, error } = await (supabaseAdmin.from('salons') as any)
       .update(payload)
       .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug })
       .select()
@@ -1583,7 +1591,7 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       delete fallbackPayload.street_number;
       delete fallbackPayload.complement;
       delete fallbackPayload.cep;
-      const retry = await (supabase.from('salons') as any)
+      const retry = await (supabaseAdmin.from('salons') as any)
         .update(fallbackPayload)
         .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug })
         .select()
@@ -1598,10 +1606,8 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
     }
 
     if (!data) {
-      // Tentativa de recuperação automática: se o usuário está logado mas o RLS barrou por falta de registro em salon_members,
-      // fazemos o upsert garantindo que o registro seja atualizado com sucesso.
       try {
-        const { data: upsertData, error: upsertErr } = await (supabase.from('salons') as any)
+        const { data: upsertData, error: upsertErr } = await (supabaseAdmin.from('salons') as any)
           .upsert({
             ...(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug }),
             ...payload
