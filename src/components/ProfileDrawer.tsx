@@ -1536,27 +1536,27 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 )}
 
                 {/* Desconectar do Modo Pro / Gestão */}
-                {isSalonLoggedIn && onLogoutSalon && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hapticMedium();
-                      onClose();
-                      onLogoutSalon();
-                    }}
-                    className={`w-full p-3 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer mt-3 ${
-                      isDark 
-                        ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400' 
-                        : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <LogOut className="w-4 h-4" />
-                      <span className="text-xs font-bold font-['Poppins']">Sair da Conta Pro</span>
-                    </div>
-                    <span className="text-[10px] uppercase font-bold">Desconectar</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticMedium();
+                    try {
+                      localStorage.clear();
+                    } catch {}
+                    window.location.href = window.location.origin;
+                  }}
+                  className={`w-full p-3 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer mt-3 ${
+                    isDark 
+                      ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400' 
+                      : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <LogOut className="w-4 h-4" />
+                    <span className="text-xs font-bold font-['Poppins']">Sair da Conta Pro</span>
+                  </div>
+                  <span className="text-[10px] uppercase font-bold">Desconectar</span>
+                </button>
 
                 {/* Desconectar no Modo Cliente */}
                 {!isSalonLoggedIn && (
