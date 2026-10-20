@@ -10,6 +10,13 @@ Consulte o arquivo principal completo em `AGENTS.md` e a documentação técnica
 
 ---
 
+### 🔗 Repositórios Oficiais da Tríade Vagou no GitHub:
+1. **Admin VagouApp (`admvapp`):** [`https://github.com/nexuscrwd/admin.vagouapp.git`](https://github.com/nexuscrwd/admin.vagouapp.git) — Backoffice Executivo & Gestão VAPP
+2. **VagouApp Oficial / Meu Negócio (`vapp` / `mnvapp`):** [`https://github.com/nexuscrwd/vagouapp.git`](https://github.com/nexuscrwd/vagouapp.git) — App dos Estabelecimentos & Vitrines White-Label
+3. **Portal VagouApp (`pvapp`):** [`https://github.com/nexuscrwd/Portal-VagouApp.git`](https://github.com/nexuscrwd/Portal-VagouApp.git) — Portal do Usuário & Radar Marketplace
+
+---
+
 ### Regras de Ouro:
 1. **Consulte a documentação `.md`** antes de propor ou executar qualquer modificação.
 2. **Analise, reestruture e confirme** a solicitação do usuário antes de codificar.

@@ -150,6 +150,19 @@ export interface FamilyMember {
   createdAt?: string;
 }
 
+// Dependente da Conta Família (Padrão Unificado Tríade VagouApp / admvapp)
+export interface UserFamilyDependent {
+  id: string;
+  parent_client_id?: string;
+  full_name: string;
+  relationship: 'son' | 'daughter' | 'spouse' | 'parent' | 'other';
+  birth_date?: string;
+  notes?: string;
+  is_unlinked?: boolean;
+  unlinked_at?: string;
+  created_at?: string;
+}
+
 export interface UserProfile {
   name: string;
   email: string;

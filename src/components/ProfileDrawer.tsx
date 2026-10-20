@@ -5,13 +5,13 @@ import {
   ChevronRight, ArrowRight, Sparkles, CheckCircle2, 
   Scissors, LayoutDashboard, Store, LogOut, Users, DollarSign, Wrench, Wallet,
   ArrowLeftRight, AlertCircle, RotateCcw, Timer, Ban, HelpCircle, Info, Layers,
-  Camera, Upload
+  Camera, Upload, Eye, Plus, Trash2, UserPlus
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../utils/haptics';
 import { DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
-import { BookingAppointment, UserProfile, UserPersona, ClientSwapGovernance, SwapTargetQueueItem } from '../types';
-import { fetchUserProfileFromDb, updateUserProfileInDb, resolveTriadeAvatar, uploadAvatarToSupabaseStorage, isSupabaseConfigured } from '../lib/supabase';
+import { BookingAppointment, UserProfile, UserPersona, ClientSwapGovernance, SwapTargetQueueItem, UserFamilyDependent } from '../types';
+import { fetchUserProfileFromDb, updateUserProfileInDb, resolveTriadeAvatar, uploadAvatarToSupabaseStorage, isSupabaseConfigured, supabase } from '../lib/supabase';
 
 interface ProfileDrawerProps {
   isOpen: boolean;
@@ -27,6 +27,8 @@ interface ProfileDrawerProps {
   isSalonLoggedIn?: boolean;
   currentPersona?: UserPersona;
   isProAdmin?: boolean;
+  isGerMode?: boolean;
+  onToggleMode?: () => void;
   onRequestManage?: () => void;
   onOpenAdminPanel?: () => void;
   onLoginSalon?: (pin: string) => boolean;
@@ -134,6 +136,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   isSalonLoggedIn = false,
   currentPersona = 'cliente',
   isProAdmin = false,
+  isGerMode = false,
+  onToggleMode,
   onRequestManage,
   onOpenAdminPanel,
   onLoginSalon,
@@ -144,7 +148,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   onNavigateToUserDashboard,
 }) => {
   const { isDark, toggleTheme } = useTheme();
-  const [activeSubTab, setActiveSubTab] = useState<'menu' | 'agenda' | 'dados' | 'config'>('menu');
+  const [activeSubTab, setActiveSubTab] = useState<'menu' | 'agenda' | 'dados' | 'dependentes' | 'config'>('menu');
 
   // Estado do Chat Interno no App
   const [isAppChatOpen, setIsAppChatOpen] = useState(false);
@@ -266,6 +270,131 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     syncDrawerFromDb();
     return () => { isMounted = false; };
   }, [isOpen, userName]);
+
+  // ============================================================
+  // 👥 CONTA FAMÍLIA & DEPENDENTES (Padrão Tríade VagouApp / admvapp)
+  // ============================================================
+  const [dependents, setDependents] = useState<UserFamilyDependent[]>(() => {
+    try {
+      const saved = localStorage.getItem('vagou_user_dependents');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
+  const [isAddingDependent, setIsAddingDependent] = useState(false);
+  const [newDepName, setNewDepName] = useState('');
+  const [newDepRel, setNewDepRel] = useState<'son' | 'daughter' | 'spouse' | 'parent' | 'other'>('son');
+  const [newDepBirthDate, setNewDepBirthDate] = useState('');
+  const [newDepNotes, setNewDepNotes] = useState('');
+  const [isSavingDep, setIsSavingDep] = useState(false);
+  const [dependentFeedback, setDependentFeedback] = useState<string | null>(null);
+
+  // Sincronizar dependentes do Supabase ao abrir
+  useEffect(() => {
+    if (!isOpen) return;
+    async function loadDependents() {
+      if (!supabase || !isSupabaseConfigured) return;
+      try {
+        const parentClientId = localStorage.getItem('vagou_client_id') || localStorage.getItem('vagou_user_id');
+        if (parentClientId && parentClientId.length > 10) {
+          const { data, error } = await (supabase.from('dependents') as any)
+            .select('*')
+            .eq('parent_client_id', parentClientId)
+            .eq('is_unlinked', false)
+            .order('created_at', { ascending: true });
+          if (!error && Array.isArray(data) && data.length > 0) {
+            setDependents(data);
+            localStorage.setItem('vagou_user_dependents', JSON.stringify(data));
+          }
+        }
+      } catch {}
+    }
+    loadDependents();
+  }, [isOpen]);
+
+  const handleAddDependent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDepName.trim()) return;
+    setIsSavingDep(true);
+    hapticLight();
+
+    const newId = `dep-${Date.now()}`;
+    const depItem: UserFamilyDependent = {
+      id: newId,
+      full_name: newDepName.trim(),
+      relationship: newDepRel,
+      birth_date: newDepBirthDate || undefined,
+      notes: newDepNotes.trim() || undefined,
+      is_unlinked: false,
+      created_at: new Date().toISOString(),
+    };
+
+    const nextList = [...dependents, depItem];
+    setDependents(nextList);
+    localStorage.setItem('vagou_user_dependents', JSON.stringify(nextList));
+
+    // Sincronizar no banco Supabase
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const parentClientId = localStorage.getItem('vagou_client_id') || localStorage.getItem('vagou_user_id');
+        if (parentClientId && parentClientId.length > 10) {
+          depItem.parent_client_id = parentClientId;
+          await (supabase.from('dependents') as any).insert({
+            parent_client_id: parentClientId,
+            full_name: depItem.full_name,
+            relationship: depItem.relationship,
+            birth_date: depItem.birth_date || null,
+            notes: depItem.notes || null,
+          });
+
+          await (supabase.from('clients') as any)
+            .update({ dependents_count: nextList.length })
+            .eq('id', parentClientId);
+        }
+      } catch (err) {
+        console.warn('[Vagou] Salvando dependente localmente:', err);
+      }
+    }
+
+    setNewDepName('');
+    setNewDepBirthDate('');
+    setNewDepNotes('');
+    setIsAddingDependent(false);
+    setIsSavingDep(false);
+    setDependentFeedback('Dependente cadastrado com sucesso!');
+    hapticSuccess();
+    setTimeout(() => setDependentFeedback(null), 3000);
+  };
+
+  const handleRemoveDependent = async (depId: string, depName: string) => {
+    if (!confirm(`Remover "${depName}" da sua conta de dependentes?`)) return;
+    hapticMedium();
+
+    const nextList = dependents.filter(d => d.id !== depId);
+    setDependents(nextList);
+    localStorage.setItem('vagou_user_dependents', JSON.stringify(nextList));
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await (supabase.from('dependents') as any)
+          .update({
+            is_unlinked: true,
+            unlinked_at: new Date().toISOString(),
+          })
+          .eq('id', depId);
+
+        const parentClientId = localStorage.getItem('vagou_client_id') || localStorage.getItem('vagou_user_id');
+        if (parentClientId) {
+          await (supabase.from('clients') as any)
+            .update({ dependents_count: nextList.length })
+            .eq('id', parentClientId);
+        }
+      } catch {}
+    }
+
+    setDependentFeedback(`Dependente "${depName}" removido.`);
+    setTimeout(() => setDependentFeedback(null), 3000);
+  };
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -856,13 +985,14 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
             <div>
               <h2 className="text-sm font-bold tracking-tight uppercase font-['Poppins']">
-                {activeSubTab === 'menu' && 'Menu do Cliente'}
+                {activeSubTab === 'menu' && (isGerMode ? 'Menu de Gestão' : 'Menu do Cliente')}
                 {activeSubTab === 'agenda' && 'Minha Agenda'}
                 {activeSubTab === 'dados' && 'Meus Dados Pessoais'}
+                {activeSubTab === 'dependentes' && 'Conta Família & Dependentes'}
                 {activeSubTab === 'config' && 'Configurações'}
               </h2>
               <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                {salonName}
+                {isGerMode ? `${salonName} • Painel Administrativo` : salonName}
               </p>
             </div>
           </div>
@@ -931,13 +1061,17 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     <div className="flex items-center gap-1.5">
                       <h3 className="text-sm font-bold truncate">{profile.name}</h3>
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${
-                        currentPersona === 'admin'
+                        isGerMode
+                          ? (isProAdmin ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-blue-500/20 text-blue-400 border-blue-500/30')
+                          : isSalonLoggedIn
                           ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
-                          : currentPersona === 'profissional'
-                          ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
                           : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
                       }`}>
-                        {currentPersona === 'admin' ? 'Admin Dono' : currentPersona === 'profissional' ? 'Profissional' : 'Cliente'}
+                        {isGerMode
+                          ? (isProAdmin ? 'Proprietário' : 'Equipe Pro')
+                          : isSalonLoggedIn
+                          ? 'Dono (Visão Cliente)'
+                          : 'Cliente'}
                       </span>
                     </div>
                     <p className={`text-xs truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -976,33 +1110,268 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 </button>
               </div>
 
-              {/* LISTA DE OPÇÕES DO MENU */}
+              {/* LISTA DE OPÇÕES CONTEXTUAIS DO MENU */}
               <div className="space-y-2">
-                {/* MODO PRO - MEMBRO / PROFISSIONAL: Apenas Comissões Próprias */}
-                {currentPersona !== 'cliente' && !isProAdmin && (
+                {/* ============================================================ */}
+                {/* 📊 ESTRUTURA QUANDO NO MODO GESTÃO */}
+                {/* ============================================================ */}
+                {isGerMode && (
                   <>
+                    {/* Alternador Rápido: Ver como Cliente */}
+                    {onToggleMode && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          hapticMedium();
+                          onClose();
+                          onToggleMode();
+                        }}
+                        className={`w-full p-3 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                          isDark 
+                            ? 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-400' 
+                            : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-700 shadow-xs'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-[4px] bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                            <Eye className="w-4 h-4 text-emerald-400" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold font-['Poppins']">Ver Vitrine como Cliente</div>
+                            <div className="text-[11px] opacity-80">Navegar exatamente como o cliente vê seu salão</div>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 opacity-70" />
+                      </button>
+                    )}
+
+                    {/* SEÇÃO 1: GESTÃO DO ESTABELECIMENTO */}
+                    <div className="pt-2 px-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                        Gestão do Estabelecimento
+                      </span>
+                    </div>
+
+                    {/* Configurações do Salão */}
+                    {isProAdmin && (
+                      <button
+                        type="button"
+                        id="menu-option-personalizar"
+                        onClick={() => {
+                          hapticLight();
+                          onClose();
+                          if (onRequestManage) {
+                            onRequestManage();
+                          } else {
+                            onNavigateTab?.('personalizar');
+                          }
+                        }}
+                        className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                          isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                            <Store className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold font-['Poppins']">Configurações do Salão</div>
+                            <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                              Espaço, tema visual, fotos e horários
+                            </div>
+                          </div>
+                        </div>
+                        <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                      </button>
+                    )}
+
+                    {/* Catálogo de Serviços */}
                     <button
                       type="button"
-                      id="menu-option-comissoes"
                       onClick={() => {
                         hapticLight();
                         onClose();
-                        onNavigateTab?.('financeiro');
+                        onNavigateTab?.('servicos');
                       }}
-                      className={`w-full p-3.5 rounded border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark 
-                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
-                          : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                        <div className="w-9 h-9 rounded-[4px] bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+                          <Scissors className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold font-['Poppins']">Catálogo de Serviços</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Valores, durações e procedimentos
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                    </button>
+
+                    {/* Equipe & Comissões */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        onClose();
+                        onNavigateTab?.('equipe');
+                      }}
+                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-[4px] bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold font-['Poppins']">Equipe & Profissionais</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Colaboradores, permissões e comissões
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                    </button>
+
+                    {/* Caixa & Faturamento */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        onClose();
+                        onNavigateTab?.('caixa');
+                      }}
+                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
                           <DollarSign className="w-4 h-4" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold font-['Poppins']">Minhas Comissões</div>
+                          <div className="text-xs font-bold font-['Poppins']">Caixa & Financeiro</div>
                           <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Seus repasses e atendimentos realizados
+                            Faturamento diário, vendas e repasses
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                    </button>
+
+                    {/* Vagas Relâmpago / Radar */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        onClose();
+                        onNavigateTab?.('vagas');
+                      }}
+                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-[4px] bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold font-['Poppins']">Vagas Relâmpago (Radar)</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Publicar horários ociosos com vídeo/foto
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                    </button>
+
+                    {/* SEÇÃO 2: MINHA CONTA */}
+                    <div className="pt-2 px-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                        Minha Conta
+                      </span>
+                    </div>
+
+                    {/* Meus Dados Pessoais */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setActiveSubTab('dados');
+                      }}
+                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-[4px] bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+                          <User className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold font-['Poppins']">Meus Dados Pessoais</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Nome, e-mail, telefone e endereço
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                    </button>
+
+                    {/* Conta Família & Dependentes */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setActiveSubTab('dependentes');
+                      }}
+                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-[4px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold font-['Poppins'] flex items-center gap-1.5">
+                            <span>Conta Família • Dependentes</span>
+                            {dependents.length > 0 && (
+                              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-500 text-white">
+                                {dependents.length}
+                              </span>
+                            )}
+                          </div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Dependentes vinculados à sua conta
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                    </button>
+
+                    {/* Chat no App Vagou */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setIsAppChatOpen(true);
+                      }}
+                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                          <MessageSquare className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold font-['Poppins']">Chat no App Vagou</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Mensagens diretas com a equipe e clientes
                           </div>
                         </div>
                       </div>
@@ -1011,142 +1380,163 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   </>
                 )}
 
-                {/* Opção: Minha Agenda */}
-                {currentPersona === 'cliente' && (
-                  <button
-                    type="button"
-                    id="menu-option-minha-agenda-client"
-                    onClick={() => {
-                      hapticLight();
-                      onClose();
-                      if (onNavigateToUserAppointments) {
-                        onNavigateToUserAppointments();
-                      } else {
-                        setActiveSubTab('agenda');
-                      }
-                    }}
-                    className={`w-full p-3.5 rounded border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                      isDark 
-                        ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
-                        : 'bg-white hover:bg-emerald-50/50 border-emerald-200 text-slate-900 shadow-xs'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                        <Calendar className="w-4 h-4 text-emerald-400" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold font-['Poppins']">Minha Agenda</div>
-                        <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                          Ver agendamentos e propostas de permuta
+                {/* ============================================================ */}
+                {/* 👁️ ESTRUTURA QUANDO NO MODO CLIENTE */}
+                {/* ============================================================ */}
+                {!isGerMode && (
+                  <>
+                    {/* Se for Dono/Pro em teste na visão do cliente, atalho para retornar */}
+                    {isSalonLoggedIn && onToggleMode && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          hapticMedium();
+                          onClose();
+                          onToggleMode();
+                        }}
+                        className="w-full p-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-between transition active:scale-[0.99] cursor-pointer shadow-sm"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-[4px] bg-white/20 flex items-center justify-center text-white shrink-0">
+                            <LayoutDashboard className="w-4 h-4 text-white" />
+                          </div>
+                          <div className="text-left">
+                            <div className="text-white font-bold font-['Poppins']">Retornar ao Modo Gestão</div>
+                            <div className="text-[11px] text-white/90">Voltar ao painel administrativo do salão</div>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-white" />
+                      </button>
+                    )}
+
+                    {/* Minha Agenda */}
+                    <button
+                      type="button"
+                      id="menu-option-minha-agenda-client"
+                      onClick={() => {
+                        hapticLight();
+                        onClose();
+                        if (onNavigateToUserAppointments) {
+                          onNavigateToUserAppointments();
+                        } else {
+                          setActiveSubTab('agenda');
+                        }
+                      }}
+                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark 
+                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
+                          : 'bg-white hover:bg-emerald-50/50 border-emerald-200 text-slate-900 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                          <Calendar className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold font-['Poppins']">Minha Agenda</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Ver agendamentos e propostas de permuta
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                  </button>
+                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                    </button>
+
+                    {/* Conta Família & Dependentes */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setActiveSubTab('dependentes');
+                      }}
+                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-[4px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold font-['Poppins'] flex items-center gap-1.5">
+                            <span>Conta Família • Dependentes</span>
+                            {dependents.length > 0 && (
+                              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-500 text-white">
+                                {dependents.length}
+                              </span>
+                            )}
+                          </div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Cadastrar filhos, cônjuge ou familiares
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                    </button>
+
+                    {/* Meus Dados Pessoais */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        if (onNavigateToUserDashboard) {
+                          onClose();
+                          onNavigateToUserDashboard();
+                        } else {
+                          setActiveSubTab('dados');
+                        }
+                      }}
+                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark 
+                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
+                          : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-[4px] bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+                          <User className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold font-['Poppins']">Meus Dados Pessoais</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Nome, e-mail, telefone e endereço
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                    </button>
+
+                    {/* Chat no App com o Estabelecimento */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setIsAppChatOpen(true);
+                      }}
+                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark 
+                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
+                          : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                          <MessageSquare className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold font-['Poppins']">Chat no App Vagou</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Mensagens diretas com a equipe
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                    </button>
+                  </>
                 )}
 
-                {/* Opção: Meus Dados Pessoais */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    hapticLight();
-                    if (onNavigateToUserDashboard) {
-                      onClose();
-                      onNavigateToUserDashboard();
-                    } else {
-                      setActiveSubTab('dados');
-                    }
-                  }}
-                  className={`w-full p-3.5 rounded border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                    isDark 
-                      ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
-                      : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
-                      <User className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold font-['Poppins']">Meus Dados Pessoais</div>
-                      <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        Nome, e-mail, telefone e endereço
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                </button>
-
-                {/* Opção: Chat no App com o Estabelecimento */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    hapticLight();
-                    setIsAppChatOpen(true);
-                  }}
-                  className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                    isDark 
-                      ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
-                      : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                      <MessageSquare className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold font-['Poppins']">Chat no App Vagou</div>
-                      <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        Mensagens diretas com a equipe
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                </button>
-
-
-
-                {/* ÚLTIMA OPÇÃO DA LISTA DO MENU: Gerenciar Estabelecimento (Exclusivo Administrador Pro) */}
-                {currentPersona !== 'cliente' && isProAdmin && (
-                  <button
-                    type="button"
-                    id="menu-option-personalizar"
-                    onClick={() => {
-                      hapticLight();
-                      onClose();
-                      if (onRequestManage) {
-                        onRequestManage();
-                      } else {
-                        onNavigateTab?.('personalizar');
-                      }
-                    }}
-                    className={`w-full p-3.5 rounded border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                      isDark 
-                        ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
-                        : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                        <Store className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold font-['Poppins']">Gerenciar Estabelecimento</span>
-                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">Admin</span>
-                        </div>
-                        <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                          Espaço, catálogo de serviços e equipe
-                        </div>
-                      </div>
-                    </div>
-                    <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                  </button>
-                )}
-
-                {/* Desconectar do Modo Pro */}
-                {currentPersona !== 'cliente' && onLogoutSalon && (
+                {/* Desconectar do Modo Pro / Gestão */}
+                {isSalonLoggedIn && onLogoutSalon && (
                   <button
                     type="button"
                     onClick={() => {
@@ -1154,7 +1544,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       onClose();
                       onLogoutSalon();
                     }}
-                    className={`w-full p-3 rounded border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer mt-3 ${
+                    className={`w-full p-3 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer mt-3 ${
                       isDark 
                         ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400' 
                         : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700'
@@ -1169,7 +1559,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 )}
 
                 {/* Desconectar no Modo Cliente */}
-                {currentPersona === 'cliente' && (
+                {!isSalonLoggedIn && (
                   <button
                     type="button"
                     onClick={() => {
@@ -1184,7 +1574,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         onLogoutSalon();
                       }
                     }}
-                    className={`w-full p-3 rounded border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer mt-3 ${
+                    className={`w-full p-3 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer mt-3 ${
                       isDark 
                         ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400' 
                         : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700'
@@ -1747,6 +2137,240 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   )}
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* VISTA: CONTA FAMÍLIA & DEPENDENTES (Padrão Tríade VagouApp / admvapp) */}
+          {activeSubTab === 'dependentes' && (
+            <div className="space-y-4">
+              {/* Card de Apresentação da Conta Família */}
+              <div className={`p-3.5 rounded-[4px] border flex items-center justify-between gap-3 ${
+                isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+              }`}>
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-10 h-10 rounded-[4px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
+                    <Users className="w-5 h-5 text-indigo-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-xs font-bold font-['Poppins'] text-slate-900 dark:text-white truncate">
+                      Conta Família • Dependentes
+                    </h4>
+                    <p className={`text-[11px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Agende serviços para familiares pelo seu login
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    setIsAddingDependent(!isAddingDependent);
+                  }}
+                  className="px-3 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                  <span className="text-white">{isAddingDependent ? 'Fechar' : 'Novo'}</span>
+                </button>
+              </div>
+
+              {/* Feedback de Ação */}
+              {dependentFeedback && (
+                <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-[4px] flex items-center gap-2 text-emerald-400 text-xs font-semibold animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{dependentFeedback}</span>
+                </div>
+              )}
+
+              {/* Formulário de Cadastro de Novo Dependente */}
+              {isAddingDependent && (
+                <form 
+                  onSubmit={handleAddDependent} 
+                  className={`p-4 rounded-[4px] border space-y-3 animate-in fade-in slide-in-from-top-2 ${
+                    isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+                  }`}
+                >
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80">
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 font-mono">
+                      <UserPlus className="w-3.5 h-3.5 text-emerald-400" />
+                      Novo Dependente
+                    </span>
+                  </div>
+
+                  {/* Nome Completo */}
+                  <div className="space-y-1">
+                    <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      Nome Completo *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Pedro Henrique Silva"
+                      value={newDepName}
+                      onChange={(e) => setNewDepName(e.target.value)}
+                      className={`w-full px-3 py-2 text-xs rounded-[4px] border outline-hidden transition ${
+                        isDark 
+                          ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                          : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-600'
+                      }`}
+                    />
+                  </div>
+
+                  {/* Grau de Parentesco */}
+                  <div className="space-y-1">
+                    <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      Grau de Parentesco *
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        { id: 'son', label: 'Filho(a)' },
+                        { id: 'spouse', label: 'Cônjuge' },
+                        { id: 'parent', label: 'Pai / Mãe' },
+                        { id: 'daughter', label: 'Filha' },
+                        { id: 'other', label: 'Outro' },
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            hapticLight();
+                            setNewDepRel(item.id as any);
+                          }}
+                          className={`py-1.5 px-2 rounded-[4px] text-xs font-semibold border transition cursor-pointer text-center ${
+                            newDepRel === item.id
+                              ? 'bg-emerald-500 border-emerald-500 text-white font-bold'
+                              : isDark
+                              ? 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                              : 'bg-slate-100 border-slate-200 text-slate-700 hover:border-slate-300'
+                          }`}
+                        >
+                          <span className={newDepRel === item.id ? 'text-white' : ''}>{item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Data de Nascimento */}
+                  <div className="space-y-1">
+                    <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      Data de Nascimento (Opcional)
+                    </label>
+                    <input
+                      type="date"
+                      value={newDepBirthDate}
+                      onChange={(e) => setNewDepBirthDate(e.target.value)}
+                      className={`w-full px-3 py-2 text-xs rounded-[4px] border outline-hidden transition ${
+                        isDark 
+                          ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                          : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-600'
+                      }`}
+                    />
+                  </div>
+
+                  {/* Observações / Cuidados */}
+                  <div className="space-y-1">
+                    <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      Observações / Cuidados (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Corte infantil na tesoura, alergia a produtos..."
+                      value={newDepNotes}
+                      onChange={(e) => setNewDepNotes(e.target.value)}
+                      className={`w-full px-3 py-2 text-xs rounded-[4px] border outline-hidden transition ${
+                        isDark 
+                          ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                          : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-600'
+                      }`}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSavingDep || !newDepName.trim()}
+                    className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white font-bold text-xs rounded-[4px] transition uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                  >
+                    <Check className="w-4 h-4 text-white stroke-[2.5]" />
+                    <span className="text-white">{isSavingDep ? 'Salvando...' : 'Salvar Dependente'}</span>
+                  </button>
+                </form>
+              )}
+
+              {/* Lista de Dependentes Vinculados */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
+                    Dependentes Cadastrados ({dependents.length})
+                  </span>
+                </div>
+
+                {dependents.length === 0 ? (
+                  <div className={`p-8 text-center rounded-[4px] border border-dashed ${
+                    isDark ? 'border-slate-800 text-slate-500' : 'border-slate-200 text-slate-400'
+                  }`}>
+                    <Users className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-400" />
+                    <p className="text-xs font-bold text-slate-300">Nenhum dependente cadastrado</p>
+                    <p className="text-[11px] mt-1 text-slate-500">
+                      Toque em "Novo" acima para vincular filhos ou familiares à sua conta.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {dependents.map((dep) => (
+                      <div
+                        key={dep.id}
+                        className={`p-3 rounded-[4px] border flex items-center justify-between gap-3 transition ${
+                          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold text-xs shrink-0">
+                            {dep.full_name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                {dep.full_name}
+                              </h5>
+                              <span className="px-1.5 py-0.5 rounded-[4px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[9px] font-mono font-medium shrink-0">
+                                {dep.relationship === 'son' 
+                                  ? 'Filho(a)' 
+                                  : dep.relationship === 'daughter' 
+                                  ? 'Filha' 
+                                  : dep.relationship === 'spouse' 
+                                  ? 'Cônjuge' 
+                                  : dep.relationship === 'parent' 
+                                  ? 'Pai/Mãe' 
+                                  : 'Outro'}
+                              </span>
+                            </div>
+                            {dep.notes && (
+                              <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                                {dep.notes}
+                              </p>
+                            )}
+                            {dep.birth_date && (
+                              <p className="text-[10px] text-slate-500 mt-0.5">
+                                Nasc: {dep.birth_date.split('-').reverse().join('/')}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDependent(dep.id, dep.full_name)}
+                          className="p-1.5 rounded-[4px] hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 transition cursor-pointer shrink-0"
+                          title={`Remover ${dep.full_name}`}
+                          aria-label={`Remover ${dep.full_name}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

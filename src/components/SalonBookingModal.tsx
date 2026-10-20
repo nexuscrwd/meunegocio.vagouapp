@@ -5,7 +5,7 @@ import {
   Check, Video, Images, Phone
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { ServiceOffer, CatalogServiceItem } from '../types';
+import { ServiceOffer, CatalogServiceItem, UserFamilyDependent } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { getAvailableSlotsForDate } from '../utils/bookingSlots';
 import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
@@ -165,6 +165,14 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isDependentBooking, setIsDependentBooking] = useState(false);
   const [dependentName, setDependentName] = useState('');
+  // Dependentes pré-cadastrados na Conta Família do cliente
+  const registeredDependents: UserFamilyDependent[] = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('vagou_user_dependents');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return [];
+  }, [isOpen, isDependentBooking]);
   const [clientPhoneInput, setClientPhoneInput] = useState(() => {
     return localStorage.getItem('vagou_user_phone') || '';
   });
@@ -965,14 +973,46 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   </label>
 
                   {isDependentBooking && (
-                    <div className="space-y-1 pl-6 pt-1 animate-in fade-in duration-150">
+                    <div className="space-y-1.5 pl-6 pt-1 animate-in fade-in duration-150">
+                      {registeredDependents.length > 0 && (
+                        <div className="space-y-1">
+                          <span className="text-[10px] text-slate-400 block font-medium">
+                            Dependentes da sua Conta Família:
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {registeredDependents.map((dep) => (
+                              <button
+                                key={dep.id}
+                                type="button"
+                                onClick={() => {
+                                  hapticLight();
+                                  setDependentName(dep.full_name);
+                                }}
+                                className={`px-2 py-0.5 rounded-[4px] text-[10px] font-bold border transition cursor-pointer flex items-center gap-1 ${
+                                  dependentName === dep.full_name
+                                    ? 'bg-emerald-500 border-emerald-500 text-white'
+                                    : isDark
+                                    ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                                    : 'bg-slate-100 border-slate-200 text-slate-700 hover:border-slate-300'
+                                }`}
+                              >
+                                <span className={dependentName === dep.full_name ? 'text-white' : ''}>{dep.full_name}</span>
+                                <span className={`text-[9px] ${dependentName === dep.full_name ? 'text-white/80' : 'opacity-70'}`}>
+                                  ({dep.relationship === 'son' ? 'Filho(a)' : dep.relationship === 'daughter' ? 'Filha' : dep.relationship === 'spouse' ? 'Cônjuge' : 'Familiar'})
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       <label className="text-[11px] font-bold text-slate-400">Nome do Dependente</label>
                       <input
                         type="text"
                         value={dependentName}
                         onChange={(e) => setDependentName(e.target.value)}
                         placeholder="Ex: Pedro Silva (Filho)"
-                        className={`w-full px-3 py-2 text-xs rounded border transition-colors outline-hidden ${
+                        className={`w-full px-3 py-2 text-xs rounded-[4px] border transition-colors outline-hidden ${
                           isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-600'
                         }`}
                       />

@@ -1,7 +1,14 @@
 # 🏛️ ECOSYSTEM_CONTRACT.md — Contrato do Ecossistema Vagou
 
 > **DOCUMENTO MESTRE DE COMPARTILHAMENTO (PAR CLIENTE & PAR EMPRESÁRIO)**  
-> Este arquivo é a fonte única da verdade para a arquitetura, modelos de dados e fluxos de comunicação entre os dois aplicativos que compõem a plataforma **Vagou**. Ambos os projetos compartilham o mesmo banco de dados e devem respeitar estritamente as definições deste contrato.
+> Este arquivo é a fonte única da verdade para a arquitetura, modelos de dados e fluxos de comunicação entre os três aplicativos que compõem a plataforma **Vagou**. Ambos os projetos compartilham o mesmo banco de dados e devem respeitar estritamente as definições deste contrato.
+
+---
+
+### 🔗 Repositórios Oficiais da Tríade no GitHub:
+1. **Admin VagouApp (`admvapp`):** [`https://github.com/nexuscrwd/admin.vagouapp.git`](https://github.com/nexuscrwd/admin.vagouapp.git) — Backoffice Executivo & Gestão VAPP
+2. **VagouApp Oficial / Meu Negócio (`vapp` / `mnvapp`):** [`https://github.com/nexuscrwd/vagouapp.git`](https://github.com/nexuscrwd/vagouapp.git) — App dos Estabelecimentos & Vitrines White-Label
+3. **Portal VagouApp (`pvapp`):** [`https://github.com/nexuscrwd/Portal-VagouApp.git`](https://github.com/nexuscrwd/Portal-VagouApp.git) — Portal do Usuário & Radar Marketplace
 
 ---
 

@@ -4,6 +4,13 @@
 
 ---
 
+### 🔗 Repositórios Oficiais da Tríade no GitHub:
+1. **Admin VagouApp (`admvapp`):** [`https://github.com/nexuscrwd/admin.vagouapp.git`](https://github.com/nexuscrwd/admin.vagouapp.git) — Backoffice Executivo & Gestão VAPP
+2. **VagouApp Oficial / Meu Negócio (`vapp` / `mnvapp`):** [`https://github.com/nexuscrwd/vagouapp.git`](https://github.com/nexuscrwd/vagouapp.git) — App dos Estabelecimentos & Vitrines White-Label
+3. **Portal VagouApp (`pvapp`):** [`https://github.com/nexuscrwd/Portal-VagouApp.git`](https://github.com/nexuscrwd/Portal-VagouApp.git) — Portal do Usuário & Radar Marketplace
+
+---
+
 ## 🛑 1. O Protocolo dos 6 Mandamentos
 
 ### 1. Leitura Prévia Obrigatória da Documentação (`.md`)

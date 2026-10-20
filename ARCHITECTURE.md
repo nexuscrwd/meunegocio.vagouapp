@@ -8,9 +8,12 @@ O **Vagou** é um ecossistema mobile-first em tempo real para liquidação de va
 
 O ecossistema é formalmente composto por **três aplicações independentes e integradas**:
 
-1. **`pvapp` (`portal.vagouapp.com`):** Marketplace e Portal do Consumidor final (Radar, geolocalização GIS, agendamentos rápidos).
-2. **`mnvapp` (`meunegocio.vagouapp.com` / `seunegocio.vagouapp.com`):** Este projeto — App Operacional do Parceiro (Agenda, equipe, serviços, publicação de vagas e gestão do salão).
-3. **`admvapp` (`adm.vagouapp.com` / `admin.vagouapp.com`):** Painel de Admin Master (Governança executiva, moderação de salões, verificação de conformidade fiscal e auditoria direta no banco Supabase).
+1. **`pvapp` (`portal.vagouapp.com`):** Marketplace e Portal do Consumidor final (Radar, geolocalização GIS, agendamentos rápidos).  
+   - Repositório: [`https://github.com/nexuscrwd/Portal-VagouApp.git`](https://github.com/nexuscrwd/Portal-VagouApp.git)
+2. **`mnvapp` / `vapp` (`meunegocio.vagouapp.com` / `*.vagouapp.com`):** Este projeto — App Operacional do Parceiro (Agenda, equipe, serviços, publicação de vagas e gestão do salão).  
+   - Repositório: [`https://github.com/nexuscrwd/vagouapp.git`](https://github.com/nexuscrwd/vagouapp.git)
+3. **`admvapp` (`adm.vagouapp.com` / `admin.vagouapp.com`):** Painel de Admin Master (Governança executiva, moderação de salões, verificação de conformidade fiscal e auditoria direta no banco Supabase).  
+   - Repositório: [`https://github.com/nexuscrwd/admin.vagouapp.git`](https://github.com/nexuscrwd/admin.vagouapp.git)
 
 ---
 

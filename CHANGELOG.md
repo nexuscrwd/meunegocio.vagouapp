@@ -15,6 +15,45 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-20] — Harmonização da Cor do Tema nos Botões do Cabeçalho (`SalonProfileView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Design System]`
+- **Motivo / Solicitação:** Atender ao foco nos botões de ação do cabeçalho superior (`header#salon-profile-header > div > button > svg`), garantindo que os ícones (Compartilhar, Favoritar, Perfil e Alternador) utilizem dinamicamente a cor do tema/destaque do estabelecimento (`effectiveAccentColor`) e nunca cinza genérico.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Definida a constante `effectiveAccentColor = adminSettings.accentColor || accentColor || '#20C933'`.
+  - Aplicada a cor do tema via `style={{ color: effectiveAccentColor }}` nos ícones `<Share2>`, `<Heart>` (quando não favoritado, substituindo a classe cinza `text-slate-400 / text-slate-500`), `<User>`, `<Check>` e `<Eye>`.
+  - Botão "Entrar" configurado com `style={{ backgroundColor: effectiveAccentColor }}` e tipografia branca de alto contraste (`text-white`), em total conformidade com a Regra do Fundo Verde.
+
+### [2026-10-20] — Organização Contextual do Menu Lateral (Modo Gestão ⇄ Modo Cliente) & Módulo Conta Família com Dependentes (`ProfileDrawer.tsx`, `SalonBookingModal.tsx` & Repositórios Oficiais)
+- **Tipo:** `[Feat / UI-UX / Governança da Tríade / Sincronismo Supabase]`
+- **Motivo / Solicitação:** 
+  1. Registrar os 3 repositórios oficiais da Tríade (`admvapp`, `vapp`, `pvapp`) de forma permanente na documentação.
+  2. Resolver a contradição visual onde o app estava no Modo Gestão mas o menu lateral abria como "Menu do Cliente" com opções genéricas de cliente.
+  3. Adicionar no menu a opção de cadastrar e gerenciar dependentes da conta (Conta Família), sincronizado com o banco Supabase e com suporte a seleção em 1 toque na etapa de agendamento de serviços.
+- **Arquivos Impactados:**
+  - `MASTER_APPROVALS_AND_GUIDELINES.md`
+  - `ECOSYSTEM_CONTRACT.md`
+  - `ARCHITECTURE.md`
+  - `KNOWLEDGE_BASE.md`
+  - `AGENTS.md` & `GEMINI.md`
+  - `src/types.ts`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Repositórios Oficiais Gravados:** `adminvapp` (`https://github.com/nexuscrwd/admin.vagouapp.git`), `vapp` (`https://github.com/nexuscrwd/vagouapp.git`) e `pvapp` (`https://github.com/nexuscrwd/Portal-VagouApp.git`) catalogados em todos os manuais mestres e diretrizes.
+  - **Menu Lateral Contextual e Inteligente (`ProfileDrawer.tsx`):**
+    - **No Modo Gestão (`isGerMode = true`):** O cabeçalho exibe "Menu de Gestão" com subtítulo `${salonName} • Painel Administrativo`, o badge do usuário é exibido como `[PROPRIETÁRIO]` ou `[EQUIPE PRO]` em verde esmeralda, acompanhado de atalho de 1 toque para alternar para "Ver Vitrine como Cliente", bloco dedicado de "Gestão do Estabelecimento" (Configurações do Salão, Catálogo de Serviços, Equipe & Comissões, Caixa & Financeiro, Vagas Relâmpago) e bloco "Minha Conta".
+    - **No Modo Cliente (`isGerMode = false`):** Exibe "Menu do Cliente", opções de "Minha Agenda", "Conta Família & Dependentes", "Meus Dados Pessoais", "Chat no App" e, caso o usuário logado seja dono/equipe em teste, exibe no topo o botão destacado `[ 📊 Retornar ao Modo Gestão ]` para voltar ao painel administrativo.
+  - **Módulo Conta Família & Dependentes (`activeSubTab = 'dependentes'`):**
+    - Permite cadastrar dependentes com nome completo, grau de parentesco (`son`, `daughter`, `spouse`, `parent`, `other`), data de nascimento e observações (cuidados, preferências de corte, etc.).
+    - Totalmente sincronizado com o Supabase (`public.dependents` e contador `clients.dependents_count`) e persistência resiliente em `localStorage`.
+    - Lista visual com tags de parentesco, idade formatada e opção de remoção segura.
+  - **Agendamento Rápido em 1 Toque (`SalonBookingModal.tsx`):** Ao marcar "Agendamento para outra pessoa / dependente", o modal exibe chips com os dependentes cadastrados na conta, permitindo autopreenchimento instantâneo em 1 toque sem digitação manual.
+
 ### [2026-10-20] — Alternador de Visão Soberano no Cabeçalho (Modo Gestão ⇄ Modo Cliente) & Sincronia de Abas (`SalonProfileView.tsx`)
 - **Tipo:** `[Feat / UI-UX / Desambiguação de Navegação]`
 - **Motivo / Solicitação:** Permitir que o proprietário/profissional logado visualize e teste a vitrine pública exatamente como seu cliente vê e eliminar a ambiguidade do botão "Gerenciar" que estava duplicado no cabeçalho e no menu de opções.

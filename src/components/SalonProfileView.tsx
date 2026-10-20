@@ -29,7 +29,7 @@ import { updateDynamicPwaAssets } from '../utils/pwaAssets';
 import { BottomNav } from './BottomNav';
 import { ProfileDrawer } from './ProfileDrawer';
 import { SalonClientAuthModal } from './SalonClientAuthModal';
-import { hapticSuccess, hapticLight } from '../utils/haptics';
+import { hapticSuccess, hapticLight, hapticMedium } from '../utils/haptics';
 import { 
   supabase, 
   isSupabaseConfigured, 
@@ -560,6 +560,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
     return defaults;
   });
+
+  // Cor de destaque / tema ativa e prioritária do estabelecimento
+  const effectiveAccentColor = adminSettings.accentColor || accentColor || '#20C933';
 
   // Compartilhamento via Web Share API com fallback para Área de Transferência
   const handleShare = useCallback(async () => {
@@ -1909,7 +1912,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             >
               {isPublicPreviewMode ? (
                 <>
-                  <Eye className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <Eye className="w-3.5 h-3.5 shrink-0" style={{ color: effectiveAccentColor }} />
                   <span>Modo Cliente</span>
                 </>
               ) : (
@@ -1934,13 +1937,16 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             aria-label="Compartilhar perfil"
           >
             {isCopied ? (
-              <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
+              <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-colors" style={{ color: effectiveAccentColor }} />
             ) : (
-              <Share2 className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'}`} />
+              <Share2 
+                className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-colors" 
+                style={{ color: effectiveAccentColor }}
+              />
             )}
           </button>
 
-          {/* Favoritar Rápido (Somente visível no modo cliente/público) */}
+          {/* Favoritar Rápido (Somente visível no modo cliente/público) - Cor do tema dinâmico e nunca cinza */}
           {currentPersona === 'cliente' && (
             <button
               type="button"
@@ -1953,7 +1959,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               title="Favoritar este estabelecimento"
               aria-label="Favoritar estabelecimento"
             >
-              <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isFavorite ? 'fill-rose-500 text-rose-500' : isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+              <Heart 
+                className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-colors ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}`}
+                style={{ color: isFavorite ? '#f43f5e' : effectiveAccentColor }}
+              />
             </button>
           )}
 
@@ -1981,7 +1990,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <User className={`w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[1.8] ${isDark ? 'text-slate-300 group-hover:text-emerald-400' : 'text-slate-700 group-hover:text-emerald-600'} transition-colors`} />
+                <User 
+                  className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[1.8] transition-colors" 
+                  style={{ color: effectiveAccentColor }}
+                />
               )}
             </button>
           ) : (
@@ -1991,7 +2003,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 hapticLight();
                 setIsClientAuthModalOpen(true);
               }}
-              className="h-8 sm:h-9 px-3 sm:px-3.5 rounded flex items-center justify-center font-bold text-xs sm:text-sm font-['Poppins'] tracking-wide transition active:scale-95 cursor-pointer shrink-0 bg-emerald-500 hover:bg-emerald-600 text-white border border-emerald-500/40 shadow-xs"
+              className="h-8 sm:h-9 px-3 sm:px-3.5 rounded flex items-center justify-center font-bold text-xs sm:text-sm font-['Poppins'] tracking-wide transition active:scale-95 cursor-pointer shrink-0 text-white shadow-xs"
+              style={{ backgroundColor: effectiveAccentColor }}
               title="Entrar no aplicativo"
               aria-label="Entrar"
             >
@@ -3017,6 +3030,14 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         isSalonLoggedIn={isSalonLoggedIn}
         currentPersona={currentPersona}
         isProAdmin={isActiveProAdmin}
+        isGerMode={isGerMode}
+        onToggleMode={() => {
+          hapticMedium();
+          setIsPublicPreviewMode(!isPublicPreviewMode);
+          if (isPublicPreviewMode) {
+            setActiveTab('home');
+          }
+        }}
         onRequestManage={handleRequestManage}
         onOpenAdminPanel={() => {
           handleSelectPersona('pro');

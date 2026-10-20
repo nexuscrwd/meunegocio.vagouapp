@@ -4,6 +4,13 @@ Este documento reúne soluções técnicas testadas, padrões de layout e config
 
 ---
 
+### 🔗 Repositórios Oficiais da Tríade Vagou no GitHub:
+1. **Admin VagouApp (`admvapp`):** [`https://github.com/nexuscrwd/admin.vagouapp.git`](https://github.com/nexuscrwd/admin.vagouapp.git) — Backoffice Executivo & Gestão VAPP
+2. **VagouApp Oficial / Meu Negócio (`vapp` / `mnvapp`):** [`https://github.com/nexuscrwd/vagouapp.git`](https://github.com/nexuscrwd/vagouapp.git) — App dos Estabelecimentos & Vitrines White-Label
+3. **Portal VagouApp (`pvapp`):** [`https://github.com/nexuscrwd/Portal-VagouApp.git`](https://github.com/nexuscrwd/Portal-VagouApp.git) — Portal do Usuário & Radar Marketplace
+
+---
+
 ## 🎯 1. Padrão de Camadas & Hierarquia de `z-index` (Solução Validada)
 
 ### O Problema Resolvido:
@@ -172,6 +179,25 @@ Uso incorreto de texto ou ícones escuros (`text-slate-950`, `text-slate-900`) s
    - Fundo escuro e frio (`slate-950`, `slate-900`, `slate-800`) exige texto claro/branco (`text-white`, `text-slate-100`).
    - Fundo claro/quente exige texto escuro de alto contraste (`text-slate-900`).
    - Fundo com cor de destaque forte (Verde Esmeralda) exige texto branco puro (`text-white`).
+
+---
+
+## 🏛️ 11. Repositórios Oficiais da Tríade Vagou no GitHub
+
+Os 3 projetos independentes da Tríade possuem repositórios versionados e soberanos:
+
+1. **Admin VagouApp (`admvapp`):**
+   - **URL:** [`https://github.com/nexuscrwd/admin.vagouapp.git`](https://github.com/nexuscrwd/admin.vagouapp.git)
+   - **Domínios:** `adm.vagouapp.com` / `admin.vagouapp.com`
+   - **Função:** Painel Executivo Backoffice, moderação de salões, conformidade fiscal e auditoria direta no Supabase.
+2. **VagouApp Oficial / Meu Negócio (`vapp` / `mnvapp`):**
+   - **URL:** [`https://github.com/nexuscrwd/vagouapp.git`](https://github.com/nexuscrwd/vagouapp.git)
+   - **Domínios:** `meunegocio.vagouapp.com` / subdomínios wildcard `*.vagouapp.com`
+   - **Função:** App do Estabelecimento (Gestão de Agenda, Caixa, Equipe e Vitrine Pública White-Label do Cliente).
+3. **Portal VagouApp (`pvapp`):**
+   - **URL:** [`https://github.com/nexuscrwd/Portal-VagouApp.git`](https://github.com/nexuscrwd/Portal-VagouApp.git)
+   - **Domínios:** `portal.vagouapp.com` / `vagouapp.com`
+   - **Função:** Portal do Usuário, Radar de vagas em tempo real, busca georreferenciada (GIS) e marketplace.
 
 
 
