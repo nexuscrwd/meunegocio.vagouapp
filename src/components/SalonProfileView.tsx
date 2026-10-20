@@ -21,6 +21,7 @@ import { CaixaManagerView } from './professional/CaixaManagerView';
 import { SalonCustomizationHub } from './professional/SalonCustomizationHub';
 import { UtilitiesAndToolsView } from './professional/UtilitiesAndToolsView';
 import { useSalonRole, SalonRole } from '../hooks/useSalonRole';
+import { useOwnerAccess } from '../hooks/useOwnerAccess';
 import { useTheme } from '../context/ThemeContext';
 import { getSalonLogo } from '../utils/salonLogos';
 import { DEFAULT_ROTA99_LOGO_DARK, DEFAULT_ROTA99_LOGO_LIGHT, DEFAULT_ROTA99_ICON, DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
@@ -276,14 +277,27 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     };
   }, [currentUserName]);
 
-  // 1. Papel Soberano recebido via prop do App (ou fallback de segurança)
-  const activeRole = userRole || 'guest';
-  const isRoleLoading = activeRole === 'loading';
-  const isOwnerOrManager = activeRole === 'owner' || activeRole === 'manager';
+  // 1. Papel Soberano recebido via prop do App + Hook useOwnerAccess (Validação cruzada por CPF, E-mail e user_id no Supabase)
+  const ownerAccess = useOwnerAccess({
+    salonId: initialSalonData?.id || (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_db_id') : ''),
+    salonSlug: activeSubdomain || initialSalonData?.slug || (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') : ''),
+    initialSalonData,
+  });
+
+  const [isPublicPreviewMode, setIsPublicPreviewMode] = useState<boolean>(false);
+
+  const activeRole: SalonRole = useMemo(() => {
+    if (ownerAccess.isOwner) return 'owner';
+    if (ownerAccess.role !== 'guest' && ownerAccess.role !== 'loading') return ownerAccess.role;
+    return userRole || 'guest';
+  }, [ownerAccess.isOwner, ownerAccess.role, userRole]);
+
+  const isRoleLoading = activeRole === 'loading' && ownerAccess.isLoading;
+  const isOwnerOrManager = ownerAccess.isOwner || activeRole === 'owner' || activeRole === 'manager';
   const isProfessional = activeRole === 'professional';
   const isSalonLoggedIn = isOwnerOrManager || isProfessional;
-  const currentPersona: UserPersona = isSalonLoggedIn ? 'pro' : 'cliente';
-  const isGerMode = isSalonLoggedIn;
+  const currentPersona: UserPersona = (isSalonLoggedIn && !isPublicPreviewMode) ? 'pro' : 'cliente';
+  const isGerMode = isSalonLoggedIn && !isPublicPreviewMode;
   const isUserProRole = isSalonLoggedIn;
   const isActiveProAdmin = isOwnerOrManager;
 
@@ -332,10 +346,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     checkLoginState();
     window.addEventListener('storage', checkLoginState);
     return () => window.removeEventListener('storage', checkLoginState);
-  }, [userName, isSalonLoggedIn, currentPersona]);
+  }, [userName, isSalonLoggedIn, currentPersona, activeRole]);
 
   // Modo de visualização quando logado: 'ger' (Gerenciamento) ou 'pub' (Público / Visão do Cliente)
-  const viewMode = isSalonLoggedIn ? 'ger' : 'pub';
+  const viewMode = isGerMode ? 'ger' : 'pub';
 
   // Identificação do Profissional Logado / Ativo no modo Pro
   const [activeProId, setActiveProId] = useState<string>(() => {
@@ -474,6 +488,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       return {
         salonName: resolvedName,
         salonSlug: initialSalonData.slug || activeSubdomain || '',
+        category: initialSalonData.category || initialSalonData.branding?.category || 'barbearia',
+        email: initialSalonData.email || initialSalonData.branding?.email || '',
+        phoneLandline: initialSalonData.phone_landline || initialSalonData.branding?.phoneLandline || '',
         razaoSocial: isInitialCnpj14 ? (initialSalonData.legal_name || '') : '',
         cnpj: isInitialCnpj14 ? (initialSalonData.document_number || '') : '',
         ownerCpf: resolvedOwnerCpf,
@@ -488,7 +505,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         cidade: initialSalonData.city || '',
         uf: initialSalonData.state || '',
         cep: initialSalonData.cep || '',
-        openingHours: 'Seg a Sáb: 09:00 às 20:00',
+        openingHours: initialSalonData.opening_hours_text || initialSalonData.branding?.openingHours || 'Seg a Sáb: 09:00 às 20:00',
+        operatingHoursJson: initialSalonData.operating_hours || initialSalonData.branding?.operatingHours || undefined,
+        spacePhotos: initialSalonData.space_photos || initialSalonData.branding?.spacePhotos || undefined,
+        spaceDescription: initialSalonData.space_description || initialSalonData.branding?.spaceDescription || undefined,
+        amenities: initialSalonData.amenities || initialSalonData.branding?.amenities || undefined,
         isOpenNow: true,
         accentColor: resolvedColor,
         salonLogoDark: resolvedLogoDark,
@@ -766,6 +787,30 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           }
 
           if (salonRecord.phone_whatsapp) updatedSettings.salonPhone = salonRecord.phone_whatsapp;
+          if (salonRecord.category || salonRecord.branding?.category) {
+            updatedSettings.category = salonRecord.category || salonRecord.branding?.category;
+          }
+          if (salonRecord.email || salonRecord.branding?.email) {
+            updatedSettings.email = salonRecord.email || salonRecord.branding?.email;
+          }
+          if (salonRecord.phone_landline || salonRecord.branding?.phoneLandline) {
+            updatedSettings.phoneLandline = salonRecord.phone_landline || salonRecord.branding?.phoneLandline;
+          }
+          if (salonRecord.opening_hours_text || salonRecord.branding?.openingHours) {
+            updatedSettings.openingHours = salonRecord.opening_hours_text || salonRecord.branding?.openingHours;
+          }
+          if (salonRecord.operating_hours || salonRecord.branding?.operatingHours) {
+            updatedSettings.operatingHoursJson = salonRecord.operating_hours || salonRecord.branding?.operatingHours;
+          }
+          if (salonRecord.space_photos || salonRecord.branding?.spacePhotos) {
+            updatedSettings.spacePhotos = salonRecord.space_photos || salonRecord.branding?.spacePhotos;
+          }
+          if (salonRecord.space_description || salonRecord.branding?.spaceDescription) {
+            updatedSettings.spaceDescription = salonRecord.space_description || salonRecord.branding?.spaceDescription;
+          }
+          if (salonRecord.amenities || salonRecord.branding?.amenities) {
+            updatedSettings.amenities = salonRecord.amenities || salonRecord.branding?.amenities;
+          }
           if (salonRecord.address) updatedSettings.salonAddress = salonRecord.address;
           if (salonRecord.street_number) updatedSettings.numero = salonRecord.street_number;
           if (salonRecord.complement) updatedSettings.complemento = salonRecord.complement;
@@ -827,6 +872,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             } catch {}
             return next;
           });
+
+          window.dispatchEvent(new CustomEvent('vagou:auth-updated'));
         }
 
         const resolvedSlugKey = (salonRecord.slug || activeSlug || '').trim().toLowerCase();
@@ -852,18 +899,50 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           } catch {}
         }
 
-        // 3. Buscar profissionais reais do banco
+        // 3. Buscar profissionais reais do banco (com suporte a campos completos e metadados de escala/comissão)
         const prosFromDb = await fetchSalonProfessionals(salonRecord.id);
         if (isMounted && Array.isArray(prosFromDb)) {
           if (prosFromDb.length > 0) {
-            const mappedPros: SalonProfessionalItem[] = prosFromDb.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              role: p.role === 'admin' ? 'Dono / Gerente' : 'Profissional',
-              avatar: p.avatar_url || '',
-              avatarUrl: p.avatar_url || '',
-              rating: 5.0,
-            }));
+            const brandingTeamMeta: any[] = Array.isArray(salonRecord.branding?.teamMembers)
+              ? salonRecord.branding.teamMembers
+              : [];
+
+            const mappedPros: SalonProfessionalItem[] = prosFromDb.map((p: any) => {
+              const metaMatch = brandingTeamMeta.find(
+                (m: any) => (m.id && m.id === p.id) || (m.name && m.name === p.name)
+              );
+              const rawSpecs = Array.isArray(p.specialties)
+                ? p.specialties
+                : Array.isArray(metaMatch?.specialties)
+                ? metaMatch.specialties
+                : p.specialty
+                ? String(p.specialty).split(',').map((s: string) => s.trim()).filter(Boolean)
+                : ['Geral'];
+
+              return {
+                id: p.id,
+                name: p.name,
+                role:
+                  p.role === 'admin'
+                    ? 'Dono / Gerente'
+                    : p.role === 'receptionist'
+                    ? 'Recepcionista'
+                    : p.specialty || 'Profissional',
+                systemRole: p.role === 'admin' ? 'admin' : 'member',
+                avatar: p.avatar_url || '',
+                avatarUrl: p.avatar_url || '',
+                phone: p.phone || metaMatch?.phone || '',
+                email: p.email || metaMatch?.email || '',
+                commissionRate:
+                  p.commission_rate !== undefined && p.commission_rate !== null
+                    ? Number(p.commission_rate)
+                    : metaMatch?.commissionRate ?? (p.role === 'admin' ? 100 : 50),
+                specialties: rawSpecs,
+                workSchedule: p.work_schedule || metaMatch?.workSchedule || undefined,
+                isActive: p.is_active !== false && metaMatch?.isActive !== false,
+                rating: 5.0,
+              };
+            });
             setProfessionalsList(mappedPros);
             try {
               if (resolvedSlugKey) {
@@ -877,6 +956,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 id: salonRecord.id,
                 name: salonRecord.trade_name || salonName || 'Profissional',
                 role: 'Dono / Gerente',
+                systemRole: 'admin',
                 avatar: salonRecord.favicon_url || salonRecord.logo_url || '',
                 avatarUrl: salonRecord.favicon_url || salonRecord.logo_url || '',
                 rating: 5.0,
@@ -999,6 +1079,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       localStorage.removeItem('vagou_auth_user_id');
       localStorage.removeItem('vagou_active_partner');
       localStorage.removeItem('vagou_user_email');
+      localStorage.removeItem('vagou_user_cpf');
       localStorage.removeItem('vagou_user_phone');
       localStorage.removeItem('vagou_user_avatar');
       localStorage.removeItem('vagou_user_name');
@@ -1011,12 +1092,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
   // Solicitação de acesso a Gerenciar Estabelecimento (Protegido por RBAC)
   const handleRequestManage = useCallback(() => {
-    if (!isSalonLoggedIn || currentPersona === 'cliente') {
+    if (!isSalonLoggedIn) {
       setIsClientAuthModalOpen(true);
       return;
     }
+    setIsPublicPreviewMode(false);
     setActiveTab('personalizar');
-  }, [isSalonLoggedIn, currentPersona]);
+  }, [isSalonLoggedIn]);
 
   useEffect(() => {
     if (userName) {
@@ -1664,8 +1746,65 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           )}
         </div>
 
-        {/* Lado Direito: Compartilhar + Foto do Usuário */}
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-auto">
+        {/* Lado Direito: Badge de Proprietário + Compartilhar + Foto do Usuário */}
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
+          {/* Badge Discreto de Acesso Rápido do Proprietário (Visível apenas para donos/gestores autenticados via useOwnerAccess) */}
+          {isOwnerOrManager && (
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setIsPublicPreviewMode(false);
+                  setActiveTab('personalizar');
+                }}
+                className={`h-8 sm:h-9 px-2.5 sm:px-3 rounded flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition active:scale-95 cursor-pointer shadow-xs ${
+                  !isPublicPreviewMode && activeTab === 'personalizar'
+                    ? 'bg-emerald-500 hover:bg-emerald-600 text-white border border-emerald-400'
+                    : isDark
+                    ? 'bg-slate-900/90 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/40'
+                    : 'bg-emerald-500 hover:bg-emerald-600 text-white border border-emerald-600'
+                }`}
+                title="Acesso rápido ao menu de gerenciamento do proprietário"
+                aria-label="Gerenciar Estabelecimento"
+              >
+                <ShieldCheck
+                  className={`w-3.5 h-3.5 shrink-0 ${
+                    !isPublicPreviewMode && activeTab === 'personalizar'
+                      ? 'text-white'
+                      : isDark
+                      ? 'text-emerald-400'
+                      : 'text-white'
+                  }`}
+                />
+                <span>Gerenciar</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setIsPublicPreviewMode((prev) => !prev);
+                }}
+                className={`w-8 h-8 sm:w-9 sm:h-9 rounded flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
+                  isPublicPreviewMode
+                    ? 'bg-emerald-500 text-white border border-emerald-400'
+                    : isDark
+                    ? 'bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white'
+                    : 'bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600'
+                }`}
+                title={isPublicPreviewMode ? 'Voltar ao modo Gestão' : 'Visualizar Vitrine como Cliente'}
+                aria-label={isPublicPreviewMode ? 'Voltar ao modo Gestão' : 'Visualizar Vitrine como Cliente'}
+              >
+                {isPublicPreviewMode ? (
+                  <LayoutDashboard className="w-3.5 h-3.5 text-white" />
+                ) : (
+                  <Eye className="w-3.5 h-3.5" />
+                )}
+              </button>
+            </div>
+          )}
+
           {/* Botão Compartilhar Perfil (Web Share API) */}
           <button
             type="button"
@@ -2750,12 +2889,19 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         onNavigateToUserDashboard={onNavigateToUserDashboard}
       />
 
-      {/* Modal de Autenticação/Cadastro Seguro do Cliente */}
+      {/* Modal de Autenticação/Cadastro Seguro do Cliente (100% White-Label Nativo do Salão) */}
       {isClientAuthModalOpen && (
         <SalonClientAuthModal
           isOpen={isClientAuthModalOpen}
           onClose={() => setIsClientAuthModalOpen(false)}
           salonName={salonInfo.name}
+          salonSlug={adminSettings.salonSlug || activeSubdomain || ''}
+          salonLogo={activeLogo}
+          salonLogoLight={adminSettings.salonLogoLight || ''}
+          salonLogoDark={adminSettings.salonLogoDark || ''}
+          primaryColor={adminSettings.accentColor || '#20C933'}
+          secondaryColor={adminSettings.secondaryColor || ''}
+          themeMode={isDark ? 'dark' : 'light'}
           onAuthenticated={(_user, _role) => {
             setIsClientAuthModalOpen(false);
             if (bookingService) {

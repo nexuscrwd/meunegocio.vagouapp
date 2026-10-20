@@ -191,6 +191,9 @@ export interface OperatingSchedule {
 export interface SalonAdminSettings {
   salonName: string;
   salonSlug?: string;
+  category?: string;
+  email?: string;
+  phoneLandline?: string;
   salonPhone: string;
   salonAddress: string;
   openingHours: string;
@@ -224,8 +227,24 @@ export interface SalonAdminSettings {
   cidade?: string;
   uf?: string;
 
-  // Atendimento Inteligente
+  // Atendimento Inteligente & Espaço
   operatingSchedule?: OperatingSchedule;
+  operatingHoursJson?: Record<string, any>;
+  holidays?: Array<{ id: string; date: string; name: string }>;
+  cancellationPolicy?: {
+    minAdvanceHours: number;
+    chargeCancellationFee: boolean;
+    cancellationFeePercent: number;
+    allowAutoReschedule: boolean;
+    maxNoShowsBeforeBlock: number;
+  };
+  spacePhotos?: Array<{ id: string; url: string; caption: string }>;
+  spaceDescription?: string;
+  amenities?: string[];
+  workingDays?: string[];
+  openTime?: string;
+  closeTime?: string;
+  closedOnHolidays?: boolean;
 
   // Responsável Legal / Titular Pessoal (clients.cpf & salons.owner_cpf)
   ownerCpf?: string;
@@ -268,6 +287,12 @@ export interface SalonProfessionalItem {
   avatar?: string;
   avatarUrl?: string;
   rating?: number;
+  phone?: string;
+  email?: string;
+  commissionRate?: number;
+  specialties?: string[];
+  workSchedule?: ProfessionalWorkSchedule;
+  isActive?: boolean;
 }
 
 export interface CatalogServiceItem {
@@ -315,6 +340,7 @@ export interface ProfessionalTeamMember {
   role: ProfessionalRole;
   avatarUrl?: string;
   phone?: string;
+  email?: string;
   specialties: string[];
   commissionRate?: number; // Percentual de repasse (ex: 50 para 50%)
   workSchedule?: ProfessionalWorkSchedule;

@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { useTheme } from '../context/ThemeContext';
 
 export interface SalonClientAuthUser {
   id?: string;
@@ -13,8 +14,13 @@ interface SalonClientAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   salonName: string;
+  salonSlug?: string;
   salonLogo?: string;
+  salonLogoLight?: string;
+  salonLogoDark?: string;
   primaryColor?: string;
+  secondaryColor?: string;
+  themeMode?: 'light' | 'dark';
   onAuthenticated: (user: SalonClientAuthUser, role?: 'pro' | 'cliente') => void;
 }
 
@@ -22,9 +28,85 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
   isOpen,
   onClose,
   salonName,
+  salonSlug,
+  salonLogo,
+  salonLogoLight,
+  salonLogoDark,
+  primaryColor,
+  secondaryColor,
+  themeMode,
   onAuthenticated,
 }) => {
+  const { theme } = useTheme();
   const [isLoadingIframe, setIsLoadingIframe] = useState(true);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  const resolvedTheme: 'light' | 'dark' = themeMode || theme || 'dark';
+  const isDark = resolvedTheme === 'dark';
+
+  const resolvedPrimaryColor =
+    primaryColor ||
+    (typeof window !== 'undefined' ? localStorage.getItem('vagou_accent_color') : null) ||
+    '#20C933';
+
+  const resolvedSecondaryColor = secondaryColor || '';
+
+  const resolvedLogo = (
+    salonLogo ||
+    (isDark
+      ? salonLogoDark || (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_logo_dark') : '')
+      : salonLogoLight || (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_logo_light') : '')) ||
+    ''
+  ).trim();
+
+  const hasSalonLogo = Boolean(resolvedLogo.length > 0);
+
+  const currentSlug =
+    salonSlug ||
+    (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') || '' : '');
+
+  const sendWhiteLabelConfig = useCallback(() => {
+    if (!iframeRef.current?.contentWindow) return;
+    try {
+      iframeRef.current.contentWindow.postMessage(
+        {
+          type: 'VAGOU_WHITE_LABEL_THEME',
+          source: 'MNVAPP_HOST',
+          payload: {
+            whiteLabel: true,
+            salonName,
+            slug: currentSlug,
+            theme: resolvedTheme,
+            isDark,
+            primaryColor: resolvedPrimaryColor,
+            secondaryColor: resolvedSecondaryColor,
+            logoUrl: hasSalonLogo ? resolvedLogo : '',
+            logoLightUrl: salonLogoLight || '',
+            logoDarkUrl: salonLogoDark || '',
+            hideLogo: !hasSalonLogo,
+            hideHeader: !hasSalonLogo,
+          },
+        },
+        '*'
+      );
+    } catch {}
+  }, [
+    salonName,
+    currentSlug,
+    resolvedTheme,
+    isDark,
+    resolvedPrimaryColor,
+    resolvedSecondaryColor,
+    hasSalonLogo,
+    resolvedLogo,
+    salonLogoLight,
+    salonLogoDark,
+  ]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    sendWhiteLabelConfig();
+  }, [isOpen, sendWhiteLabelConfig]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -32,6 +114,16 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
     const handleMessage = async (event: MessageEvent) => {
       const data = event.data;
       if (!data || typeof data !== 'object') return;
+
+      // Handshake quando o iframe do admvapp solicita ou confirma prontidão para receber tema/logo Base64
+      if (
+        data.type === 'VAGOU_EMBED_READY' ||
+        data.event === 'VAGOU_EMBED_READY' ||
+        data.action === 'VAGOU_EMBED_READY'
+      ) {
+        sendWhiteLabelConfig();
+        return;
+      }
 
       // Suporte universal a todos os formatos de evento de Login/Cadastro emitidos pelo admvapp
       const isAuthSuccess =
@@ -70,6 +162,15 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
           userObj.user_metadata?.phone ||
           payload.phone ||
           '';
+        const resolvedCpf = (
+          data.cpf ||
+          data.ownerCpf ||
+          userObj.cpf ||
+          userObj.user_metadata?.cpf ||
+          payload.cpf ||
+          payload.ownerCpf ||
+          ''
+        ).replace(/\D/g, '');
         const accountType =
           data.accountType ||
           data.role ||
@@ -109,15 +210,17 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
             localStorage.setItem('vagou_user_email', authenticatedUser.email);
             localStorage.setItem('vagou_active_partner', authenticatedUser.email);
           }
+          if (resolvedCpf) localStorage.setItem('vagou_user_cpf', resolvedCpf);
           if (authenticatedUser.phone) localStorage.setItem('vagou_user_phone', authenticatedUser.phone);
         } catch {}
 
-        // Notificar useSalonRole e App imediatamente para reavaliar vínculo de Dono/Membro do salão
+        // Notificar useSalonRole, useOwnerAccess e App imediatamente para reavaliar vínculo de Dono/Membro do salão
         window.dispatchEvent(
           new CustomEvent('vagou:auth-updated', {
             detail: {
               userId: resolvedId,
               email: resolvedEmail,
+              cpf: resolvedCpf,
               name: resolvedName,
               accountType,
             },
@@ -148,7 +251,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [isOpen, onAuthenticated, onClose]);
+  }, [isOpen, onAuthenticated, onClose, sendWhiteLabelConfig]);
 
   // Tecla ESC para fechar
   useEffect(() => {
@@ -162,34 +265,76 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  const currentSlug = typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') || '' : '';
   const currentUrl = typeof window !== 'undefined' ? encodeURIComponent(window.location.href) : '';
-  const iframeSrc = `https://adm.vagouapp.com/cadastro?embed=true&mode=login&type=client&slug=${encodeURIComponent(currentSlug)}&redirect=${currentUrl}`;
+  const isHttpLogo = hasSalonLogo && !resolvedLogo.startsWith('data:') && resolvedLogo.length < 1800;
+
+  const queryParams = new URLSearchParams({
+    embed: 'true',
+    whiteLabel: 'true',
+    mode: 'login',
+    type: 'client',
+    slug: currentSlug,
+    salonName: salonName || '',
+    theme: resolvedTheme,
+    primaryColor: resolvedPrimaryColor,
+    hideLogo: String(!hasSalonLogo),
+    hideHeader: String(!hasSalonLogo),
+  });
+
+  if (resolvedSecondaryColor) {
+    queryParams.set('secondaryColor', resolvedSecondaryColor);
+  }
+
+  if (isHttpLogo) {
+    queryParams.set('logoUrl', resolvedLogo);
+  } else if (hasSalonLogo) {
+    queryParams.set('hasPostMessageLogo', 'true');
+  }
+
+  const iframeSrc = `https://adm.vagouapp.com/cadastro?${queryParams.toString()}&redirect=${currentUrl}`;
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200"
       onClick={onClose}
     >
       {/* Moldura Plana Sem Caixa Dupla (Zero Box-in-Box) */}
       <div 
-        className="relative w-full max-w-[440px] h-[92dvh] max-h-[580px] bg-transparent rounded-2xl overflow-hidden flex flex-col my-auto animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-[440px] h-[92dvh] max-h-[580px] bg-transparent rounded-[4px] overflow-hidden flex flex-col my-auto animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Loading de Conexão */}
+        {/* Loading de Conexão com Identidade Visual e Tema do Salão */}
         {isLoadingIframe && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-slate-950/90 text-slate-400">
-            <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
-            <span className="text-xs font-medium">Carregando acesso seguro...</span>
+          <div
+            className={`absolute inset-0 z-10 flex flex-col items-center justify-center gap-2.5 rounded-[4px] ${
+              isDark ? 'bg-[#151A1E]/95 text-slate-400' : 'bg-white/95 text-slate-600'
+            }`}
+          >
+            {hasSalonLogo && (
+              <img
+                src={resolvedLogo}
+                alt={salonName}
+                className="max-h-10 w-auto object-contain mb-1 opacity-90"
+              />
+            )}
+            <Loader2
+              className="w-6 h-6 animate-spin"
+              style={{ color: resolvedPrimaryColor }}
+            />
+            <span className="text-xs font-medium">Carregando acesso...</span>
           </div>
         )}
 
-        {/* Frame Oficial Soberano do Admin Master */}
+        {/* Frame Oficial Soberano do Admin Master em Modo White-Label */}
         <iframe
+          ref={iframeRef}
           src={iframeSrc}
-          onLoad={() => setIsLoadingIframe(false)}
+          onLoad={() => {
+            setIsLoadingIframe(false);
+            sendWhiteLabelConfig();
+          }}
           className="w-full h-full border-0 bg-transparent"
-          title={`Acesso Vagou - ${salonName}`}
+          title={`Acesso - ${salonName}`}
           allow="clipboard-write"
         />
       </div>

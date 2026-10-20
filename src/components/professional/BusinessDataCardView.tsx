@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { 
   Building2, MapPin, Clock, UserCheck, 
   Save, Check, Search, Loader2, Sparkles, 
-  ArrowLeft, AlertCircle, QrCode, Plus, Trash2, Star, Printer, FileText
+  ArrowLeft, AlertCircle, QrCode, Plus, Trash2, Star, Printer, FileText,
+  Copy, ExternalLink, Phone, Mail, Tag, X
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { SalonAdminSettings, DayOperatingHours, OperatingSchedule, SalonPixKeyItem, PixKeyType } from '../../types';
@@ -17,6 +18,59 @@ export interface BusinessDataCardViewProps {
   onUpdateSettings: (settings: Partial<SalonAdminSettings>) => void;
   onBack: () => void;
   initialTab?: BusinessDataTabId;
+}
+
+const SALON_CATEGORIES = [
+  'Barbearia',
+  'Salão de Beleza',
+  'Clínica de Estética',
+  'Studio de Unhas / Nail Designer',
+  'Lash & Sobrancelhas',
+  'Spa & Massoterapia',
+  'Multi-Serviços',
+];
+
+// Validador Matemático Oficial de CPF (Receita Federal — Módulo 11)
+export function isValidCPF(cpf: string): boolean {
+  const clean = cpf.replace(/\D/g, '');
+  if (clean.length !== 11 || /^(\d)\1{10}$/.test(clean)) return false;
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += parseInt(clean.charAt(i), 10) * (10 - i);
+  let rev = 11 - (sum % 11);
+  if (rev === 10 || rev === 11) rev = 0;
+  if (rev !== parseInt(clean.charAt(9), 10)) return false;
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += parseInt(clean.charAt(i), 10) * (11 - i);
+  rev = 11 - (sum % 11);
+  if (rev === 10 || rev === 11) rev = 0;
+  return rev === parseInt(clean.charAt(10), 10);
+}
+
+// Validador Matemático Oficial de CNPJ (Receita Federal — Módulo 11)
+export function isValidCNPJ(cnpj: string): boolean {
+  const clean = cnpj.replace(/\D/g, '');
+  if (clean.length !== 14 || /^(\d)\1{13}$/.test(clean)) return false;
+  let size = clean.length - 2;
+  let numbers = clean.substring(0, size);
+  const digits = clean.substring(size);
+  let sum = 0;
+  let pos = size - 7;
+  for (let i = size; i >= 1; i--) {
+    sum += parseInt(numbers.charAt(size - i), 10) * pos--;
+    if (pos < 2) pos = 9;
+  }
+  let result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  if (result !== parseInt(digits.charAt(0), 10)) return false;
+  size = size + 1;
+  numbers = clean.substring(0, size);
+  sum = 0;
+  pos = size - 7;
+  for (let i = size; i >= 1; i--) {
+    sum += parseInt(numbers.charAt(size - i), 10) * pos--;
+    if (pos < 2) pos = 9;
+  }
+  result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  return result === parseInt(digits.charAt(1), 10);
 }
 
 const DEFAULT_DAYS: DayOperatingHours[] = [
@@ -38,13 +92,25 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
   const { isDark } = useTheme();
   const [activeSubTab, setActiveSubTab] = useState<BusinessDataTabId>(initialTab);
   const [isPixPrintModalOpen, setIsPixPrintModalOpen] = useState(false);
+  const [isStorefrontQrModalOpen, setIsStorefrontQrModalOpen] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
-  // 1. Dados do Estabelecimento (Separação Comercial vs Fiscal CNPJ)
+  // 1. Dados do Estabelecimento (Comercial + Separação Fiscal CNPJ)
   const [salonName, setSalonName] = useState(adminSettings.salonName || '');
+  const [category, setCategory] = useState(adminSettings.category || 'Barbearia');
+  const [salonPhone, setSalonPhone] = useState(adminSettings.salonPhone || adminSettings.legalManagerPhone || '');
+  const [phoneLandline, setPhoneLandline] = useState(adminSettings.phoneLandline || '');
+  const [commercialEmail, setCommercialEmail] = useState(
+    adminSettings.email || adminSettings.legalManagerEmail || (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_email') || '' : '')
+  );
+
   const initialCnpjDigits = (adminSettings.cnpj || '').replace(/\D/g, '');
   const [hasCnpj, setHasCnpj] = useState<boolean>(initialCnpjDigits.length === 14);
   const [razaoSocial, setRazaoSocial] = useState(initialCnpjDigits.length === 14 ? (adminSettings.razaoSocial || '') : '');
   const [cnpj, setCnpj] = useState(initialCnpjDigits.length === 14 ? (adminSettings.cnpj || '') : '');
+  const [isSearchingCnpj, setIsSearchingCnpj] = useState(false);
+  const [cnpjFeedback, setCnpjFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
+  const [cpfError, setCpfError] = useState('');
 
   // 2. Localização & CEP
   const [cep, setCep] = useState(adminSettings.cep || '');
@@ -74,7 +140,9 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
   const [legalManagerName, setLegalManagerName] = useState(adminSettings.legalManagerName || '');
   const [legalManagerCpf, setLegalManagerCpf] = useState(adminSettings.ownerCpf || adminSettings.legalManagerCpf || '');
   const [legalManagerPhone, setLegalManagerPhone] = useState(adminSettings.legalManagerPhone || adminSettings.salonPhone || '');
-  const [legalManagerEmail, setLegalManagerEmail] = useState(adminSettings.legalManagerEmail || '');
+  const [legalManagerEmail, setLegalManagerEmail] = useState(
+    adminSettings.legalManagerEmail || adminSettings.email || (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_email') || '' : '')
+  );
 
   // 5. Múltiplas Chaves PIX (pix_keys JSONB + pix_key Principal)
   const [pixKeys, setPixKeys] = useState<SalonPixKeyItem[]>(() => {
@@ -132,9 +200,95 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
       .replace(/(\d{5})(\d)/, '$1-$2');
   };
 
+  const formatLandline = (v: string) => {
+    const raw = v.replace(/\D/g, '').slice(0, 10);
+    return raw
+      .replace(/^(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{4})(\d)/, '$1-$2');
+  };
+
   const formatCep = (v: string) => {
     const raw = v.replace(/\D/g, '').slice(0, 8);
     return raw.replace(/^(\d{5})(\d)/, '$1-$2');
+  };
+
+  // Consulta Automática de CNPJ via BrasilAPI (paridade total com admvapp)
+  const searchCnpjBrasilApi = async (cnpjValue: string) => {
+    const clean = cnpjValue.replace(/\D/g, '');
+    if (clean.length !== 14) return;
+
+    if (!isValidCNPJ(clean)) {
+      setCnpjFeedback({ type: 'error', message: 'CNPJ inválido (dígitos verificadores incorretos).' });
+      hapticMedium();
+      return;
+    }
+
+    setIsSearchingCnpj(true);
+    setCnpjFeedback(null);
+
+    try {
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${clean}`);
+      if (!res.ok) {
+        setCnpjFeedback({ type: 'error', message: 'CNPJ não localizado na base da Receita Federal.' });
+        return;
+      }
+      const data = await res.json();
+      if (data.razao_social) {
+        setRazaoSocial(data.razao_social);
+      }
+      if (data.nome_fantasia && (!salonName || salonName === 'Meu Estabelecimento')) {
+        setSalonName(data.nome_fantasia);
+      }
+      if (data.cep && !cep) {
+        setCep(formatCep(String(data.cep)));
+      }
+      if (data.logradouro && !logradouro) {
+        setLogradouro(data.logradouro);
+      }
+      if (data.numero && !numero) {
+        setNumero(String(data.numero));
+      }
+      if (data.complemento && !complemento) {
+        setComplemento(data.complemento);
+      }
+      if (data.bairro && !bairro) {
+        setBairro(data.bairro);
+      }
+      if (data.municipio && !cidade) {
+        setCidade(data.municipio);
+      }
+      if (data.uf && !uf) {
+        setUf(data.uf);
+      }
+      setCnpjFeedback({ type: 'success', message: 'Dados sincronizados da Receita Federal (BrasilAPI).' });
+      hapticSuccess();
+    } catch {
+      setCnpjFeedback({ type: 'error', message: 'Não foi possível consultar a BrasilAPI no momento.' });
+    } finally {
+      setIsSearchingCnpj(false);
+    }
+  };
+
+  const handleCnpjChange = (val: string) => {
+    const masked = formatCnpj(val);
+    setCnpj(masked);
+    const raw = masked.replace(/\D/g, '');
+    if (raw.length === 14) {
+      searchCnpjBrasilApi(masked);
+    } else {
+      setCnpjFeedback(null);
+    }
+  };
+
+  const handleCpfChange = (val: string) => {
+    const masked = formatCpf(val);
+    setLegalManagerCpf(masked);
+    const raw = masked.replace(/\D/g, '');
+    if (raw.length === 11 && !isValidCPF(raw)) {
+      setCpfError('CPF inválido (verifique os dígitos).');
+    } else {
+      setCpfError('');
+    }
   };
 
   // Busca automática por CEP via ViaCEP
@@ -186,7 +340,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     setSchedulePreset(preset);
 
     if (preset === 'salao') {
-      // Seg a Sáb das 09h às 20h (Sáb 09h às 18h), Dom fechado
       setDays([
         { dayKey: 'seg', dayLabel: 'Seg', isOpen: true, openTime: '09:00', closeTime: '20:00' },
         { dayKey: 'ter', dayLabel: 'Ter', isOpen: true, openTime: '09:00', closeTime: '20:00' },
@@ -197,7 +350,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
         { dayKey: 'dom', dayLabel: 'Dom', isOpen: false, openTime: '09:00', closeTime: '14:00' },
       ]);
     } else if (preset === 'comercial') {
-      // Seg a Sex das 09h às 18h, Sáb e Dom fechados
       setDays([
         { dayKey: 'seg', dayLabel: 'Seg', isOpen: true, openTime: '09:00', closeTime: '18:00' },
         { dayKey: 'ter', dayLabel: 'Ter', isOpen: true, openTime: '09:00', closeTime: '18:00' },
@@ -208,7 +360,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
         { dayKey: 'dom', dayLabel: 'Dom', isOpen: false, openTime: '09:00', closeTime: '14:00' },
       ]);
     } else if (preset === 'todos') {
-      // Seg a Dom aberto
       setDays((prev) =>
         prev.map((d) => ({ ...d, isOpen: true, openTime: '09:00', closeTime: '20:00' }))
       );
@@ -300,9 +451,46 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     });
   };
 
+  const resolvedSlug =
+    adminSettings.salonSlug ||
+    (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') || '' : '') ||
+    salonName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-');
+
+  const storefrontUrl = resolvedSlug
+    ? `https://${resolvedSlug}.vagouapp.com`
+    : (typeof window !== 'undefined' ? window.location.origin : 'https://vagouapp.com');
+
+  const storefrontQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=8&data=${encodeURIComponent(storefrontUrl)}`;
+
+  const handleCopyStorefrontLink = async () => {
+    hapticSuccess();
+    try {
+      await navigator.clipboard.writeText(storefrontUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2200);
+    } catch {}
+  };
+
   // Salvar Dados
   const handleSave = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+
+    const rawCpfDigits = legalManagerCpf.replace(/\D/g, '');
+    if (rawCpfDigits.length > 0 && !isValidCPF(rawCpfDigits)) {
+      setActiveSubTab('fiscal');
+      setCpfError('Informe um CPF válido (11 dígitos verificados pela Receita Federal).');
+      hapticMedium();
+      return;
+    }
+
+    const rawCnpjDigits = cnpj.replace(/\D/g, '');
+    if (hasCnpj && rawCnpjDigits.length > 0 && !isValidCNPJ(rawCnpjDigits)) {
+      setActiveSubTab('fiscal');
+      setCnpjFeedback({ type: 'error', message: 'CNPJ inválido. Confira os 14 dígitos informados.' });
+      hapticMedium();
+      return;
+    }
+
     hapticSuccess();
 
     const fullAddress = [
@@ -323,14 +511,19 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
       defaultCloseTime: batchCloseTime,
     };
 
-    const rawCnpjDigits = cnpj.replace(/\D/g, '');
     const isValidCnpj = hasCnpj && rawCnpjDigits.length === 14;
     const finalCnpj = isValidCnpj ? cnpj.trim() : '';
     const finalRazaoSocial = isValidCnpj ? razaoSocial.trim() : '';
     const primaryPix = pixKeys.find((k) => k.isPrimary)?.key || pixKeys[0]?.key || '';
+    const resolvedEmail = (commercialEmail.trim() || legalManagerEmail.trim()).toLowerCase();
+    const resolvedWhatsapp = salonPhone.trim() || legalManagerPhone.trim();
 
     onUpdateSettings({
       salonName: salonName.trim() || 'Meu Estabelecimento',
+      category: category.trim() || 'Barbearia',
+      email: resolvedEmail,
+      salonPhone: resolvedWhatsapp,
+      phoneLandline: phoneLandline.trim(),
       razaoSocial: finalRazaoSocial,
       cnpj: finalCnpj,
       ownerCpf: legalManagerCpf.trim(),
@@ -345,11 +538,12 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
       uf: uf.trim(),
       salonAddress: fullAddress || adminSettings.salonAddress,
       operatingSchedule,
+      operatingHoursJson: operatingSchedule as any,
       openingHours: generateOpeningHoursSummary(),
       legalManagerName: legalManagerName.trim(),
       legalManagerCpf: legalManagerCpf.trim(),
-      legalManagerPhone: legalManagerPhone.trim(),
-      legalManagerEmail: legalManagerEmail.trim(),
+      legalManagerPhone: resolvedWhatsapp,
+      legalManagerEmail: resolvedEmail,
     });
 
     setSavedSuccess(true);
@@ -434,6 +628,67 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
         {/* ABA 1: COMERCIAL, ENDEREÇO & HORÁRIOS */}
         {activeSubTab === 'comercial' && (
           <>
+            {/* BLOCO 0: LINK EXCLUSIVO & PLACA QR CODE DE BALCÃO DA VITRINE (Paridade admvapp) */}
+            <div className={`p-3.5 rounded border space-y-2.5 ${
+              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+            }`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <QrCode className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins'] truncate">
+                    Link Exclusivo & QR Code da Vitrine
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    setIsStorefrontQrModalOpen(true);
+                  }}
+                  className="px-2.5 py-1 rounded bg-[#20C933] hover:bg-[#1bb32d] text-white text-[10px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Printer className="w-3 h-3 text-white" />
+                  <span>Imprimir Placa</span>
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <a
+                  href={storefrontUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-mono font-bold text-emerald-400 hover:underline truncate flex items-center gap-1.5 min-w-0"
+                >
+                  <span className="truncate">{storefrontUrl}</span>
+                  <ExternalLink className="w-3 h-3 shrink-0" />
+                </a>
+
+                <button
+                  type="button"
+                  onClick={handleCopyStorefrontLink}
+                  className={`px-2.5 py-1 rounded text-[11px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0 ${
+                    copiedLink
+                      ? 'bg-emerald-500 text-white'
+                      : isDark
+                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                  }`}
+                >
+                  {copiedLink ? (
+                    <>
+                      <Check className="w-3 h-3 text-white" />
+                      <span>Copiado</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3" />
+                      <span>Copiar Link</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
             <div className={`p-3.5 rounded border space-y-3 ${
               isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
             }`}>
@@ -444,22 +699,105 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                 </h3>
               </div>
 
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Nome Fantasia <span className="text-rose-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={salonName}
-                  onChange={(e) => setSalonName(e.target.value)}
-                  placeholder="Ex: Studio Bella, Barbearia Silva..."
-                  className={`w-full px-3 py-2 rounded border text-xs font-semibold outline-hidden transition ${
-                    isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                  }`}
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Nome Fantasia <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={salonName}
+                    onChange={(e) => setSalonName(e.target.value)}
+                    placeholder="Ex: Studio Bella, Barbearia Silva..."
+                    className={`w-full px-3 py-2 rounded border text-xs font-semibold outline-hidden transition ${
+                      isDark 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+                    <Tag className="w-3 h-3 text-emerald-400" />
+                    <span>Categoria / Ramo</span>
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className={`w-full px-3 py-2 rounded border text-xs font-semibold outline-hidden transition ${
+                      isDark 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  >
+                    {SALON_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+                    <Phone className="w-3 h-3 text-emerald-400" />
+                    <span>WhatsApp Comercial</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={salonPhone}
+                    onChange={(e) => setSalonPhone(formatPhone(e.target.value))}
+                    placeholder="(00) 00000-0000"
+                    className={`w-full px-3 py-2 rounded border text-xs font-mono outline-hidden transition ${
+                      isDark 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+                    <Phone className="w-3 h-3 text-slate-400" />
+                    <span>Telefone Fixo</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={phoneLandline}
+                    onChange={(e) => setPhoneLandline(formatLandline(e.target.value))}
+                    placeholder="(00) 0000-0000"
+                    className={`w-full px-3 py-2 rounded border text-xs font-mono outline-hidden transition ${
+                      isDark 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+                    <Mail className="w-3 h-3 text-emerald-400" />
+                    <span>E-mail Comercial</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={commercialEmail}
+                    onChange={(e) => {
+                      setCommercialEmail(e.target.value);
+                      if (!legalManagerEmail) setLegalManagerEmail(e.target.value);
+                    }}
+                    placeholder="contato@salao.com"
+                    className={`w-full px-3 py-2 rounded border text-xs outline-hidden transition ${
+                      isDark 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                </div>
               </div>
             </div>
 
@@ -859,40 +1197,75 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
               </div>
 
               {hasCnpj ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                      CNPJ (14 dígitos) <span className="text-rose-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={cnpj}
-                      onChange={(e) => setCnpj(formatCnpj(e.target.value))}
-                      placeholder="00.000.000/0000-00"
-                      className={`w-full px-3 py-2 rounded border text-xs font-mono outline-hidden transition ${
-                        isDark 
-                          ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                          : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                      }`}
-                    />
+                <div className="space-y-2.5 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between mb-1">
+                        <span>CNPJ (14 dígitos) <span className="text-rose-400">*</span></span>
+                        <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-emerald-400" />
+                          BrasilAPI
+                        </span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={cnpj}
+                          onChange={(e) => handleCnpjChange(e.target.value)}
+                          placeholder="00.000.000/0000-00"
+                          className={`w-full pl-3 pr-9 py-2 rounded border text-xs font-mono outline-hidden transition ${
+                            isDark 
+                              ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                              : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                          }`}
+                        />
+                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center">
+                          {isSearchingCnpj ? (
+                            <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => searchCnpjBrasilApi(cnpj)}
+                              className="text-slate-400 hover:text-emerald-400 transition cursor-pointer"
+                              title="Consultar CNPJ na Receita Federal (BrasilAPI)"
+                            >
+                              <Search className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                        Razão Social <span className="text-rose-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={razaoSocial}
+                        onChange={(e) => setRazaoSocial(e.target.value)}
+                        placeholder="Ex: Empresa de Beleza LTDA"
+                        className={`w-full px-3 py-2 rounded border text-xs outline-hidden transition ${
+                          isDark 
+                            ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                            : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                        }`}
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                      Razão Social <span className="text-rose-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={razaoSocial}
-                      onChange={(e) => setRazaoSocial(e.target.value)}
-                      placeholder="Ex: Empresa de Beleza LTDA"
-                      className={`w-full px-3 py-2 rounded border text-xs outline-hidden transition ${
-                        isDark 
-                          ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                          : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                      }`}
-                    />
-                  </div>
+                  {cnpjFeedback && (
+                    <p className={`text-[11px] flex items-center gap-1 font-medium ${
+                      cnpjFeedback.type === 'error' ? 'text-rose-400' : 'text-emerald-400'
+                    }`}>
+                      {cnpjFeedback.type === 'error' ? (
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      ) : (
+                        <Check className="w-3.5 h-3.5 shrink-0" />
+                      )}
+                      <span>{cnpjFeedback.message}</span>
+                    </p>
+                  )}
                 </div>
               ) : (
                 <p className="text-[11px] text-slate-400">
@@ -939,14 +1312,22 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                     type="text"
                     required
                     value={legalManagerCpf}
-                    onChange={(e) => setLegalManagerCpf(formatCpf(e.target.value))}
+                    onChange={(e) => handleCpfChange(e.target.value)}
                     placeholder="000.000.000-00"
                     className={`w-full px-3 py-2 rounded border text-xs font-mono outline-hidden transition ${
-                      isDark 
+                      cpfError
+                        ? 'border-rose-500 bg-rose-950/20 text-rose-200'
+                        : isDark 
                         ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
                         : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
                     }`}
                   />
+                  {cpfError && (
+                    <p className="text-[10px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      <span>{cpfError}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -1216,6 +1597,79 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
         pixKeys={pixKeys}
         fallbackPixKey={adminSettings.pixKey}
       />
+
+      {/* Modal de Impressão da Placa QR Code de Agendamento da Vitrine */}
+      {isStorefrontQrModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setIsStorefrontQrModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col max-h-[90dvh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <QrCode className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                  Placa QR Code da Vitrine
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsStorefrontQrModalOpen(false)}
+                className="p-1 rounded text-slate-400 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 flex flex-col items-center text-center space-y-3 overflow-y-auto">
+              <span className="px-2.5 py-0.5 rounded bg-[#20C933] text-white text-[10px] font-bold uppercase tracking-wider">
+                Agende Seu Horário Online
+              </span>
+              <h4 className="text-base font-black text-white">
+                {salonName || adminSettings.salonName || 'Meu Estabelecimento'}
+              </h4>
+              {adminSettings.slogan && (
+                <p className="text-[11px] text-slate-400">{adminSettings.slogan}</p>
+              )}
+              <div className="p-3 bg-white rounded-xl shadow-md">
+                <img
+                  src={storefrontQrUrl}
+                  alt={`QR Code Vitrine ${salonName}`}
+                  className="w-44 h-44 object-contain"
+                />
+              </div>
+              <p className="text-[11px] font-mono font-bold text-emerald-400 break-all">
+                {storefrontUrl}
+              </p>
+              <p className="text-[10px] text-slate-400">
+                Aponte a câmera do celular para ver os serviços e agendar sem fila.
+              </p>
+            </div>
+
+            <div className="p-3 border-t border-slate-800 bg-slate-950 sticky bottom-0 z-20 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopyStorefrontLink}
+                className="flex-1 py-2.5 px-3 rounded bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+              >
+                <Copy className="w-3.5 h-3.5 text-white" />
+                <span>{copiedLink ? 'Link Copiado!' : 'Copiar Link'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex-1 py-2.5 px-3 rounded bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+              >
+                <Printer className="w-3.5 h-3.5 text-white" />
+                <span>Imprimir Placa</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* RODAPÉ FIXO DE AÇÃO */}
       <div className={`p-3 border-t shrink-0 sticky bottom-0 z-20 flex items-center justify-between gap-3 ${

@@ -321,6 +321,9 @@ export const App: React.FC = () => {
             localStorage.setItem('vagou_user_email', uEmail);
             localStorage.setItem('vagou_active_partner', uEmail);
           }
+          if (uMeta?.cpf) {
+            localStorage.setItem('vagou_user_cpf', String(uMeta.cpf).replace(/\D/g, ''));
+          }
         } else {
           // Se não há token no domínio local, verifica se há login SSO ativo vindo do iframe admvapp
           const ssoEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner');
@@ -353,6 +356,9 @@ export const App: React.FC = () => {
           localStorage.setItem('vagou_user_email', uEmail);
           localStorage.setItem('vagou_active_partner', uEmail);
         }
+        if (uMeta?.cpf) {
+          localStorage.setItem('vagou_user_cpf', String(uMeta.cpf).replace(/\D/g, ''));
+        }
 
         setTimeout(() => {
           ensureClientRow(uid, uEmail, uMeta).catch((e) => console.warn('Erro em ensureClientRow:', e));
@@ -364,6 +370,7 @@ export const App: React.FC = () => {
           localStorage.removeItem('vagou_auth_user_id');
           localStorage.removeItem('vagou_user_name');
           localStorage.removeItem('vagou_user_email');
+          localStorage.removeItem('vagou_user_cpf');
           localStorage.removeItem('vagou_user_phone');
           localStorage.removeItem('vagou_user_avatar');
           localStorage.removeItem('vagou_active_partner');
@@ -450,6 +457,15 @@ export const App: React.FC = () => {
           payload.fullName ||
           (email ? email.split('@')[0] : 'Usuário');
         const phone = data.phone || userObj.phone || userObj.user_metadata?.phone || payload.phone || '';
+        const cpf = (
+          data.cpf ||
+          data.ownerCpf ||
+          userObj.cpf ||
+          userObj.user_metadata?.cpf ||
+          payload.cpf ||
+          payload.ownerCpf ||
+          ''
+        ).replace(/\D/g, '');
 
         try {
           if (resolvedId) localStorage.setItem('vagou_auth_user_id', resolvedId);
@@ -460,6 +476,9 @@ export const App: React.FC = () => {
           if (email) {
             localStorage.setItem('vagou_user_email', email);
             localStorage.setItem('vagou_active_partner', email);
+          }
+          if (cpf) {
+            localStorage.setItem('vagou_user_cpf', cpf);
           }
           if (phone) {
             localStorage.setItem('vagou_user_phone', phone);
@@ -483,7 +502,7 @@ export const App: React.FC = () => {
 
           window.dispatchEvent(
             new CustomEvent('vagou:auth-updated', {
-              detail: { userId: resolvedId, email, name },
+              detail: { userId: resolvedId, email, cpf, name },
             })
           );
 
@@ -515,21 +534,11 @@ export const App: React.FC = () => {
         if (sub) {
           setCurrentSubdomain(sub);
           if (isSupabaseConfigured && supabase) {
-            let { data: salon, error: salonErr } = await (supabase.from('salons') as any)
-              .select('id, trade_name, legal_name, document_number, owner_cpf, pix_key, pix_keys, slug, is_active, logo_url, primary_color, slogan, phone_whatsapp, address, neighborhood, city, state, branding')
+            const { data: salon, error: salonErr } = await (supabase.from('salons') as any)
+              .select('*')
               .eq('slug', sub)
               .eq('is_active', true)
               .maybeSingle();
-
-            if (salonErr) {
-              const fallbackRes = await (supabase.from('salons') as any)
-                .select('*')
-                .eq('slug', sub)
-                .eq('is_active', true)
-                .maybeSingle();
-              salon = fallbackRes.data;
-              salonErr = fallbackRes.error;
-            }
 
             if (salonErr || !salon) {
               if (salonErr) console.warn('Erro ao validar subdomínio:', salonErr.message);
@@ -646,6 +655,14 @@ export const App: React.FC = () => {
         <main className="flex-1 w-full min-h-0 overflow-hidden relative flex flex-col">
           {viewMode === 'auth' ? (
             <PartnerAuthView
+              salonName={initialSalonData?.trade_name || salonName}
+              salonSlug={initialSalonData?.slug || currentSubdomain || ''}
+              salonLogo={
+                isDark
+                  ? initialSalonData?.logo_dark_url || initialSalonData?.logo_url || ''
+                  : initialSalonData?.logo_light_url || initialSalonData?.logo_url || ''
+              }
+              primaryColor={initialSalonData?.primary_color || initialSalonData?.branding?.primaryColor || '#20C933'}
               onSuccess={(partnerData?: PartnerAuthSuccessData) => {
                 if (partnerData?.salonName) {
                   setSalonName(partnerData.salonName);

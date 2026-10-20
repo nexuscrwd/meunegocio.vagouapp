@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Building2, Palette, Scissors, Users, DollarSign, 
   ArrowLeft, ChevronRight, ShieldCheck, Sparkles,
-  MapPin, Clock, Store, Wrench
+  Store, Wrench
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { 
@@ -14,13 +14,14 @@ import { BusinessDataCardView } from './BusinessDataCardView';
 import { VisualIdentityCardView } from './VisualIdentityCardView';
 import { ProfessionalServicesManager } from './ProfessionalServicesManager';
 import { TeamManager } from './TeamManager';
+import { ProfessionalSpaceManager } from './ProfessionalSpaceManager';
 import { FinancialManagerView } from './FinancialManagerView';
 import { UtilitiesAndToolsView } from './UtilitiesAndToolsView';
 
-export type ManagementCardId = 'dados' | 'visual' | 'servicos' | 'equipe' | 'financeiro' | 'utilidades';
+export type ManagementCardId = 'dados' | 'visual' | 'servicos' | 'equipe' | 'espaco' | 'financeiro' | 'utilidades';
 
 export interface SalonCustomizationHubProps {
-  initialSubTab?: ManagementCardId | 'hub' | 'espaco';
+  initialSubTab?: ManagementCardId | 'hub';
   adminSettings: SalonAdminSettings;
   onUpdateSettings: (settings: Partial<SalonAdminSettings>) => Promise<any> | void;
   services: CatalogServiceItem[];
@@ -50,6 +51,7 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
   const initialCard: ManagementCardId | null = 
     initialSubTab === 'servicos' ? 'servicos' :
     initialSubTab === 'equipe' ? 'equipe' :
+    initialSubTab === 'espaco' ? 'espaco' :
     initialSubTab === 'dados' ? 'dados' :
     initialSubTab === 'visual' ? 'visual' :
     initialSubTab === 'financeiro' ? 'financeiro' :
@@ -99,8 +101,16 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
       title: 'Equipe & Turnos',
       description: 'Colaboradores, turnos de atendimento, escalas de trabalho e taxas de comissão',
       icon: Users,
-      badge: 'Escalas & Membros',
+      badge: `${professionals.length} ${professionals.length === 1 ? 'Membro' : 'Membros'}`,
       highlightColor: 'amber',
+    },
+    {
+      id: 'espaco' as ManagementCardId,
+      title: 'Espaço, Feriados & Regras',
+      description: 'Horários por dia, intervalos de almoço, feriados, política de cancelamento e galeria',
+      icon: Store,
+      badge: 'Horários & Fotos',
+      highlightColor: 'emerald',
     },
     {
       id: 'financeiro' as ManagementCardId,
@@ -223,11 +233,58 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
             </div>
           </div>
           <span className="text-[10px] font-bold text-emerald-400 font-mono">
-            Multi-Colaboradores
+            Sincronizado Supabase
           </span>
         </div>
         <div className="w-full flex-1 min-h-0 overflow-hidden flex flex-col">
-          <TeamManager />
+          <TeamManager
+            salonProfessionals={professionals}
+            onUpdateSalonProfessionals={onUpdateProfessionals}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // SUB-VIEW: 4B. Espaço, Horários, Feriados & Regras
+  if (selectedCard === 'espaco') {
+    return (
+      <div className={`w-full h-full flex flex-col justify-between overflow-hidden ${
+        isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
+      }`}>
+        <div className={`px-3 py-2.5 border-b shrink-0 flex items-center justify-between gap-2 ${
+          isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-xs'
+        }`}>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                hapticLight();
+                setSelectedCard(null);
+              }}
+              className={`p-1.5 rounded transition cursor-pointer active:scale-95 ${
+                isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
+              }`}
+              title="Voltar ao Gerenciamento"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-1.5">
+              <Store className="w-4 h-4 text-emerald-500 shrink-0" />
+              <h2 className="text-xs sm:text-sm font-bold font-['Poppins']">
+                Espaço, Feriados & Regras
+              </h2>
+            </div>
+          </div>
+          <span className="text-[10px] font-bold text-emerald-400 font-mono">
+            Sincronizado Supabase
+          </span>
+        </div>
+        <div className="w-full flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col">
+          <ProfessionalSpaceManager
+            adminSettings={adminSettings}
+            onUpdateSettings={onUpdateSettings}
+          />
         </div>
       </div>
     );

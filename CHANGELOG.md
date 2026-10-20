@@ -15,6 +15,46 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-20] — Modal de Login 100% White-Label Nativo do Salão (Tema, Cores, Logotipo Condicional & Ocultação de Cabeçalho via URL + `postMessage`)
+- **Tipo:** `[Feature / UX White-Label / Tríade Sync]`
+- **Motivo / Solicitação:** Fazer o modal de login embarcado do `admvapp` (`SalonClientAuthModal` e `PartnerAuthView`) assumir integralmente o tema atual (Claro/Escuro), a cor primária/secundária e o logotipo do salão, ocultando o logotipo Vagou e o cabeçalho *"Acessar Espaço"* quando o salão não possuir logotipo cadastrado, transmitindo experiência 100% nativa do estabelecimento.
+- **Arquivos Impactados:**
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/components/PartnerAuthView.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/App.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Adicionados parâmetros White-Label na query string do iframe (`whiteLabel=true`, `theme=light|dark`, `primaryColor`, `secondaryColor`, `salonName`, `logoUrl`, `hideLogo=true|false`, `hideHeader=true|false`, `hasPostMessageLogo=true`).
+  - Implementado handshake bidirecional `postMessage` (`VAGOU_WHITE_LABEL_THEME` / `VAGOU_EMBED_READY`) para envio instantâneo de logotipos em Base64 ou atualização dinâmica de tema sem estourar o limite de caracteres da URL.
+  - Alinhado o estado de carregamento (`isLoadingIframe`) com o tema ativo da vitrine (`bg-[#151A1E]/95` no modo escuro e `bg-white/95` no modo claro), raio padronizado de `4px` (`rounded-[4px]`) e spinner na cor primária do salão.
+
+---
+
+### [2026-10-20] — Hook `useOwnerAccess`, Badge Discreto de Proprietário no Cabeçalho, Persistência Integral no Supabase (`salons` + `professionals`) e Paridade de Formulários com `admvapp`
+- **Tipo:** `[Feature / Fix / Tríade Sync]`
+- **Motivo / Solicitação:** Criar o hook `useOwnerAccess` para verificação cruzada de propriedade (`email`, `owner_cpf`, `owner_id` e `public.clients`), adicionar badge discreto de acesso rápido à gestão no cabeçalho do `SalonProfileView`, corrigir lacunas de persistência de Equipe (`TeamManager`) e Espaço/Horários no Supabase e alinhar `BusinessDataCardView` com o formulário mestre do `admvapp` (validação Módulo 11 de CPF/CNPJ, busca automática de CNPJ via BrasilAPI, Categoria, E-mail Comercial, Telefone Fixo e Placa QR Code da Vitrine).
+- **Arquivos Impactados:**
+  - `src/hooks/useOwnerAccess.ts` (Novo)
+  - `src/hooks/useSalonRole.ts`
+  - `src/lib/supabase.ts`
+  - `src/types.ts`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/BusinessDataCardView.tsx`
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `src/components/professional/TeamManager.tsx`
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/components/PartnerAuthView.tsx`
+  - `src/App.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Hook `useOwnerAccess` (`src/hooks/useOwnerAccess.ts`):** Verifica se o usuário autenticado (`supabase.auth` ou `localStorage` SSO do `admvapp`) corresponde ao proprietário do salão por `email`, `owner_cpf` (cruzando também `public.clients.cpf` por `user_id`/`email`), `owner_id`, `branding` ou `salon_members`.
+  - **Badge Discreto de Proprietário no Cabeçalho (`SalonProfileView.tsx`):** Adicionado botão compacto `Gerenciar` (`ShieldCheck`) + alternador de prévia da Vitrine (`Eye` / `LayoutDashboard`) no cabeçalho superior (`#salon-profile-header`), visível exclusivamente para donos/gestores autenticados.
+  - **Persistência Completa no Supabase (`src/lib/supabase.ts`, `SalonCustomizationHub.tsx`, `TeamManager.tsx`):** `updateSalonSettingsInDb` expandido para gravar `category`, `email`, `phone_landline`, `opening_hours_text`, `operating_hours`, `space_photos`, `space_description`, `amenities` e espelhamento em `branding` JSONB; `TeamManager` conectado a `onUpdateProfessionals` / `syncAllProfessionalsToDb` com geração de UUID v4 (`generateUuidV4`), remoção real de membros excluídos e persistência de telefone, comissão, especialidades e escala de trabalho.
+  - **Paridade `BusinessDataCardView` ↔ `admvapp` (`BusinessDataCardView.tsx`):** Adicionados validadores matemáticos Módulo 11 (`isValidCPF`, `isValidCNPJ`), consulta automática de CNPJ na Receita Federal via BrasilAPI (`https://brasilapi.com.br/api/cnpj/v1/{cnpj}`), seletor de Categoria/Segmento, E-mail Comercial, Telefone Fixo e card de Link Exclusivo + Impressão de Plaquinha QR Code de Agendamento da Vitrine.
+
+---
+
 ### [2026-10-19] — Detecção Soberana de Dono/Membro via Login Iframe (`admvapp`) e Blindagem Multi-Tenant de Serviços e Preços (`UUID v4` + Exclusão Real)
 - **Tipo:** `[Fix / Feature / Tríade Sync]`
 - **Motivo / Solicitação:** Resolver a detecção de proprietário (ex: Fabio em `fabio-foos.vagouapp.com`) quando o login ocorre dentro do iframe cross-subdomain (`adm.vagouapp.com/cadastro?embed=true...`), liberando imediatamente o Painel de Gerenciamento (`Painel`, `Serviços`, `Agenda`, `Gerenciar`), além de aplicar UUID v4 nativo, exclusão real em `public.services` e isolamento de catálogo por subdomínio.

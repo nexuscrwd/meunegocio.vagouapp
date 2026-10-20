@@ -1,25 +1,88 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, UserPlus, ShieldCheck, User as UserIcon, 
   Trash2, Edit2, X, Phone, Briefcase, Scissors, Percent,
   Clock, Calendar
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
-import { hapticLight, hapticSuccess, hapticMedium, ProfessionalTeamMember, ProfessionalRole, ProfessionalWorkSchedule } from '../../types';
+import {
+  hapticLight,
+  hapticSuccess,
+  hapticMedium,
+  ProfessionalTeamMember,
+  ProfessionalRole,
+  ProfessionalWorkSchedule,
+  SalonProfessionalItem,
+} from '../../types';
+import { generateUuidV4 } from '../../lib/supabase';
 
 // Equipe inicial (vazia por padrão, carregada do banco de dados)
 const INITIAL_TEAM: ProfessionalTeamMember[] = [];
 
-export const TeamManager: React.FC = () => {
+export interface TeamManagerProps {
+  salonProfessionals?: SalonProfessionalItem[];
+  onUpdateSalonProfessionals?: (professionals: SalonProfessionalItem[]) => void;
+  onBack?: () => void;
+}
+
+function mapSalonProsToTeamMembers(pros?: SalonProfessionalItem[]): ProfessionalTeamMember[] {
+  if (!Array.isArray(pros) || pros.length === 0) return [];
+  return pros.map((p) => {
+    const rawRole = String(p.role || '').toLowerCase();
+    const mappedRole: ProfessionalRole =
+      p.systemRole === 'admin' || rawRole.includes('admin') || rawRole.includes('dono') || rawRole.includes('gerente')
+        ? 'admin'
+        : rawRole.includes('recep')
+        ? 'receptionist'
+        : 'professional';
+
+    return {
+      id: p.id || generateUuidV4(),
+      name: p.name || 'Profissional',
+      role: mappedRole,
+      avatarUrl: p.avatarUrl || p.avatar || undefined,
+      phone: p.phone || '',
+      email: p.email || '',
+      specialties: Array.isArray(p.specialties) && p.specialties.length > 0 ? p.specialties : ['Geral'],
+      commissionRate: p.commissionRate ?? (mappedRole === 'admin' ? 100 : 50),
+      workSchedule: p.workSchedule || {
+        shiftType: 'integral',
+        shiftLabel: 'Seg a Sáb • 09:00 às 19:00 (Integral)',
+        days: ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'],
+        startTime: '09:00',
+        endTime: '19:00',
+      },
+      isActive: p.isActive !== false,
+      joinedAt: new Date().toISOString(),
+    };
+  });
+}
+
+export const TeamManager: React.FC<TeamManagerProps> = ({
+  salonProfessionals,
+  onUpdateSalonProfessionals,
+}) => {
   const { isDark } = useTheme();
   
   const [team, setTeam] = useState<ProfessionalTeamMember[]>(() => {
+    if (Array.isArray(salonProfessionals) && salonProfessionals.length > 0) {
+      return mapSalonProsToTeamMembers(salonProfessionals);
+    }
     try {
-      const saved = localStorage.getItem('vagou_team_members');
-      if (saved) return JSON.parse(saved);
+      const saved = localStorage.getItem('vagou_salon_team_members') || localStorage.getItem('vagou_team_members');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch {}
     return INITIAL_TEAM;
   });
+
+  useEffect(() => {
+    if (Array.isArray(salonProfessionals) && salonProfessionals.length > 0) {
+      setTeam(mapSalonProsToTeamMembers(salonProfessionals));
+    }
+  }, [salonProfessionals]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<ProfessionalTeamMember | null>(null);
@@ -41,7 +104,35 @@ export const TeamManager: React.FC = () => {
 
   const saveTeam = (newTeam: ProfessionalTeamMember[]) => {
     setTeam(newTeam);
-    localStorage.setItem('vagou_team_members', JSON.stringify(newTeam));
+    try {
+      localStorage.setItem('vagou_team_members', JSON.stringify(newTeam));
+      localStorage.setItem('vagou_salon_team_members', JSON.stringify(newTeam));
+      window.dispatchEvent(new Event('storage'));
+    } catch {}
+
+    if (onUpdateSalonProfessionals) {
+      const mappedPros: SalonProfessionalItem[] = newTeam.map((member) => ({
+        id: member.id,
+        name: member.name,
+        role:
+          member.role === 'admin'
+            ? 'Dono / Gerente'
+            : member.role === 'receptionist'
+            ? 'Recepcionista'
+            : member.specialties?.[0] || 'Profissional',
+        systemRole: member.role === 'admin' ? 'admin' : 'member',
+        avatar: member.avatarUrl,
+        avatarUrl: member.avatarUrl,
+        phone: member.phone,
+        email: member.email,
+        commissionRate: member.commissionRate,
+        specialties: member.specialties,
+        workSchedule: member.workSchedule,
+        isActive: member.isActive,
+        rating: 5.0,
+      }));
+      onUpdateSalonProfessionals(mappedPros);
+    }
   };
 
   const applyShiftPreset = (type: 'manha' | 'tarde' | 'integral' | 'sabados') => {
@@ -172,7 +263,7 @@ export const TeamManager: React.FC = () => {
       } : m);
     } else {
       const newMember: ProfessionalTeamMember = {
-        id: `prof_${Date.now()}`,
+        id: generateUuidV4(),
         name: formName,
         role: formRole,
         phone: formPhone,

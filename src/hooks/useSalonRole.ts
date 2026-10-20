@@ -44,12 +44,16 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
         const storedUserEmail = typeof window !== 'undefined'
           ? (localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '').trim().toLowerCase()
           : '';
+        const storedUserCpf = typeof window !== 'undefined'
+          ? (localStorage.getItem('vagou_user_cpf') || '').replace(/\D/g, '')
+          : '';
 
         const currentUserId = session?.user?.id || storedUserId || '';
         const currentUserEmail = (session?.user?.email || storedUserEmail || '').trim().toLowerCase();
+        const currentUserCpf = (session?.user?.user_metadata?.cpf || storedUserCpf || '').replace(/\D/g, '');
 
         // Se não há sessão Supabase nem identidade autenticada pelo admvapp, é visitante ('guest')
-        if (!currentUserId && !currentUserEmail) {
+        if (!currentUserId && !currentUserEmail && !currentUserCpf) {
           if (isMounted && reqId === currentReqIdRef.current) {
             setRole('guest');
             setUserId(null);
@@ -60,9 +64,9 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
           return;
         }
 
-        const identityKey = `${currentUserId}::${currentUserEmail}::${salonIdentifier || ''}`;
+        const identityKey = `${currentUserId}::${currentUserEmail}::${currentUserCpf}::${salonIdentifier || ''}`;
         if (isMounted) {
-          setUserId(currentUserId || currentUserEmail);
+          setUserId(currentUserId || currentUserEmail || currentUserCpf);
           lastIdentityKeyRef.current = identityKey;
         }
 
@@ -79,7 +83,8 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
         const membership = await checkUserSalonMembership(
           currentUserId,
           effectiveSalonIdent,
-          currentUserEmail
+          currentUserEmail,
+          currentUserCpf
         );
 
         if (!isMounted || reqId !== currentReqIdRef.current) return;

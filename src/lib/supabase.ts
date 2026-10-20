@@ -156,14 +156,15 @@ export function generateUuidV4(): string {
 export async function checkUserSalonMembership(
   userId: string,
   salonIdentifier?: string,
-  userEmail?: string
+  userEmail?: string,
+  userCpf?: string
 ): Promise<{
   isMember: boolean;
   role: 'owner' | 'manager' | 'professional' | 'cliente';
   salonId?: string;
   salonData?: any;
 }> {
-  if (!supabase || !isSupabaseConfigured || (!userId && !userEmail)) {
+  if (!supabase || !isSupabaseConfigured || (!userId && !userEmail && !userCpf)) {
     return { isMember: false, role: 'cliente' };
   }
 
@@ -202,7 +203,7 @@ export async function checkUserSalonMembership(
     if (userId && userId.trim()) {
       candidateIds.add(userId.trim());
     }
-    let userCpfDigits = '';
+    let userCpfDigits = (userCpf || '').replace(/\D/g, '');
 
     if (cleanEmail) {
       try {
@@ -229,6 +230,26 @@ export async function checkUserSalonMembership(
             if (p?.id) candidateIds.add(String(p.id));
           }
         }
+      } catch {}
+    } else if (userId && !userCpfDigits) {
+      try {
+        const { data: clientById } = await (supabase.from('clients') as any)
+          .select('id, user_id, cpf')
+          .or(`id.eq.${userId},user_id.eq.${userId}`)
+          .limit(2);
+        if (Array.isArray(clientById)) {
+          for (const c of clientById) {
+            if (c?.id) candidateIds.add(String(c.id));
+            if (c?.user_id) candidateIds.add(String(c.user_id));
+            if (c?.cpf && !userCpfDigits) userCpfDigits = String(c.cpf).replace(/\D/g, '');
+          }
+        }
+      } catch {}
+    }
+
+    if (userCpfDigits) {
+      try {
+        localStorage.setItem('vagou_user_cpf', userCpfDigits);
       } catch {}
     }
 
@@ -1414,16 +1435,39 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
     if (settings.salonPhone || settings.phoneWhatsapp || settings.legalManagerPhone) {
       payload.phone_whatsapp = settings.salonPhone || settings.phoneWhatsapp || settings.legalManagerPhone;
     }
-    if (settings.email || settings.legalManagerEmail) payload.email = settings.email || settings.legalManagerEmail;
-    if (settings.salonAddress || settings.address || settings.logradouro) {
-      payload.address = settings.salonAddress || settings.address || settings.logradouro;
+    if (settings.phoneLandline !== undefined || settings.phone_landline !== undefined) {
+      payload.phone_landline = settings.phoneLandline ?? settings.phone_landline ?? '';
     }
-    if (settings.numero || settings.streetNumber) payload.street_number = settings.numero || settings.streetNumber;
-    if (settings.complemento || settings.complement) payload.complement = settings.complemento || settings.complement;
-    if (settings.bairro || settings.neighborhood) payload.neighborhood = settings.bairro || settings.neighborhood;
-    if (settings.cidade || settings.city) payload.city = settings.cidade || settings.city;
-    if (settings.uf || settings.state) payload.state = settings.uf || settings.state;
-    if (settings.cep || settings.postalCode) payload.cep = settings.cep || settings.postalCode;
+    if (settings.category !== undefined) {
+      payload.category = settings.category;
+    }
+    if (settings.email !== undefined || settings.legalManagerEmail !== undefined) {
+      payload.email = settings.email || settings.legalManagerEmail || '';
+    }
+    if (settings.salonAddress !== undefined || settings.address !== undefined || settings.logradouro !== undefined) {
+      payload.address = settings.salonAddress ?? settings.address ?? settings.logradouro ?? '';
+    }
+    if (settings.numero !== undefined || settings.streetNumber !== undefined) {
+      payload.street_number = settings.numero ?? settings.streetNumber ?? '';
+    }
+    if (settings.complemento !== undefined || settings.complement !== undefined) {
+      payload.complement = settings.complemento ?? settings.complement ?? '';
+    }
+    if (settings.bairro !== undefined || settings.neighborhood !== undefined) {
+      payload.neighborhood = settings.bairro ?? settings.neighborhood ?? '';
+    }
+    if (settings.cidade !== undefined || settings.city !== undefined) {
+      payload.city = settings.cidade ?? settings.city ?? '';
+    }
+    if (settings.uf !== undefined || settings.state !== undefined) {
+      payload.state = settings.uf ?? settings.state ?? '';
+    }
+    if (settings.cep !== undefined || settings.postalCode !== undefined) {
+      payload.cep = settings.cep ?? settings.postalCode ?? '';
+    }
+    if (settings.operatingHoursJson !== undefined) {
+      payload.operating_hours = settings.operatingHoursJson;
+    }
     if (settings.salonLogoLight !== undefined) payload.logo_light_url = settings.salonLogoLight || null;
     if (settings.salonLogoDark !== undefined) payload.logo_dark_url = settings.salonLogoDark || null;
     if (settings.salonLogo !== undefined || settings.logoUrl !== undefined) {
@@ -1464,6 +1508,19 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       ...(rawOwnerCpf !== undefined ? { ownerCpf: String(rawOwnerCpf).trim() } : {}),
       ...(payload.pix_key !== undefined ? { pixKey: payload.pix_key } : {}),
       ...(payload.pix_keys !== undefined ? { pixKeys: payload.pix_keys } : {}),
+      ...(settings.category !== undefined ? { category: settings.category } : {}),
+      ...(settings.email !== undefined || settings.legalManagerEmail !== undefined
+        ? { email: settings.email || settings.legalManagerEmail || '', ownerEmail: settings.email || settings.legalManagerEmail || '' }
+        : {}),
+      ...(settings.phoneLandline !== undefined ? { phoneLandline: settings.phoneLandline } : {}),
+      ...(settings.cep !== undefined ? { cep: settings.cep } : {}),
+      ...(settings.numero !== undefined ? { numero: settings.numero } : {}),
+      ...(settings.complemento !== undefined ? { complemento: settings.complemento } : {}),
+      ...(settings.openingHours !== undefined ? { openingHours: settings.openingHours } : {}),
+      ...(settings.operatingHoursJson !== undefined ? { operatingHoursJson: settings.operatingHoursJson } : {}),
+      ...(settings.holidays !== undefined ? { holidays: settings.holidays } : {}),
+      ...(settings.cancellationPolicy !== undefined ? { cancellationPolicy: settings.cancellationPolicy } : {}),
+      ...(settings.spacePhotos !== undefined ? { spacePhotos: settings.spacePhotos } : {}),
       ...(settings.instagramUrl !== undefined ? { instagramUrl: settings.instagramUrl || '' } : {}),
       ...(settings.bio !== undefined ? { bio: settings.bio || '' } : {}),
     };
@@ -1483,6 +1540,11 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       delete fallbackPayload.owner_cpf;
       delete fallbackPayload.pix_key;
       delete fallbackPayload.pix_keys;
+      delete fallbackPayload.phone_landline;
+      delete fallbackPayload.operating_hours;
+      delete fallbackPayload.street_number;
+      delete fallbackPayload.complement;
+      delete fallbackPayload.cep;
       const retry = await (supabase.from('salons') as any)
         .update(fallbackPayload)
         .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug })
@@ -1572,7 +1634,7 @@ export async function syncAllServicesToDb(salonId: string, services: any[]) {
 }
 
 /**
- * Sincroniza a lista de profissionais da equipe no Supabase
+ * Sincroniza a lista de profissionais da equipe no Supabase (public.professionals + espelho em salons.branding.teamMembers)
  */
 export async function syncAllProfessionalsToDb(salonId: string, professionals: any[]) {
   if (!supabase || !isSupabaseConfigured || !salonId) return { success: false };
@@ -1602,7 +1664,22 @@ export async function syncAllProfessionalsToDb(salonId: string, professionals: a
         updated_at: new Date().toISOString(),
       };
 
-      await (supabase.from('professionals') as any).upsert(payload, { onConflict: 'id' });
+      const { error: upsertErr } = await (supabase.from('professionals') as any).upsert(payload, { onConflict: 'id' });
+      if (upsertErr) {
+        // Fallback resiliente caso alguma coluna opcional não exista na tabela professionals
+        await (supabase.from('professionals') as any).upsert(
+          {
+            id: proUuid,
+            salon_id: salonId,
+            name: p.name || 'Profissional',
+            role: p.role || 'Profissional',
+            avatar_url: p.avatarUrl || p.avatar || null,
+            is_active: p.isActive !== false,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'id' }
+        );
+      }
     }
 
     const activeProSet = new Set(activeProIds);
@@ -1623,9 +1700,94 @@ export async function syncAllProfessionalsToDb(salonId: string, professionals: a
       }
     }
 
+    // Espelhar metadados completos da equipe (comissões, turnos, especialidades) em salons.branding.teamMembers
+    try {
+      const isSalonUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonId);
+      const { data: currentSalon } = await (supabase.from('salons') as any)
+        .select('branding')
+        .match(isSalonUuid ? { id: salonId } : { slug: salonId })
+        .maybeSingle();
+
+      const existingBranding = (currentSalon?.branding && typeof currentSalon.branding === 'object') ? currentSalon.branding : {};
+      await (supabase.from('salons') as any)
+        .update({
+          branding: {
+            ...existingBranding,
+            teamMembers: professionals,
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .match(isSalonUuid ? { id: salonId } : { slug: salonId });
+    } catch {}
+
     return { success: true };
   } catch (err: any) {
     console.error('Falha ao sincronizar profissionais no Supabase:', err);
+    return { success: false, error: err?.message };
+  }
+}
+
+/**
+ * Persiste as configurações de Espaço, Horário de Funcionamento (operating_hours), Feriados, Regras e Galeria no Supabase
+ */
+export async function updateSalonSpaceConfigInDb(
+  salonIdOrSlug: string,
+  spaceConfig: {
+    operatingHours?: Record<string, any>;
+    openingHoursSummary?: string;
+    holidays?: any[];
+    cancellationPolicy?: any;
+    spacePhotos?: any[];
+  }
+) {
+  if (!supabase || !isSupabaseConfigured || !salonIdOrSlug) {
+    return { success: false, error: 'Supabase não configurado ou identificador vazio' };
+  }
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonIdOrSlug);
+    const { data: currentSalon } = await (supabase.from('salons') as any)
+      .select('branding, operating_hours')
+      .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug })
+      .maybeSingle();
+
+    const existingBranding = (currentSalon?.branding && typeof currentSalon.branding === 'object') ? currentSalon.branding : {};
+
+    const nextBranding: Record<string, any> = {
+      ...existingBranding,
+      ...(spaceConfig.operatingHours !== undefined ? { operatingHoursJson: spaceConfig.operatingHours } : {}),
+      ...(spaceConfig.openingHoursSummary !== undefined ? { openingHours: spaceConfig.openingHoursSummary } : {}),
+      ...(spaceConfig.holidays !== undefined ? { holidays: spaceConfig.holidays } : {}),
+      ...(spaceConfig.cancellationPolicy !== undefined ? { cancellationPolicy: spaceConfig.cancellationPolicy } : {}),
+      ...(spaceConfig.spacePhotos !== undefined ? { spacePhotos: spaceConfig.spacePhotos } : {}),
+    };
+
+    const payload: Record<string, any> = {
+      branding: nextBranding,
+      updated_at: new Date().toISOString(),
+      ...(spaceConfig.operatingHours !== undefined ? { operating_hours: spaceConfig.operatingHours } : {}),
+    };
+
+    let { error } = await (supabase.from('salons') as any)
+      .update(payload)
+      .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug });
+
+    if (error && (error.message?.includes('column') || error.code === '42703' || error.code === 'PGRST204')) {
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.operating_hours;
+      const retry = await (supabase.from('salons') as any)
+        .update(fallbackPayload)
+        .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug });
+      error = retry.error;
+    }
+
+    if (error) {
+      console.warn('Erro ao salvar configurações do espaço no Supabase:', error.message);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Falha ao salvar espaço no Supabase:', err);
     return { success: false, error: err?.message };
   }
 }

@@ -1,0 +1,6 @@
+{
+  "summary": "Plano de implementação completo para o hook useOwnerAccess, badge discreto de acesso rápido do proprietário no cabeçalho do SalonProfileView, correção integral da persistência no Supabase (Dados do Negócio, Equipe/Profissionais e Meu Espaço/Horários) e paridade completa dos formulários locais do mnvapp com o admvapp (Módulo 11 CPF/CNPJ, BrasilAPI, Categoria, E-mail Comercial, Telefone Fixo e Kit QR Code da Vitrine).",
+  "updatedAt": "2026-10-20T11:59:44.403140799Z",
+  "requestFeedback": true,
+  "userFacing": true
+}
