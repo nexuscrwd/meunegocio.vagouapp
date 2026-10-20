@@ -204,18 +204,42 @@ export async function checkUserSalonMembership(
       candidateIds.add(userId.trim());
     }
     let userCpfDigits = (userCpf || '').replace(/\D/g, '');
+    let resolvedClientEmail = cleanEmail;
+
+    if (userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId.trim())) {
+      try {
+        const { data: clientById } = await (supabase.from('clients') as any)
+          .select('id, user_id, cpf, email')
+          .or(`id.eq.${userId.trim()},user_id.eq.${userId.trim()}`)
+          .limit(3);
+        if (Array.isArray(clientById)) {
+          for (const c of clientById) {
+            if (c?.id) candidateIds.add(String(c.id));
+            if (c?.user_id) candidateIds.add(String(c.user_id));
+            if (c?.cpf && !userCpfDigits) userCpfDigits = String(c.cpf).replace(/\D/g, '');
+            if (c?.email && (!resolvedClientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resolvedClientEmail))) {
+              resolvedClientEmail = String(c.email).trim().toLowerCase();
+            }
+          }
+        }
+      } catch {}
+    }
 
     if (cleanEmail) {
       try {
+        const isRealEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
         const { data: clientRows } = await (supabase.from('clients') as any)
-          .select('id, user_id, cpf')
-          .ilike('email', cleanEmail)
-          .limit(3);
+          .select('id, user_id, cpf, email, username')
+          .ilike(isRealEmail ? 'email' : 'username', cleanEmail)
+          .limit(5);
         if (Array.isArray(clientRows)) {
           for (const c of clientRows) {
             if (c?.id) candidateIds.add(String(c.id));
             if (c?.user_id) candidateIds.add(String(c.user_id));
             if (c?.cpf && !userCpfDigits) userCpfDigits = String(c.cpf).replace(/\D/g, '');
+            if (c?.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resolvedClientEmail)) {
+              resolvedClientEmail = String(c.email).trim().toLowerCase();
+            }
           }
         }
       } catch {}
@@ -223,25 +247,11 @@ export async function checkUserSalonMembership(
       try {
         const { data: profileRows } = await (supabase.from('profiles') as any)
           .select('id')
-          .ilike('email', cleanEmail)
+          .ilike('email', resolvedClientEmail || cleanEmail)
           .limit(2);
         if (Array.isArray(profileRows)) {
           for (const p of profileRows) {
             if (p?.id) candidateIds.add(String(p.id));
-          }
-        }
-      } catch {}
-    } else if (userId && !userCpfDigits) {
-      try {
-        const { data: clientById } = await (supabase.from('clients') as any)
-          .select('id, user_id, cpf')
-          .or(`id.eq.${userId},user_id.eq.${userId}`)
-          .limit(2);
-        if (Array.isArray(clientById)) {
-          for (const c of clientById) {
-            if (c?.id) candidateIds.add(String(c.id));
-            if (c?.user_id) candidateIds.add(String(c.user_id));
-            if (c?.cpf && !userCpfDigits) userCpfDigits = String(c.cpf).replace(/\D/g, '');
           }
         }
       } catch {}
@@ -263,7 +273,10 @@ export async function checkUserSalonMembership(
       };
     }
 
-    if (cleanEmail) {
+    const effectiveEmailsToCheck = Array.from(
+      new Set([cleanEmail, resolvedClientEmail].filter(Boolean))
+    );
+    if (effectiveEmailsToCheck.length > 0) {
       const salonEmails = [
         targetSalonData.email,
         targetSalonData.branding?.ownerEmail,
@@ -273,7 +286,7 @@ export async function checkUserSalonMembership(
         .filter(Boolean)
         .map((e) => String(e).trim().toLowerCase());
 
-      if (salonEmails.includes(cleanEmail)) {
+      if (effectiveEmailsToCheck.some((em) => salonEmails.includes(em))) {
         return {
           isMember: true,
           role: 'owner',
@@ -284,7 +297,10 @@ export async function checkUserSalonMembership(
     }
 
     const salonOwnerCpfDigits = String(
-      targetSalonData.owner_cpf || targetSalonData.branding?.ownerCpf || ''
+      targetSalonData.owner_cpf ||
+      targetSalonData.branding?.ownerCpf ||
+      targetSalonData.branding?.legalManagerCpf ||
+      ''
     ).replace(/\D/g, '');
     if (userCpfDigits.length === 11 && salonOwnerCpfDigits.length === 11 && userCpfDigits === salonOwnerCpfDigits) {
       return {
@@ -316,12 +332,13 @@ export async function checkUserSalonMembership(
     }
 
     // CAMADA 3: Consulta na tabela professionals (Equipe do Salão) por salon_id + email
-    if (cleanEmail) {
+    const emailForPro = resolvedClientEmail || cleanEmail;
+    if (emailForPro) {
       const { data: pros } = await (supabase
         .from('professionals')
         .select('id, role, email, is_active')
         .eq('salon_id', targetSalonId)
-        .ilike('email', cleanEmail) as any);
+        .ilike('email', emailForPro) as any);
 
       if (pros && pros.length > 0) {
         const activePro = pros.find((p: any) => p.is_active !== false) || pros[0];
@@ -361,11 +378,12 @@ export async function ensureClientRow(
   }
 
   try {
-    // 1. Verifica se já existe
-    const { data: existingClient } = await supabase
-      .from('clients')
+    // 1. Verifica se já existe por user_id ou id
+    const { data: existingClient } = await (supabase
+      .from('clients') as any)
       .select('*')
-      .eq('user_id', userId)
+      .or(`user_id.eq.${userId},id.eq.${userId}`)
+      .limit(1)
       .maybeSingle();
 
     if (existingClient) {
@@ -380,6 +398,8 @@ export async function ensureClientRow(
       phone: userMetadata?.phone || null,
       email: userEmail || null,
       avatar_url: userMetadata?.avatar_url || null,
+      ...(userMetadata?.username ? { username: String(userMetadata.username).trim() } : {}),
+      ...(userMetadata?.password_hash ? { password_hash: String(userMetadata.password_hash) } : {}),
       ...(userMetadata?.cpf ? { cpf: String(userMetadata.cpf).trim() } : {}),
     };
     const { data: insertedClient, error: insertErr } = await (supabase.from('clients') as any)
@@ -1092,14 +1112,15 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
     } catch {}
 
     const isGenericTerm = !term || term === 'Profissional' || term === 'Usuário' || term === 'Visitante' || term === 'Cliente';
+    const isRealEmailTerm = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(term);
 
     // 1. Procurar em perfis (profiles) por correspondência exata de e-mail ou nome
     if (!isGenericTerm) {
       let query = supabase.from('profiles').select('*');
-      if (term.includes('@')) {
+      if (isRealEmailTerm) {
         query = query.ilike('email', term);
       } else {
-        query = query.or(`email.ilike.${term}@%,full_name.ilike.${term}`);
+        query = query.ilike('full_name', term);
       }
       const { data: profiles } = await (query as any).limit(1);
       if (profiles && profiles.length > 0) {
@@ -1108,7 +1129,7 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
           type: 'client' as const,
           id: prof.id,
           name: prof.full_name || term,
-          email: prof.email || (term.includes('@') ? term : ''),
+          email: prof.email || (isRealEmailTerm ? term : ''),
           phone: prof.phone_whatsapp || '',
           avatarUrl: prof.avatar_url || '',
         };
@@ -1118,10 +1139,10 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
     // 2. Procurar em profissionais por correspondência exata
     if (!isGenericTerm) {
       let query = supabase.from('professionals').select('*');
-      if (term.includes('@')) {
+      if (isRealEmailTerm) {
         query = query.ilike('email', term);
       } else {
-        query = query.or(`email.ilike.${term}@%,name.ilike.${term}`);
+        query = query.ilike('name', term);
       }
       const { data: pros } = await (query as any).limit(1);
       if (pros && pros.length > 0) {
@@ -1130,7 +1151,7 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
           type: 'professional' as const,
           id: p.id,
           name: p.name || term,
-          email: p.email || (term.includes('@') ? term : ''),
+          email: p.email || (isRealEmailTerm ? term : ''),
           phone: p.phone || '',
           avatarUrl: p.avatar_url || '',
           salonId: p.salon_id,
@@ -1138,24 +1159,39 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
       }
     }
 
-    // 3. Procurar em clientes por correspondência exata
+    // 3. Procurar em clientes por correspondência exata (email, username ou name)
     if (!isGenericTerm) {
-      let query = supabase.from('clients').select('*');
-      if (term.includes('@')) {
-        query = query.ilike('email', term);
+      let matchedClient: any = null;
+      if (isRealEmailTerm) {
+        const { data: byEmail } = await (supabase.from('clients') as any)
+          .select('*')
+          .ilike('email', term)
+          .limit(1);
+        matchedClient = byEmail?.[0];
       } else {
-        query = query.or(`email.ilike.${term}@%,name.ilike.${term}`);
+        const { data: byUser } = await (supabase.from('clients') as any)
+          .select('*')
+          .ilike('username', term)
+          .limit(1);
+        matchedClient = byUser?.[0];
+
+        if (!matchedClient) {
+          const { data: byName } = await (supabase.from('clients') as any)
+            .select('*')
+            .ilike('name', term)
+            .limit(1);
+          matchedClient = byName?.[0];
+        }
       }
-      const { data: clients } = await (query as any).limit(1);
-      if (clients && clients.length > 0) {
-        const c = clients[0];
+
+      if (matchedClient) {
         return {
           type: 'client' as const,
-          id: c.id,
-          name: c.name || term,
-          email: c.email || (term.includes('@') ? term : ''),
-          phone: c.phone || '',
-          avatarUrl: c.avatar_url || '',
+          id: matchedClient.id,
+          name: matchedClient.name || matchedClient.username || term,
+          email: matchedClient.email || (isRealEmailTerm ? term : ''),
+          phone: matchedClient.phone || '',
+          avatarUrl: matchedClient.avatar_url || '',
         };
       }
     }
@@ -1505,6 +1541,8 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       salonIcon: resolvedIcon,
       slogan: settings.slogan !== undefined ? (settings.slogan || '') : (existingBranding.slogan || ''),
       brandFont: settings.brandFont || existingBranding.brandFont || 'Poppins',
+      navStyle: settings.navStyle || existingBranding.navStyle || 'minimal',
+      welcomeStyle: settings.welcomeStyle || existingBranding.welcomeStyle || 'atmospheric',
       ...(rawOwnerCpf !== undefined ? { ownerCpf: String(rawOwnerCpf).trim() } : {}),
       ...(payload.pix_key !== undefined ? { pixKey: payload.pix_key } : {}),
       ...(payload.pix_keys !== undefined ? { pixKeys: payload.pix_keys } : {}),

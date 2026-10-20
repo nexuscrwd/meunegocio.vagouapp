@@ -160,40 +160,6 @@ const INITIAL_PROFESSIONALS: SalonProfessionalItem[] = [];
 // Agendamentos iniciais padrão para a agenda do profissional (vazio por padrão)
 const INITIAL_APPOINTMENTS: BookingAppointment[] = [];
 
-// Cabeçalho de Seção Fixo Padrão que gruda perfeitamente abaixo do cabeçalho principal
-interface SectionHeaderProps {
-  title: string;
-  action?: React.ReactNode;
-  className?: string;
-  isDark?: boolean;
-}
-
-const SectionHeader: React.FC<SectionHeaderProps> = React.memo(({ title, action, className = '', isDark = true }) => (
-  <div
-    className={`w-full px-4 sm:px-5 py-2.5 sm:py-3 border-y flex items-center justify-between transition-colors shadow-xs shrink-0 ${
-      isDark
-        ? 'bg-gradient-to-r from-emerald-950/95 via-emerald-900/70 to-slate-950/95 border-emerald-500/30'
-        : 'bg-gradient-to-r from-emerald-500/20 via-emerald-500/15 to-emerald-50/95 border-emerald-500/30'
-    } ${className}`}
-  >
-    <div className="flex items-center gap-2.5 min-w-0">
-      <div className="w-1 h-3.5 sm:h-4 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] shrink-0" />
-      <h2
-        className={`text-[12px] font-bold uppercase tracking-wider font-['Poppins'] truncate ${
-          isDark ? 'text-white' : 'text-slate-900'
-        }`}
-      >
-        {title}
-      </h2>
-    </div>
-    {action && (
-      <div className="flex items-center gap-2 shrink-0">
-        {action}
-      </div>
-    )}
-  </div>
-));
-
 export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   salonName,
   activeSubdomain = '',
@@ -519,6 +485,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         pwaName: initialSalonData.branding?.pwaName || resolvedName,
         slogan: initialSalonData.slogan || initialSalonData.branding?.slogan || '',
         brandFont: initialSalonData.brand_font || initialSalonData.branding?.brandFont || 'Poppins',
+        navStyle: initialSalonData.branding?.navStyle || 'minimal',
+        welcomeStyle: initialSalonData.branding?.welcomeStyle || 'atmospheric',
         bio: initialSalonData.bio || initialSalonData.branding?.bio || '',
         instagramUrl: initialSalonData.branding?.instagramUrl || '',
       };
@@ -559,6 +527,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       pwaName: effectiveSalonName,
       slogan: '',
       brandFont: 'Poppins',
+      navStyle: 'minimal',
+      welcomeStyle: 'atmospheric',
       bio: '',
       instagramUrl: '',
     };
@@ -577,6 +547,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             accentColor: parsed.accentColor || localStorage.getItem('vagou_accent_color') || defaults.accentColor,
             slogan: parsed.slogan || defaults.slogan,
             brandFont: parsed.brandFont || defaults.brandFont,
+            navStyle: parsed.navStyle || defaults.navStyle,
+            welcomeStyle: parsed.welcomeStyle || defaults.welcomeStyle,
             bio: parsed.bio || defaults.bio,
             instagramUrl: parsed.instagramUrl || defaults.instagramUrl,
             isOpenNow: parsed.isOpenNow !== undefined ? parsed.isOpenNow : true,
@@ -818,16 +790,23 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           if (salonRecord.city) updatedSettings.cidade = salonRecord.city;
           if (salonRecord.state) updatedSettings.uf = salonRecord.state;
           if (salonRecord.cep) updatedSettings.cep = salonRecord.cep;
-          if (salonRecord.logo_light_url) {
-            updatedSettings.salonLogoLight = salonRecord.logo_light_url;
-            localStorage.setItem('vagou_salon_logo_light', salonRecord.logo_light_url);
+          const resolvedLogoLight = salonRecord.logo_light_url || salonRecord.branding?.logoLightUrl || '';
+          const resolvedLogoDark = salonRecord.logo_dark_url || salonRecord.branding?.logoDarkUrl || '';
+          const resolvedMainLogo = salonRecord.logo_url || salonRecord.branding?.logoUrl || resolvedLogoDark || resolvedLogoLight || '';
+
+          updatedSettings.salonLogoLight = resolvedLogoLight;
+          updatedSettings.salonLogoDark = resolvedLogoDark;
+          updatedSettings.salonLogo = resolvedMainLogo;
+
+          if (resolvedLogoLight) {
+            localStorage.setItem('vagou_salon_logo_light', resolvedLogoLight);
+          } else {
+            localStorage.removeItem('vagou_salon_logo_light');
           }
-          if (salonRecord.logo_dark_url) {
-            updatedSettings.salonLogoDark = salonRecord.logo_dark_url;
-            localStorage.setItem('vagou_salon_logo_dark', salonRecord.logo_dark_url);
-          }
-          if (salonRecord.logo_url) {
-            updatedSettings.salonLogo = salonRecord.logo_url;
+          if (resolvedLogoDark) {
+            localStorage.setItem('vagou_salon_logo_dark', resolvedLogoDark);
+          } else {
+            localStorage.removeItem('vagou_salon_logo_dark');
           }
 
           // Hidratação canônica Boletim bol-017 (favicon_url / salonIcon, slogan, brand_font, bio, instagramUrl)
@@ -847,6 +826,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
           const resolvedBrandFont = salonRecord.brand_font || salonRecord.branding?.brandFont || 'Poppins';
           updatedSettings.brandFont = resolvedBrandFont;
+
+          if (salonRecord.branding?.navStyle) {
+            updatedSettings.navStyle = salonRecord.branding.navStyle;
+          }
+          if (salonRecord.branding?.welcomeStyle) {
+            updatedSettings.welcomeStyle = salonRecord.branding.welcomeStyle;
+          }
 
           if (salonRecord.bio || salonRecord.branding?.bio) {
             updatedSettings.bio = salonRecord.bio || salonRecord.branding?.bio;
@@ -1123,13 +1109,20 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const [activeSlideIndex, setActiveSlideIndex] = useState<number>(0);
   const [selectedPublicProfessional, setSelectedPublicProfessional] = useState<string>('any');
 
-  // Refs para controle do scroll snap da landing page (4 seções)
+  // Refs para controle do scroll snap da landing page (4 seções) e micro-swipe vertical
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const homeSectionRef = useRef<HTMLElement>(null);
   const servicosSectionRef = useRef<HTMLElement>(null);
   const vagasSectionRef = useRef<HTMLElement>(null);
   const espacoSectionRef = useRef<HTMLElement>(null);
   const isProgrammaticScroll = useRef<boolean>(false);
+  const scrollLockTimeoutRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number>(0);
+  const touchStartXRef = useRef<number>(0);
+  const touchStartSectionIdxRef = useRef<number>(0);
+  const touchStartTargetRef = useRef<EventTarget | null>(null);
+  const isTouchingRef = useRef<boolean>(false);
+  const lastSettledSectionIdxRef = useRef<number>(0);
 
   // Sub-abas e efeito swipe para a Seção Espaço (0: Equipe, 1: Estrutura, 2: Localização)
   const [espacoSlideIndex, setEspacoSlideIndex] = useState<number>(0);
@@ -1320,6 +1313,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       }
       setActiveTab('espaco');
       setEspacoSlideIndex(1);
+      lastSettledSectionIdxRef.current = 3;
       isProgrammaticScroll.current = true;
       if (espacoSectionRef.current && scrollContainerRef.current) {
         scrollContainerRef.current.scrollTo({
@@ -1339,6 +1333,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         return;
       }
       setActiveTab('servicos');
+      lastSettledSectionIdxRef.current = 1;
       isProgrammaticScroll.current = true;
       if (servicosSectionRef.current && scrollContainerRef.current) {
         scrollContainerRef.current.scrollTo({
@@ -1357,6 +1352,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       // No modo gerenciamento, a navegação é exclusivamente por botões (troca direta de estado)
       return;
     }
+    if (tab === 'home') lastSettledSectionIdxRef.current = 0;
+    if (tab === 'vagas') lastSettledSectionIdxRef.current = 2;
     isProgrammaticScroll.current = true;
     const targetMap: Record<'home' | 'servicos' | 'vagas', HTMLElement | null> = {
       home: homeSectionRef.current,
@@ -1375,45 +1372,181 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }, 600);
   }, [isGerMode, currentPersona]);
 
-  // Observer para sincronizar a aba ativa do rodapé ao deslizar o dedo pelas seções da landing page (somente no modo público)
-  useEffect(() => {
-    if (isGerMode) return; // No modo gerenciamento, o efeito landing page e o scroll snap estão desativados
+  // Verifica se o elemento tocado/rolado possui scroll interno ativo na direção do movimento
+  const canInnerElementScroll = useCallback((target: EventTarget | null, container: HTMLElement, deltaY: number): boolean => {
+    let el = target as HTMLElement | null;
+    while (el && el !== container) {
+      const style = window.getComputedStyle(el);
+      const overflowY = style.overflowY;
+      const isScrollableY = (overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 2;
+      if (isScrollableY) {
+        if (deltaY > 0 && el.scrollTop + el.clientHeight < el.scrollHeight - 2) {
+          return true;
+        }
+        if (deltaY < 0 && el.scrollTop > 2) {
+          return true;
+        }
+      }
+      el = el.parentElement;
+    }
+    return false;
+  }, []);
+
+  // Rola suavemente até a seção pelo índice (0: home, 1: servicos, 2: vagas, 3: espaco)
+  const scrollToPublicSectionIndex = useCallback((targetIdx: number) => {
+    const clampedIdx = Math.max(0, Math.min(3, targetIdx));
+    const sectionOrder: Array<'home' | 'servicos' | 'vagas' | 'espaco'> = ['home', 'servicos', 'vagas', 'espaco'];
+    const targetKey = sectionOrder[clampedIdx];
+    const sectionRefs = [
+      homeSectionRef.current,
+      servicosSectionRef.current,
+      vagasSectionRef.current,
+      espacoSectionRef.current,
+    ];
+    const targetEl = sectionRefs[clampedIdx];
+    const container = scrollContainerRef.current;
+    if (!targetEl || !container) return;
+
+    isProgrammaticScroll.current = true;
+    lastSettledSectionIdxRef.current = clampedIdx;
+
+    if (targetKey === 'espaco') {
+      setActiveTab(espacoSlideIndex === 0 ? 'equipe' : 'espaco');
+    } else {
+      setActiveTab(targetKey);
+    }
+
+    container.scrollTo({
+      top: targetEl.offsetTop,
+      behavior: 'smooth',
+    });
+
+    if (scrollLockTimeoutRef.current) {
+      window.clearTimeout(scrollLockTimeoutRef.current);
+    }
+    scrollLockTimeoutRef.current = window.setTimeout(() => {
+      isProgrammaticScroll.current = false;
+    }, 520);
+  }, [espacoSlideIndex]);
+
+  // Handlers de Micro-Swipe Vertical (Touch) para rolar o restante da página com movimento mínimo
+  const handlePublicTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (isGerMode || e.touches.length !== 1) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    isTouchingRef.current = true;
+    touchStartYRef.current = e.touches[0].clientY;
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartTargetRef.current = e.target;
+    const sectionHeight = container.clientHeight || 1;
+    touchStartSectionIdxRef.current = Math.max(0, Math.min(3, Math.round(container.scrollTop / sectionHeight)));
+  }, [isGerMode]);
+
+  const handlePublicTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (isGerMode || e.changedTouches.length === 0) return;
+    isTouchingRef.current = false;
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const sections = [
-      { id: 'home' as const, el: homeSectionRef.current },
-      { id: 'servicos' as const, el: servicosSectionRef.current },
-      { id: 'vagas' as const, el: vagasSectionRef.current },
-      { id: 'espaco' as const, el: espacoSectionRef.current },
-    ];
+    const deltaY = touchStartYRef.current - e.changedTouches[0].clientY;
+    const deltaX = touchStartXRef.current - e.changedTouches[0].clientX;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (isProgrammaticScroll.current) return;
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
-            const tabId = entry.target.getAttribute('data-tab-id');
-            if (tabId === 'espaco') {
-              setActiveTab(espacoSlideIndex === 0 ? 'equipe' : 'espaco');
-            } else if (tabId === 'home' || tabId === 'servicos' || tabId === 'vagas') {
-              setActiveTab(tabId);
-            }
-          }
-        });
-      },
-      {
-        root: container,
-        threshold: 0.5,
+    // Ignora se o gesto foi predominantemente horizontal (ex.: carrossel de fotos ou abas)
+    if (Math.abs(deltaX) > Math.abs(deltaY) * 1.1) {
+      return;
+    }
+
+    // Respeita rolagem interna de sub-listas (ex.: horários ou lista de equipe)
+    if (canInnerElementScroll(touchStartTargetRef.current, container, deltaY)) {
+      return;
+    }
+
+    const baseIdx = touchStartSectionIdxRef.current;
+    // Movimento vertical mínimo (>= 18px) já dispara o avanço/recuo completo para a próxima seção
+    const SWIPE_THRESHOLD_PX = 18;
+
+    if (deltaY >= SWIPE_THRESHOLD_PX && baseIdx < 3) {
+      hapticLight();
+      scrollToPublicSectionIndex(baseIdx + 1);
+    } else if (deltaY <= -SWIPE_THRESHOLD_PX && baseIdx > 0) {
+      hapticLight();
+      scrollToPublicSectionIndex(baseIdx - 1);
+    } else {
+      // Garante alinhamento exato caso tenha havido micro-deslocamento menor que o limiar
+      scrollToPublicSectionIndex(baseIdx);
+    }
+  }, [isGerMode, canInnerElementScroll, scrollToPublicSectionIndex]);
+
+  // Controle de Wheel/Trackpad e guarda de alinhamento para impedir que a divisão entre seções pare no meio da tela
+  useEffect(() => {
+    if (isGerMode) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    let scrollEndTimer: number | null = null;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      if (canInnerElementScroll(e.target, container, e.deltaY)) return;
+
+      e.preventDefault();
+      if (isProgrammaticScroll.current) return;
+
+      if (Math.abs(e.deltaY) >= 8) {
+        const sectionHeight = container.clientHeight || 1;
+        const currentIdx = Math.max(0, Math.min(3, Math.round(container.scrollTop / sectionHeight)));
+        if (e.deltaY > 0 && currentIdx < 3) {
+          scrollToPublicSectionIndex(currentIdx + 1);
+        } else if (e.deltaY < 0 && currentIdx > 0) {
+          scrollToPublicSectionIndex(currentIdx - 1);
+        }
       }
-    );
+    };
 
-    sections.forEach(({ el }) => {
-      if (el) observer.observe(el);
-    });
+    const handleScroll = () => {
+      if (isProgrammaticScroll.current || isTouchingRef.current) return;
+      if (scrollEndTimer) window.clearTimeout(scrollEndTimer);
 
-    return () => observer.disconnect();
-  }, [isGerMode, espacoSlideIndex]);
+      scrollEndTimer = window.setTimeout(() => {
+        if (isProgrammaticScroll.current || isTouchingRef.current) return;
+        const sectionHeight = container.clientHeight || 1;
+        const rawProgress = container.scrollTop / sectionHeight;
+        const remainder = Math.abs(rawProgress - Math.round(rawProgress)) * sectionHeight;
+
+        // Se a página parou desalinhada entre duas seções (> 4px), completa o movimento na direção iniciada
+        if (remainder > 4) {
+          const prevIdx = lastSettledSectionIdxRef.current;
+          const diffFromPrev = rawProgress - prevIdx;
+          if (diffFromPrev > 0.04 && prevIdx < 3) {
+            scrollToPublicSectionIndex(prevIdx + 1);
+          } else if (diffFromPrev < -0.04 && prevIdx > 0) {
+            scrollToPublicSectionIndex(prevIdx - 1);
+          } else {
+            scrollToPublicSectionIndex(Math.round(rawProgress));
+          }
+        } else {
+          const settledIdx = Math.max(0, Math.min(3, Math.round(rawProgress)));
+          lastSettledSectionIdxRef.current = settledIdx;
+          const sectionOrder: Array<'home' | 'servicos' | 'vagas' | 'espaco'> = ['home', 'servicos', 'vagas', 'espaco'];
+          const tabId = sectionOrder[settledIdx];
+          if (tabId === 'espaco') {
+            setActiveTab(espacoSlideIndex === 0 ? 'equipe' : 'espaco');
+          } else {
+            setActiveTab(tabId);
+          }
+        }
+      }, 90);
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    container.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+      container.removeEventListener('scroll', handleScroll);
+      if (scrollEndTimer) window.clearTimeout(scrollEndTimer);
+    };
+  }, [isGerMode, espacoSlideIndex, canInnerElementScroll, scrollToPublicSectionIndex]);
 
   // Catálogo completo de serviços conectado ao estado dinâmico gerenciável
   const filteredCatalogServices = useMemo(() => {
@@ -1677,7 +1810,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   if (isLoadingSalon && hasActiveSubdomain) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-slate-950 font-['Poppins']">
-        <Loader2 className="w-7 h-7 animate-spin text-[#20C933]" />
+        <Loader2 className="w-7 h-7 animate-spin text-emerald-500" />
       </div>
     );
   }
@@ -1875,11 +2008,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 hapticLight();
                 setIsClientAuthModalOpen(true);
               }}
-              className={`h-8 sm:h-9.5 px-3 sm:px-3.5 rounded flex items-center justify-center font-bold text-xs sm:text-sm font-['Poppins'] tracking-wide transition active:scale-95 cursor-pointer shrink-0 ${
-                isDark
-                  ? 'bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-white shadow-xs'
-                  : 'bg-slate-900 hover:bg-slate-800 border border-slate-800 text-white shadow-xs'
-              }`}
+              className="h-8 sm:h-9 px-3 sm:px-3.5 rounded flex items-center justify-center font-bold text-xs sm:text-sm font-['Poppins'] tracking-wide transition active:scale-95 cursor-pointer shrink-0 bg-emerald-500 hover:bg-emerald-600 text-white border border-emerald-500/40 shadow-xs"
               title="Entrar no aplicativo"
               aria-label="Entrar"
             >
@@ -2001,56 +2130,101 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           )}
         </main>
       ) : (
-        /* MODO PÚBLICO / CLIENTE: LANDING PAGE INTEGRADA COM SCROLL SNAP NATIVO */
-        <div 
-          ref={scrollContainerRef}
-          className="flex-1 min-h-0 w-full relative overflow-y-auto scroll-smooth no-scrollbar overscroll-y-contain touch-pan-y"
-        >
-          {/* SEÇÃO 1: INÍCIO */}
-          <section
-            id="section-home"
-            ref={homeSectionRef}
-            data-tab-id="home"
-            className="w-full h-full min-h-full shrink-0 snap-start snap-always snap-section overflow-hidden flex flex-col justify-between"
-          >
-            {/* SUBCABEÇALHO DE BOAS-VINDAS DENTRO DA SEÇÃO INÍCIO */}
-            <div className={`px-3.5 border-b flex items-center justify-between gap-3 transition-colors h-11 shrink-0 ${
-              isDark ? 'bg-slate-900/80 border-slate-800/80' : 'bg-slate-100/90 border-slate-200'
-            }`}>
-              <div className="flex items-center gap-2.5 min-w-0 py-1">
-                {onBack && (
-                  <button
-                    onClick={onBack}
-                    className={`w-7 h-7 rounded flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
-                      isDark
-                        ? 'bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white'
-                        : 'bg-white hover:bg-slate-200 border border-slate-200 text-slate-700 hover:text-slate-950 shadow-xs'
-                    }`}
-                    title="Voltar"
-                    aria-label="Voltar"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5 text-emerald-500" />
-                  </button>
+        /* MODO PÚBLICO / CLIENTE: BARRA CONTEXTUAL FIXA NO TOPO + SWIPE VERTICAL DE ALTA SENSIBILIDADE */
+        <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden relative">
+          {/* BARRA SUPERIOR CONTEXTUAL FIXA (NÃO ROLA COM A PÁGINA) */}
+          <div className={`sticky top-0 z-30 w-full px-3 sm:px-4 border-b flex items-center justify-between gap-2 transition-colors h-11 shrink-0 ${
+            adminSettings.welcomeStyle === 'glass'
+              ? isDark
+                ? 'bg-slate-950/95 border-emerald-500/30 backdrop-blur-md'
+                : 'bg-white/95 border-emerald-500/25 backdrop-blur-md'
+              : isDark
+                ? 'bg-gradient-to-r from-emerald-500/15 via-slate-900/95 to-slate-900/95 border-emerald-500/25'
+                : 'bg-gradient-to-r from-emerald-500/12 via-white to-slate-50 border-emerald-500/25'
+          }`}>
+            {/* Lado Esquerdo: Voltar (se houver) + Saudação / Título Contextual da Seção Ativa */}
+            <div className="flex items-center gap-2 min-w-0 py-1">
+              {onBack && (
+                <button
+                  onClick={onBack}
+                  className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
+                    isDark
+                      ? 'bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white'
+                      : 'bg-white hover:bg-slate-200 border border-slate-200 text-slate-700 hover:text-slate-950 shadow-xs'
+                  }`}
+                  title="Voltar"
+                  aria-label="Voltar"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 text-emerald-500" />
+                </button>
+              )}
+
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
+
+              <h2 className={`text-xs sm:text-sm font-bold truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                {activeTab === 'home' ? (
+                  currentUserName && currentUserName !== 'Profissional' && currentUserName !== 'Usuário' ? (
+                    <>Olá, <span className={isDark ? 'text-emerald-400' : 'text-emerald-600'}>{currentUserName.trim().split(' ')[0]}</span></>
+                  ) : (
+                    'Seja bem-vindo'
+                  )
+                ) : activeTab === 'servicos' ? (
+                  'Serviços & Procedimentos'
+                ) : activeTab === 'vagas' ? (
+                  'Agendar Horário'
+                ) : espacoSlideIndex === 0 ? (
+                  hasMultipleProfessionals ? 'Equipe & Especialistas' : 'Perfil do Profissional'
+                ) : espacoSlideIndex === 1 ? (
+                  salonInfo.isHomeCare ? 'Modalidade de Atendimento' : 'Estrutura do Espaço'
+                ) : (
+                  'Endereço & Localização'
                 )}
-
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-
-                <div className="min-w-0">
-                  <h2 className={`text-xs sm:text-sm font-bold truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                    {currentUserName && currentUserName !== 'Profissional' && currentUserName !== 'Usuário' ? (
-                      <>Seja bem-vindo, <span className="text-emerald-500">{currentUserName.trim().split(' ')[0]}</span></>
-                    ) : (
-                      'Seja bem-vindo'
-                    )}
-                  </h2>
-                </div>
-              </div>
+              </h2>
             </div>
 
-            {/* SLIDER / CARROSSEL PUBLICITÁRIO TOTALMENTE RESPONSIVO */}
-            <div className={`relative w-full h-full flex-1 min-h-0 overflow-hidden select-none touch-pan-y ${
-              isDark ? 'bg-slate-900 border-b border-slate-800' : 'bg-slate-200 border-b border-slate-300'
-            }`}>
+            {/* Lado Direito: Status Rápido + Atalho 1-Toque para Horários */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className={`hidden xs:inline-flex items-center gap-1 text-[10px] font-bold whitespace-nowrap ${
+                isDark ? 'text-slate-400' : 'text-slate-600'
+              }`}>
+                <Clock className="w-3 h-3 text-emerald-500 shrink-0" />
+                <span>{adminSettings.isOpenNow !== false ? 'Aberto hoje' : 'Sob agendamento'}</span>
+              </span>
+
+              {activeTab !== 'vagas' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    handleSelectTab('vagas');
+                  }}
+                  className="h-7 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-wider whitespace-nowrap flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-2xs"
+                >
+                  <Calendar className="w-3 h-3 text-white shrink-0" />
+                  <span className="text-white">Horários</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* CONTAINER DE SEÇÕES COM SNAP OBRIGATÓRIO E MICRO-SWIPE */}
+          <div 
+            ref={scrollContainerRef}
+            onTouchStart={handlePublicTouchStart}
+            onTouchEnd={handlePublicTouchEnd}
+            className="flex-1 min-h-0 w-full relative overflow-y-auto snap-y snap-mandatory scroll-smooth no-scrollbar overscroll-y-contain touch-pan-y"
+          >
+            {/* SEÇÃO 1: INÍCIO */}
+            <section
+              id="section-home"
+              ref={homeSectionRef}
+              data-tab-id="home"
+              className="w-full h-full min-h-full shrink-0 snap-start snap-always snap-section overflow-hidden flex flex-col justify-between"
+            >
+              {/* SLIDER / CARROSSEL PUBLICITÁRIO TOTALMENTE RESPONSIVO */}
+              <div className={`relative w-full h-full flex-1 min-h-0 overflow-hidden select-none touch-pan-y ${
+                isDark ? 'bg-slate-900 border-b border-slate-800' : 'bg-slate-200 border-b border-slate-300'
+              }`}>
               <AnimatePresence mode="wait">
                 {portfolioSlides.map((slide, idx) => {
                   if (idx !== activeSlideIndex) return null;
@@ -2125,8 +2299,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           data-tab-id="servicos"
           className="w-full h-full min-h-full shrink-0 snap-start snap-always snap-section overflow-hidden flex flex-col justify-between"
         >
-          <SectionHeader title="Serviços & Procedimentos" isDark={isDark} />
-
           {/* PASSO 1: Seleção de Profissional (Visível Apenas se Múltiplos Profissionais) */}
           {hasMultipleProfessionals && (
             <div className={`w-full shrink-0 border-b ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'} p-3 flex flex-col gap-2`}>
@@ -2195,7 +2367,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                       <button
                         type="button"
                         onClick={() => setIsClientAuthModalOpen(true)}
-                        className="mt-1 px-4 py-2 rounded bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer"
+                        className="mt-1 px-4 py-2 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer"
                       >
                         Sou o Proprietário • Entrar
                       </button>
@@ -2316,7 +2488,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         <ChevronLeft className="w-4 h-4" />
                       </button>
 
-                      {/* Pílulas de Navegação com Brilho Esmeralda */}
+                      {/* Pílulas de Navegação com Brilho do Tema */}
                       <div className="flex items-center gap-1 px-1">
                         {Array.from({ length: totalServicePages }).map((_, dotIdx) => (
                           <button
@@ -2328,7 +2500,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                             }}
                             className={`transition-all rounded-full cursor-pointer ${
                               dotIdx === servicePage
-                                ? 'w-5 h-2 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]'
+                                ? 'w-5 h-2 bg-emerald-500 shadow-sm shadow-emerald-500/60'
                                 : isDark
                                 ? 'w-2 h-2 bg-slate-800 hover:bg-slate-700'
                                 : 'w-2 h-2 bg-slate-300 hover:bg-slate-400'
@@ -2364,11 +2536,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           data-tab-id="vagas"
           className="w-full h-full min-h-full shrink-0 snap-start snap-always snap-section overflow-hidden flex flex-col justify-start"
         >
-          <SectionHeader
-            title="Agendar"
-            isDark={isDark}
-          />
-
               <div className="flex-1 min-h-0 flex flex-col justify-start overflow-hidden w-full">
                 <SalonBookingModal
                   isOpen={true}
@@ -2396,17 +2563,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           data-tab-id="espaco"
           className="w-full h-full min-h-full shrink-0 snap-start snap-always snap-section overflow-hidden flex flex-col justify-start"
         >
-          <SectionHeader
-            title={
-              espacoSlideIndex === 0
-                ? (hasMultipleProfessionals ? 'Equipe & Especialistas' : 'Perfil do Profissional')
-                : espacoSlideIndex === 1
-                ? (salonInfo.isHomeCare ? 'Modalidade de Atendimento' : 'Estrutura do Espaço')
-                : 'Endereço & Localização'
-            }
-            isDark={isDark}
-          />
-
               <div className="px-3.5 sm:px-4 py-2.5 space-y-2.5 flex-1 min-h-0 flex flex-col justify-start overflow-y-auto">
                 {/* Abas de Navegação Interna da Seção Espaço */}
                 <div className="grid grid-cols-3 gap-1.5 w-full">
@@ -2732,7 +2888,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   </div>
                 </div>
               </div>
-          </section>
+            </section>
+          </div>
         </div>
       )}
 
@@ -2749,6 +2906,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           isProAdmin={isActiveProAdmin}
           isOwnerOrManager={isOwnerOrManager}
           isProfessionalStaff={isProfessional}
+          navStyle={adminSettings.navStyle || 'minimal'}
         />
       </footer>
 
@@ -2761,7 +2919,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             }`}
           >
             {/* Ícone de Sucesso */}
-            <div className="w-16 h-16 rounded bg-[#20C933] text-white flex items-center justify-center shadow-lg shadow-emerald-600/30 animate-in zoom-in-75 duration-300">
+            <div className="w-16 h-16 rounded bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-600/30 animate-in zoom-in-75 duration-300">
               <Check className="w-9 h-9 stroke-[3] text-white" />
             </div>
 
@@ -2780,7 +2938,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             }`}>
               <div className="flex items-center justify-between pb-2.5 border-b border-slate-800/80">
                 <span className="text-xs font-bold text-slate-400">Código Protocolo</span>
-                <span className="text-xs font-mono font-bold text-[#20C933] bg-emerald-950/60 px-2.5 py-1 rounded border border-emerald-500/30">
+                <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded border border-emerald-500/30">
                   {confirmedBookingData.protocolCode}
                 </span>
               </div>
@@ -2828,7 +2986,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               <button
                 type="button"
                 onClick={() => setConfirmedBookingData(null)}
-                className="w-full py-3.5 bg-[#20C933] hover:bg-[#1bb32d] active:scale-[0.99] text-white font-bold text-xs rounded transition shadow-md shadow-emerald-900/30 uppercase tracking-wider font-['Poppins'] flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white font-bold text-xs rounded transition shadow-md shadow-emerald-900/30 uppercase tracking-wider font-['Poppins'] flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>OK, ENTENDIDO</span>
                 <Check className="w-4 h-4 stroke-[2.5]" />
@@ -2843,7 +3001,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 setConfirmedBookingData(null);
                 setIsProfileDrawerOpen(true);
               }}
-              className="inline-flex items-center gap-1.5 text-xs text-[#20C933] hover:underline font-bold pt-1 cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs text-emerald-500 hover:underline font-bold pt-1 cursor-pointer"
             >
               <MessageSquare className="w-4 h-4 text-emerald-400" />
               <span>Enviar mensagem no Chat do App</span>

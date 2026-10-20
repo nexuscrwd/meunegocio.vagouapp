@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { 
   Palette, Upload, Trash2, Smartphone, Image as ImageIcon,
-  Check, Sparkles, ArrowLeft, Sun, Moon, RefreshCw, Save, Type, Copy
+  Check, Sparkles, ArrowLeft, Sun, Moon, RefreshCw, Save, Type, Copy, LayoutGrid
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { SalonAdminSettings } from '../../types';
@@ -26,6 +26,8 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
   const [pwaName, setPwaName] = useState(adminSettings.pwaName || adminSettings.salonName || '');
   const [slogan, setSlogan] = useState(adminSettings.slogan || '');
   const [brandFont, setBrandFont] = useState<string>(adminSettings.brandFont || 'Poppins');
+  const [navStyle, setNavStyle] = useState<'minimal' | 'solid' | 'boxed'>(adminSettings.navStyle || 'minimal');
+  const [welcomeStyle, setWelcomeStyle] = useState<'atmospheric' | 'glass'>(adminSettings.welcomeStyle || 'atmospheric');
   const [salonLogoLight, setSalonLogoLight] = useState(adminSettings.salonLogoLight || adminSettings.salonLogo || '');
   const [salonLogoDark, setSalonLogoDark] = useState(adminSettings.salonLogoDark || adminSettings.salonLogo || '');
   const [salonIcon, setSalonIcon] = useState(adminSettings.salonIcon || '');
@@ -189,6 +191,8 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
       pwaName: pwaName.trim() || salonName,
       slogan: slogan.trim(),
       brandFont,
+      navStyle,
+      welcomeStyle,
     });
 
     setIsSaving(false);
@@ -845,6 +849,108 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
             <span className="text-[8.5px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500 text-white shrink-0">
               Ao Vivo
             </span>
+          </div>
+        </div>
+
+        {/* 5. ESTILO DA BARRA DE NAVEGAÇÃO & FAIXA DE BOAS-VINDAS */}
+        <div className={`p-3.5 rounded border space-y-3.5 ${
+          isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+        }`}>
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+            <div className="flex items-center gap-2">
+              <LayoutGrid className="w-4 h-4 text-emerald-500" />
+              <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                Estilo de Navegação & Boas-Vindas
+              </h3>
+            </div>
+            <span className="text-[10px] font-bold text-emerald-500">
+              {navStyle === 'minimal' ? 'Minimalista' : navStyle === 'solid' ? 'Destaque Sólido' : 'Clássico'}
+            </span>
+          </div>
+
+          {/* Seletor de Estilo do BottomNav */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+              Barra de Navegação Inferior (Rodapé)
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'minimal' as const, label: 'Minimalista', desc: 'Linha luminosa' },
+                { id: 'solid' as const, label: 'Sólido', desc: 'Botão preenchido' },
+                { id: 'boxed' as const, label: 'Emoldurado', desc: 'Ícone em caixa' },
+              ].map((opt) => {
+                const isSelected = navStyle === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      setNavStyle(opt.id);
+                    }}
+                    className={`p-2.5 rounded-[4px] border text-left transition cursor-pointer flex flex-col justify-between gap-1 ${
+                      isSelected
+                        ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                        : isDark
+                          ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-emerald-500/40'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500/40'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className={`text-[11px] font-bold truncate ${isSelected ? 'text-white' : ''}`}>
+                        {opt.label}
+                      </span>
+                      {isSelected && <Check className="w-3 h-3 text-white shrink-0" />}
+                    </div>
+                    <span className={`text-[9px] truncate ${isSelected ? 'text-white/90' : 'text-slate-400'}`}>
+                      {opt.desc}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Seletor de Estilo da Faixa de Boas-Vindas */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+              Faixa de Boas-Vindas (Topo da Vitrine)
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: 'atmospheric' as const, label: 'Degradê do Tema', desc: 'Fusão suave com a cor da marca' },
+                { id: 'glass' as const, label: 'Cristal / Translúcido', desc: 'Superfície limpa de alto contraste' },
+              ].map((opt) => {
+                const isSelected = welcomeStyle === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      setWelcomeStyle(opt.id);
+                    }}
+                    className={`p-2.5 rounded-[4px] border text-left transition cursor-pointer flex flex-col justify-between gap-1 ${
+                      isSelected
+                        ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                        : isDark
+                          ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-emerald-500/40'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500/40'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className={`text-[11px] font-bold truncate ${isSelected ? 'text-white' : ''}`}>
+                        {opt.label}
+                      </span>
+                      {isSelected && <Check className="w-3 h-3 text-white shrink-0" />}
+                    </div>
+                    <span className={`text-[9px] truncate ${isSelected ? 'text-white/90' : 'text-slate-400'}`}>
+                      {opt.desc}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </form>

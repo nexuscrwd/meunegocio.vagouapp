@@ -1,23 +1,29 @@
 @import "tailwindcss";
 
 @theme {
-  --color-emerald-300: color-mix(in srgb, var(--accent-color) 70%, white 30%);
-  --color-emerald-400: color-mix(in srgb, var(--accent-color) 85%, white 15%);
-  --color-emerald-500: var(--accent-color);
-  --color-emerald-600: color-mix(in srgb, var(--accent-color) 85%, black 15%);
-  --color-emerald-700: color-mix(in srgb, var(--accent-color) 70%, black 30%);
-}
-
-:root {
-  --accent-color: #10b981;
-  --color-emerald-300: color-mix(in srgb, var(--accent-color) 70%, white 30%);
-  --color-emerald-400: color-mix(in srgb, var(--accent-color) 85%, white 15%);
-  --color-emerald-500: var(--accent-color);
-  --color-emerald-600: color-mix(in srgb, var(--accent-color) 85%, black 15%);
-  --color-emerald-700: color-mix(in srgb, var(--accent-color) 70%, black 30%);
   --color-emerald-50: color-mix(in srgb, var(--accent-color) 10%, white 90%);
   --color-emerald-100: color-mix(in srgb, var(--accent-color) 18%, white 82%);
   --color-emerald-200: color-mix(in srgb, var(--accent-color) 30%, white 70%);
+  --color-emerald-300: color-mix(in srgb, var(--accent-color) 70%, white 30%);
+  --color-emerald-400: color-mix(in srgb, var(--accent-color) 85%, white 15%);
+  --color-emerald-500: var(--accent-color);
+  --color-emerald-600: color-mix(in srgb, var(--accent-color) 85%, black 15%);
+  --color-emerald-700: color-mix(in srgb, var(--accent-color) 70%, black 30%);
+  --color-emerald-800: color-mix(in srgb, var(--accent-color) 55%, black 45%);
+  --color-emerald-900: color-mix(in srgb, var(--accent-color) 40%, black 60%);
+  --color-emerald-950: color-mix(in srgb, var(--accent-color) 20%, black 80%);
+}
+
+:root {
+  --accent-color: #20C933;
+  --color-emerald-50: color-mix(in srgb, var(--accent-color) 10%, white 90%);
+  --color-emerald-100: color-mix(in srgb, var(--accent-color) 18%, white 82%);
+  --color-emerald-200: color-mix(in srgb, var(--accent-color) 30%, white 70%);
+  --color-emerald-300: color-mix(in srgb, var(--accent-color) 70%, white 30%);
+  --color-emerald-400: color-mix(in srgb, var(--accent-color) 85%, white 15%);
+  --color-emerald-500: var(--accent-color);
+  --color-emerald-600: color-mix(in srgb, var(--accent-color) 85%, black 15%);
+  --color-emerald-700: color-mix(in srgb, var(--accent-color) 70%, black 30%);
   --color-emerald-800: color-mix(in srgb, var(--accent-color) 55%, black 45%);
   --color-emerald-900: color-mix(in srgb, var(--accent-color) 40%, black 60%);
   --color-emerald-950: color-mix(in srgb, var(--accent-color) 20%, black 80%);
@@ -56,13 +62,58 @@ input[type="number"] {
 .border-accent { border-color: var(--accent-color) !important; }
 .text-accent { color: var(--accent-color) !important; }
 
-/* Bordas sutis no tema escuro */
-.dark .border-slate-800 {
-  border-color: color-mix(in srgb, var(--accent-color) 18%, #1e293b 82%) !important;
+/* Compatibilidade reativa para classes hexadecimais legadas */
+.bg-\[\#20C933\] { background-color: var(--accent-color) !important; }
+.hover\:bg-\[\#1bb32d\]:hover,
+.hover\:bg-\[\#1eb72e\]:hover { background-color: color-mix(in srgb, var(--accent-color) 85%, black 15%) !important; }
+.text-\[\#20C933\] { color: var(--accent-color) !important; }
+.text-\[\#087A2A\] { color: color-mix(in srgb, var(--accent-color) 72%, black 28%) !important; }
+.border-\[\#20C933\] { border-color: var(--accent-color) !important; }
+
+/* Harmonização Cromática de Bordas — Tema Escuro (Dark Slate) */
+.dark .border-slate-800,
+.dark .border-slate-800\/90,
+.dark .border-slate-800\/80,
+.dark .border-slate-800\/60 {
+  border-color: color-mix(in srgb, var(--accent-color) 24%, #1e293b 76%) !important;
 }
 
-.dark .border-slate-700 {
-  border-color: color-mix(in srgb, var(--accent-color) 25%, #334155 75%) !important;
+.dark .border-slate-700,
+.dark .border-slate-700\/80,
+.dark .border-slate-700\/60 {
+  border-color: color-mix(in srgb, var(--accent-color) 32%, #334155 68%) !important;
+}
+
+/* Harmonização Cromática de Bordas — Tema Claro (Light Pearl) */
+html:not(.dark) .border-slate-200,
+html:not(.dark) .border-slate-200\/90,
+html:not(.dark) .border-slate-200\/80 {
+  border-color: color-mix(in srgb, var(--accent-color) 22%, #e2e8f0 78%) !important;
+}
+
+html:not(.dark) .border-slate-300 {
+  border-color: color-mix(in srgb, var(--accent-color) 28%, #cbd5e1 72%) !important;
+}
+
+/* Harmonização Cromática de Subtítulos e Textos Secundários (Atmospheric Brand Tinting) */
+.dark .text-slate-300 {
+  color: color-mix(in srgb, var(--accent-color) 16%, #cbd5e1 84%) !important;
+}
+.dark .text-slate-400 {
+  color: color-mix(in srgb, var(--accent-color) 24%, #94a3b8 76%) !important;
+}
+.dark .text-slate-500 {
+  color: color-mix(in srgb, var(--accent-color) 20%, #64748b 80%) !important;
+}
+
+html:not(.dark) .text-slate-400 {
+  color: color-mix(in srgb, var(--accent-color) 25%, #64748b 75%) !important;
+}
+html:not(.dark) .text-slate-500 {
+  color: color-mix(in srgb, var(--accent-color) 28%, #475569 72%) !important;
+}
+html:not(.dark) .text-slate-600 {
+  color: color-mix(in srgb, var(--accent-color) 24%, #334155 76%) !important;
 }
 
 /* Regra inegociável de contraste do Vagou: texto sobre fundo colorido sólido deve ser branco puro */
@@ -101,11 +152,11 @@ body {
   background: rgba(15, 23, 42, 0.6);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.25);
+  background: color-mix(in srgb, var(--accent-color) 35%, rgba(148, 163, 184, 0.25));
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.45);
+  background: color-mix(in srgb, var(--accent-color) 55%, rgba(148, 163, 184, 0.45));
 }
 
 @keyframes radar-pulse {

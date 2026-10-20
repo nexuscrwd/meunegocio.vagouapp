@@ -35,19 +35,19 @@ export const applyAccentColorToDom = (color: string) => {
     // 1. Atualiza propriedades CSS no documentElement
     const root = document.documentElement;
     root.style.setProperty('--accent-color', hex);
+    root.style.setProperty('--color-emerald-50', `color-mix(in srgb, ${hex} 10%, white 90%)`);
+    root.style.setProperty('--color-emerald-100', `color-mix(in srgb, ${hex} 18%, white 82%)`);
+    root.style.setProperty('--color-emerald-200', `color-mix(in srgb, ${hex} 30%, white 70%)`);
     root.style.setProperty('--color-emerald-300', `color-mix(in srgb, ${hex} 70%, white 30%)`);
     root.style.setProperty('--color-emerald-400', `color-mix(in srgb, ${hex} 85%, white 15%)`);
     root.style.setProperty('--color-emerald-500', hex);
     root.style.setProperty('--color-emerald-600', `color-mix(in srgb, ${hex} 85%, black 15%)`);
     root.style.setProperty('--color-emerald-700', `color-mix(in srgb, ${hex} 70%, black 30%)`);
-    root.style.setProperty('--color-emerald-50', `color-mix(in srgb, ${hex} 10%, white 90%)`);
-    root.style.setProperty('--color-emerald-100', `color-mix(in srgb, ${hex} 18%, white 82%)`);
-    root.style.setProperty('--color-emerald-200', `color-mix(in srgb, ${hex} 30%, white 70%)`);
     root.style.setProperty('--color-emerald-800', `color-mix(in srgb, ${hex} 55%, black 45%)`);
     root.style.setProperty('--color-emerald-900', `color-mix(in srgb, ${hex} 40%, black 60%)`);
     root.style.setProperty('--color-emerald-950', `color-mix(in srgb, ${hex} 20%, black 80%)`);
 
-    // 2. Injeta tag de estilo dinâmica para garantir reatividade total sem quebrar opacidades
+    // 2. Injeta tag de estilo dinâmica para garantir reatividade total em botões, bordas, subtítulos e textos secundários
     let styleEl = document.getElementById('vagou-dynamic-accent');
     if (!styleEl) {
       styleEl = document.createElement('style');
@@ -57,26 +57,69 @@ export const applyAccentColorToDom = (color: string) => {
     styleEl.textContent = `
       :root {
         --accent-color: ${hex} !important;
+        --color-emerald-50: color-mix(in srgb, ${hex} 10%, white 90%) !important;
+        --color-emerald-100: color-mix(in srgb, ${hex} 18%, white 82%) !important;
+        --color-emerald-200: color-mix(in srgb, ${hex} 30%, white 70%) !important;
         --color-emerald-300: color-mix(in srgb, ${hex} 70%, white 30%) !important;
         --color-emerald-400: color-mix(in srgb, ${hex} 85%, white 15%) !important;
         --color-emerald-500: ${hex} !important;
         --color-emerald-600: color-mix(in srgb, ${hex} 85%, black 15%) !important;
         --color-emerald-700: color-mix(in srgb, ${hex} 70%, black 30%) !important;
-        --color-emerald-50: color-mix(in srgb, ${hex} 10%, white 90%) !important;
-        --color-emerald-100: color-mix(in srgb, ${hex} 18%, white 82%) !important;
-        --color-emerald-200: color-mix(in srgb, ${hex} 30%, white 70%) !important;
         --color-emerald-800: color-mix(in srgb, ${hex} 55%, black 45%) !important;
         --color-emerald-900: color-mix(in srgb, ${hex} 40%, black 60%) !important;
         --color-emerald-950: color-mix(in srgb, ${hex} 20%, black 80%) !important;
       }
-      .bg-accent {
+      .bg-accent, .bg-\\[\\#20C933\\] {
         background-color: ${hex} !important;
       }
-      .text-accent {
+      .hover\\:bg-\\[\\#1bb32d\\]:hover, .hover\\:bg-\\[\\#1eb72e\\]:hover {
+        background-color: color-mix(in srgb, ${hex} 85%, black 15%) !important;
+      }
+      .text-accent, .text-\\[\\#20C933\\] {
         color: ${hex} !important;
       }
-      .border-accent {
+      .text-\\[\\#087A2A\\] {
+        color: color-mix(in srgb, ${hex} 72%, black 28%) !important;
+      }
+      .border-accent, .border-\\[\\#20C933\\] {
         border-color: ${hex} !important;
+      }
+      .dark .border-slate-800,
+      .dark .border-slate-800\\/90,
+      .dark .border-slate-800\\/80,
+      .dark .border-slate-800\\/60 {
+        border-color: color-mix(in srgb, ${hex} 24%, #1e293b 76%) !important;
+      }
+      .dark .border-slate-700,
+      .dark .border-slate-700\\/80,
+      .dark .border-slate-700\\/60 {
+        border-color: color-mix(in srgb, ${hex} 32%, #334155 68%) !important;
+      }
+      html:not(.dark) .border-slate-200,
+      html:not(.dark) .border-slate-200\\/90,
+      html:not(.dark) .border-slate-200\\/80 {
+        border-color: color-mix(in srgb, ${hex} 22%, #e2e8f0 78%) !important;
+      }
+      html:not(.dark) .border-slate-300 {
+        border-color: color-mix(in srgb, ${hex} 28%, #cbd5e1 72%) !important;
+      }
+      .dark .text-slate-300 {
+        color: color-mix(in srgb, ${hex} 16%, #cbd5e1 84%) !important;
+      }
+      .dark .text-slate-400 {
+        color: color-mix(in srgb, ${hex} 24%, #94a3b8 76%) !important;
+      }
+      .dark .text-slate-500 {
+        color: color-mix(in srgb, ${hex} 20%, #64748b 80%) !important;
+      }
+      html:not(.dark) .text-slate-400 {
+        color: color-mix(in srgb, ${hex} 25%, #64748b 75%) !important;
+      }
+      html:not(.dark) .text-slate-500 {
+        color: color-mix(in srgb, ${hex} 28%, #475569 72%) !important;
+      }
+      html:not(.dark) .text-slate-600 {
+        color: color-mix(in srgb, ${hex} 24%, #334155 76%) !important;
       }
       .text-white, .dark .text-white {
         color: #ffffff !important;

@@ -274,6 +274,8 @@ export interface Database {
         Row: {
           id: string;
           user_id: string | null;
+          username?: string | null;
+          password_hash?: string | null;
           name: string;
           cpf?: string | null;
           phone: string | null;
@@ -286,6 +288,8 @@ export interface Database {
         Insert: {
           id?: string;
           user_id?: string | null;
+          username?: string | null;
+          password_hash?: string | null;
           name: string;
           cpf?: string | null;
           phone?: string | null;

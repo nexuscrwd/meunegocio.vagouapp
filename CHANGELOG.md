@@ -15,6 +15,63 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-20] — Barra Superior Contextual Fixa & Micro-Swipe Vertical de Alta Sensibilidade (`SalonProfileView.tsx`)
+- **Tipo:** `[Feat / UI-UX / Navegação Mobile-First]`
+- **Motivo / Solicitação:** Tornar a barra superior de boas-vindas/status fixa no topo da visualização pública e garantir que o swipe vertical role o restante da página com movimento mínimo, eliminando qualquer parada da divisão entre seções no meio da tela.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Barra Superior Contextual Fixa (`sticky top-0 z-30 shrink-0`):** Movida para fora do fluxo rolável, fixada imediatamente abaixo do `<header id="salon-profile-header">`. Unifica a saudação inicial (`Olá, [Nome]` / `Seja bem-vindo`) e os títulos contextuais das seções (`Serviços & Procedimentos`, `Agendar Horário`, `Equipe & Especialistas`, `Estrutura do Espaço` e `Endereço & Localização`), eliminando cabeçalhos intermediários que cortavam o meio da tela durante a rolagem e mantendo o status (`Aberto hoje`) e o atalho `[Horários]` sempre visíveis.
+  - **Micro-Swipe Vertical (`handlePublicTouchStart` / `handlePublicTouchEnd` + `wheel` + Guarda de Alinhamento):** Adicionado `snap-y snap-mandatory` ao container de seções combinado com controlador cirúrgico que dispara a transição completa de seção com movimento vertical mínimo (`>= 18px` no toque ou `>= 8px` no trackpad/wheel), respeitando rolagens internas de sub-listas (`canInnerElementScroll`) e impedindo que a página pare dividida entre duas seções.
+
+### [2026-10-20] — Faixa de Boas-Vindas Atmosférica & Seletor de Estilos de Navegação Inferior (`BottomNav.tsx`, `SalonProfileView.tsx` & `VisualIdentityCardView.tsx`)
+- **Tipo:** `[Feat / UI-UX / Personalização White-Label]`
+- **Motivo / Solicitação:** Redesenhar a faixa de boas-vindas (`section#section-home > div:first-child`) e a barra de navegação inferior (`nav#vagou-bottom-nav`) para combinarem com as cores do tema do aplicativo e permitir ao proprietário escolher entre 3 estilos de navegação (`minimal`, `solid`, `boxed`) e 2 estilos de faixa de boas-vindas (`atmospheric`, `glass`).
+- **Arquivos Impactados:**
+  - `src/types.ts`
+  - `src/lib/supabase.ts`
+  - `src/components/BottomNav.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/VisualIdentityCardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Faixa de Boas-Vindas Temática (`SalonProfileView.tsx`):** Aplicado degradê horizontal suave com a cor primária do tema (`from-emerald-500/15 via-slate-900/95` no Dark | `from-emerald-500/12 via-white` no Light) e borda tinteada (`border-emerald-500/25`), além de indicador de status rápido (`Aberto hoje`) e botão de atalho em 1 toque (`Horários`) no lado direito.
+  - **3 Estilos Selecionáveis para o `BottomNav` (`BottomNav.tsx`):**
+    1. `minimal` (*Clean Line* — padrão): Ícones planos sem caixinhas com borda (Zero Box-in-Box) e traço luminoso superior (`h-[3px] w-8 bg-emerald-500`) na aba ativa.
+    2. `solid` (*Destaque Sólido*): Aba ativa preenchida na cor primária do tema (`bg-emerald-500 rounded-[4px]`) com texto e ícone 100% brancos (`text-white`).
+    3. `boxed` (*Clássico Emoldurado*): Ícone emoldurado harmonizado com as cores do tema.
+  - **Seletor no Painel de Identidade Visual (`VisualIdentityCardView.tsx` & `supabase.ts`):** Adicionado card de escolha rápida com persistência em `salons.branding.navStyle` e `salons.branding.welcomeStyle`.
+
+### [2026-10-20] — Motor de Tema Camaleão Global & Harmonização Cromática (`@theme` Tailwind v4 + Tinting Atmosférico de Bordas e Subtítulos)
+- **Tipo:** `[Feat / Refactor / Design System]`
+- **Motivo / Solicitação:** Revisar todo o código do app para que todos os botões, bordas, textos secundários e subtítulos acompanhem dinamicamente as cores do tema do aplicativo em ambos os modos (Claro e Escuro), propondo e aplicando arquitetura de *Atmospheric Brand Tinting*.
+- **Arquivos Impactados:**
+  - `src/index.css`
+  - `src/context/ThemeContext.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Mapeamento `@theme` Tailwind v4 (`src/index.css`):** Toda a escala `emerald-50` a `emerald-950` foi conectada a `color-mix(in srgb, var(--accent-color) ...)` e `var(--secondary-color)`, garantindo que qualquer utilitário nativo (`bg-emerald-500/10`, `border-emerald-500/40`, `text-emerald-400`, `ring-emerald-500`, `shadow-emerald-500/20`) reflita instantaneamente a cor da marca do salão.
+  - **Harmonização de Bordas e Subtítulos (`src/index.css` & `src/context/ThemeContext.tsx`):** Bordas estruturais (`border-slate-800`, `border-slate-700`, `border-slate-200`, `border-slate-300`) e textos secundários/subtítulos (`text-slate-400`, `text-slate-500`) recebem pigmentação sutil da cor do tema (*Atmospheric Brand Tinting* via `color-mix`), eliminando o aspecto acinzentado genérico tanto no Dark Mode quanto no Light Mode.
+  - **Eliminação de Hexadecimais Estáticos:** Substituídas todas as ocorrências residuais de `#20C933`, `#1bb32d` e `#087A2A` em `SalonBookingModal.tsx`, `SalonProfileView.tsx`, `ProfileDrawer.tsx` e `UserAppointmentsView.tsx` por classes semânticas reativas ao tema, mantendo a trava inegociável de texto e ícone `100% branco (#ffffff)` sobre fundos sólidos da cor primária.
+
+### [2026-10-20] — Formulário Nativo de Login, Cadastro e Recuperação White-Label Camaleão (`SalonClientAuthModal.tsx` & `PartnerAuthView.tsx`)
+- **Tipo:** `[Feat / Refactor / UX White-Label]`
+- **Motivo / Solicitação:** Substituir o `<iframe>` externo de login por um formulário nativo seguindo exatamente o modelo visual solicitado, conectado diretamente ao Supabase Auth e às tabelas da Tríade (`clients`, `salons`, `salon_members`, `professionals`), adaptando-se instantaneamente ao tema (claro/escuro), à cor primária do salão (`primaryColor` com texto e ícone branco `text-white`) e à regra condicional do logotipo (se há logo do salão, exibe logo + cabeçalho; se não há logo, oculta logo e cabeçalho completamente).
+- **Arquivos Impactados:**
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/components/PartnerAuthView.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+- **Resumo Técnico:**
+  - Criado formulário nativo em `SalonClientAuthModal.tsx` com suporte a Login (`Usuário, E-mail ou Telefone *` + `Senha de Acesso *`), Cadastro Rápido (`Nome`, `E-mail`, `WhatsApp`, `CPF` validado por Módulo 11 e `Senha`) e Recuperação de Senha.
+  - Implementado resolvedor inteligente `resolveIdentifierToEmail` que permite entrar digitando E-mail, Telefone/WhatsApp, CPF ou Nome/Slug, consultando `clients`, `salons` e `professionals` antes do `supabase.auth.signInWithPassword`.
+  - Sincronização limpa de `salonLogoLight` e `salonLogoDark` em `SalonProfileView.tsx` para garantir que salões sem logotipo não herdem resíduos do `localStorage`.
+
 ### [2026-10-20] — Modal de Login 100% White-Label Nativo do Salão (Tema, Cores, Logotipo Condicional & Ocultação de Cabeçalho via URL + `postMessage`)
 - **Tipo:** `[Feature / UX White-Label / Tríade Sync]`
 - **Motivo / Solicitação:** Fazer o modal de login embarcado do `admvapp` (`SalonClientAuthModal` e `PartnerAuthView`) assumir integralmente o tema atual (Claro/Escuro), a cor primária/secundária e o logotipo do salão, ocultando o logotipo Vagou e o cabeçalho *"Acessar Espaço"* quando o salão não possuir logotipo cadastrado, transmitindo experiência 100% nativa do estabelecimento.

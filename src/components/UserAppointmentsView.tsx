@@ -160,7 +160,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
       case 'CONFIRMADO':
       case 'AGENDADO':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[4px] text-xs font-bold bg-[#20C933] border border-emerald-400 text-white whitespace-nowrap">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[4px] text-xs font-bold bg-emerald-500 border border-emerald-400 text-white whitespace-nowrap">
             <Check className="w-3.5 h-3.5 text-white" />
             Confirmado
           </span>
@@ -253,7 +253,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                 hapticLight();
                 onBack();
               }}
-              className="px-5 py-2.5 rounded-[4px] bg-[#20C933] text-white font-bold text-xs hover:bg-[#1eb72e] transition cursor-pointer flex items-center gap-2 shadow-xs"
+              className="px-5 py-2.5 rounded-[4px] bg-emerald-500 text-white font-bold text-xs hover:bg-emerald-600 transition cursor-pointer flex items-center gap-2 shadow-xs"
             >
               <Scissors className="w-4 h-4 text-white" />
               <span>Ver Serviços & Agendar</span>

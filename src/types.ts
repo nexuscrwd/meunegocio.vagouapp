@@ -207,6 +207,8 @@ export interface SalonAdminSettings {
   pwaName?: string;   // Nome curto/completo exibido na tela inicial do celular
   slogan?: string;    // Assinatura curta da marca (até 60 caracteres) exibida abaixo do nome do salão
   brandFont?: 'Poppins' | 'Cormorant Garamond' | 'Oswald' | 'Plus Jakarta Sans' | string; // Fonte de destaque do Nome/Cabeçalho
+  navStyle?: 'minimal' | 'solid' | 'boxed'; // Estilo visual da barra de navegação inferior (BottomNav)
+  welcomeStyle?: 'atmospheric' | 'glass'; // Estilo da faixa de boas-vindas na seção Início
   bio?: string;       // História/apresentação do espaço (preenchida pós-cadastro no painel do salão)
   instagramUrl?: string; // @instagram (preenchido pós-cadastro no painel do salão)
 

@@ -1285,7 +1285,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           <button
                             type="button"
                             onClick={() => handleAcceptIncomingSwap(reqApt)}
-                            className="py-2 px-3 rounded bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition active:scale-98 shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
+                            className="py-2 px-3 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition active:scale-98 shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
                           >
                             <Check className="w-3.5 h-3.5 stroke-[2.5] text-white" />
                             <span className="text-white">Aceitar Troca</span>
@@ -1322,7 +1322,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         onClose();
                         onNavigateToSchedule();
                       }}
-                      className="px-4 py-2 bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold rounded uppercase tracking-wider cursor-pointer"
+                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded uppercase tracking-wider cursor-pointer"
                     >
                       Agendar Agora
                     </button>
@@ -1490,7 +1490,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                               setSelectedSwapSlots(candidates.slice(0, 3).map(c => c.time || ''));
                               setIsSwapModalOpen(true);
                             }}
-                            className="w-full py-2 bg-[#20C933] hover:bg-[#1bb32d] active:scale-98 text-white text-xs font-bold rounded flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                            className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 active:scale-98 text-white text-xs font-bold rounded flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                           >
                             <ArrowLeftRight className="w-3.5 h-3.5 text-white" />
                             <span className="text-white">Montar Nova Fila em Cascata</span>
@@ -1559,7 +1559,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     onClose();
                     onNavigateToSchedule();
                   }}
-                  className="w-full py-3 mt-2 bg-[#20C933] hover:bg-[#1bb32d] active:scale-[0.99] text-white font-bold text-xs rounded transition uppercase tracking-wider font-['Poppins'] flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-3 mt-2 bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white font-bold text-xs rounded transition uppercase tracking-wider font-['Poppins'] flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Scissors className="w-4 h-4 text-white" />
                   <span className="text-white">AGENDAR NOVO HORÁRIO</span>
@@ -1611,7 +1611,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-1.5 bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold rounded flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                      className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
                     >
                       <Camera className="w-3.5 h-3.5 text-white" />
                       <span>Alterar</span>
@@ -1715,7 +1715,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         hapticLight();
                         setIsEditing(true);
                       }}
-                      className="w-full py-3 bg-[#20C933] hover:bg-[#1bb32d] active:scale-[0.99] text-white font-bold text-xs rounded transition uppercase tracking-wider font-['Poppins'] cursor-pointer flex items-center justify-center gap-2"
+                      className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white font-bold text-xs rounded transition uppercase tracking-wider font-['Poppins'] cursor-pointer flex items-center justify-center gap-2"
                     >
                       <User className="w-4 h-4" />
                       <span>EDITAR DADOS</span>
@@ -1738,7 +1738,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       </button>
                       <button
                         type="submit"
-                        className="flex-1 py-3 bg-[#20C933] hover:bg-[#1bb32d] active:scale-[0.99] text-white font-bold text-xs rounded transition uppercase tracking-wider font-['Poppins'] cursor-pointer flex items-center justify-center gap-2"
+                        className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white font-bold text-xs rounded transition uppercase tracking-wider font-['Poppins'] cursor-pointer flex items-center justify-center gap-2"
                       >
                         <Check className="w-4 h-4 stroke-[2.5]" />
                         <span>SALVAR</span>
@@ -2228,7 +2228,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     handleSendSwapProposal(swapTargetAppointment, selectedSwapSlots, swapIncentiveMessage);
                   }
                 }}
-                className="flex-1 py-2.5 bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 disabled:hover:bg-[#20C933] text-white font-bold text-xs rounded transition uppercase tracking-wider font-['Poppins'] flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+                className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:hover:bg-emerald-500 text-white font-bold text-xs rounded transition uppercase tracking-wider font-['Poppins'] flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
               >
                 <Send className="w-3.5 h-3.5 text-white" />
                 <span className="text-white">
@@ -2274,7 +2274,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       localStorage.setItem('vagou_client_swap_governance', JSON.stringify(updated));
                       setGovernanceWarning({ isOpen: false, type: null });
                     }}
-                    className="flex-1 py-2 rounded bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition cursor-pointer shadow-md"
+                    className="flex-1 py-2 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition cursor-pointer shadow-md"
                   >
                     Ativar e Continuar
                   </button>
