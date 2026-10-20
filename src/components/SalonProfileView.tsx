@@ -6,7 +6,7 @@ import {
   Check, MessageCircle, MessageSquare,
   Scissors, Hand, Smile, Eye, Sparkles, LayoutDashboard,
   Store, Car, MapPin, Clock, Users, Wifi, Coffee, Wind,
-  LogOut, ShieldCheck, EyeOff, User, Share2, Loader2
+  LogOut, EyeOff, User, Share2, Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ServiceOffer, BookingAppointment, SalonAdminSettings, UserPersona, ProfessionalTeamMember } from '../types';
@@ -1881,61 +1881,44 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
         {/* Lado Direito: Badge de Proprietário + Compartilhar + Foto do Usuário */}
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
-          {/* Badge Discreto de Acesso Rápido do Proprietário (Visível apenas para donos/gestores autenticados via useOwnerAccess) */}
-          {isOwnerOrManager && (
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  hapticLight();
-                  setIsPublicPreviewMode(false);
-                  setActiveTab('personalizar');
-                }}
-                className={`h-8 sm:h-9 px-2.5 sm:px-3 rounded flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition active:scale-95 cursor-pointer shadow-xs ${
-                  !isPublicPreviewMode && activeTab === 'personalizar'
-                    ? 'bg-emerald-500 hover:bg-emerald-600 text-white border border-emerald-400'
-                    : isDark
-                    ? 'bg-slate-900/90 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/40'
-                    : 'bg-emerald-500 hover:bg-emerald-600 text-white border border-emerald-600'
-                }`}
-                title="Acesso rápido ao menu de gerenciamento do proprietário"
-                aria-label="Gerenciar Estabelecimento"
-              >
-                <ShieldCheck
-                  className={`w-3.5 h-3.5 shrink-0 ${
-                    !isPublicPreviewMode && activeTab === 'personalizar'
-                      ? 'text-white'
-                      : isDark
-                      ? 'text-emerald-400'
-                      : 'text-white'
-                  }`}
-                />
-                <span>Gerenciar</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  hapticLight();
-                  setIsPublicPreviewMode((prev) => !prev);
-                }}
-                className={`w-8 h-8 sm:w-9 sm:h-9 rounded flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
-                  isPublicPreviewMode
-                    ? 'bg-emerald-500 text-white border border-emerald-400'
-                    : isDark
-                    ? 'bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white'
-                    : 'bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600'
-                }`}
-                title={isPublicPreviewMode ? 'Voltar ao modo Gestão' : 'Visualizar Vitrine como Cliente'}
-                aria-label={isPublicPreviewMode ? 'Voltar ao modo Gestão' : 'Visualizar Vitrine como Cliente'}
-              >
-                {isPublicPreviewMode ? (
-                  <LayoutDashboard className="w-3.5 h-3.5 text-white" />
-                ) : (
-                  <Eye className="w-3.5 h-3.5" />
-                )}
-              </button>
-            </div>
+          {/* Indicador e Alternador de Modo Ativo (Modo Gestão ⇄ Modo Cliente) */}
+          {isSalonLoggedIn && (
+            <button
+              type="button"
+              onClick={() => {
+                hapticLight();
+                setIsPublicPreviewMode((prev) => {
+                  const next = !prev;
+                  setActiveTab('home');
+                  return next;
+                });
+              }}
+              className={`h-8 sm:h-9 px-2.5 sm:px-3 rounded-[4px] flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition active:scale-95 cursor-pointer shadow-xs ${
+                !isPublicPreviewMode
+                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white border border-emerald-400'
+                  : isDark
+                  ? 'bg-slate-900/90 hover:bg-slate-800 text-emerald-400 hover:text-emerald-300 border border-emerald-500/40'
+                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300'
+              }`}
+              title={
+                isPublicPreviewMode
+                  ? 'Modo Cliente ativo (toque para alternar para Modo Gestão)'
+                  : 'Modo Gestão ativo (toque para alternar para Modo Cliente)'
+              }
+              aria-label={isPublicPreviewMode ? 'Modo Cliente ativo' : 'Modo Gestão ativo'}
+            >
+              {isPublicPreviewMode ? (
+                <>
+                  <Eye className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <span>Modo Cliente</span>
+                </>
+              ) : (
+                <>
+                  <LayoutDashboard className="w-3.5 h-3.5 text-white shrink-0" />
+                  <span className="text-white">Modo Gestão</span>
+                </>
+              )}
+            </button>
           )}
 
           {/* Botão Compartilhar Perfil (Web Share API) */}
@@ -2904,8 +2887,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           isProfessionalMode={isGerMode}
           currentPersona={currentPersona}
           isProAdmin={isActiveProAdmin}
-          isOwnerOrManager={isOwnerOrManager}
-          isProfessionalStaff={isProfessional}
+          isOwnerOrManager={isGerMode}
+          isProfessionalStaff={isGerMode && isProfessional}
           navStyle={adminSettings.navStyle || 'minimal'}
         />
       </footer>

@@ -15,6 +15,20 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-20] — Alternador de Visão Soberano no Cabeçalho (Modo Gestão ⇄ Modo Cliente) & Sincronia de Abas (`SalonProfileView.tsx`)
+- **Tipo:** `[Feat / UI-UX / Desambiguação de Navegação]`
+- **Motivo / Solicitação:** Permitir que o proprietário/profissional logado visualize e teste a vitrine pública exatamente como seu cliente vê e eliminar a ambiguidade do botão "Gerenciar" que estava duplicado no cabeçalho e no menu de opções.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Alternador de Visão Soberano com Indicador de Modo Ativo (`SalonProfileView.tsx`):** O botão no cabeçalho indica diretamente o estado/modo em que o usuário está no momento:
+    - Se estiver no Modo Gestão: exibe `[ 📊 Modo Gestão ]` (destaque verde `bg-emerald-500` com texto e ícone brancos `text-white`).
+    - Se estiver no Modo Cliente: exibe `[ 👁️ Modo Cliente ]` (estilo temático com ícone `Eye`).
+    - Ao tocar no botão, alterna instantaneamente para o modo oposto com feedback tátil e atualização da barra inferior.
+  - **Sincronia Dinâmica do `BottomNav`:** Ao alternar para o `Modo Cliente` (`isPublicPreviewMode = true`), a barra inferior de navegação automaticamente exibe as 4 abas públicas do cliente (**Início, Serviços, Agendar, Espaço**). Ao retornar para o `Modo Gestão` (`isPublicPreviewMode = false`), reativa as abas de gerenciamento (**Painel, Caixa, Agenda, Utilidades**).
+  - **Desambiguação Completa:** O cabeçalho fica reservado exclusivamente para alternância de perspectiva (*Gestão ⇄ Vitrine*), enquanto as configurações profundas do salão (espaço, catálogo, equipe, comissões) permanecem centralizadas no Hub de Personalização e no menu lateral de opções (`ProfileDrawer.tsx`).
+
 ### [2026-10-20] — Barra Superior Contextual Fixa & Micro-Swipe Vertical de Alta Sensibilidade (`SalonProfileView.tsx`)
 - **Tipo:** `[Feat / UI-UX / Navegação Mobile-First]`
 - **Motivo / Solicitação:** Tornar a barra superior de boas-vindas/status fixa no topo da visualização pública e garantir que o swipe vertical role o restante da página com movimento mínimo, eliminando qualquer parada da divisão entre seções no meio da tela.
