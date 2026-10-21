@@ -15,6 +15,19 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-21] — [BOL-018] Flexibilização da Obrigatoriedade de CPF (Tríade Sync: `admvapp` ➔ `mnvapp` & `pvapp`)
+- **Tipo:** `[Feat / Compliance / Onboarding UX / Tríade Sync]`
+- **Motivo / Solicitação:** Cumprimento do Comunicado Técnico Oficial BOL-018 emitido pelo `admvapp` (Admin Master). Revogada a obrigatoriedade da inserção de CPF no cadastro de proprietários, responsáveis legais, profissionais e usuários para reduzir o atrito de conversão e onboarding, mantendo o campo estritamente opcional.
+- **Arquivos Impactados:**
+  - `src/portal-export/PartnerRegistrationWizard.tsx` (Passo 2 de cadastro de parceiro/salão: remoção da obrigatoriedade do CPF, permissão de submissão nula/vazia e atualização da label para "CPF do Responsável (Opcional)").
+  - `src/components/professional/BusinessDataCardView.tsx` (Seção 4 - Titular & Responsável Legal: remoção do atributo `required` do input de CPF e atualização da label para "CPF Pessoal do Titular (opcional)").
+  - `src/lib/supabase.ts` (Normalização para `null` caso `owner_cpf` esteja vazio ou não preenchido ao atualizar o salão).
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - A validação de CPF agora só é acionada se o usuário optar por digitar algum dígito (`cleanCpfDigits.length > 0`). Se preenchido, mantém máscara (`000.000.000-00`) e verificação matemática de 11 dígitos (Módulo 11 da Receita Federal).
+  - Formulários de cadastro de novos parceiros e dados cadastrais do negócio (`BusinessDataCardView`) podem ser submetidos sem CPF.
+  - Compatibilidade com o banco de dados Supabase mantida (as colunas `owner_cpf`, `cpf` suportam valores `NULL`).
+
 ### [2026-10-21] — Sincronização Total 360º da Tríade VagouApp (`admvapp` ⇄ `mnvapp` ⇄ `pvapp`) no Banco de Dados Supabase
 - **Tipo:** `[Feat / Architecture / Universal Persistence / Tríade Sync]`
 - **Motivo / Solicitação:** Implementar o Comunicado Técnico Oficial de Sincronização Total 360º com o Banco de Dados Supabase, garantindo que todos os módulos do `mnvapp` (Catálogo de Serviços, Galeria de Mídias, Tema Camaleão & Fotos do Espaço, Equipe & Comissões, Conta Família & Dependentes e Ferramentas Operacionais de Utilidades) gravem e leiam diretamente das tabelas relacionais unificadas do Supabase com espelhamento de compatibilidade no objeto `salons.branding`.

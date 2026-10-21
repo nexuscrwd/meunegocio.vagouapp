@@ -1656,19 +1656,22 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
     // Isolamento do CPF Pessoal do Titular (salons.owner_cpf + espelho em clients.cpf)
     const rawOwnerCpf = settings.ownerCpf ?? settings.legalManagerCpf;
     if (rawOwnerCpf !== undefined) {
-      payload.owner_cpf = String(rawOwnerCpf).trim();
+      const cleanOwnerCpf = String(rawOwnerCpf).trim();
+      payload.owner_cpf = cleanOwnerCpf || null;
       // Espelha o CPF na tabela public.clients do proprietário/titular
       try {
         const ownerUserId = existingRow?.owner_id;
         const ownerEmail = settings.legalManagerEmail || settings.email;
-        if (ownerUserId) {
-          await (supabase.from('clients') as any)
-            .update({ cpf: String(rawOwnerCpf).trim(), updated_at: new Date().toISOString() })
-            .eq('user_id', ownerUserId);
-        } else if (ownerEmail) {
-          await (supabase.from('clients') as any)
-            .update({ cpf: String(rawOwnerCpf).trim(), updated_at: new Date().toISOString() })
-            .ilike('email', ownerEmail.trim().toLowerCase());
+        if (cleanOwnerCpf) {
+          if (ownerUserId) {
+            await (supabase.from('clients') as any)
+              .update({ cpf: cleanOwnerCpf, updated_at: new Date().toISOString() })
+              .eq('user_id', ownerUserId);
+          } else if (ownerEmail) {
+            await (supabase.from('clients') as any)
+              .update({ cpf: cleanOwnerCpf, updated_at: new Date().toISOString() })
+              .ilike('email', ownerEmail.trim().toLowerCase());
+          }
         }
       } catch {}
     }

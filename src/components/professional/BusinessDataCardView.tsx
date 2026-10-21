@@ -1306,11 +1306,10 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
 
                 <div>
                   <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    CPF Pessoal do Titular <span className="text-rose-400">*</span>
+                    CPF Pessoal do Titular <span className="text-slate-400 font-normal lowercase">(opcional)</span>
                   </label>
                   <input
                     type="text"
-                    required
                     value={legalManagerCpf}
                     onChange={(e) => handleCpfChange(e.target.value)}
                     placeholder="000.000.000-00"

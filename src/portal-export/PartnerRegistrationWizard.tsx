@@ -196,7 +196,10 @@ export const PartnerRegistrationWizard: React.FC<PartnerRegistrationWizardProps>
   const handleNextStep2 = () => {
     const errs: string[] = [];
     if (!legalName.trim()) errs.push('Nome Completo do Responsável Legal é obrigatório.');
-    if (legalCpf.replace(/\D/g, '').length < 11) errs.push('CPF válido com 11 dígitos é obrigatório.');
+    const cleanCpfDigits = legalCpf.replace(/\D/g, '');
+    if (cleanCpfDigits.length > 0 && cleanCpfDigits.length < 11) {
+      errs.push('Se informado, o CPF deve possuir 11 dígitos válidos.');
+    }
     if (!legalEmail.includes('@') || !legalEmail.includes('.')) errs.push('E-mail válido é obrigatório.');
     if (!isLengthValid) errs.push('A senha deve ter entre 8 e 10 caracteres (limite máximo de 10 dígitos).');
     if (!hasUpperCase) errs.push('A senha deve conter pelo menos uma letra maiúscula.');
@@ -472,7 +475,7 @@ export const PartnerRegistrationWizard: React.FC<PartnerRegistrationWizardProps>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">CPF do Responsável *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">CPF do Responsável (Opcional)</label>
               <input
                 type="text"
                 value={legalCpf}
