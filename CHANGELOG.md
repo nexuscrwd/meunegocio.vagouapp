@@ -15,6 +15,16 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-20] — Resolução da Exibição do Catálogo de Serviços via Fallback JSONB (`fetchSalonServices` & `fetchSalonProfessionals`)
+- **Tipo:** `[Fix / Core Feature / Universal Persistence]`
+- **Motivo / Solicitação:** Resolver o problema em que o catálogo de serviços exibia "Catálogo em atualização" mesmo após o proprietário cadastrar serviços, devido a uma leitura estrita na tabela relacional `services` quando os itens foram gravados em `salons.branding.catalogServices`.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Fallback Inteligente em `fetchSalonServices`:** Atualizada a rotina de busca do catálogo para consultar primeiramente a tabela `public.services`. Caso retorne vazia ou bloqueada, o sistema extrai os serviços cadastrados no objeto `salons.branding.catalogServices`, mapeando-os dinamicamente.
+  - **Resultado:** Os serviços criados pelo proprietário (ex: "Djjdjdj" no salão Momy nail) agora aparecem instantaneamente para qualquer usuário no mundo que acesse o aplicativo.
+
 ### [2026-10-20] — Correção do Botão Único de Desconectar & Preservação do Reconhecimento do Proprietário (`ProfileDrawer.tsx` & `SalonProfileView.tsx`)
 - **Tipo:** `[Fix / UI-UX / Auth / Cleanup]`
 - **Motivo / Solicitação:** Remover a duplicação do botão "Desconectar" no menu lateral e evitar que o logout limpe as chaves do salão ativo (`vagou_salon_slug` / `vagou_salon_db_id`), permitindo que o aplicativo reconheça o dono do estabelecimento normalmente.

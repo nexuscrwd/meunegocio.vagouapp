@@ -4,8 +4,9 @@ import type { Database, AppointmentStatus, OfferStatus } from '../types/database
 const DEFAULT_SUPABASE_URL = 'https://xemenxdhuoekytyhmgyt.supabase.co';
 const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlbWVueGRodW9la3l0eWhtZ3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMDE2MzAsImV4cCI6MjEwNTc3NzYzMH0.P-q6bQspwuQNhub08hjWmsjLrugr3CVA1NIdznWJxuo';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
+const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : (typeof process !== 'undefined' && process.env) || {};
+const supabaseUrl = (env as any).VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+const supabaseAnonKey = (env as any).VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl && 
@@ -26,8 +27,7 @@ export const supabase = isSupabaseConfigured
   : null;
 
 // Cliente Supabase com privilégios de Service Role (Bypassa RLS no navegador / cliente)
-const serviceRoleKey = 
-  (typeof import.meta !== 'undefined' && ((import.meta.env as any).VITE_SUPABASE_SERVICE_ROLE_KEY || (import.meta.env as any).service_role)) || '';
+const serviceRoleKey = (env as any).VITE_SUPABASE_SERVICE_ROLE_KEY || (env as any).service_role || '';
 
 export const supabaseAdmin = (supabaseUrl && serviceRoleKey && serviceRoleKey.length > 20)
   ? createClient<Database>(supabaseUrl, serviceRoleKey, {
@@ -787,10 +787,32 @@ export async function fetchSalonProfessionals(salonId: string) {
       .eq('salon_id', salonId)
       .eq('is_active', true)
       .order('created_at', { ascending: true });
-    if (error) {
-      console.warn('Erro ao carregar profissionais:', error.message);
-      return [];
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return data;
     }
+
+    // Fallback de Resiliência: Se a tabela relational professionals estiver vazia, busca do objeto JSONB
+    const isSalonUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonId);
+    const { data: salonRow } = await supabase
+      .from('salons')
+      .select('branding')
+      .match(isSalonUuid ? { id: salonId } : { slug: salonId })
+      .maybeSingle();
+
+    const brandingObj = (salonRow && typeof salonRow === 'object' && 'branding' in salonRow) ? (salonRow as any).branding : null;
+    const jsonbTeam = brandingObj?.teamMembers;
+    if (Array.isArray(jsonbTeam) && jsonbTeam.length > 0) {
+      return jsonbTeam.map((p: any) => ({
+        id: p.id,
+        salon_id: salonId,
+        name: p.name || 'Profissional',
+        role: p.role || 'Profissional',
+        avatar_url: p.avatarUrl || p.avatar || null,
+        is_active: true,
+      }));
+    }
+
     return data || [];
   } catch {
     return [];
@@ -809,10 +831,36 @@ export async function fetchSalonServices(salonId: string) {
       .eq('salon_id', salonId)
       .eq('is_active', true)
       .order('created_at', { ascending: true });
-    if (error) {
-      console.warn('Erro ao carregar serviços:', error.message);
-      return [];
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return data;
     }
+
+    // Fallback de Resiliência: Se a tabela relational services estiver vazia ou bloqueada por RLS,
+    // busca do objeto JSONB salons.branding.catalogServices
+    const isSalonUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonId);
+    const { data: salonRow } = await supabase
+      .from('salons')
+      .select('branding')
+      .match(isSalonUuid ? { id: salonId } : { slug: salonId })
+      .maybeSingle();
+
+    const brandingObj = (salonRow && typeof salonRow === 'object' && 'branding' in salonRow) ? (salonRow as any).branding : null;
+    const jsonbServices = brandingObj?.catalogServices || brandingObj?.services;
+    if (Array.isArray(jsonbServices) && jsonbServices.length > 0) {
+      return jsonbServices.map((s: any) => ({
+        id: s.id,
+        salon_id: salonId,
+        title: s.title || s.name || 'Serviço',
+        category: s.category || 'Geral',
+        price: Number(s.price) || 0,
+        duration_minutes: typeof s.duration === 'string' ? parseInt(s.duration.replace(/\D/g, '')) || 40 : (s.duration_minutes || s.durationMinutes || 40),
+        description: s.description || null,
+        image_url: s.image || s.image_url || (s.photos && s.photos.length > 0 ? s.photos[0] : null),
+        is_active: true,
+      }));
+    }
+
     return data || [];
   } catch {
     return [];
