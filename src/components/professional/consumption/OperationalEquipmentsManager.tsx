@@ -11,6 +11,7 @@ import {
 import { useTheme } from '../../../context/ThemeContext';
 import { hapticLight, hapticSuccess } from '../../../utils/haptics';
 import { OperationalEquipment } from './consumptionTypes';
+import { syncAllLocalUtilitiesToDatabase } from '../../../services/mnvSupabaseSync';
 
 interface FreeDecimalInputProps {
   value: number;
@@ -361,6 +362,7 @@ export const OperationalEquipmentsManager: React.FC = () => {
     } catch {
       // ignore
     }
+    syncAllLocalUtilitiesToDatabase();
 
     setName('');
     setShowAddForm(false);
@@ -384,6 +386,7 @@ export const OperationalEquipmentsManager: React.FC = () => {
     } catch {
       // ignore
     }
+    syncAllLocalUtilitiesToDatabase();
   };
 
   const handleDeleteEquipment = (id: string) => {
@@ -395,6 +398,7 @@ export const OperationalEquipmentsManager: React.FC = () => {
     } catch {
       // ignore
     }
+    syncAllLocalUtilitiesToDatabase();
   };
 
   return (

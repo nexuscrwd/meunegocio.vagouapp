@@ -15,6 +15,7 @@ import {
 import { useTheme } from '../../../context/ThemeContext';
 import { BookingAppointment, CatalogServiceItem } from '../../../types';
 import { hapticLight, hapticSuccess } from '../../../utils/haptics';
+import { syncAllLocalUtilitiesToDatabase } from '../../../services/mnvSupabaseSync';
 
 export type ForecastPeriod = 'hoje' | 'semana' | 'mes';
 
@@ -229,7 +230,9 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
       setSupplies(updated);
       try {
         localStorage.setItem('vagou_salon_supplies', JSON.stringify(updated));
+        localStorage.setItem('vagou_supply_items', JSON.stringify(updated));
       } catch {}
+      syncAllLocalUtilitiesToDatabase();
       hapticSuccess();
     }
     setRestockModalItem(null);

@@ -15,6 +15,32 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-21] — Sincronização Total 360º da Tríade VagouApp (`admvapp` ⇄ `mnvapp` ⇄ `pvapp`) no Banco de Dados Supabase
+- **Tipo:** `[Feat / Architecture / Universal Persistence / Tríade Sync]`
+- **Motivo / Solicitação:** Implementar o Comunicado Técnico Oficial de Sincronização Total 360º com o Banco de Dados Supabase, garantindo que todos os módulos do `mnvapp` (Catálogo de Serviços, Galeria de Mídias, Tema Camaleão & Fotos do Espaço, Equipe & Comissões, Conta Família & Dependentes e Ferramentas Operacionais de Utilidades) gravem e leiam diretamente das tabelas relacionais unificadas do Supabase com espelhamento de compatibilidade no objeto `salons.branding`.
+- **Arquivos Impactados:**
+  - `src/services/mnvSupabaseSync.ts`
+  - `src/lib/supabase.ts`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/professional/ProfessionalServicesManager.tsx`
+  - `src/components/professional/UtilitiesAndToolsView.tsx`
+  - `src/components/professional/FinancialManagerView.tsx`
+  - `src/components/professional/dashboard/ServicesAndSuppliesForecast.tsx`
+  - `src/components/professional/consumption/EnergyMeterManager.tsx`
+  - `src/components/professional/consumption/WaterConsumptionManager.tsx`
+  - `src/components/professional/consumption/OperationalEquipmentsManager.tsx`
+  - `src/components/professional/consumption/InfrastructureEquipmentsManager.tsx`
+  - `supabase/migrations/20261021_triade_360_sync.sql`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Catálogo de Serviços (`salon_services` + `services` + `salons.branding.catalogServices`):** Persistência tripla de criação, edição e exclusão com suporte completo a `commission_rate`, `photos`, `videos` (5s) e `slides`.
+  - **Galeria de Mídias (`salon_media_items`):** Upload e hidratação bidirecional em `public.salon_media_items` e `vagou_salon_media`, com atualização automática de `logo_url` e `cover_image_url` em `public.salons`.
+  - **Tema Camaleão & Fotos do Espaço (`theme_preset_id`, `facade_photo_url`, `interior_photo_url`):** Gravação direta nas colunas de `public.salons` e em `salons.branding`.
+  - **Equipe & Comissões (`public.professionals`):** Gravação de `full_name`, `access_level`, `phone_whatsapp`, `commission_rate`, `product_commission_rate` e `specialties`.
+  - **Conta Família & Dependentes (`public.dependents` + `public.client_family_members`):** Gravação simultânea nas duas tabelas relacionais e atualização automática de `dependents_count` em `public.clients`.
+  - **Utilidades Operacionais (`public.salon_utilities_records` + `salons.branding.utilities`):** Sincronização automática de medidores e leituras de energia/água, equipamentos operacionais/infraestrutura, DRE e estoque de insumos.
+
 ### [2026-10-20] — Resolução da Exibição do Catálogo de Serviços via Fallback JSONB (`fetchSalonServices` & `fetchSalonProfessionals`)
 - **Tipo:** `[Fix / Core Feature / Universal Persistence]`
 - **Motivo / Solicitação:** Resolver o problema em que o catálogo de serviços exibia "Catálogo em atualização" mesmo após o proprietário cadastrar serviços, devido a uma leitura estrita na tabela relacional `services` quando os itens foram gravados em `salons.branding.catalogServices`.

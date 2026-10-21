@@ -11,7 +11,8 @@ import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../utils/haptics';
 import { DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
 import { BookingAppointment, UserProfile, UserPersona, ClientSwapGovernance, SwapTargetQueueItem, UserFamilyDependent } from '../types';
-import { fetchUserProfileFromDb, updateUserProfileInDb, resolveTriadeAvatar, uploadAvatarToSupabaseStorage, isSupabaseConfigured, supabase } from '../lib/supabase';
+import { fetchUserProfileFromDb, updateUserProfileInDb, resolveTriadeAvatar, uploadAvatarToSupabaseStorage, isSupabaseConfigured, supabase, getDbClient, generateUuidV4, fetchClientFamilyMembers } from '../lib/supabase';
+import { syncClientDependentToDatabase, refreshClientDependentsCount } from '../services/mnvSupabaseSync';
 
 interface ProfileDrawerProps {
   isOpen: boolean;
@@ -289,28 +290,48 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   const [isSavingDep, setIsSavingDep] = useState(false);
   const [dependentFeedback, setDependentFeedback] = useState<string | null>(null);
 
-  // Sincronizar dependentes do Supabase ao abrir
+  // Sincronizar dependentes do Supabase ao abrir (public.dependents + public.client_family_members)
   useEffect(() => {
     if (!isOpen) return;
     async function loadDependents() {
       if (!supabase || !isSupabaseConfigured) return;
+      const client = getDbClient();
       try {
-        const parentClientId = localStorage.getItem('vagou_client_id') || localStorage.getItem('vagou_user_id');
+        let parentClientId = localStorage.getItem('vagou_client_id') || localStorage.getItem('vagou_user_id') || '';
+        const cleanEmail = (localStorage.getItem('vagou_user_email') || profile.email || '').trim().toLowerCase();
+
+        if ((!parentClientId || parentClientId.length < 10) && cleanEmail) {
+          const { data: cRow } = await (client.from('clients') as any)
+            .select('id')
+            .ilike('email', `%${cleanEmail}%`)
+            .maybeSingle();
+          if (cRow?.id) {
+            parentClientId = cRow.id;
+            localStorage.setItem('vagou_client_id', cRow.id);
+          }
+        }
+
         if (parentClientId && parentClientId.length > 10) {
-          const { data, error } = await (supabase.from('dependents') as any)
-            .select('*')
-            .eq('parent_client_id', parentClientId)
-            .eq('is_unlinked', false)
-            .order('created_at', { ascending: true });
-          if (!error && Array.isArray(data) && data.length > 0) {
-            setDependents(data);
-            localStorage.setItem('vagou_user_dependents', JSON.stringify(data));
+          const remoteList = await fetchClientFamilyMembers(parentClientId);
+          if (Array.isArray(remoteList) && remoteList.length > 0) {
+            const normalized: UserFamilyDependent[] = remoteList.map((d: any) => ({
+              id: d.id,
+              parent_client_id: d.parent_client_id || d.guardian_client_id || parentClientId,
+              full_name: d.full_name || d.name || 'Dependente',
+              relationship: d.relationship || 'other',
+              birth_date: d.birth_date || undefined,
+              notes: d.notes || undefined,
+              is_unlinked: Boolean(d.is_unlinked),
+              created_at: d.created_at || new Date().toISOString(),
+            }));
+            setDependents(normalized);
+            localStorage.setItem('vagou_user_dependents', JSON.stringify(normalized));
           }
         }
       } catch {}
     }
     loadDependents();
-  }, [isOpen]);
+  }, [isOpen, profile.email]);
 
   const handleAddDependent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -318,7 +339,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     setIsSavingDep(true);
     hapticLight();
 
-    const newId = `dep-${Date.now()}`;
+    const newId = generateUuidV4();
     const depItem: UserFamilyDependent = {
       id: newId,
       full_name: newDepName.trim(),
@@ -333,23 +354,34 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     setDependents(nextList);
     localStorage.setItem('vagou_user_dependents', JSON.stringify(nextList));
 
-    // Sincronizar no banco Supabase
+    // Sincronizar no banco Supabase (public.dependents + public.client_family_members + clients.dependents_count)
     if (supabase && isSupabaseConfigured) {
+      const client = getDbClient();
       try {
-        const parentClientId = localStorage.getItem('vagou_client_id') || localStorage.getItem('vagou_user_id');
+        let parentClientId = localStorage.getItem('vagou_client_id') || localStorage.getItem('vagou_user_id') || '';
+        const cleanEmail = (localStorage.getItem('vagou_user_email') || profile.email || '').trim().toLowerCase();
+
+        if ((!parentClientId || parentClientId.length < 10) && cleanEmail) {
+          const { data: cRow } = await (client.from('clients') as any)
+            .select('id')
+            .ilike('email', `%${cleanEmail}%`)
+            .maybeSingle();
+          if (cRow?.id) {
+            parentClientId = cRow.id;
+            localStorage.setItem('vagou_client_id', cRow.id);
+          }
+        }
+
         if (parentClientId && parentClientId.length > 10) {
           depItem.parent_client_id = parentClientId;
-          await (supabase.from('dependents') as any).insert({
-            parent_client_id: parentClientId,
-            full_name: depItem.full_name,
+          await syncClientDependentToDatabase(parentClientId, {
+            id: newId,
+            fullName: depItem.full_name,
             relationship: depItem.relationship,
-            birth_date: depItem.birth_date || null,
+            birthDate: depItem.birth_date || null,
             notes: depItem.notes || null,
+            isUnlinked: false,
           });
-
-          await (supabase.from('clients') as any)
-            .update({ dependents_count: nextList.length })
-            .eq('id', parentClientId);
         }
       } catch (err) {
         console.warn('[Vagou] Salvando dependente localmente:', err);
@@ -375,19 +407,26 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     localStorage.setItem('vagou_user_dependents', JSON.stringify(nextList));
 
     if (supabase && isSupabaseConfigured) {
+      const client = getDbClient();
       try {
-        await (supabase.from('dependents') as any)
-          .update({
-            is_unlinked: true,
-            unlinked_at: new Date().toISOString(),
-          })
-          .eq('id', depId);
+        try {
+          await (client.from('dependents' as any) as any)
+            .update({
+              is_unlinked: true,
+              unlinked_at: new Date().toISOString(),
+            })
+            .eq('id', depId);
+        } catch {}
+
+        try {
+          await (client.from('client_family_members' as any) as any)
+            .delete()
+            .eq('id', depId);
+        } catch {}
 
         const parentClientId = localStorage.getItem('vagou_client_id') || localStorage.getItem('vagou_user_id');
         if (parentClientId) {
-          await (supabase.from('clients') as any)
-            .update({ dependents_count: nextList.length })
-            .eq('id', parentClientId);
+          await refreshClientDependentsCount(parentClientId);
         }
       } catch {}
     }

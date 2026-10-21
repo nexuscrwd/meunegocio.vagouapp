@@ -16,6 +16,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { hapticLight, hapticSuccess } from '../../../utils/haptics';
 import { EnergyReading, EnergyTariffConfig } from './consumptionTypes';
 import { BRAZILIAN_STATES, ENERGY_DISTRIBUTORS } from './concessionariasData';
+import { syncAllLocalUtilitiesToDatabase } from '../../../services/mnvSupabaseSync';
 
 export const DEFAULT_ENERGY_TARIFF: EnergyTariffConfig = {
   concessionaria: 'Enel Distribuição São Paulo',
@@ -58,9 +59,11 @@ export const EnergyMeterManager: React.FC = () => {
     setTariff(updated);
     try {
       localStorage.setItem('vagou_energy_tariff_config', JSON.stringify(updated));
+      localStorage.setItem('vagou_energy_meters', JSON.stringify([updated]));
     } catch {
       // ignore
     }
+    syncAllLocalUtilitiesToDatabase();
     hapticSuccess();
   };
 
@@ -167,9 +170,11 @@ export const EnergyMeterManager: React.FC = () => {
     setReadings(updated);
     try {
       localStorage.setItem('vagou_energy_meter_readings', JSON.stringify(updated));
+      localStorage.setItem('vagou_energy_readings', JSON.stringify(updated));
     } catch {
       // ignore
     }
+    syncAllLocalUtilitiesToDatabase();
     setCurrentMeterInput('');
   };
 
@@ -179,9 +184,11 @@ export const EnergyMeterManager: React.FC = () => {
     setReadings(updated);
     try {
       localStorage.setItem('vagou_energy_meter_readings', JSON.stringify(updated));
+      localStorage.setItem('vagou_energy_readings', JSON.stringify(updated));
     } catch {
       // ignore
     }
+    syncAllLocalUtilitiesToDatabase();
   };
 
   return (

@@ -13,6 +13,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { hapticLight, hapticSuccess } from '../../../utils/haptics';
 import { WaterReading, WaterTariffConfig } from './consumptionTypes';
 import { BRAZILIAN_STATES, WATER_UTILITIES } from './concessionariasData';
+import { syncAllLocalUtilitiesToDatabase } from '../../../services/mnvSupabaseSync';
 
 export const DEFAULT_WATER_TARIFF: WaterTariffConfig = {
   concessionaria: 'Sabesp (São Paulo & Região)',
@@ -52,9 +53,11 @@ export const WaterConsumptionManager: React.FC = () => {
     setTariff(updated);
     try {
       localStorage.setItem('vagou_water_tariff_config', JSON.stringify(updated));
+      localStorage.setItem('vagou_water_meters', JSON.stringify([updated]));
     } catch {
       // ignore
     }
+    syncAllLocalUtilitiesToDatabase();
     hapticSuccess();
   };
 
@@ -150,9 +153,11 @@ export const WaterConsumptionManager: React.FC = () => {
     setReadings(updated);
     try {
       localStorage.setItem('vagou_water_meter_readings', JSON.stringify(updated));
+      localStorage.setItem('vagou_water_readings', JSON.stringify(updated));
     } catch {
       // ignore
     }
+    syncAllLocalUtilitiesToDatabase();
     setCurrentMeterInput('');
   };
 
@@ -162,9 +167,11 @@ export const WaterConsumptionManager: React.FC = () => {
     setReadings(updated);
     try {
       localStorage.setItem('vagou_water_meter_readings', JSON.stringify(updated));
+      localStorage.setItem('vagou_water_readings', JSON.stringify(updated));
     } catch {
       // ignore
     }
+    syncAllLocalUtilitiesToDatabase();
   };
 
   return (

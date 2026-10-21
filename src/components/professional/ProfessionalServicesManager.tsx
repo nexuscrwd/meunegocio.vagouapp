@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Plus, Edit2, Trash2, Scissors, Check, X, 
   Sparkles, Clock, Image as ImageIcon,
@@ -10,6 +10,7 @@ import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
 import { CatalogServiceItem } from '../../types';
 import { ServicePublicAdPreview } from './ServicePublicAdPreview';
 import { generateUuidV4 } from '../../lib/supabase';
+import { syncSalonMediaToDatabase, fetchSalonMediaFromDatabase } from '../../services/mnvSupabaseSync';
 
 interface ProfessionalServicesManagerProps {
   services: CatalogServiceItem[];
@@ -156,10 +157,10 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
   const [mediaVideoDuration, setMediaVideoDuration] = useState<number>(5);
   const [videoDurationWarning, setVideoDurationWarning] = useState<string | null>(null);
 
-  // Biblioteca de Mídias Salvas com persistência no LocalStorage
+  // Biblioteca de Mídias Salvas com persistência no LocalStorage e hidratação do Supabase (salon_media_items)
   const [savedMediaList, setSavedMediaList] = useState<SavedMediaItem[]>(() => {
     try {
-      const stored = localStorage.getItem('vagou_saved_media_library_v3');
+      const stored = localStorage.getItem('vagou_saved_media_library_v3') || localStorage.getItem('vagou_salon_media');
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -171,6 +172,39 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     }
     return [...INITIAL_SAVED_IMAGES, ...INITIAL_SAVED_VIDEOS];
   });
+
+  useEffect(() => {
+    const salonId = localStorage.getItem('vagou_salon_db_id') || '';
+    if (!salonId) return;
+    let isMounted = true;
+    fetchSalonMediaFromDatabase(salonId).then((remoteItems) => {
+      if (!isMounted || !Array.isArray(remoteItems) || remoteItems.length === 0) return;
+      setSavedMediaList((prev) => {
+        const existingUrls = new Set(prev.map((m) => m.url));
+        const mappedRemote: SavedMediaItem[] = remoteItems
+          .filter((r: any) => r.url && !existingUrls.has(r.url))
+          .map((r: any) => ({
+            id: r.id || generateUuidV4(),
+            type: r.type === 'video' ? 'video' : 'image',
+            url: r.url,
+            category: r.category || 'Geral',
+            title: r.title || 'Mídia do Salão',
+            createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
+            duration: r.duration_seconds || 5,
+          }));
+        if (mappedRemote.length === 0) return prev;
+        const merged = [...mappedRemote, ...prev];
+        try {
+          localStorage.setItem('vagou_saved_media_library_v3', JSON.stringify(merged.slice(0, 50)));
+          localStorage.setItem('vagou_salon_media', JSON.stringify(merged.slice(0, 50)));
+        } catch {}
+        return merged;
+      });
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Modal dedicado para seleção da Biblioteca de Mídias Salvas
   const [isMediaLibraryModalOpen, setIsMediaLibraryModalOpen] = useState<boolean>(false);
@@ -465,7 +499,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
           }
 
           const newMedia: SavedMediaItem = {
-            id: `img_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            id: generateUuidV4(),
             type: 'image',
             url: finalUrl,
             category: currentCat,
@@ -477,11 +511,24 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
             const updated = [newMedia, ...prev];
             try {
               localStorage.setItem('vagou_saved_media_library_v3', JSON.stringify(updated.slice(0, 50)));
+              localStorage.setItem('vagou_salon_media', JSON.stringify(updated.slice(0, 50)));
             } catch {
               // ignore
             }
             return updated;
           });
+
+          const salonId = localStorage.getItem('vagou_salon_db_id') || '';
+          if (salonId) {
+            syncSalonMediaToDatabase(salonId, {
+              id: newMedia.id,
+              title: newMedia.title,
+              url: newMedia.url,
+              type: 'image',
+              media_group: 'fotos',
+              category: 'servicos',
+            });
+          }
 
           if (targetMode === 'static') {
             setMediaPhotos([finalUrl]);
@@ -523,7 +570,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
       };
 
       const newMedia: SavedMediaItem = {
-        id: `vid_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        id: generateUuidV4(),
         type: 'video',
         url: videoBlobUrl,
         category: currentCat,
@@ -536,11 +583,25 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         const updated = [newMedia, ...prev];
         try {
           localStorage.setItem('vagou_saved_media_library_v3', JSON.stringify(updated.slice(0, 30)));
+          localStorage.setItem('vagou_salon_media', JSON.stringify(updated.slice(0, 30)));
         } catch {
           // ignore
         }
         return updated;
       });
+
+      const salonId = localStorage.getItem('vagou_salon_db_id') || '';
+      if (salonId) {
+        syncSalonMediaToDatabase(salonId, {
+          id: newMedia.id,
+          title: newMedia.title,
+          url: newMedia.url,
+          type: 'video',
+          media_group: 'videos',
+          category: 'servicos',
+          duration_seconds: 5,
+        });
+      }
 
       setMediaVideoUrl(videoBlobUrl);
       setMediaDisplayMode('video');

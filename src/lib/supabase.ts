@@ -27,7 +27,11 @@ export const supabase = isSupabaseConfigured
   : null;
 
 // Cliente Supabase com privilégios de Service Role (Bypassa RLS no navegador / cliente)
-const serviceRoleKey = (env as any).VITE_SUPABASE_SERVICE_ROLE_KEY || (env as any).service_role || '';
+const serviceRoleKey =
+  (typeof process !== 'undefined' && (process.env as any)?.SUPABASE_SERVICE_ROLE_KEY) ||
+  (env as any).VITE_SUPABASE_SERVICE_ROLE_KEY ||
+  (env as any).service_role ||
+  '';
 
 export const supabaseAdmin = (supabaseUrl && serviceRoleKey && serviceRoleKey.length > 20)
   ? createClient<Database>(supabaseUrl, serviceRoleKey, {
@@ -323,24 +327,63 @@ export async function checkUserSalonMembership(
       };
     }
 
-    // CAMADA 2: Consulta na tabela salon_members por user_id E salon_id
-    if (candidateIds.size > 0) {
-      const { data: members } = await (supabase
-        .from('salon_members')
-        .select('id, salon_id, user_id, role')
-        .eq('salon_id', targetSalonId)
-        .in('user_id', Array.from(candidateIds)) as any);
-
-      if (members && members.length > 0) {
-        const mem = members[0];
-        const memberRole = mem.role === 'owner' ? 'owner' : mem.role === 'manager' ? 'manager' : 'professional';
-        return {
-          isMember: true,
-          role: memberRole,
-          salonId: targetSalonId,
-          salonData: targetSalonData,
-        };
+    // CAMADA 2: Consulta na tabela oficial salon_users (ou fallback salon_members) por user_id, email ou cpf
+    try {
+      const emailForUser = resolvedClientEmail || cleanEmail;
+      if (emailForUser) {
+        const { data: sUsersByEmail } = await (supabase
+          .from('salon_users' as any)
+          .select('id, salon_id, user_id, role, access_level, is_active')
+          .eq('salon_id', targetSalonId)
+          .ilike('email', emailForUser) as any);
+        if (Array.isArray(sUsersByEmail) && sUsersByEmail.length > 0) {
+          const su = sUsersByEmail[0];
+          const rawRole = String(su.role || su.access_level || '').toLowerCase();
+          const memberRole = rawRole.includes('owner') || rawRole.includes('dono') || rawRole.includes('propriet') ? 'owner' : 'manager';
+          return {
+            isMember: true,
+            role: memberRole,
+            salonId: targetSalonId,
+            salonData: targetSalonData,
+          };
+        }
       }
+      if (candidateIds.size > 0) {
+        const { data: sUsersById } = await (supabase
+          .from('salon_users' as any)
+          .select('id, salon_id, user_id, role, access_level')
+          .eq('salon_id', targetSalonId)
+          .in('user_id', Array.from(candidateIds)) as any);
+        if (Array.isArray(sUsersById) && sUsersById.length > 0) {
+          return {
+            isMember: true,
+            role: 'owner',
+            salonId: targetSalonId,
+            salonData: targetSalonData,
+          };
+        }
+      }
+    } catch {}
+
+    if (candidateIds.size > 0) {
+      try {
+        const { data: members } = await (supabase
+          .from('salon_members')
+          .select('id, salon_id, user_id, role')
+          .eq('salon_id', targetSalonId)
+          .in('user_id', Array.from(candidateIds)) as any);
+
+        if (members && members.length > 0) {
+          const mem = members[0];
+          const memberRole = mem.role === 'owner' ? 'owner' : mem.role === 'manager' ? 'manager' : 'professional';
+          return {
+            isMember: true,
+            role: memberRole,
+            salonId: targetSalonId,
+            salonData: targetSalonData,
+          };
+        }
+      } catch {}
     }
 
     // CAMADA 3: Consulta na tabela professionals (Equipe do Salão) por salon_id + email
@@ -529,9 +572,9 @@ export async function unifiedGlobalLogin(
       .maybeSingle();
 
     if (profile) {
-      profileName = profile.full_name || '';
+      profileName = profile.full_name || profile.name || '';
       profileAvatar = (profile.avatar_url && !profile.avatar_url.includes('unsplash.com')) ? profile.avatar_url : '';
-      profilePhone = profile.phone_whatsapp || '';
+      profilePhone = profile.phone_whatsapp || profile.phone || '';
     }
   } catch {}
 
@@ -820,13 +863,31 @@ export async function fetchSalonProfessionals(salonId: string) {
 }
 
 /**
- * Buscar catálogo de serviços do salão
+ * Buscar catálogo de serviços do salão (unificado: salon_services + services + salons.branding.catalogServices)
  */
 export async function fetchSalonServices(salonId: string) {
   if (!supabase) return [];
+  const client = getDbClient() || supabase;
   try {
-    const { data, error } = await supabase
-      .from('services')
+    // 1. Tenta consultar public.salon_services (tabela relacional oficial sincronizada com admvapp)
+    try {
+      const { data: salonServicesData, error: ssErr } = await (client.from('salon_services' as any) as any)
+        .select('*')
+        .eq('salon_id', salonId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: true });
+
+      if (!ssErr && Array.isArray(salonServicesData) && salonServicesData.length > 0) {
+        return salonServicesData.map((s: any) => ({
+          ...s,
+          title: s.title || s.name || 'Serviço',
+          name: s.name || s.title || 'Serviço',
+        }));
+      }
+    } catch {}
+
+    // 2. Consulta public.services
+    const { data, error } = await (client.from('services') as any)
       .select('*')
       .eq('salon_id', salonId)
       .eq('is_active', true)
@@ -836,11 +897,9 @@ export async function fetchSalonServices(salonId: string) {
       return data;
     }
 
-    // Fallback de Resiliência: Se a tabela relational services estiver vazia ou bloqueada por RLS,
-    // busca do objeto JSONB salons.branding.catalogServices
-    const isSalonUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonId);
-    const { data: salonRow } = await supabase
-      .from('salons')
+    // 3. Fallback de Resiliência: Se as tabelas relacionais estiverem vazias, busca de salons.branding.catalogServices
+    const isSalonUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonId);
+    const { data: salonRow } = await (client.from('salons') as any)
       .select('branding')
       .match(isSalonUuid ? { id: salonId } : { slug: salonId })
       .maybeSingle();
@@ -851,13 +910,18 @@ export async function fetchSalonServices(salonId: string) {
       return jsonbServices.map((s: any) => ({
         id: s.id,
         salon_id: salonId,
+        name: s.name || s.title || 'Serviço',
         title: s.title || s.name || 'Serviço',
         category: s.category || 'Geral',
         price: Number(s.price) || 0,
         duration_minutes: typeof s.duration === 'string' ? parseInt(s.duration.replace(/\D/g, '')) || 40 : (s.duration_minutes || s.durationMinutes || 40),
+        commission_rate: Number(s.commissionRate ?? s.commission_rate ?? 50),
         description: s.description || null,
         image_url: s.image || s.image_url || (s.photos && s.photos.length > 0 ? s.photos[0] : null),
-        is_active: true,
+        photos: s.photos || [],
+        videos: s.videos || [],
+        slides: s.slides || [],
+        is_active: s.is_active !== false,
       }));
     }
 
@@ -868,7 +932,7 @@ export async function fetchSalonServices(salonId: string) {
 }
 
 /**
- * Salvar / Criar serviço no Supabase
+ * Salvar / Criar serviço no Supabase (salon_services + services)
  */
 export async function upsertSalonService(service: {
   id?: string;
@@ -879,28 +943,56 @@ export async function upsertSalonService(service: {
   promotionalPrice?: number | null;
   durationMinutes: number;
   durationEstimated?: string;
+  commissionRate?: number;
   description?: string;
   imageUrl?: string | null;
   videoUrl?: string | null;
+  photos?: string[];
+  videos?: any[];
+  slides?: string[];
 }) {
   if (!supabase) return null;
   try {
+    const isUuid = service.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(service.id));
+    const serviceId = isUuid ? String(service.id) : generateUuidV4();
     const payload = {
-      ...(service.id ? { id: service.id } : {}),
+      id: serviceId,
       salon_id: service.salonId,
+      name: service.title,
       title: service.title,
       category: service.category,
       price: service.price,
       promotional_price: service.promotionalPrice ?? null,
       duration_minutes: service.durationMinutes,
       duration_estimated: service.durationEstimated || `${service.durationMinutes} min`,
+      commission_rate: service.commissionRate ?? 50,
       description: service.description || null,
       image_url: service.imageUrl || null,
       video_url: service.videoUrl || null,
+      photos: service.photos || [],
+      videos: service.videos || [],
+      slides: service.slides || [],
       is_active: true,
     };
     const client = getDbClient();
-    const { data, error } = await (client.from('services') as any).upsert(payload).select().single();
+
+    try {
+      await (client.from('salon_services' as any) as any).upsert(payload, { onConflict: 'id' });
+    } catch {}
+
+    let { data, error } = await (client.from('services') as any).upsert(payload, { onConflict: 'id' }).select().single();
+    if (error && (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('column'))) {
+      const safePayload: any = { ...payload };
+      delete safePayload.name;
+      delete safePayload.commission_rate;
+      delete safePayload.photos;
+      delete safePayload.videos;
+      delete safePayload.slides;
+      const retry = await (client.from('services') as any).upsert(safePayload, { onConflict: 'id' }).select().single();
+      data = retry.data;
+      error = retry.error;
+    }
+
     if (error) {
       console.warn('Erro ao salvar serviço:', error.message);
       return null;
@@ -1025,27 +1117,65 @@ export async function updateAppointmentStatusInDb(appointmentId: string, status:
 }
 
 /**
- * Vagou Family: Buscar dependentes de um cliente responsável
+ * Vagou Family: Buscar dependentes de um cliente responsável (prioriza public.dependents do Master Rebuild v3.0)
  */
 export async function fetchClientFamilyMembers(guardianClientId: string) {
   if (!supabase) return [];
+  const client = getDbClient() || supabase;
   try {
-    const { data, error } = await (supabase.from('client_family_members') as any)
-      .select('*')
-      .eq('guardian_client_id', guardianClientId)
-      .order('created_at', { ascending: true });
-    if (error) {
-      console.warn('Erro ao buscar dependentes:', error.message);
-      return [];
-    }
-    return data || [];
+    let depMembers: any[] = [];
+    try {
+      const { data: deps } = await (client.from('dependents' as any) as any)
+        .select('*')
+        .eq('parent_client_id', guardianClientId)
+        .eq('is_unlinked', false)
+        .order('created_at', { ascending: true });
+      if (Array.isArray(deps)) {
+        depMembers = deps.map((d: any) => ({
+          id: d.id,
+          guardian_client_id: d.parent_client_id,
+          parent_client_id: d.parent_client_id,
+          name: d.full_name || d.name || 'Dependente',
+          full_name: d.full_name || d.name || 'Dependente',
+          relationship: d.relationship || 'other',
+          birth_date: d.birth_date || null,
+          notes: d.notes || null,
+          is_unlinked: Boolean(d.is_unlinked),
+          created_at: d.created_at,
+        }));
+      }
+    } catch {}
+
+    let cfMembers: any[] = [];
+    try {
+      const { data: cfm } = await (client.from('client_family_members') as any)
+        .select('*')
+        .eq('guardian_client_id', guardianClientId)
+        .order('created_at', { ascending: true });
+      if (Array.isArray(cfm)) cfMembers = cfm;
+    } catch {}
+
+    const combinedMap = new Map<string, any>();
+    depMembers.forEach((d: any) => {
+      combinedMap.set(d.id, d);
+    });
+    cfMembers.forEach((m: any) => {
+      if (!combinedMap.has(m.id)) {
+        combinedMap.set(m.id, {
+          ...m,
+          full_name: m.full_name || m.name,
+        });
+      }
+    });
+
+    return Array.from(combinedMap.values());
   } catch {
     return [];
   }
 }
 
 /**
- * Vagou Family: Adicionar ou Atualizar Dependente
+ * Vagou Family: Adicionar ou Atualizar Dependente (grava em public.dependents com suporte ao Trigger trg_sync_client_dependents_counter)
  */
 export async function saveClientFamilyMember(member: {
   id?: string;
@@ -1064,37 +1194,62 @@ export async function saveClientFamilyMember(member: {
   if (!supabase) return null;
   const client = getDbClient();
   try {
-    const payload = {
-      guardian_client_id: member.guardianClientId,
-      name: member.name,
-      relationship: member.relationship,
-      birth_date: member.birthDate || null,
-      avatar_url: member.avatarUrl || null,
-      avatar_emoji: member.avatarEmoji || null,
-      gender: member.gender || null,
-      notes: member.notes || null,
-      autonomy_level: member.autonomyLevel || 'parent_controlled',
-      phone: member.phone || null,
-      email: member.email || null,
-      updated_at: new Date().toISOString(),
-    };
+    const isUuid = member.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(member.id));
+    const depId = isUuid ? String(member.id) : generateUuidV4();
+    const nowIso = new Date().toISOString();
+    const validRel = ['son', 'daughter', 'child', 'spouse', 'parent', 'sibling', 'other'].includes(member.relationship)
+      ? member.relationship
+      : 'other';
+    const cleanBirthDate = member.birthDate && String(member.birthDate).trim() !== '' ? member.birthDate : null;
 
-    if (member.id) {
-      const { data, error } = await (client.from('client_family_members') as any)
-        .update(payload)
-        .eq('id', member.id)
+    // 1. Gravar na tabela oficial public.dependents
+    let depRow: any = null;
+    try {
+      const { data } = await (client.from('dependents' as any) as any)
+        .upsert(
+          {
+            id: depId,
+            parent_client_id: member.guardianClientId,
+            full_name: member.name,
+            name: member.name,
+            relationship: validRel,
+            birth_date: cleanBirthDate,
+            gender: member.gender || null,
+            phone: member.phone || null,
+            notes: member.notes || null,
+            is_unlinked: false,
+            updated_at: nowIso,
+          },
+          { onConflict: 'id' }
+        )
         .select()
-        .single();
-      if (error) throw error;
-      return data;
-    } else {
-      const { data, error } = await (client.from('client_family_members') as any)
-        .insert(payload)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    }
+        .maybeSingle();
+      depRow = data;
+    } catch {}
+
+    // 2. Fallback opcional em public.client_family_members se a tabela legada existir
+    try {
+      await (client.from('client_family_members') as any).upsert(
+        {
+          id: depId,
+          guardian_client_id: member.guardianClientId,
+          name: member.name,
+          relationship: validRel,
+          birth_date: cleanBirthDate,
+          avatar_url: member.avatarUrl || null,
+          avatar_emoji: member.avatarEmoji || null,
+          gender: member.gender || null,
+          notes: member.notes || null,
+          autonomy_level: member.autonomyLevel || 'parent_controlled',
+          phone: member.phone || null,
+          email: member.email || null,
+          updated_at: nowIso,
+        },
+        { onConflict: 'id' }
+      );
+    } catch {}
+
+    return depRow || { id: depId, guardian_client_id: member.guardianClientId, full_name: member.name, name: member.name, relationship: validRel };
   } catch (err: any) {
     console.warn('Erro ao salvar dependente:', err.message);
     return null;
@@ -1162,14 +1317,14 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
           .maybeSingle();
 
         const avatar = profile?.avatar_url || (metaAvatar && !metaAvatar.includes('unsplash.com') ? metaAvatar : '');
-        const name = profile?.full_name || metaName || authUser.email?.split('@')[0] || 'Usuário';
+        const name = profile?.full_name || profile?.name || metaName || authUser.email?.split('@')[0] || 'Usuário';
 
         return {
           type: (authUser.user_metadata?.role === 'pro' ? 'professional' : 'client') as any,
           id: authUser.id,
           name: name,
           email: authUser.email || '',
-          phone: profile?.phone_whatsapp || authUser.user_metadata?.phone || '',
+          phone: profile?.phone_whatsapp || profile?.phone || authUser.user_metadata?.phone || '',
           avatarUrl: avatar || '',
         };
       }
@@ -1192,9 +1347,9 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
         return {
           type: 'client' as const,
           id: prof.id,
-          name: prof.full_name || term,
+          name: prof.full_name || prof.name || term,
           email: prof.email || (isRealEmailTerm ? term : ''),
-          phone: prof.phone_whatsapp || '',
+          phone: prof.phone_whatsapp || prof.phone || '',
           avatarUrl: prof.avatar_url || '',
         };
       }
@@ -1589,6 +1744,34 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
     if (settings.accentColor || settings.primaryColor) {
       payload.primary_color = settings.accentColor || settings.primaryColor;
     }
+    if (settings.secondaryColor !== undefined) {
+      payload.secondary_color = settings.secondaryColor;
+    }
+
+    // Tema Camaleão (theme_preset_id) e Fotos do Espaço (facade_photo_url / interior_photo_url)
+    const effectiveHex = (settings.accentColor || settings.primaryColor || existingBranding.primaryColor || existingRow?.primary_color || '#20C933').toLowerCase();
+    const resolvedThemePreset =
+      settings.themePresetId ||
+      (effectiveHex === '#f59e0b' || effectiveHex === '#d97706'
+        ? 'gold-luxury'
+        : effectiveHex === '#ef4444' || effectiveHex === '#ec4899' || effectiveHex === '#f43f5e'
+        ? 'rose-glam'
+        : effectiveHex === '#8b5cf6' || effectiveHex === '#a855f7'
+        ? 'purple-neon'
+        : effectiveHex === '#3b82f6' || effectiveHex === '#0ea5e9'
+        ? 'clean-light'
+        : 'emerald-dark');
+    payload.theme_preset_id = resolvedThemePreset;
+
+    const firstSpacePhoto = Array.isArray(settings.spacePhotos) && settings.spacePhotos.length > 0 ? settings.spacePhotos[0]?.url : undefined;
+    const secondSpacePhoto = Array.isArray(settings.spacePhotos) && settings.spacePhotos.length > 1 ? settings.spacePhotos[1]?.url : undefined;
+    if (settings.facadePhotoUrl !== undefined || firstSpacePhoto !== undefined) {
+      payload.facade_photo_url = settings.facadePhotoUrl ?? firstSpacePhoto ?? null;
+    }
+    if (settings.interiorPhotoUrl !== undefined || secondSpacePhoto !== undefined) {
+      payload.interior_photo_url = settings.interiorPhotoUrl ?? secondSpacePhoto ?? null;
+    }
+
     if (settings.bio !== undefined) payload.bio = settings.bio;
 
     const resolvedIcon =
@@ -1600,7 +1783,11 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
 
     payload.branding = {
       ...existingBranding,
+      themePresetId: resolvedThemePreset,
       primaryColor: settings.accentColor || settings.primaryColor || existingBranding.primaryColor || existingRow?.primary_color || '#20C933',
+      ...(settings.secondaryColor !== undefined ? { secondaryColor: settings.secondaryColor } : {}),
+      ...(payload.facade_photo_url !== undefined ? { facadePhotoUrl: payload.facade_photo_url } : {}),
+      ...(payload.interior_photo_url !== undefined ? { interiorPhotoUrl: payload.interior_photo_url } : {}),
       pwaName: settings.pwaName || settings.salonName || existingBranding.pwaName || existingRow?.trade_name,
       themeMode: 'dark',
       faviconUrl: resolvedIcon,
@@ -1649,6 +1836,9 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       delete fallbackPayload.street_number;
       delete fallbackPayload.complement;
       delete fallbackPayload.cep;
+      delete fallbackPayload.theme_preset_id;
+      delete fallbackPayload.facade_photo_url;
+      delete fallbackPayload.interior_photo_url;
       const retry = await (supabaseAdmin.from('salons') as any)
         .update(fallbackPayload)
         .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug })
@@ -1661,6 +1851,54 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
     if (error) {
       console.warn('Erro ao atualizar configurações do salão no Supabase:', error.message);
       return { success: false, error: error.message };
+    }
+
+    const resolvedSalonUuid = data?.id || (isUuid ? salonIdOrSlug : null);
+
+    // Sincronizar logotipo e fotos do espaço em public.salon_media_items (se aplicável)
+    if (resolvedSalonUuid) {
+      try {
+        if (payload.logo_url) {
+          const { data: existingLogoMedia } = await (supabaseAdmin.from('salon_media_items' as any) as any)
+            .select('id')
+            .eq('salon_id', resolvedSalonUuid)
+            .eq('category', 'logotipo')
+            .limit(1)
+            .maybeSingle();
+
+          await (supabaseAdmin.from('salon_media_items' as any) as any).upsert({
+            id: existingLogoMedia?.id || generateUuidV4(),
+            salon_id: resolvedSalonUuid,
+            title: 'Logotipo Oficial',
+            url: payload.logo_url,
+            type: 'image',
+            media_group: 'imagens',
+            category: 'logotipo',
+            duration_seconds: 5,
+            is_cover: false,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'id' });
+        }
+        if (Array.isArray(settings.spacePhotos)) {
+          for (const sp of settings.spacePhotos) {
+            if (sp?.url) {
+              const spUuid = sp.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(sp.id)) ? sp.id : generateUuidV4();
+              await (supabaseAdmin.from('salon_media_items' as any) as any).upsert({
+                id: spUuid,
+                salon_id: resolvedSalonUuid,
+                title: sp.caption || 'Foto do Espaço',
+                url: sp.url,
+                type: 'image',
+                media_group: 'fotos',
+                category: 'espaco',
+                duration_seconds: 5,
+                is_cover: false,
+                updated_at: new Date().toISOString(),
+              }, { onConflict: 'id' });
+            }
+          }
+        }
+      } catch {}
     }
 
     if (!data) {
@@ -1694,7 +1932,7 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
 }
 
 /**
- * Sincroniza a lista completa de serviços do Salão com o Supabase (CRUD Total: Upsert + Remoção Real)
+ * Sincroniza a lista completa de serviços do Salão com o Supabase (CRUD Total: salon_services + services + salons.branding.catalogServices)
  */
 export async function syncAllServicesToDb(salonId: string, services: any[]) {
   if (!supabase || !isSupabaseConfigured || !salonId) return { success: false };
@@ -1707,7 +1945,7 @@ export async function syncAllServicesToDb(salonId: string, services: any[]) {
 
     const activeServiceIds: string[] = [];
 
-    // 2. Para cada serviço fornecido, garante UUID v4 e realiza upsert por 'id'
+    // 2. Para cada serviço fornecido, garante UUID v4 e realiza upsert em salon_services e services
     for (const s of services) {
       const durationMinutes = typeof s.duration === 'string'
         ? parseInt(s.duration.replace(/\D/g, '')) || 40
@@ -1718,20 +1956,51 @@ export async function syncAllServicesToDb(salonId: string, services: any[]) {
       s.id = serviceUuid;
       activeServiceIds.push(serviceUuid);
 
-      const payload: any = {
+      const serviceName = s.title || s.name || 'Serviço';
+      const firstPhoto = s.image || s.image_url || (s.photos && s.photos.length > 0 ? s.photos[0] : null);
+
+      const fullPayload: any = {
         id: serviceUuid,
         salon_id: salonId,
-        title: s.title || s.name || 'Serviço',
+        name: serviceName,
+        title: serviceName,
         category: s.category || 'Geral',
         price: Number(s.price) || 0,
         duration_minutes: durationMinutes,
+        commission_rate: Number(s.commissionRate ?? s.commission_rate ?? 50),
         description: s.description || null,
-        image_url: s.image || s.image_url || (s.photos && s.photos.length > 0 ? s.photos[0] : null),
-        is_active: true,
+        image_url: firstPhoto,
+        photos: Array.isArray(s.photos) ? s.photos : (firstPhoto ? [firstPhoto] : []),
+        videos: Array.isArray(s.videos) ? s.videos : (s.videoUrl ? [{ id: `vid_${serviceUuid}`, url: s.videoUrl, title: serviceName, duration_seconds: 5 }] : []),
+        slides: Array.isArray(s.slides) ? s.slides : (Array.isArray(s.photos) ? s.photos : []),
+        is_active: s.isActive !== false && s.is_active !== false,
         updated_at: new Date().toISOString(),
       };
 
-      await (client.from('services') as any).upsert(payload, { onConflict: 'id' });
+      // 2A. Upsert em public.salon_services
+      try {
+        await (client.from('salon_services' as any) as any).upsert(fullPayload, { onConflict: 'id' });
+      } catch {}
+
+      // 2B. Upsert em public.services (com fallback seguro se colunas extras não existirem)
+      const { error: srvErr } = await (client.from('services') as any).upsert(fullPayload, { onConflict: 'id' });
+      if (srvErr && (srvErr.code === 'PGRST204' || srvErr.code === '42703' || srvErr.message?.includes('column'))) {
+        await (client.from('services') as any).upsert(
+          {
+            id: serviceUuid,
+            salon_id: salonId,
+            title: serviceName,
+            category: s.category || 'Geral',
+            price: Number(s.price) || 0,
+            duration_minutes: durationMinutes,
+            description: s.description || null,
+            image_url: firstPhoto,
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'id' }
+        );
+      }
     }
 
     // 3. Remover/desativar no banco os serviços que foram excluídos pelo proprietário
@@ -1741,6 +2010,13 @@ export async function syncAllServicesToDb(salonId: string, services: any[]) {
       .filter((id: string) => id && !activeSet.has(id));
 
     if (removedIds.length > 0) {
+      try {
+        await (client.from('salon_services' as any) as any)
+          .delete()
+          .eq('salon_id', salonId)
+          .in('id', removedIds);
+      } catch {}
+
       const { error: delError } = await (client.from('services') as any)
         .delete()
         .eq('salon_id', salonId)
@@ -1801,14 +2077,27 @@ export async function syncAllProfessionalsToDb(salonId: string, professionals: a
       p.id = proUuid;
       activeProIds.push(proUuid);
 
+      const accessLevel =
+        p.accessLevel ||
+        (p.systemRole === 'admin' || p.role === 'admin'
+          ? 'admin'
+          : p.role?.toLowerCase().includes('recep')
+          ? 'receptionist'
+          : 'professional');
+
       const payload: any = {
         id: proUuid,
         salon_id: salonId,
         name: p.name || 'Profissional',
+        full_name: p.name || 'Profissional',
         role: p.role || 'Profissional',
+        access_level: accessLevel,
         avatar_url: p.avatarUrl || p.avatar || null,
         phone: p.phone || null,
+        phone_whatsapp: p.phone || null,
         email: p.email || null,
+        commission_rate: Number(p.commissionRate ?? p.commission_rate ?? (accessLevel === 'admin' ? 100 : 50)),
+        product_commission_rate: Number(p.productCommissionRate ?? p.product_commission_rate ?? 10),
         specialties: Array.isArray(p.specialties) ? p.specialties : ['Geral'],
         is_active: p.isActive !== false,
         updated_at: new Date().toISOString(),
@@ -1824,6 +2113,9 @@ export async function syncAllProfessionalsToDb(salonId: string, professionals: a
             name: p.name || 'Profissional',
             role: p.role || 'Profissional',
             avatar_url: p.avatarUrl || p.avatar || null,
+            phone: p.phone || null,
+            email: p.email || null,
+            specialties: Array.isArray(p.specialties) ? p.specialties : ['Geral'],
             is_active: p.isActive !== false,
             updated_at: new Date().toISOString(),
           },
@@ -1893,14 +2185,18 @@ export async function updateSalonSpaceConfigInDb(
   if (!supabase || !isSupabaseConfigured || !salonIdOrSlug) {
     return { success: false, error: 'Supabase não configurado ou identificador vazio' };
   }
+  const client = getDbClient();
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonIdOrSlug);
-    const { data: currentSalon } = await (supabase.from('salons') as any)
-      .select('branding, operating_hours')
+    const { data: currentSalon } = await (client.from('salons') as any)
+      .select('id, branding, operating_hours')
       .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug })
       .maybeSingle();
 
     const existingBranding = (currentSalon?.branding && typeof currentSalon.branding === 'object') ? currentSalon.branding : {};
+
+    const firstSpacePhoto = Array.isArray(spaceConfig.spacePhotos) && spaceConfig.spacePhotos.length > 0 ? spaceConfig.spacePhotos[0]?.url : undefined;
+    const secondSpacePhoto = Array.isArray(spaceConfig.spacePhotos) && spaceConfig.spacePhotos.length > 1 ? spaceConfig.spacePhotos[1]?.url : undefined;
 
     const nextBranding: Record<string, any> = {
       ...existingBranding,
@@ -1909,25 +2205,55 @@ export async function updateSalonSpaceConfigInDb(
       ...(spaceConfig.holidays !== undefined ? { holidays: spaceConfig.holidays } : {}),
       ...(spaceConfig.cancellationPolicy !== undefined ? { cancellationPolicy: spaceConfig.cancellationPolicy } : {}),
       ...(spaceConfig.spacePhotos !== undefined ? { spacePhotos: spaceConfig.spacePhotos } : {}),
+      ...(firstSpacePhoto !== undefined ? { facadePhotoUrl: firstSpacePhoto } : {}),
+      ...(secondSpacePhoto !== undefined ? { interiorPhotoUrl: secondSpacePhoto } : {}),
     };
 
     const payload: Record<string, any> = {
       branding: nextBranding,
       updated_at: new Date().toISOString(),
       ...(spaceConfig.operatingHours !== undefined ? { operating_hours: spaceConfig.operatingHours } : {}),
+      ...(firstSpacePhoto !== undefined ? { facade_photo_url: firstSpacePhoto } : {}),
+      ...(secondSpacePhoto !== undefined ? { interior_photo_url: secondSpacePhoto } : {}),
     };
 
-    let { error } = await (supabase.from('salons') as any)
+    let { error } = await (client.from('salons') as any)
       .update(payload)
       .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug });
 
     if (error && (error.message?.includes('column') || error.code === '42703' || error.code === 'PGRST204')) {
       const fallbackPayload = { ...payload };
       delete fallbackPayload.operating_hours;
-      const retry = await (supabase.from('salons') as any)
+      delete fallbackPayload.facade_photo_url;
+      delete fallbackPayload.interior_photo_url;
+      const retry = await (client.from('salons') as any)
         .update(fallbackPayload)
         .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug });
       error = retry.error;
+    }
+
+    // Sincronizar fotos do espaço em public.salon_media_items
+    const resolvedSalonUuid = currentSalon?.id || (isUuid ? salonIdOrSlug : null);
+    if (resolvedSalonUuid && Array.isArray(spaceConfig.spacePhotos)) {
+      try {
+        for (const sp of spaceConfig.spacePhotos) {
+          if (sp?.url) {
+            const spUuid = sp.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(sp.id)) ? sp.id : generateUuidV4();
+            await (client.from('salon_media_items' as any) as any).upsert({
+              id: spUuid,
+              salon_id: resolvedSalonUuid,
+              title: sp.caption || 'Foto do Espaço',
+              url: sp.url,
+              type: 'image',
+              media_group: 'fotos',
+              category: 'espaco',
+              duration_seconds: 5,
+              is_cover: false,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'id' });
+          }
+        }
+      } catch {}
     }
 
     if (error) {

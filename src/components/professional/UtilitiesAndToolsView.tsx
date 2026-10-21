@@ -19,6 +19,7 @@ import { EnergyMeterManager } from './consumption/EnergyMeterManager';
 import { WaterConsumptionManager } from './consumption/WaterConsumptionManager';
 import { OperationalEquipmentsManager } from './consumption/OperationalEquipmentsManager';
 import { InfrastructureEquipmentsManager } from './consumption/InfrastructureEquipmentsManager';
+import { fetchSalonUtilitiesFromDatabase, syncAllLocalUtilitiesToDatabase } from '../../services/mnvSupabaseSync';
 
 export type UtilitiesSubTab = 
   | 'hub'
@@ -82,6 +83,43 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
       setActiveSubTab(resolveInitialSubTab(initialSubTab));
     }
   }, [initialSubTab]);
+
+  // Hidratação e espelhamento bidirecional de utilidades (salon_utilities_records)
+  useEffect(() => {
+    const salonId = localStorage.getItem('vagou_salon_db_id') || localStorage.getItem('vagou_salon_slug') || '';
+    if (!salonId) return;
+    fetchSalonUtilitiesFromDatabase(salonId).then((remote) => {
+      if (remote) {
+        try {
+          if (Array.isArray(remote.energy_meters) && remote.energy_meters.length > 0 && !localStorage.getItem('vagou_energy_tariff_config')) {
+            localStorage.setItem('vagou_energy_tariff_config', JSON.stringify(remote.energy_meters[0]));
+            localStorage.setItem('vagou_energy_meters', JSON.stringify(remote.energy_meters));
+          }
+          if (Array.isArray(remote.energy_readings) && remote.energy_readings.length > 0 && !localStorage.getItem('vagou_energy_meter_readings')) {
+            localStorage.setItem('vagou_energy_meter_readings', JSON.stringify(remote.energy_readings));
+            localStorage.setItem('vagou_energy_readings', JSON.stringify(remote.energy_readings));
+          }
+          if (Array.isArray(remote.water_meters) && remote.water_meters.length > 0 && !localStorage.getItem('vagou_water_tariff_config')) {
+            localStorage.setItem('vagou_water_tariff_config', JSON.stringify(remote.water_meters[0]));
+            localStorage.setItem('vagou_water_meters', JSON.stringify(remote.water_meters));
+          }
+          if (Array.isArray(remote.water_readings) && remote.water_readings.length > 0 && !localStorage.getItem('vagou_water_meter_readings')) {
+            localStorage.setItem('vagou_water_meter_readings', JSON.stringify(remote.water_readings));
+            localStorage.setItem('vagou_water_readings', JSON.stringify(remote.water_readings));
+          }
+          if (Array.isArray(remote.dre_records) && remote.dre_records.length > 0 && !localStorage.getItem('vagou_financial_expenses')) {
+            localStorage.setItem('vagou_financial_expenses', JSON.stringify(remote.dre_records));
+            localStorage.setItem('vagou_dre_records', JSON.stringify(remote.dre_records));
+          }
+          if (Array.isArray(remote.supply_items) && remote.supply_items.length > 0 && !localStorage.getItem('vagou_salon_supplies')) {
+            localStorage.setItem('vagou_salon_supplies', JSON.stringify(remote.supply_items));
+            localStorage.setItem('vagou_supply_items', JSON.stringify(remote.supply_items));
+          }
+        } catch {}
+      }
+      syncAllLocalUtilitiesToDatabase(salonId);
+    });
+  }, []);
 
   // CARDS DA PORTA DE ENTRADA PRINCIPAL DE UTILIDADES (LAYOUT PLANO: ÍCONE E TÍTULO)
   const mainHubCards = [

@@ -14,6 +14,7 @@ import { BreakEvenSimulator } from './financial/BreakEvenSimulator';
 import { SemiCircleGauge } from './dashboard/SemiCircleGauge';
 import { ClientEvolutionChart, DayEvolutionData } from './dashboard/ClientEvolutionChart';
 import { ServiceDistributionChart, ServiceStat } from './dashboard/ServiceDistributionChart';
+import { syncAllLocalUtilitiesToDatabase } from '../../services/mnvSupabaseSync';
 
 export interface FinancialManagerViewProps {
   appointments: BookingAppointment[];
@@ -52,11 +53,13 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
     return [];
   });
 
-  // Persiste despesas
+  // Persiste despesas e sincroniza com public.salon_utilities_records (dre_records)
   useEffect(() => {
     try {
       localStorage.setItem('vagou_financial_expenses', JSON.stringify(expenses));
+      localStorage.setItem('vagou_dre_records', JSON.stringify(expenses));
     } catch {}
+    syncAllLocalUtilitiesToDatabase();
   }, [expenses]);
 
   // Handlers para despesas

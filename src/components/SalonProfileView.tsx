@@ -30,6 +30,7 @@ import { BottomNav } from './BottomNav';
 import { ProfileDrawer } from './ProfileDrawer';
 import { SalonClientAuthModal } from './SalonClientAuthModal';
 import { hapticSuccess, hapticLight, hapticMedium } from '../utils/haptics';
+import { syncAllLocalUtilitiesToDatabase } from '../services/mnvSupabaseSync';
 import { 
   supabase, 
   isSupabaseConfigured, 
@@ -879,15 +880,44 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         // 2. Buscar serviços reais do banco (respeitando lista vazia em salões reais sem injetar serviços demo)
         const servicesFromDb = await fetchSalonServices(salonRecord.id);
         if (isMounted && Array.isArray(servicesFromDb)) {
-          const mappedServices: CatalogServiceItem[] = servicesFromDb.map((s: any) => ({
-            id: s.id,
-            title: s.title || s.name || 'Serviço',
-            description: s.description || '',
-            price: Number(s.price) || 0,
-            duration: `${s.duration_minutes || 40} min`,
-            category: s.category || 'Geral',
-            image: s.image_url || '',
-          }));
+          const brandingCatalogMeta: any[] = Array.isArray(salonRecord.branding?.catalogServices)
+            ? salonRecord.branding.catalogServices
+            : [];
+
+          const mappedServices: CatalogServiceItem[] = servicesFromDb.map((s: any) => {
+            const metaMatch = brandingCatalogMeta.find(
+              (m: any) => (m.id && m.id === s.id) || ((m.title || m.name) && (m.title || m.name) === (s.title || s.name))
+            );
+            const resolvedPhotos: string[] = Array.isArray(s.photos) && s.photos.length > 0
+              ? s.photos
+              : Array.isArray(s.slides) && s.slides.length > 0
+              ? s.slides
+              : Array.isArray(metaMatch?.photos) && metaMatch.photos.length > 0
+              ? metaMatch.photos
+              : s.image_url
+              ? [s.image_url]
+              : [];
+
+            const resolvedVideoUrl: string =
+              s.video_url ||
+              (Array.isArray(s.videos) && s.videos.length > 0 ? s.videos[0]?.url : '') ||
+              metaMatch?.videoUrl ||
+              '';
+
+            return {
+              id: s.id,
+              title: s.title || s.name || 'Serviço',
+              description: s.description || metaMatch?.description || '',
+              price: Number(s.price) || 0,
+              duration: `${s.duration_minutes || 40} min`,
+              category: s.category || 'Geral',
+              image: s.image_url || resolvedPhotos[0] || metaMatch?.image || '',
+              photos: resolvedPhotos,
+              videoUrl: resolvedVideoUrl || undefined,
+              displayMode: metaMatch?.displayMode || (resolvedVideoUrl ? 'video' : resolvedPhotos.length > 1 ? 'slideshow' : 'static'),
+              mediaType: metaMatch?.mediaType || (resolvedVideoUrl ? 'video' : 'image'),
+            };
+          });
           setCatalogServicesList(mappedServices);
           try {
             if (resolvedSlugKey) {
@@ -896,6 +926,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             localStorage.setItem('vagou_custom_catalog_services', JSON.stringify(mappedServices));
           } catch {}
         }
+
+        // Sincronizar utilidades operacionais em segundo plano (salon_utilities_records)
+        syncAllLocalUtilitiesToDatabase(salonRecord.id);
 
         // 3. Buscar profissionais reais do banco (com suporte a campos completos e metadados de escala/comissão)
         const prosFromDb = await fetchSalonProfessionals(salonRecord.id);
