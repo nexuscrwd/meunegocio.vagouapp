@@ -15,6 +15,40 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-21] — Atualização Instantânea no CRUD de Serviços, Modo Cliente por Padrão & Correção de Navegação (`SalonProfileView.tsx`, `SalonCustomizationHub.tsx`, `ProfessionalServicesManager.tsx` & `ProfileDrawer.tsx`)
+- **Tipo:** `[Fix / UX / Realtime Event Sync / UI Cleanup]`
+- **Motivo / Solicitação:** 
+  1. Garantir que criações, edições e exclusões no catálogo de serviços reflitam instantaneamente na vitrine pública sem necessidade de recarregar ou reiniciar o app.
+  2. Ajustar o app para sempre inicializar no **Modo Cliente** (`isPublicPreviewMode = true`), permitindo que donos e profissionais entrem no Modo Gestão quando desejarem via botão dedicado `[ 📊 Modo Gestão ]`.
+  3. Corrigir o bug de "menu geral em cima de menu" ao selecionar sub-módulos no Hub de Personalização.
+  4. Remover o badge/box `Dono (Visão Cliente)` que poluía a identificação do usuário em Modo Cliente no menu lateral.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `src/components/professional/ProfessionalServicesManager.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Sincronia Instantânea de Eventos (`vagou:catalog-updated`):** Adicionado disparo e escuta de eventos customizados em `ProfessionalServicesManager.tsx` e `SalonProfileView.tsx`. Alterações de catálogo re-renderizam o estado React instantaneamente.
+  - **Abertura Soberana em Modo Cliente por Padrão:** Estado inicial de `isPublicPreviewMode` configurado como `true`. O app abre na vitrine pública do estabelecimento; donos e gestores autenticados utilizam o atalho `[ 📊 Modo Gestão ]` no cabeçalho ou menu lateral para alternar.
+  - **Correção da Reatividade de Sub-abas (`SalonCustomizationHub.tsx`):** Adicionado `useEffect` que sincroniza `selectedCard` sempre que a prop `initialSubTab` é alterada, direcionando o usuário diretamente para o módulo correto sem retenção na grade do Hub.
+  - **Limpeza Visual do Menu Lateral (`ProfileDrawer.tsx`):** Exibição do badge em Modo Cliente normalizada para `Cliente` limpo e responsivo.
+
+### [2026-10-21] — Correção Definitiva de CRUD e Sincronização em Tempo Real com Supabase (`App.tsx`, `SalonProfileView.tsx`, `ProfessionalServicesManager.tsx` & `supabase.ts`)
+- **Tipo:** `[Fix / Architecture / Supabase Realtime / Data Persistence]`
+- **Motivo / Solicitação:** Corrigir falha em que operações CRUD de agendamentos, catálogo de serviços, dados do salão e perfis de usuário não estavam persistindo ou sincronizando com o banco de dados remoto Supabase.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `src/App.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/ProfessionalServicesManager.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Resolução de UUIDs em Slugs:** Corrigida a função `syncAllServicesToDb` e `fetchUserAppointments` para resolver slugs legados (ex: `"momynail"`) para UUIDs válidos da tabela `public.salons`, evitando erros de sintaxe de UUID (`invalid input syntax for type uuid`).
+  - **Auto-Provisionamento de Salão em Preview (`ensureSalonRow`):** Adicionada a rotina `ensureSalonRow` em `src/lib/supabase.ts` chamada por `App.tsx` durante o carregamento inicial em ambientes sem subdomínio wildcard, garantindo `vagou_salon_db_id` válido e liberando escrita sem `salon_id` nulo.
+  - **Persistência & Real-Time em Agendamentos (`public.appointments`):** Implementadas as funções `fetchUserAppointments`, `upsertAppointmentInDb`, `cancelAppointmentInDb` e `subscribeToAppointments` em `src/lib/supabase.ts`. Integrada escuta Postgres Changes (INSERT/UPDATE) em `App.tsx` e `SalonProfileView.tsx` para sincronia instantânea e toasts de notificação real-time.
+  - **Persistência Direta no Catálogo (`ProfessionalServicesManager.tsx`):** Atualizados os handlers de salvamento e exclusão de serviços para acionarem imediatamente `syncSalonServiceToDatabase` e `syncAllServicesToDb`, persistindo alterações relacionais em `public.services` / `public.salon_services` e espelhamento em `salons.branding`.
+
 ### [2026-10-21] — [BOL-018] Flexibilização da Obrigatoriedade de CPF (Tríade Sync: `admvapp` ➔ `mnvapp` & `pvapp`)
 - **Tipo:** `[Feat / Compliance / Onboarding UX / Tríade Sync]`
 - **Motivo / Solicitação:** Cumprimento do Comunicado Técnico Oficial BOL-018 emitido pelo `admvapp` (Admin Master). Revogada a obrigatoriedade da inserção de CPF no cadastro de proprietários, responsáveis legais, profissionais e usuários para reduzir o atrito de conversão e onboarding, mantendo o campo estritamente opcional.

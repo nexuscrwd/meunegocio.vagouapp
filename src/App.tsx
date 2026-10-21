@@ -8,7 +8,17 @@ import { SalonNotFoundScreen } from './components/public/SalonNotFoundScreen';
 import { useSalonRole } from './hooks/useSalonRole';
 import { ServiceOffer, BookingAppointment } from './types';
 import { initializeStoredPwaAssets } from './utils/pwaAssets';
-import { supabase, isSupabaseConfigured, fetchUserProfileFromDb, ensureClientRow } from './lib/supabase';
+import { 
+  supabase, 
+  isSupabaseConfigured, 
+  fetchUserProfileFromDb, 
+  ensureClientRow,
+  fetchUserAppointments,
+  mapDbAppointmentToBookingAppointment,
+  subscribeToAppointments,
+  cancelAppointmentInDb,
+  ensureSalonRow
+} from './lib/supabase';
 import { 
   ThemeContext, 
   ThemeProvider, 
@@ -140,6 +150,36 @@ export const App: React.FC = () => {
       }
     } catch {
       setAppointments([]);
+    }
+
+    // Sincronizar em tempo real com public.appointments no Supabase
+    if (isSupabaseConfigured) {
+      const userEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
+      const userPhone = localStorage.getItem('vagou_user_phone') || '';
+      const clientId = localStorage.getItem('vagou_client_id') || '';
+
+      if (userEmail || userPhone || clientId) {
+        fetchUserAppointments({ email: userEmail, phone: userPhone, clientId })
+          .then((dbRows) => {
+            if (Array.isArray(dbRows) && dbRows.length > 0) {
+              const mappedDb = dbRows.map((r) => mapDbAppointmentToBookingAppointment(r));
+              setAppointments((currentLocal) => {
+                const dbMap = new Map(mappedDb.map((a) => [a.protocolCode, a]));
+                const merged = [...mappedDb];
+                currentLocal.forEach((loc) => {
+                  if (!dbMap.has(loc.protocolCode)) {
+                    merged.push(loc);
+                  }
+                });
+                try {
+                  localStorage.setItem('vagou_user_appointments', JSON.stringify(merged));
+                } catch {}
+                return merged;
+              });
+            }
+          })
+          .catch((err) => console.warn('Aviso: Sincronização de agendamentos no banco:', err));
+      }
     }
   };
 
@@ -293,11 +333,42 @@ export const App: React.FC = () => {
     // Recarregar agendamentos quando a aba ou janela ganha foco para manter dados sincronizados
     window.addEventListener('focus', loadAppointments);
 
-    // Poll localstorage periodicamente a cada 2 segundos para sincronizar as mudanças de status em tempo real
-    const interval = setInterval(loadAppointments, 2000);
+    // Inscrição em tempo real para escutar atualizações de agendamento na nuvem Supabase
+    let unsubscribeRealtime = () => {};
+    if (isSupabaseConfigured) {
+      const userEmail = localStorage.getItem('vagou_user_email') || '';
+      unsubscribeRealtime = subscribeToAppointments({ clientEmail: userEmail }, ({ eventType, newRow }) => {
+        if (newRow && (eventType === 'INSERT' || eventType === 'UPDATE')) {
+          const mapped = mapDbAppointmentToBookingAppointment(newRow);
+          setAppointments((prev) => {
+            const index = prev.findIndex((a) => a.protocolCode === mapped.protocolCode || (a.id && a.id === mapped.id));
+            let nextList: BookingAppointment[];
+            if (index >= 0) {
+              const old = prev[index];
+              nextList = [...prev];
+              nextList[index] = mapped;
+              if (old.status !== mapped.status) {
+                triggerLocalNotification(mapped, old.status, mapped.status);
+              }
+            } else {
+              nextList = [mapped, ...prev];
+              triggerLocalNotification(mapped, 'PENDENTE', mapped.status);
+            }
+            try {
+              localStorage.setItem('vagou_user_appointments', JSON.stringify(nextList));
+            } catch {}
+            return nextList;
+          });
+        }
+      });
+    }
+
+    // Poll localstorage a cada 3 segundos
+    const interval = setInterval(loadAppointments, 3000);
 
     return () => {
       window.removeEventListener('focus', loadAppointments);
+      unsubscribeRealtime();
       clearInterval(interval);
     };
   }, []);
@@ -391,23 +462,17 @@ export const App: React.FC = () => {
 
   const handleCancelAppointment = async (protocolCode: string) => {
     try {
-      if (isSupabaseConfigured && supabase) {
-        // RLS restringe update do cliente estritamente para status: CANCELADO
-        const { data, error } = await (supabase.from('appointments') as any)
-          .update({ status: 'CANCELADO', updated_at: new Date().toISOString() })
-          .eq('protocol_code', protocolCode)
-          .select('id');
-
-        if (error || !data || data.length !== 1) {
-          alert('Não foi possível cancelar este agendamento. Verifique suas permissões ou contate o salão.');
-          return;
+      if (isSupabaseConfigured) {
+        const res = await cancelAppointmentInDb(protocolCode);
+        if (!res.success && res.error) {
+          console.warn('Aviso: Cancelamento no banco de dados:', res.error);
         }
       }
 
       const saved = localStorage.getItem('vagou_user_appointments');
       if (saved) {
         const list: BookingAppointment[] = JSON.parse(saved);
-        const updated = list.map(apt => {
+        const updated = list.map((apt) => {
           if (apt.protocolCode === protocolCode) {
             return { ...apt, status: 'CANCELADO' };
           }
@@ -416,9 +481,21 @@ export const App: React.FC = () => {
         localStorage.setItem('vagou_user_appointments', JSON.stringify(updated));
         setAppointments(updated);
       }
+
+      setActiveToast({
+        id: String(Date.now()),
+        title: 'Agendamento Cancelado',
+        message: `O agendamento ${protocolCode} foi cancelado com sucesso.`,
+        type: 'info',
+      });
     } catch (e) {
       console.error('Erro ao cancelar agendamento:', e);
-      alert('Falha ao processar o cancelamento.');
+      setActiveToast({
+        id: String(Date.now()),
+        title: 'Falha no Cancelamento',
+        message: 'Não foi possível cancelar o agendamento no momento.',
+        type: 'error',
+      });
     }
   };
 
@@ -559,6 +636,35 @@ export const App: React.FC = () => {
             if (resolvedColor) {
               localStorage.setItem('vagou_accent_color', resolvedColor);
               applyAccentColorToDom(resolvedColor);
+            }
+          }
+        } else {
+          // Ambiente sem subdomínio wildcard (Preview / Localhost / Dev): resolve salão ativo para garantir persistência de CRUD
+          if (isSupabaseConfigured) {
+            const cachedSlug = localStorage.getItem('vagou_salon_slug') || '';
+            const cachedDbId = localStorage.getItem('vagou_salon_db_id') || '';
+            const userEmail = localStorage.getItem('vagou_user_email') || '';
+
+            const resolvedSalon = await ensureSalonRow({
+              id: cachedDbId || undefined,
+              slug: cachedSlug || undefined,
+              email: userEmail || undefined,
+              tradeName: salonName || 'Meu Estabelecimento',
+            });
+
+            if (resolvedSalon) {
+              setInitialSalonData(resolvedSalon);
+              const displayName = resolvedSalon.trade_name || salonName || 'Meu Estabelecimento';
+              setSalonName(displayName);
+              localStorage.setItem('vagou_salon_db_id', resolvedSalon.id);
+              localStorage.setItem('vagou_salon_name', displayName);
+              localStorage.setItem('vagou_salon_slug', resolvedSalon.slug);
+
+              const resolvedColor = resolvedSalon.primary_color || resolvedSalon.branding?.primaryColor;
+              if (resolvedColor) {
+                localStorage.setItem('vagou_accent_color', resolvedColor);
+                applyAccentColorToDom(resolvedColor);
+              }
             }
           }
         }

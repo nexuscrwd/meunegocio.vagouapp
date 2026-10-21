@@ -44,7 +44,12 @@ import {
   syncAllProfessionalsToDb,
   fetchUserProfileFromDb,
   checkUserSalonMembership,
-  ensureClientRow
+  ensureClientRow,
+  mapDbAppointmentToBookingAppointment,
+  mapBookingAppointmentToDbPayload,
+  upsertAppointmentInDb,
+  subscribeToAppointments,
+  ensureSalonRow
 } from '../lib/supabase';
 
 export interface SalonProfileViewProps {
@@ -251,7 +256,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     initialSalonData,
   });
 
-  const [isPublicPreviewMode, setIsPublicPreviewMode] = useState<boolean>(false);
+  const [isPublicPreviewMode, setIsPublicPreviewMode] = useState<boolean>(true);
 
   const activeRole: SalonRole = useMemo(() => {
     if (ownerAccess.isOwner) return 'owner';
@@ -996,6 +1001,16 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             setProfessionalsList(fallbackOwnerPro);
           }
         }
+
+        // 4. Buscar agendamentos reais do salão no banco
+        const aptsFromDb = await fetchSalonAppointments(salonRecord.id);
+        if (isMounted && Array.isArray(aptsFromDb) && aptsFromDb.length > 0) {
+          const mappedApts = aptsFromDb.map((a) => mapDbAppointmentToBookingAppointment(a, salonRecord.trade_name));
+          setAppointmentsList(mappedApts);
+          try {
+            localStorage.setItem('vagou_user_appointments', JSON.stringify(mappedApts));
+          } catch {}
+        }
       } catch (err) {
         console.warn('Consulta Supabase em segundo plano:', err);
       } finally {
@@ -1004,9 +1019,49 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         }
       }
     }
-    loadDataFromSupabase();
-    return () => { isMounted = false; };
-  }, [salonName, activeSubdomain, initialSalonData, adminSettings.salonSlug]);
+
+    let unsubscribeSalonApts = () => {};
+    loadDataFromSupabase().then(() => {
+      const activeSalonId = currentSalonDbId || localStorage.getItem('vagou_salon_db_id');
+      if (isSupabaseConfigured && activeSalonId) {
+        unsubscribeSalonApts = subscribeToAppointments({ salonId: activeSalonId }, ({ eventType, newRow }) => {
+          if (newRow && (eventType === 'INSERT' || eventType === 'UPDATE')) {
+            const mapped = mapDbAppointmentToBookingAppointment(newRow, salonName);
+            setAppointmentsList((prev) => {
+              const index = prev.findIndex((a) => a.protocolCode === mapped.protocolCode || (a.id && a.id === mapped.id));
+              let nextList: BookingAppointment[];
+              if (index >= 0) {
+                nextList = [...prev];
+                nextList[index] = mapped;
+              } else {
+                nextList = [mapped, ...prev];
+              }
+              try {
+                localStorage.setItem('vagou_user_appointments', JSON.stringify(nextList));
+              } catch {}
+              return nextList;
+            });
+          }
+        });
+      }
+    });
+
+    return () => { 
+      isMounted = false; 
+      unsubscribeSalonApts();
+    };
+  }, [salonName, activeSubdomain, initialSalonData, adminSettings.salonSlug, currentSalonDbId]);
+
+  // Escuta de eventos para atualização instantânea do catálogo de serviços no CRUD
+  useEffect(() => {
+    const handleCatalogUpdated = (e: any) => {
+      if (e?.detail && Array.isArray(e.detail)) {
+        setCatalogServicesList(e.detail);
+      }
+    };
+    window.addEventListener('vagou:catalog-updated', handleCatalogUpdated);
+    return () => window.removeEventListener('vagou:catalog-updated', handleCatalogUpdated);
+  }, []);
 
   // Handlers para persistência e sincronização em tempo real no Supabase
   const handleUpdateServices = async (newServices: CatalogServiceItem[]) => {
@@ -1019,6 +1074,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     } catch {
       // ignore
     }
+
+    window.dispatchEvent(new CustomEvent('vagou:catalog-updated', { detail: newServices }));
 
     const salonId = currentSalonDbId || localStorage.getItem('vagou_salon_db_id');
     if (salonId) {
@@ -1088,12 +1145,20 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     );
   }, [adminSettings.pwaName, adminSettings.salonName, adminSettings.salonIcon, adminSettings.salonLogoDark, adminSettings.salonLogo, adminSettings.accentColor, salonName]);
 
-  const handleUpdateAppointments = (newApts: BookingAppointment[]) => {
+  const handleUpdateAppointments = async (newApts: BookingAppointment[]) => {
     setAppointmentsList(newApts);
     try {
       localStorage.setItem('vagou_user_appointments', JSON.stringify(newApts));
     } catch {
       // ignore
+    }
+
+    const salonId = currentSalonDbId || localStorage.getItem('vagou_salon_db_id');
+    if (salonId) {
+      for (const apt of newApts) {
+        const payload = mapBookingAppointmentToDbPayload(apt, salonId);
+        await upsertAppointmentInDb(payload);
+      }
     }
   };
 

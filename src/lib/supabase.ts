@@ -1,12 +1,19 @@
 import { createClient, User } from '@supabase/supabase-js';
 import type { Database, AppointmentStatus, OfferStatus } from '../types/database.types';
+import type { BookingAppointment } from '../types';
 
 const DEFAULT_SUPABASE_URL = 'https://xemenxdhuoekytyhmgyt.supabase.co';
 const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlbWVueGRodW9la3l0eWhtZ3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMDE2MzAsImV4cCI6MjEwNTc3NzYzMH0.P-q6bQspwuQNhub08hjWmsjLrugr3CVA1NIdznWJxuo';
 
 const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : (typeof process !== 'undefined' && process.env) || {};
-const supabaseUrl = (env as any).VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
-const supabaseAnonKey = (env as any).VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
+const rawEnvUrl = (env as any).VITE_SUPABASE_URL;
+const supabaseUrl = (rawEnvUrl && String(rawEnvUrl).startsWith('https://') && rawEnvUrl !== 'https://your-project-id.supabase.co')
+  ? String(rawEnvUrl)
+  : DEFAULT_SUPABASE_URL;
+const rawEnvKey = (env as any).VITE_SUPABASE_ANON_KEY;
+const supabaseAnonKey = (rawEnvKey && String(rawEnvKey).length > 20 && rawEnvKey !== 'your-anon-key-here')
+  ? String(rawEnvKey)
+  : DEFAULT_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl && 
@@ -1077,35 +1084,265 @@ export async function createSalonOffer(offer: {
 }
 
 /**
- * Buscar agendamentos do salão
+ * Mapeia registro bruto de public.appointments para a interface BookingAppointment do app
  */
-export async function fetchSalonAppointments(salonId: string) {
-  if (!supabase) return [];
+export function mapDbAppointmentToBookingAppointment(dbApt: any, fallbackSalonName = ''): BookingAppointment {
+  const rawProto = dbApt.protocol_code || '';
+  const protocol = rawProto ? (rawProto.startsWith('#') ? rawProto : `#${rawProto}`) : `#VGA-${dbApt.id ? String(dbApt.id).slice(0, 5) : Math.floor(10000 + Math.random() * 90000)}`;
+  
+  // Format data e hora amigáveis
+  let dateFormatted = '';
+  if (dbApt.date_str) {
+    const parts = String(dbApt.date_str).split('-');
+    if (parts.length === 3) {
+      dateFormatted = `${parts[2]}/${parts[1]}`;
+    } else {
+      dateFormatted = String(dbApt.date_str);
+    }
+  }
+
+  const startTimeStr = dbApt.start_time ? String(dbApt.start_time).slice(0, 5) : '';
+  const dateTimeFormatted = dateFormatted && startTimeStr 
+    ? `${dateFormatted} às ${startTimeStr}` 
+    : (dateFormatted || startTimeStr || 'Data a confirmar');
+
+  const salonTradeName = dbApt.salons?.trade_name || dbApt.salon_name || fallbackSalonName || 'Meu Estabelecimento';
+  const resolvedProName = dbApt.professionals?.name || dbApt.professional_name || dbApt.professional || 'Equipe do Salão';
+
+  return {
+    id: dbApt.id,
+    protocolCode: protocol,
+    serviceTitle: dbApt.service_title || 'Serviço',
+    service: dbApt.service_title || 'Serviço',
+    serviceName: dbApt.service_title || 'Serviço',
+    professionalName: resolvedProName,
+    professional: resolvedProName,
+    salonName: salonTradeName,
+    dateTime: dateTimeFormatted,
+    time: startTimeStr,
+    dateIso: dbApt.date_str,
+    totalPrice: Number(dbApt.price) || 0,
+    status: (dbApt.status || 'CONFIRMADO').toUpperCase(),
+    clientName: dbApt.client_name || dbApt.customer_name || 'Cliente',
+    customerName: dbApt.client_name || dbApt.customer_name || 'Cliente',
+    clientPhone: dbApt.client_phone || dbApt.customer_phone || '',
+    customerPhone: dbApt.client_phone || dbApt.customer_phone || '',
+    customerEmail: dbApt.client_email || dbApt.customer_email || '',
+    address: dbApt.client_address || dbApt.salons?.address || '',
+    createdAt: dbApt.created_at,
+  };
+}
+
+/**
+ * Mapeia BookingAppointment do frontend para o schema relacional oficial de public.appointments
+ */
+export function mapBookingAppointmentToDbPayload(apt: Partial<BookingAppointment>, salonId: string, clientId?: string): any {
+  const cleanProtocol = (apt.protocolCode || `#VGA-${Math.floor(10000 + Math.random() * 90000)}`).trim();
+  const rawPrice = Number(apt.totalPrice) || 0;
+  
+  let dateStr = apt.dateIso || '';
+  let startTime = apt.time || '10:00:00';
+  if (!dateStr && apt.dateTime) {
+    const match = apt.dateTime.match(/(\d{2})\/(\d{2})\s+às\s+(\d{2}):(\d{2})/);
+    if (match) {
+      const year = new Date().getFullYear();
+      dateStr = `${year}-${match[2]}-${match[1]}`;
+      startTime = `${match[3]}:${match[4]}:00`;
+    }
+  }
+  if (!dateStr) {
+    dateStr = new Date().toISOString().split('T')[0];
+  }
+  if (startTime.length === 5) {
+    startTime = `${startTime}:00`;
+  }
+
+  const [sh, sm] = startTime.split(':').map(Number);
+  const totalM = (sh * 60 + sm) + 45;
+  const eh = Math.floor(totalM / 60) % 24;
+  const em = totalM % 60;
+  const endTime = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}:00`;
+
+  const isUuid = apt.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(apt.id);
+
+  return {
+    ...(isUuid ? { id: apt.id } : {}),
+    protocol_code: cleanProtocol,
+    salon_id: salonId,
+    client_id: clientId || null,
+    client_name: apt.clientName || apt.customerName || 'Cliente',
+    client_phone: apt.clientPhone || apt.customerPhone || '',
+    client_email: (apt as any).clientEmail || apt.customerEmail || null,
+    service_title: apt.serviceTitle || apt.service || 'Serviço',
+    price: rawPrice,
+    date_str: dateStr,
+    start_time: startTime,
+    end_time: endTime,
+    status: (apt.status || 'CONFIRMADO').toUpperCase(),
+    notes: (apt as any).notes || (apt.is_dependent && apt.dependent_name ? `Dependente: ${apt.dependent_name}` : null),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+/**
+ * Buscar agendamentos do salão (com suporte a fallback relacional e hidratação)
+ */
+export async function fetchSalonAppointments(salonId: string): Promise<any[]> {
+  if (!supabase || !isSupabaseConfigured || !salonId) return [];
+  const client = getDbClient() || supabase;
   try {
-    const { data, error } = await (supabase.from('appointments') as any)
-      .select('*')
-      .eq('salon_id', salonId)
-      .order('date_str', { ascending: true });
+    let resolvedSalonId = salonId;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonId)) {
+      const { data: sRow } = await (client.from('salons') as any).select('id').eq('slug', salonId).maybeSingle();
+      if (sRow?.id) resolvedSalonId = sRow.id;
+    }
+
+    const { data, error } = await (client.from('appointments') as any)
+      .select('*, salons(trade_name, address, slug), professionals(name, avatar_url)')
+      .eq('salon_id', resolvedSalonId)
+      .order('date_str', { ascending: false });
+
     if (error) {
-      console.warn('Erro ao buscar agendamentos:', error.message);
-      return [];
+      console.warn('Erro ao buscar agendamentos do salão:', error.message);
+      // Fallback sem joins caso a tabela professionals não tenha FK
+      const { data: rawList } = await (client.from('appointments') as any)
+        .select('*')
+        .eq('salon_id', resolvedSalonId)
+        .order('date_str', { ascending: false });
+      return rawList || [];
     }
     return data || [];
-  } catch {
+  } catch (err) {
+    console.warn('Falha em fetchSalonAppointments:', err);
     return [];
   }
 }
 
 /**
- * Atualizar status do agendamento
+ * Buscar agendamentos do cliente/usuário autenticado ou identificado por email/telefone
  */
-export async function updateAppointmentStatusInDb(appointmentId: string, status: AppointmentStatus) {
-  if (!supabase) return false;
-  const client = getDbClient();
+export async function fetchUserAppointments(userParams: {
+  clientId?: string;
+  email?: string;
+  phone?: string;
+  userId?: string;
+}): Promise<any[]> {
+  if (!supabase || !isSupabaseConfigured) return [];
+  const client = getDbClient() || supabase;
+
   try {
-    const { error } = await (client.from('appointments') as any)
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq('id', appointmentId);
+    const cleanEmail = (userParams.email || (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '' : '')).trim().toLowerCase();
+    const cleanPhone = (userParams.phone || (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_phone') || '' : '')).trim();
+    const cleanClientId = userParams.clientId || '';
+
+    let query = (client.from('appointments') as any)
+      .select('*, salons(trade_name, address, slug)')
+      .order('date_str', { ascending: false });
+
+    const filters: string[] = [];
+    if (cleanClientId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanClientId)) {
+      filters.push(`client_id.eq.${cleanClientId}`);
+    }
+    if (cleanEmail && cleanEmail.includes('@')) {
+      filters.push(`client_email.ilike.${cleanEmail}`);
+    }
+    if (cleanPhone) {
+      const digits = cleanPhone.replace(/\D/g, '');
+      if (digits.length >= 8) {
+        filters.push(`client_phone.ilike.%${digits.slice(-8)}%`);
+      }
+    }
+
+    if (filters.length > 0) {
+      query = query.or(filters.join(','));
+    } else {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email) {
+        query = query.ilike('client_email', session.user.email);
+      } else {
+        return [];
+      }
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn('Erro ao consultar agendamentos do cliente:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.warn('Falha em fetchUserAppointments:', err);
+    return [];
+  }
+}
+
+/**
+ * Upsert em tempo real de agendamento no Supabase com resiliência total
+ */
+export async function upsertAppointmentInDb(appointmentData: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  if (!supabase || !isSupabaseConfigured) {
+    return { success: false, error: 'Supabase não conectado' };
+  }
+  const client = getDbClient() || supabase;
+
+  try {
+    let resolvedSalonId = appointmentData.salon_id;
+    if (!resolvedSalonId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedSalonId)) {
+      const activeSlug = typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') || '' : '';
+      const activeDbId = typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_db_id') || '' : '';
+      if (activeDbId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(activeDbId)) {
+        resolvedSalonId = activeDbId;
+      } else if (activeSlug) {
+        const { data: sRow } = await (client.from('salons') as any).select('id').eq('slug', activeSlug).maybeSingle();
+        if (sRow?.id) resolvedSalonId = sRow.id;
+      }
+    }
+
+    if (!resolvedSalonId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedSalonId)) {
+      const { data: firstSalon } = await (client.from('salons') as any).select('id').eq('is_active', true).limit(1).maybeSingle();
+      if (firstSalon?.id) resolvedSalonId = firstSalon.id;
+    }
+
+    const payload = {
+      ...appointmentData,
+      salon_id: resolvedSalonId,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await (client.from('appointments') as any)
+      .upsert(payload, { onConflict: 'protocol_code' })
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.warn('Erro ao realizar upsert de appointment no Supabase:', error.message);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data };
+  } catch (err: any) {
+    console.error('Falha em upsertAppointmentInDb:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Atualizar status do agendamento (ex: CONFIRMADO, CONCLUIDO, CANCELADO)
+ */
+export async function updateAppointmentStatusInDb(appointmentIdOrProtocol: string, status: AppointmentStatus | string) {
+  if (!supabase || !isSupabaseConfigured) return false;
+  const client = getDbClient() || supabase;
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(appointmentIdOrProtocol);
+    const upperStatus = String(status).toUpperCase();
+
+    const query = (client.from('appointments') as any)
+      .update({ status: upperStatus, updated_at: new Date().toISOString() });
+
+    const { error } = isUuid 
+      ? await query.eq('id', appointmentIdOrProtocol)
+      : await query.eq('protocol_code', appointmentIdOrProtocol.startsWith('#') ? appointmentIdOrProtocol : `#${appointmentIdOrProtocol}`);
+
     if (error) {
       console.warn('Erro ao atualizar status do agendamento:', error.message);
       return false;
@@ -1114,6 +1351,69 @@ export async function updateAppointmentStatusInDb(appointmentId: string, status:
   } catch {
     return false;
   }
+}
+
+/**
+ * Cancelar agendamento no Supabase pelo código do protocolo
+ */
+export async function cancelAppointmentInDb(protocolCode: string): Promise<{ success: boolean; error?: string }> {
+  if (!supabase || !isSupabaseConfigured) return { success: false, error: 'Supabase não conectado' };
+  const client = getDbClient() || supabase;
+  try {
+    const cleanCode = protocolCode.startsWith('#') ? protocolCode : `#${protocolCode}`;
+    const { error } = await (client.from('appointments') as any)
+      .update({ status: 'CANCELADO', updated_at: new Date().toISOString() })
+      .eq('protocol_code', cleanCode);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+}
+
+/**
+ * Escuta eventos em tempo real na tabela public.appointments via canais Postgres Changes
+ */
+export function subscribeToAppointments(
+  filter: { salonId?: string; clientEmail?: string; clientPhone?: string },
+  onChange: (payload: { eventType: 'INSERT' | 'UPDATE' | 'DELETE'; newRow: any; oldRow: any }) => void
+) {
+  if (!supabase || !isSupabaseConfigured) return () => {};
+
+  const channelKey = `rt-appointments-${filter.salonId || 'all'}-${Date.now()}`;
+  const channel = supabase
+    .channel(channelKey)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'appointments',
+      },
+      (payload) => {
+        const newRecord = payload.new as any;
+        const oldRecord = payload.old as any;
+
+        // Filtrar no cliente se for específico de um salão
+        if (filter.salonId && newRecord?.salon_id && newRecord.salon_id !== filter.salonId) {
+          return;
+        }
+
+        onChange({
+          eventType: payload.eventType as any,
+          newRow: newRecord,
+          oldRow: oldRecord,
+        });
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }
 
 /**
@@ -1586,6 +1886,98 @@ export async function updateUserProfileInDb(profile: {
 }
 
 /**
+ * Assegura que um registro de salão exista no Supabase com UUID válido e pronto para CRUD
+ */
+export async function ensureSalonRow(params: {
+  id?: string;
+  slug?: string;
+  tradeName?: string;
+  name?: string;
+  ownerId?: string;
+  email?: string;
+  phoneWhatsapp?: string;
+  primaryColor?: string;
+}): Promise<any> {
+  if (!supabase || !isSupabaseConfigured) return null;
+  const client = getDbClient() || supabase;
+
+  try {
+    // 1. Checa por ID (se for UUID válido)
+    if (params.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.id)) {
+      const { data: byId } = await (client.from('salons') as any).select('*').eq('id', params.id).maybeSingle();
+      if (byId) return byId;
+    }
+
+    // 2. Checa por slug
+    const targetSlug = (params.slug || (params.tradeName || params.name || '').toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || '').trim();
+    if (targetSlug && targetSlug !== 'meu-estabelecimento') {
+      const { data: bySlug } = await (client.from('salons') as any).select('*').eq('slug', targetSlug).maybeSingle();
+      if (bySlug) return bySlug;
+    }
+
+    // 3. Checa por owner_id
+    if (params.ownerId) {
+      const { data: byOwner } = await (client.from('salons') as any).select('*').eq('owner_id', params.ownerId).maybeSingle();
+      if (byOwner) return byOwner;
+    }
+
+    // 4. Checa por e-mail
+    if (params.email) {
+      const { data: byEmail } = await (client.from('salons') as any).select('*').ilike('email', params.email.trim()).maybeSingle();
+      if (byEmail) return byEmail;
+    }
+
+    // 5. Se ainda não encontrado, tenta encontrar o primeiro salão ativo do banco como fallback
+    const { data: firstActive } = await (client.from('salons') as any).select('*').eq('is_active', true).order('created_at', { ascending: true }).limit(1).maybeSingle();
+    if (firstActive && (!targetSlug || targetSlug === 'meu-estabelecimento')) {
+      return firstActive;
+    }
+
+    // 6. Caso não exista, cria e persiste um novo registro de salão
+    const newId = (params.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.id))
+      ? params.id
+      : generateUuidV4();
+    const finalTradeName = params.tradeName || params.name || 'Meu Estabelecimento';
+    const finalSlug = targetSlug || `salao-${newId.slice(0, 8)}`;
+
+    const newSalonPayload = {
+      id: newId,
+      slug: finalSlug,
+      trade_name: finalTradeName,
+      legal_name: finalTradeName,
+      email: params.email || null,
+      phone_whatsapp: params.phoneWhatsapp || null,
+      owner_id: params.ownerId || null,
+      is_active: true,
+      primary_color: params.primaryColor || '#20C933',
+      branding: {
+        primaryColor: params.primaryColor || '#20C933',
+        secondaryColor: '#0F172A',
+        themeMode: 'dark',
+      },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: inserted, error: insErr } = await (client.from('salons') as any)
+      .upsert(newSalonPayload, { onConflict: 'slug' })
+      .select()
+      .maybeSingle();
+
+    if (insErr) {
+      console.warn('Erro ao auto-criar salão no Supabase:', insErr.message);
+      const { data: fallback } = await (client.from('salons') as any).select('*').eq('slug', finalSlug).maybeSingle();
+      return fallback || null;
+    }
+
+    return inserted;
+  } catch (err) {
+    console.warn('Falha em ensureSalonRow:', err);
+    return null;
+  }
+}
+
+/**
  * Busca completa de dados do Salão pelo slug, nome, email ou owner_id
  */
 export async function fetchCompleteSalonData(identifier: { slug?: string; name?: string; email?: string; ownerId?: string }) {
@@ -1937,14 +2329,36 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
 /**
  * Sincroniza a lista completa de serviços do Salão com o Supabase (CRUD Total: salon_services + services + salons.branding.catalogServices)
  */
-export async function syncAllServicesToDb(salonId: string, services: any[]) {
-  if (!supabase || !isSupabaseConfigured || !salonId) return { success: false };
-  const client = getDbClient();
+export async function syncAllServicesToDb(salonId: string, services: any[]): Promise<{ success: boolean; count?: number; error?: string }> {
+  if (!supabase || !isSupabaseConfigured || !salonId) return { success: false, error: 'Identificador do salão não fornecido' };
+  const client = getDbClient() || supabase;
   try {
+    // 0. Resolver salonId para UUID caso tenha sido passado slug ou identificador textual
+    let resolvedSalonUuid = salonId;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonId)) {
+      const { data: sRow } = await (client.from('salons') as any).select('id').eq('slug', salonId).maybeSingle();
+      if (sRow?.id) {
+        resolvedSalonUuid = sRow.id;
+      } else {
+        const cachedDbId = typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_db_id') : null;
+        if (cachedDbId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cachedDbId)) {
+          resolvedSalonUuid = cachedDbId;
+        } else {
+          const ensured = await ensureSalonRow({ slug: salonId });
+          if (ensured?.id) resolvedSalonUuid = ensured.id;
+        }
+      }
+    }
+
+    if (!resolvedSalonUuid || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedSalonUuid)) {
+      console.warn('Aviso: Não foi possível resolver salon_id para UUID válido em syncAllServicesToDb:', salonId);
+      return { success: false, error: 'Salão não possui UUID válido' };
+    }
+
     // 1. Buscar serviços atualmente ativos deste salão no banco para detectar exclusões
     const { data: existingRows } = await (client.from('services') as any)
       .select('id')
-      .eq('salon_id', salonId);
+      .eq('salon_id', resolvedSalonUuid);
 
     const activeServiceIds: string[] = [];
 
@@ -1964,7 +2378,7 @@ export async function syncAllServicesToDb(salonId: string, services: any[]) {
 
       const fullPayload: any = {
         id: serviceUuid,
-        salon_id: salonId,
+        salon_id: resolvedSalonUuid,
         name: serviceName,
         title: serviceName,
         category: s.category || 'Geral',
@@ -1991,7 +2405,7 @@ export async function syncAllServicesToDb(salonId: string, services: any[]) {
         await (client.from('services') as any).upsert(
           {
             id: serviceUuid,
-            salon_id: salonId,
+            salon_id: resolvedSalonUuid,
             title: serviceName,
             category: s.category || 'Geral',
             price: Number(s.price) || 0,
@@ -2016,30 +2430,29 @@ export async function syncAllServicesToDb(salonId: string, services: any[]) {
       try {
         await (client.from('salon_services' as any) as any)
           .delete()
-          .eq('salon_id', salonId)
+          .eq('salon_id', resolvedSalonUuid)
           .in('id', removedIds);
       } catch {}
 
       const { error: delError } = await (client.from('services') as any)
         .delete()
-        .eq('salon_id', salonId)
+        .eq('salon_id', resolvedSalonUuid)
         .in('id', removedIds);
 
       if (delError) {
         // Fallback seguro (soft-delete) caso o serviço já tenha agendamentos históricos vinculados por FK
         await (client.from('services') as any)
           .update({ is_active: false, updated_at: new Date().toISOString() })
-          .eq('salon_id', salonId)
+          .eq('salon_id', resolvedSalonUuid)
           .in('id', removedIds);
       }
     }
 
     // 4. Espelhamento de Resiliência no JSONB do Salão (Double Single Source of Truth)
     try {
-      const isSalonUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonId);
       const { data: currentSalon } = await (client.from('salons') as any)
         .select('branding')
-        .match(isSalonUuid ? { id: salonId } : { slug: salonId })
+        .eq('id', resolvedSalonUuid)
         .maybeSingle();
 
       const existingBranding = (currentSalon?.branding && typeof currentSalon.branding === 'object') ? currentSalon.branding : {};
@@ -2051,10 +2464,10 @@ export async function syncAllServicesToDb(salonId: string, services: any[]) {
           },
           updated_at: new Date().toISOString(),
         })
-        .match(isSalonUuid ? { id: salonId } : { slug: salonId });
+        .eq('id', resolvedSalonUuid);
     } catch {}
 
-    return { success: true };
+    return { success: true, count: services.length };
   } catch (err: any) {
     console.error('Falha ao sincronizar catálogo de serviços no Supabase:', err);
     return { success: false, error: err?.message };

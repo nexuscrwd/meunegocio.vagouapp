@@ -35,6 +35,19 @@ export async function syncSalonServiceToDatabase(
   const client = getDbClient();
   if (!client || !salonId) return null;
 
+  let resolvedSalonUuid = salonId;
+  if (!isValidUuid(salonId)) {
+    try {
+      const { data: sRow } = await (client.from('salons') as any).select('id').eq('slug', salonId).maybeSingle();
+      if (sRow?.id) {
+        resolvedSalonUuid = sRow.id;
+      } else {
+        const activeDbId = typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_db_id') : null;
+        if (isValidUuid(activeDbId)) resolvedSalonUuid = activeDbId!;
+      }
+    } catch {}
+  }
+
   const serviceId = isValidUuid(service.id) ? String(service.id) : generateUuidV4();
   const firstPhoto =
     (service.photos && service.photos.length > 0 ? service.photos[0] : null) ||
@@ -42,7 +55,7 @@ export async function syncSalonServiceToDatabase(
 
   const basePayload: Record<string, any> = {
     id: serviceId,
-    salon_id: salonId,
+    salon_id: resolvedSalonUuid,
     name: service.name,
     title: service.name,
     category: service.category || 'Geral',

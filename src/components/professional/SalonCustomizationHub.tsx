@@ -60,6 +60,17 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
 
   const [selectedCard, setSelectedCard] = useState<ManagementCardId | null>(initialCard);
 
+  React.useEffect(() => {
+    if (initialSubTab === 'servicos') setSelectedCard('servicos');
+    else if (initialSubTab === 'equipe') setSelectedCard('equipe');
+    else if (initialSubTab === 'espaco') setSelectedCard('espaco');
+    else if (initialSubTab === 'dados') setSelectedCard('dados');
+    else if (initialSubTab === 'visual') setSelectedCard('visual');
+    else if (initialSubTab === 'financeiro') setSelectedCard('financeiro');
+    else if (initialSubTab === 'utilidades') setSelectedCard('utilidades');
+    else if (initialSubTab === 'hub') setSelectedCard(null);
+  }, [initialSubTab]);
+
   const getAccentBadge = (colorHex?: string) => {
     if (!colorHex) return 'Esmeralda';
     const c = colorHex.toLowerCase();

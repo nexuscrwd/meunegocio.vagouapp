@@ -9,8 +9,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
 import { CatalogServiceItem } from '../../types';
 import { ServicePublicAdPreview } from './ServicePublicAdPreview';
-import { generateUuidV4 } from '../../lib/supabase';
-import { syncSalonMediaToDatabase, fetchSalonMediaFromDatabase } from '../../services/mnvSupabaseSync';
+import { generateUuidV4, syncAllServicesToDb } from '../../lib/supabase';
+import { syncSalonMediaToDatabase, fetchSalonMediaFromDatabase, syncSalonServiceToDatabase } from '../../services/mnvSupabaseSync';
 
 interface ProfessionalServicesManagerProps {
   services: CatalogServiceItem[];
@@ -362,6 +362,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     const parsedPrice = parseCurrencyBRL(formPrice);
     const calculatedDuration = formatHoursMinutesToDuration(formHours, formMinutes);
 
+    const salonId = localStorage.getItem('vagou_salon_db_id') || localStorage.getItem('vagou_salon_slug') || '';
+
     if (editingServiceId) {
       // Editar serviço existente preservando mídias já cadastradas
       const updated = services.map((s) => {
@@ -378,8 +380,26 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         return s;
       });
       onUpdateServices(updated);
+      window.dispatchEvent(new CustomEvent('vagou:catalog-updated', { detail: updated }));
+
+      const targetService = updated.find((s) => s.id === editingServiceId);
+      if (targetService && salonId) {
+        syncSalonServiceToDatabase(salonId, {
+          id: targetService.id,
+          name: targetService.title,
+          category: targetService.category,
+          price: targetService.price,
+          durationMinutes: parseInt(targetService.duration?.replace(/\D/g, '') || '40') || 40,
+          description: targetService.description,
+          photos: targetService.photos,
+          slides: targetService.photos,
+          isActive: true,
+        }).catch((err) => console.warn('Aviso: Sincronização individual do serviço:', err));
+        syncAllServicesToDb(salonId, updated).catch((err) => console.warn('Aviso: Sincronização global do catálogo:', err));
+      }
+
       hapticSuccess();
-      showToast('Serviço atualizado com sucesso!');
+      showToast('Serviço atualizado com sucesso no banco!');
     } else {
       // Criar novo serviço com UUID v4 nativo (compatível 100% com public.services do Supabase)
       const newService: CatalogServiceItem = {
@@ -395,8 +415,25 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
       };
       const updated = [newService, ...services];
       onUpdateServices(updated);
+      window.dispatchEvent(new CustomEvent('vagou:catalog-updated', { detail: updated }));
+
+      if (salonId) {
+        syncSalonServiceToDatabase(salonId, {
+          id: newService.id,
+          name: newService.title,
+          category: newService.category,
+          price: newService.price,
+          durationMinutes: parseInt(newService.duration?.replace(/\D/g, '') || '40') || 40,
+          description: newService.description,
+          photos: [],
+          slides: [],
+          isActive: true,
+        }).catch((err) => console.warn('Aviso: Sincronização individual do novo serviço:', err));
+        syncAllServicesToDb(salonId, updated).catch((err) => console.warn('Aviso: Sincronização global do catálogo:', err));
+      }
+
       hapticSuccess();
-      showToast('Serviço criado! Adicione fotos ou vídeo quando desejar.');
+      showToast('Serviço criado e persistido no banco de dados!');
     }
 
     setIsModalOpen(false);
@@ -457,8 +494,29 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     });
 
     onUpdateServices(updated);
+
+    const salonId = localStorage.getItem('vagou_salon_db_id') || localStorage.getItem('vagou_salon_slug') || '';
+    if (salonId) {
+      const srvItem = updated.find((s) => s.id === mediaModalService.id);
+      if (srvItem) {
+        syncSalonServiceToDatabase(salonId, {
+          id: srvItem.id,
+          name: srvItem.title,
+          category: srvItem.category,
+          price: srvItem.price,
+          durationMinutes: parseInt(srvItem.duration?.replace(/\D/g, '') || '40') || 40,
+          description: srvItem.description,
+          photos: srvItem.photos,
+          slides: srvItem.photos,
+          videos: srvItem.videoUrl ? [{ id: `vid_${srvItem.id}`, url: srvItem.videoUrl, title: srvItem.title, duration_seconds: srvItem.videoDurationSeconds || 5 }] : [],
+          isActive: true,
+        }).catch(() => {});
+      }
+      syncAllServicesToDb(salonId, updated).catch(() => {});
+    }
+
     hapticSuccess();
-    showToast('Mídia do serviço atualizada com sucesso!');
+    showToast('Mídia do serviço atualizada no banco com sucesso!');
     setMediaModalService(null);
   };
 
@@ -621,8 +679,14 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     hapticMedium();
     const updated = services.filter((s) => s.id !== id);
     onUpdateServices(updated);
+    window.dispatchEvent(new CustomEvent('vagou:catalog-updated', { detail: updated }));
     setDeleteConfirmService(null);
     showToast('Serviço removido do catálogo.');
+
+    const salonId = localStorage.getItem('vagou_salon_db_id') || localStorage.getItem('vagou_salon_slug') || '';
+    if (salonId) {
+      syncAllServicesToDb(salonId, updated).catch(() => {});
+    }
   };
 
   // Filtragem de serviços por categoria

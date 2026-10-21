@@ -1097,19 +1097,15 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <h3 className="text-sm font-bold truncate">{profile.name}</h3>
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${
                         isGerMode
                           ? (isProAdmin ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-blue-500/20 text-blue-400 border-blue-500/30')
-                          : isSalonLoggedIn
-                          ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
                           : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
                       }`}>
                         {isGerMode
                           ? (isProAdmin ? 'Proprietário' : 'Equipe Pro')
-                          : isSalonLoggedIn
-                          ? 'Dono (Visão Cliente)'
                           : 'Cliente'}
                       </span>
                     </div>
