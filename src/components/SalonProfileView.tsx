@@ -31,6 +31,7 @@ import { BottomNav } from './BottomNav';
 import { ProfileDrawer } from './ProfileDrawer';
 import { SalonClientAuthModal } from './SalonClientAuthModal';
 import { hapticSuccess, hapticLight, hapticMedium } from '../utils/haptics';
+import { getSectionHeaderStyleData } from '../utils/sectionHeaderStyle';
 import { syncAllLocalUtilitiesToDatabase } from '../services/mnvSupabaseSync';
 import { 
   supabase, 
@@ -1269,6 +1270,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   }, [userName]);
 
   const [activeTab, setActiveTab] = useState<'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout'>('home');
+  const [previewTestTab, setPreviewTestTab] = useState<'home' | 'servicos' | 'vagas' | 'espaco'>('home');
 
   // Reset de abas de gestão seguro: NÃO reseta enquanto role === 'loading'
   useEffect(() => {
@@ -2043,6 +2045,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     setEspacoSlideIndex((prev) => (prev - 1 + 3) % 3);
   };
 
+  const sectionHeaderStyleData = useMemo(() => {
+    return getSectionHeaderStyleData(adminSettings, isDark);
+  }, [adminSettings, isDark]);
+
   if (isLoadingSalon && hasActiveSubdomain) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-slate-950 font-['Poppins']">
@@ -2059,7 +2065,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         className={`sticky top-0 z-40 ${isDark ? 'bg-[#151A1E]/95 border-slate-800/80' : 'bg-white/95 border-slate-200/90 shadow-xs'} backdrop-blur-md border-b px-2 sm:px-4 shadow-md flex items-center justify-between gap-1.5 sm:gap-3 transition-colors h-14 sm:h-16 overflow-hidden shrink-0 w-full max-w-full`}
       >
         {/* Lado Esquerdo: Botão Voltar (quando aberto via Radar) + Logotipia / Logo do Salão no Cabeçalho */}
-        <div className="h-full min-w-0 flex items-center gap-1.5 shrink overflow-hidden">
+        <div className="h-full min-w-0 flex items-center justify-start gap-1 shrink overflow-hidden">
           {onBack && (
             <button
               onClick={onBack}
@@ -2076,41 +2082,29 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           )}
           <div 
             onClick={() => handleSelectTab('home')}
-            className="h-full min-w-0 max-w-[180px] xs:max-w-[210px] sm:max-w-[260px] pl-1 pr-0.5 flex items-center gap-2 shrink select-none cursor-pointer overflow-hidden"
+            style={{ padding: '0px' }}
+            className="h-full min-w-0 max-w-[220px] xs:max-w-[260px] sm:max-w-[320px] flex items-center justify-start gap-1 shrink select-none cursor-pointer overflow-hidden"
             title={salonInfo.name}
           >
-          {activeLogo ? (
-            <div className="flex flex-col justify-center min-w-0">
+          {activeLogo || adminSettings.salonIcon ? (
+            <div className="h-full flex items-center justify-start min-w-0">
               <img 
-                src={activeLogo} 
+                src={activeLogo || adminSettings.salonIcon} 
                 alt={salonInfo.name}
-                className="max-h-7 sm:max-h-8.5 w-auto max-w-full object-contain object-left shrink-0"
+                className="h-full max-h-12 sm:max-h-14 w-auto object-contain object-left shrink-0 py-1"
               />
-              {adminSettings.showSlogan !== false && adminSettings.slogan && (
-                <span className="text-[9px] sm:text-[10px] font-medium text-slate-400 truncate leading-none mt-0.5">
-                  {adminSettings.slogan}
-                </span>
-              )}
             </div>
           ) : (
-            <div className="flex items-center gap-2 min-w-0">
-              {adminSettings.salonIcon ? (
-                <img
-                  src={adminSettings.salonIcon}
-                  alt={salonInfo.name}
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-[4px] object-cover shrink-0 border border-slate-700/60"
-                />
-              ) : (
-                <div
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-[4px] flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-xs"
-                  style={{
-                    backgroundColor: adminSettings.navActiveColor || adminSettings.accentColor || '#20C933',
-                    fontFamily: activeBrandFontFamily,
-                  }}
-                >
-                  {(adminSettings.logoTextFallback || salonInfo.name).slice(0, 2).toUpperCase()}
-                </div>
-              )}
+            <div className="flex items-center justify-start gap-1.5 min-w-0">
+              <div
+                className="w-8 h-8 rounded-[4px] flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-xs"
+                style={{
+                  backgroundColor: adminSettings.navActiveColor || adminSettings.accentColor || '#20C933',
+                  fontFamily: activeBrandFontFamily,
+                }}
+              >
+                {(adminSettings.logoTextFallback || salonInfo.name).slice(0, 2).toUpperCase()}
+              </div>
               <div className="flex flex-col justify-center min-w-0">
                 <span
                   style={{ 
@@ -2123,11 +2117,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 >
                   {adminSettings.logoTextFallback || salonInfo.name}
                 </span>
-                {adminSettings.showSlogan !== false && adminSettings.slogan && (
-                  <span className="text-[9px] sm:text-[10px] font-medium text-slate-400 truncate leading-tight">
-                    {adminSettings.slogan}
-                  </span>
-                )}
               </div>
             </div>
           )}
@@ -2136,46 +2125,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
         {/* Lado Direito: Badge de Proprietário + Compartilhar + Foto do Usuário */}
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
-          {/* Indicador e Alternador de Modo Ativo (Modo Gestão ⇄ Modo Cliente) */}
-          {isSalonLoggedIn && (
-            <button
-              type="button"
-              onClick={() => {
-                hapticLight();
-                setIsPublicPreviewMode((prev) => {
-                  const next = !prev;
-                  setActiveTab('home');
-                  return next;
-                });
-              }}
-              className={`h-8 sm:h-9 px-2.5 sm:px-3 rounded-[4px] flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition active:scale-95 cursor-pointer shadow-xs ${
-                !isPublicPreviewMode
-                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white border border-emerald-400'
-                  : isDark
-                  ? 'bg-slate-900/90 hover:bg-slate-800 text-emerald-400 hover:text-emerald-300 border border-emerald-500/40'
-                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300'
-              }`}
-              title={
-                isPublicPreviewMode
-                  ? 'Modo Cliente ativo (toque para alternar para Modo Gestão)'
-                  : 'Modo Gestão ativo (toque para alternar para Modo Cliente)'
-              }
-              aria-label={isPublicPreviewMode ? 'Modo Cliente ativo' : 'Modo Gestão ativo'}
-            >
-              {isPublicPreviewMode ? (
-                <>
-                  <Eye className="w-3.5 h-3.5 shrink-0" style={{ color: effectiveAccentColor }} />
-                  <span>Modo Cliente</span>
-                </>
-              ) : (
-                <>
-                  <LayoutDashboard className="w-3.5 h-3.5 text-white shrink-0" />
-                  <span className="text-white">Modo Gestão</span>
-                </>
-              )}
-            </button>
-          )}
-
           {/* Botão Compartilhar Perfil (Web Share API) */}
           <button
             type="button"
@@ -2565,18 +2514,16 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           className="w-full h-full min-h-full shrink-0 snap-start snap-always snap-section overflow-hidden flex flex-col justify-between"
         >
           {/* Subcabeçalho de Título da Seção: Serviços */}
-          <div className={`w-full shrink-0 px-3.5 py-2.5 border-b flex items-center justify-between transition-colors ${
-            isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-slate-100/95 border-slate-200'
-          }`}>
+          <div className={sectionHeaderStyleData.containerClass} style={sectionHeaderStyleData.containerStyle}>
             <div className="flex items-center gap-2">
-              <Scissors className="w-4 h-4 text-emerald-500 shrink-0" />
+              <Scissors className="w-4 h-4 shrink-0" style={sectionHeaderStyleData.iconStyle} />
               <h2 className={`text-xs sm:text-sm font-bold font-['Poppins'] ${
-                isDark ? 'text-white' : 'text-slate-900'
-              }`}>
+                !adminSettings.sectionHeaderTextColor ? (isDark ? 'text-white' : 'text-slate-900') : ''
+              }`} style={sectionHeaderStyleData.titleStyle}>
                 Catálogo de Serviços
               </h2>
             </div>
-            <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-[4px]">
+            <span className="text-[10px] font-bold border px-2 py-0.5 rounded-[4px]" style={sectionHeaderStyleData.badgeStyle}>
               {catalogServices.length} {catalogServices.length === 1 ? 'procedimento' : 'procedimentos'}
             </span>
           </div>
@@ -2818,6 +2765,21 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           data-tab-id="vagas"
           className="w-full h-full min-h-full shrink-0 snap-start snap-always snap-section overflow-hidden flex flex-col justify-start"
         >
+          {/* Subcabeçalho de Título da Seção: Agendamento */}
+          <div className={sectionHeaderStyleData.containerClass} style={sectionHeaderStyleData.containerStyle}>
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 shrink-0" style={sectionHeaderStyleData.iconStyle} />
+              <h2 className={`text-xs sm:text-sm font-bold font-['Poppins'] ${
+                !adminSettings.sectionHeaderTextColor ? (isDark ? 'text-white' : 'text-slate-900') : ''
+              }`} style={sectionHeaderStyleData.titleStyle}>
+                Agendamento & Vagas
+              </h2>
+            </div>
+            <span className="text-[10px] font-bold border px-2 py-0.5 rounded-[4px]" style={sectionHeaderStyleData.badgeStyle}>
+              Reserva On-line
+            </span>
+          </div>
+
               <div className="flex-1 min-h-0 flex flex-col justify-start overflow-hidden w-full">
                 <SalonBookingModal
                   isOpen={true}
@@ -2856,18 +2818,16 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           className="w-full h-full min-h-full shrink-0 snap-start snap-always snap-section overflow-hidden flex flex-col justify-start"
         >
           {/* Subcabeçalho de Título da Seção: Espaço */}
-          <div className={`w-full shrink-0 px-3.5 py-2.5 border-b flex items-center justify-between transition-colors ${
-            isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-slate-100/95 border-slate-200'
-          }`}>
+          <div className={sectionHeaderStyleData.containerClass} style={sectionHeaderStyleData.containerStyle}>
             <div className="flex items-center gap-2">
-              <Store className="w-4 h-4 text-emerald-500 shrink-0" />
+              <Store className="w-4 h-4 shrink-0" style={sectionHeaderStyleData.iconStyle} />
               <h2 className={`text-xs sm:text-sm font-bold font-['Poppins'] ${
-                isDark ? 'text-white' : 'text-slate-900'
-              }`}>
+                !adminSettings.sectionHeaderTextColor ? (isDark ? 'text-white' : 'text-slate-900') : ''
+              }`} style={sectionHeaderStyleData.titleStyle}>
                 Espaço, Equipe & Localização
               </h2>
             </div>
-            <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-[4px]">
+            <span className="text-[10px] font-bold border px-2 py-0.5 rounded-[4px]" style={sectionHeaderStyleData.badgeStyle}>
               Conheça o local
             </span>
           </div>
@@ -3251,33 +3211,50 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       )}
 
       {/* Barra de Navegação Inferior Nativa do Estabelecimento (4 Abas: Início/Painel, Serviços/Gestão, Agendar/Agenda, Espaço/Gerenciar) */}
-      <footer className={`w-full z-30 shrink-0 ${
-        adminSettings.navBgStyle === 'transparent' || adminSettings.navBgStyle === 'glass'
-          ? '-mt-[66px] pointer-events-none'
-          : ''
-      }`}>
-        <div className="pointer-events-auto w-full">
-          <BottomNav
-            activeTab={activeTab}
-            onSelectTab={handleSelectTab}
-            spaceTabLabel={spaceTabLabel}
-            SpaceIcon={SpaceIcon}
-            ServicesIcon={ServicesIcon}
-            isProfessionalMode={isGerMode}
-            currentPersona={currentPersona}
-            isProAdmin={isActiveProAdmin}
-            isOwnerOrManager={isGerMode}
-            isProfessionalStaff={isGerMode && isProfessional}
-            navStyle={adminSettings.navStyle || 'minimal'}
-            navShape={adminSettings.navShape || 'square'}
-            navBorder={adminSettings.navBorder || 'bordered'}
-            navBgStyle={adminSettings.navBgStyle || 'glass'}
-            navBgColor={adminSettings.navBgColor}
-            navActiveColor={adminSettings.navActiveColor || '#10b981'}
-            navTextColor={adminSettings.navTextColor}
-          />
-        </div>
-      </footer>
+      {(() => {
+        const isEditingMode = isGerMode && [
+          'personalizar', 'preferencias', 'dados', 'visual', 'layout', 'servicos', 'espaco', 'equipe'
+        ].includes(activeTab);
+
+        return (
+          <footer className={`w-full z-30 shrink-0 ${
+            adminSettings.navBgStyle === 'transparent' || adminSettings.navBgStyle === 'glass'
+              ? '-mt-[66px] pointer-events-none'
+              : ''
+          }`}>
+            <div className="pointer-events-auto w-full">
+              <BottomNav
+                activeTab={isEditingMode ? previewTestTab : activeTab}
+                onSelectTab={(tab) => {
+                  if (isEditingMode) {
+                    hapticLight();
+                    setPreviewTestTab(tab as any);
+                    return;
+                  }
+                  handleSelectTab(tab);
+                }}
+                spaceTabLabel={spaceTabLabel}
+                SpaceIcon={SpaceIcon}
+                ServicesIcon={ServicesIcon}
+                isProfessionalMode={isEditingMode ? false : isGerMode}
+                currentPersona={isEditingMode ? 'cliente' : currentPersona}
+                isProAdmin={isEditingMode ? false : isActiveProAdmin}
+                isOwnerOrManager={isEditingMode ? false : isGerMode}
+                isProfessionalStaff={isEditingMode ? false : (isGerMode && isProfessional)}
+                navStyle={adminSettings.navStyle || 'minimal'}
+                navShape={adminSettings.navShape || 'square'}
+                navBorder={adminSettings.navBorder || 'bordered'}
+                navBgStyle={adminSettings.navBgStyle || 'glass'}
+                navBgColor={adminSettings.navBgColor}
+                navBtnBgColor={adminSettings.navBtnBgColor}
+                navBtnActiveBgColor={adminSettings.navBtnActiveBgColor}
+                navActiveColor={adminSettings.navActiveColor || '#10b981'}
+                navTextColor={adminSettings.navTextColor}
+              />
+            </div>
+          </footer>
+        );
+      })()}
 
       {/* 2. MODAL DE AGENDAMENTO CONFIRMADO (DENTRO DA SEÇÃO DO ESTABELECIMENTO) */}
       {confirmedBookingData && (

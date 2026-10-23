@@ -113,10 +113,10 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
       isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
     }`}>
       {/* 1. CABEÇALHO UNIFICADO DA SEÇÃO CAIXA */}
-      <header className={`px-4 py-3 border-b shrink-0 flex items-center justify-between gap-2 transition-colors ${
-        isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+      <header className={`w-full shrink-0 px-3.5 py-2.5 min-h-[44px] border-b flex items-center justify-between gap-2 transition-colors z-20 ${
+        isDark ? 'bg-slate-900/95 border-slate-800 text-slate-100' : 'bg-slate-100/95 border-slate-200 text-slate-900 shadow-xs'
       }`}>
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
           {onBack && (
             <button
               type="button"
@@ -125,21 +125,23 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
                 hapticLight();
                 onBack();
               }}
-              className={`p-1.5 rounded border transition active:scale-95 cursor-pointer shrink-0 ${
+              className={`p-1.5 rounded-[4px] transition active:scale-95 cursor-pointer shrink-0 ${
                 isDark 
-                  ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' 
-                  : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' 
+                  : 'bg-slate-200/80 hover:bg-slate-200 text-slate-700'
               }`}
               title="Voltar ao Painel"
               aria-label="Voltar"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4 text-emerald-500" />
             </button>
           )}
 
-          <h1 className="text-sm font-bold font-['Poppins'] tracking-tight truncate">
-            Financeiro & Caixa
-          </h1>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h1 className="text-xs sm:text-sm font-bold font-['Poppins'] tracking-tight truncate">
+              Financeiro & Caixa
+            </h1>
+          </div>
         </div>
       </header>
 

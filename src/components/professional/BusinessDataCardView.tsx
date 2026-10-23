@@ -12,6 +12,7 @@ import {
   SalonProfessionalItem 
 } from '../../types';
 import { hapticSuccess, hapticLight, hapticMedium } from '../../utils/haptics';
+import { getSectionHeaderStyleData } from '../../utils/sectionHeaderStyle';
 
 export type BusinessDataTabId = 'comercial' | 'horarios' | 'endereco' | 'contato';
 
@@ -687,15 +688,20 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
   const showEndereco = activeSubTab === 'endereco';
   const showContato = activeSubTab === 'contato';
 
+  const sectionHeaderStyleData = useMemo(() => {
+    return getSectionHeaderStyleData(adminSettings, isDark);
+  }, [adminSettings, isDark]);
+
   return (
     <div className={`w-full h-full flex flex-col justify-between overflow-y-auto no-scrollbar ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
       {/* Barra de Topo Fixa */}
-      <div className={`px-3 py-2.5 border-b shrink-0 flex flex-col gap-2 sticky top-0 z-30 ${
-        isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-xs'
-      }`}>
-        <div className="flex items-center justify-between gap-2">
+      <div 
+        className={`${sectionHeaderStyleData.containerClass} flex-col gap-2`}
+        style={sectionHeaderStyleData.containerStyle}
+      >
+        <div className="flex items-center justify-between gap-2 w-full">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -708,11 +714,11 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
               }`}
               title="Voltar"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4" style={sectionHeaderStyleData.iconStyle} />
             </button>
             <div className="flex items-center gap-1.5">
-              <Building2 className="w-4 h-4 text-emerald-500 shrink-0" />
-              <h2 className="text-xs sm:text-sm font-bold font-['Poppins']">
+              <Building2 className="w-4 h-4 shrink-0" style={sectionHeaderStyleData.iconStyle} />
+              <h2 className="text-xs sm:text-sm font-bold font-['Poppins']" style={sectionHeaderStyleData.titleStyle}>
                 Dados do Negócio
               </h2>
             </div>
@@ -787,7 +793,11 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                     type="text"
                     required
                     value={salonName}
-                    onChange={(e) => setSalonName(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSalonName(val);
+                      onUpdateSettings({ salonName: val });
+                    }}
                     placeholder="Ex: Rota 99 Barbearia"
                     className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
                       isDark 
@@ -804,7 +814,11 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                   </label>
                   <select
                     value={category}
-                    onChange={(e) => setCategory(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCategory(val);
+                      onUpdateSettings({ category: val });
+                    }}
                     className={`w-full px-3 py-2 rounded-[4px] border text-xs font-semibold outline-hidden transition ${
                       isDark 
                         ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 

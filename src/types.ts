@@ -289,9 +289,28 @@ export interface SalonAdminSettings {
   navBorder?: 'bordered' | 'none'; // Botão com borda ou sem borda
   navBgStyle?: 'solid' | 'glass' | 'transparent'; // Fundo do rodapé: sólido, alpha-vidro jateado, alpha 100% (transparente)
   navBgColor?: string; // Cor personalizada do fundo do rodapé
+  navBtnBgColor?: string; // Cor personalizada do fundo dos botões (inativos / base)
+  navBtnActiveBgColor?: string; // Cor personalizada do fundo do botão quando ativo
   navActiveColor?: string; // Cor personalizada de destaque da navegação inferior (ícone e texto ativos)
   navTextColor?: string; // Cor personalizada do texto e ícones (inativos / base)
+  navBtnShadow?: 'none' | 'subtle' | 'medium' | 'glow'; // Efeito de sombra nos botões da barra de navegação
+  navBtnBlur?: 'none' | 'sm' | 'md' | 'lg'; // Efeito de blur/desfoque nos botões da barra de navegação
+  navBtnFont?: 'Poppins' | 'Inter' | 'Plus Jakarta Sans' | 'Oswald' | 'Cormorant Garamond' | string; // Fonte dos botões da navegação
   welcomeStyle?: 'atmospheric' | 'glass'; // Estilo da faixa de boas-vindas na seção Início
+
+  // Personalização da Barra de Título das Seções (Subcabeçalhos) & Botões
+  sectionHeaderBgColor?: string; // Cor de fundo da barra de título das seções
+  sectionHeaderTextColor?: string; // Cor do texto do título das seções
+  sectionHeaderIconColor?: string; // Cor dos ícones de destaque das seções
+  sectionHeaderBgStyle?: 'solid' | 'glass' | 'transparent'; // Estilo do fundo da barra de título
+  sectionHeaderBorder?: 'bordered' | 'none'; // Borda inferior da barra de título
+  sectionHeaderBtnBgColor?: string; // Cor do fundo dos botões/crachás da barra de títulos
+  sectionHeaderBtnActiveBgColor?: string; // Cor do fundo do botão/crachá ativo da barra de títulos
+  sectionHeaderBtnBorder?: 'bordered' | 'none'; // Borda dos botões/crachás da barra de títulos
+  sectionHeaderBtnShadow?: 'none' | 'subtle' | 'medium' | 'glow'; // Efeito de sombra nos botões/crachás
+  sectionHeaderBtnBlur?: 'none' | 'sm' | 'md' | 'lg'; // Efeito de blur/desfoque nos botões/crachás
+  sectionHeaderBtnFont?: 'Poppins' | 'Inter' | 'Plus Jakarta Sans' | 'Oswald' | 'Cormorant Garamond' | string; // Fonte dos botões da barra de títulos
+
   bio?: string;       // História/apresentação do espaço (preenchida pós-cadastro no painel do salão)
   websiteUrl?: string; // Site oficial do estabelecimento
   instagramUrl?: string; // @instagram ou URL

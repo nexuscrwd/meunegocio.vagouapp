@@ -8,6 +8,7 @@ import { SalonAdminSettings } from '../../types';
 import { hapticSuccess, hapticLight } from '../../utils/haptics';
 import { updateDynamicPwaAssets } from '../../utils/pwaAssets';
 import { compressImageFile } from '../../utils/imageCompressor';
+import { getSectionHeaderStyleData } from '../../utils/sectionHeaderStyle';
 
 export interface VisualIdentityCardViewProps {
   adminSettings: SalonAdminSettings;
@@ -209,14 +210,27 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
     }
   };
 
+  const autoSyncSettings = (updates: Partial<SalonAdminSettings>) => {
+    try {
+      onUpdateSettings(updates);
+    } catch {
+      // ignore
+    }
+  };
+
+  const sectionHeaderStyleData = React.useMemo(() => {
+    return getSectionHeaderStyleData(adminSettings, isDark);
+  }, [adminSettings, isDark]);
+
   return (
     <div className={`w-full h-full flex flex-col justify-between overflow-y-auto ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
       {/* Topo com botão voltar */}
-      <div className={`px-3 py-2.5 border-b shrink-0 flex items-center justify-between gap-2 sticky top-0 z-30 ${
-        isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-xs'
-      }`}>
+      <div 
+        className={sectionHeaderStyleData.containerClass}
+        style={sectionHeaderStyleData.containerStyle}
+      >
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -229,11 +243,11 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
             }`}
             title="Voltar ao Gerenciamento"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4" style={sectionHeaderStyleData.iconStyle} />
           </button>
           <div className="flex items-center gap-1.5">
-            <Palette className="w-4 h-4 text-emerald-500 shrink-0" />
-            <h2 className="text-xs sm:text-sm font-bold font-['Poppins']">
+            <Palette className="w-4 h-4 shrink-0" style={sectionHeaderStyleData.iconStyle} />
+            <h2 className="text-xs sm:text-sm font-bold font-['Poppins']" style={sectionHeaderStyleData.titleStyle}>
               Identidade Visual
             </h2>
           </div>
@@ -581,7 +595,6 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
                 />
               </div>
             </div>
-
           </div>
         </div>
 
@@ -759,7 +772,11 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
               type="text"
               maxLength={60}
               value={slogan}
-              onChange={(e) => setSlogan(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSlogan(val);
+                autoSyncSettings({ slogan: val });
+              }}
               placeholder="Ex: Especialistas em cortes clássicos e visagismo"
               className={`w-full px-3 py-2 rounded border text-xs font-medium outline-hidden transition ${
                 isDark 
@@ -784,6 +801,7 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
                     onClick={() => {
                       hapticLight();
                       setBrandFont(font.id);
+                      autoSyncSettings({ brandFont: font.id });
                     }}
                     className={`p-2.5 rounded border text-left transition cursor-pointer flex items-center justify-between gap-2 ${
                       isSelected
@@ -819,36 +837,6 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
                 );
               })}
             </div>
-          </div>
-
-          {/* Preview ao Vivo do Cabeçalho com Fonte e Slogan */}
-          <div className={`p-3 rounded border flex items-center gap-2.5 ${
-            isDark ? 'bg-[#151A1E] border-slate-800' : 'bg-slate-100 border-slate-200'
-          }`}>
-            {salonIcon ? (
-              <img src={salonIcon} alt="Ícone" className="w-8 h-8 rounded-lg object-cover shrink-0" />
-            ) : (
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
-                style={{ backgroundColor: accentColor, fontFamily: activeBrandFontFamily }}
-              >
-                {(salonName || 'VG').slice(0, 2).toUpperCase()}
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <span
-                className={`text-sm font-extrabold block truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}
-                style={{ fontFamily: activeBrandFontFamily }}
-              >
-                {salonName || 'Meu Salão'}
-              </span>
-              <span className="text-[10px] text-slate-400 block truncate leading-tight font-['Poppins']">
-                {slogan || 'Seu slogan curto aparecerá aqui no cabeçalho'}
-              </span>
-            </div>
-            <span className="text-[8.5px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500 text-white shrink-0">
-              Ao Vivo
-            </span>
           </div>
         </div>
 

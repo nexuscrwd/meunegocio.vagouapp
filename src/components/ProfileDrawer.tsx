@@ -6,7 +6,7 @@ import {
   Scissors, LayoutDashboard, LogOut, Users, DollarSign, Wrench, Wallet,
   ArrowLeftRight, AlertCircle, RotateCcw, Timer, Ban, HelpCircle, Info, Layers,
   Camera, Upload, Eye, Plus, Trash2, UserPlus, Navigation, Package, Map as MapIcon, Bell, Bookmark,
-  Building2, Palette, Sliders, LayoutGrid
+  Building2, Palette, Sliders, LayoutGrid, Store
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../utils/haptics';
@@ -1183,11 +1183,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-[4px] bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                            <Eye className="w-4 h-4 text-emerald-400" />
+                            <LayoutDashboard className="w-4 h-4 text-emerald-400" />
                           </div>
                           <div>
-                            <div className="text-xs font-bold font-['Poppins']">Ver Vitrine como Cliente</div>
-                            <div className="text-[11px] opacity-80">Navegar exatamente como o cliente vê seu salão</div>
+                            <div className="text-xs font-bold font-['Poppins']">GESTÃO</div>
                           </div>
                         </div>
                         <ChevronRight className="w-4 h-4 opacity-70" />
@@ -1358,11 +1357,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-[4px] bg-white/20 flex items-center justify-center text-white shrink-0">
-                            <LayoutDashboard className="w-4 h-4 text-white" />
+                            <Store className="w-4 h-4 text-white" />
                           </div>
                           <div className="text-left">
-                            <div className="text-white font-bold font-['Poppins']">Retornar ao Modo Gestão</div>
-                            <div className="text-[11px] text-white/90">Voltar ao painel administrativo do salão</div>
+                            <div className="text-white font-bold font-['Poppins']">VITRINE</div>
                           </div>
                         </div>
                         <ChevronRight className="w-4 h-4 text-white" />

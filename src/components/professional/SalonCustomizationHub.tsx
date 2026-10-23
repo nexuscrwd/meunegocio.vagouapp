@@ -18,6 +18,7 @@ import { TeamManager } from './TeamManager';
 import { ProfessionalSpaceManager } from './ProfessionalSpaceManager';
 import { FinancialManagerView } from './FinancialManagerView';
 import { UtilitiesAndToolsView } from './UtilitiesAndToolsView';
+import { getSectionHeaderStyleData } from '../../utils/sectionHeaderStyle';
 
 export type ManagementCardId = 'dados' | 'visual' | 'layout' | 'servicos' | 'equipe' | 'espaco' | 'financeiro' | 'utilidades';
 
@@ -73,6 +74,10 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
     else if (initialSubTab === 'utilidades') setSelectedCard('utilidades');
     else if (initialSubTab === 'hub') setSelectedCard(null);
   }, [initialSubTab]);
+
+  const sectionHeaderStyleData = React.useMemo(() => {
+    return getSectionHeaderStyleData(adminSettings, isDark);
+  }, [adminSettings, isDark]);
 
   const getAccentBadge = (colorHex?: string) => {
     if (!colorHex) return 'Esmeralda';
@@ -367,9 +372,10 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
       isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
     }`}>
       {/* Cabeçalho Fixo do Gerenciamento */}
-      <div className={`px-3.5 py-3 border-b shrink-0 flex items-center justify-between gap-2 sticky top-0 z-30 ${
-        isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-xs'
-      }`}>
+      <div 
+        className={sectionHeaderStyleData.containerClass}
+        style={sectionHeaderStyleData.containerStyle}
+      >
         <div className="flex items-center gap-2 min-w-0">
           {onBack && (
             <button
@@ -384,12 +390,12 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
               title="Voltar ao Painel"
               aria-label="Voltar ao Painel"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4" style={sectionHeaderStyleData.iconStyle} />
             </button>
           )}
           <div className="flex items-center gap-1.5 min-w-0">
-            <Sliders className="w-4 h-4 text-emerald-500 shrink-0" />
-            <h1 className="text-xs sm:text-sm font-bold font-['Poppins'] tracking-tight truncate">
+            <Sliders className="w-4 h-4 shrink-0" style={sectionHeaderStyleData.iconStyle} />
+            <h1 className="text-xs sm:text-sm font-bold font-['Poppins'] tracking-tight truncate" style={sectionHeaderStyleData.titleStyle}>
               Preferências
             </h1>
           </div>

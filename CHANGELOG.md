@@ -15,6 +15,219 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-23] — Suporte Completo a `activeLogo` ou `salonIcon` na Exibição do Logo Responsivo no Cabeçalho (`src/components/SalonProfileView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Header Logo Rendering]`
+- **Motivo / Solicitação:** Correção para garantir que tanto `activeLogo` quanto `salonIcon` sejam exibidos como a imagem de logotipo principal preenchendo a altura do cabeçalho de forma responsiva, eliminando miniaturas em caixa com texto.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Unificação da Logo:** Atualizada a condição para renderizar a imagem full-height se `activeLogo` ou `adminSettings.salonIcon` estiverem presentes.
+
+### [2026-10-23] — Alinhamento à Esquerda e Padding Mínimo na Div de Logotipo do Cabeçalho (`src/components/SalonProfileView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Header Logo Alignment]`
+- **Motivo / Solicitação:** Solicitação do usuário para alinhar a div de logotipo à esquerda da div pai e minimizar o padding (`padding: 0px`).
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Alinhamento à Esquerda:** Aplicado `justify-start` tanto na div pai quanto na div de logotipo.
+  2. **Padding Mínimo:** Definido `padding: '0px'` na div de logotipo para eliminar qualquer margem interna desnecessária.
+
+### [2026-10-23] — Ampliação de 100% da Imagem do Logo Responsiva no Cabeçalho (`src/components/SalonProfileView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Header Logo Responsive]`
+- **Motivo / Solicitação:** Solicitação do usuário para aumentar a imagem do logo em 100% de forma responsiva dentro da div de logotipo (`h-full max-h-12 sm:max-h-14 w-auto object-contain object-left shrink-0 py-1`).
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Aumento Responsivo:** Ajustada a altura máxima da imagem (`max-h-12 sm:max-h-14`) e largura máxima do contêiner para preencher perfeitamente a altura da barra de cabeçalho.
+
+### [2026-10-23] — Otimização da Div de Logotipo no Cabeçalho (Sem Slogan & Padding Ajustado) (`src/components/SalonProfileView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Header Logo]`
+- **Motivo / Solicitação:** Atendimento à solicitação de focar na div de logotipo do cabeçalho para exibi-la exclusivamente com a imagem/ícone do logo, removendo o slogan e aplicando o espaçamento correto (`padding-left: 0px; padding-right: 10px;`).
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção de Slogan:** Removida a renderização condicional do slogan do cabeçalho.
+  2. **Espaçamento Aplicado:** Ajustado o `paddingLeft: '0px'` e `paddingRight: '10px'` no contêiner do logotipo.
+
+### [2026-10-22] — Ajuste Exato das Legendas do Botão de Alternância (VITRINE vs GESTÃO) (`src/components/ProfileDrawer.tsx`)
+- **Tipo:** `[Fix / UI-UX / ProfileDrawer]`
+- **Motivo / Solicitação:** Ajuste estrito solicitado pelo usuário para que a legenda do botão no menu lateral exiba exatamente **"VITRINE"** (somente isso) quando na visualização de cliente, e **"GESTÃO"** (somente isso) quando no modo de gestão.
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Modo Cliente (`!isGerMode`):** Legenda alterada para **"VITRINE"** (sem subtítulo).
+  2. **Modo Gestão (`isGerMode`):** Legenda alterada para **"GESTÃO"** (sem subtítulo).
+
+### [2026-10-22] — Adição de Editor Dedicado de Botões para a Barra de Títulos das Seções (`src/components/professional/LayoutCardView.tsx`)
+- **Tipo:** `[Feat / UI-UX / Style Editor / Section Header Buttons]`
+- **Motivo / Solicitação:** Atendimento à solicitação do usuário para incluir opções de edição de botões na barra de título idênticas às disponíveis na barra de navegação ("na barra de titulo pode ter botões, pois precisamos de opção para editar os botoes assim como ja temos na barra de navegação").
+- **Arquivos Impactados:**
+  - `src/components/professional/LayoutCardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Sub-seção `section_header` Expandida:** Adicionados seletores completos na aba de edição da Barra de Títulos das Seções em `LayoutCardView.tsx`:
+     - Cor de Fundo dos Botões da Barra
+     - Borda dos Botões (Com Borda vs Sem Borda)
+     - Efeito de Sombra nos Botões (Sem Sombra, Sutil, Moderada, Neon Glow)
+     - Efeito de Blur / Desfoque (Nenhum, Blur Leve 4px, Médio 8px, Forte 16px)
+     - Família da Fonte dos Botões (*Poppins*, *Inter*, *Plus Jakarta Sans*, *Oswald*, *Cormorant Garamond*)
+  2. **Sincronização em Tempo Real (`autoSyncSettings`):** Todas as alterações disparam atualizações instantâneas para os crachás e botões de cabeçalho do app em tempo real.
+
+### [2026-10-22] — Adição de Efeitos de Sombra, Blur (Desfoque) e Tipografia aos Botões (Navegação & Barra de Títulos) (`src/types.ts`, `src/utils/sectionHeaderStyle.ts`, `BottomNav.tsx`, `LayoutCardView.tsx`)
+- **Tipo:** `[Feat / UI-UX / Style Editor / Button Enhancements]`
+- **Motivo / Solicitação:** Atendimento à solicitação de fechar com chave de ouro o editor de botões (Fundo, Borda, Fonte), adicionando efeitos de sombra e blur tanto para o editor de navegação quanto para a barra de títulos ("agora pra fechar com chave de ouro o editor de botoes (Fundo, borda, fonte) tanto para o editor de navegação quento para o barra de titulo que os botões tenha tambem efeito de sobra e blur").
+- **Arquivos Impactados:**
+  - `src/types.ts`
+  - `src/utils/sectionHeaderStyle.ts`
+  - `src/components/BottomNav.tsx`
+  - `src/components/professional/LayoutCardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Tipagem Global (`src/types.ts`):** Adicionadas as propriedades de sombra (`navBtnShadow`, `sectionHeaderBtnShadow`), desfoque (`navBtnBlur`, `sectionHeaderBtnBlur`), e tipografia (`navBtnFont`, `sectionHeaderBtnFont`) ao tipo `SalonAdminSettings`.
+  2. **Motor de Estilização (`sectionHeaderStyle.ts` & `BottomNav.tsx`):**
+     - Computam dinamicamente sombras (`none`, `subtle`, `medium`, `glow` com efeito Neon na cor de destaque) e desfoque glassmorphism (`none`, `sm`, `lg`), além da família da fonte (`Poppins`, `Inter`, `Plus Jakarta Sans`, `Oswald`, `Cormorant Garamond`).
+  3. **Controles no Editor (`LayoutCardView.tsx`):**
+     - Integrados seletores interativos na sub-seção da Barra de Navegação Inferior para personalização em tempo real com propagação instantânea via `autoSyncSettings`.
+
+### [2026-10-22] — Replicação Estrita do Esquema de Edição da Barra de Navegação Inferior para a Barra de Títulos (`LayoutCardView.tsx`)
+- **Tipo:** `[Feat / UI-UX / Schema Parity / Style Editor]`
+- **Motivo / Solicitação:** Atendimento à solicitação do usuário para copiar 100% do esquema, estrutura, seletores e opções de edição utilizados na Barra de Navegação Inferior para a Barra de Títulos das Seções ("para edição de estilo da barra de titulo copie o esquema de edição que usamos da barra de navegação inferior").
+- **Arquivos Impactados:**
+  - `src/components/professional/LayoutCardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Sub-seção `section_header` em `LayoutCardView.tsx` Atualizada:** Atualizados os seletores, rótulos e layout para corresponder exatamente ao padrão da Barra de Navegação Inferior (`bottom_nav`).
+  2. **Opções Replicadas em Alta Precisão:**
+     - **Efeito do Fundo:** Cartões de escolha tripla (`solid` -> `Sólido` | `Opaco com preenchimento total`, `glass` -> `Alpha-Vidro Jateado` | `Translúcido com desfoque`, `transparent` -> `Alpha 100%` | `Totalmente transparente`).
+     - **Cor do Fundo da Barra:** Cabeçalho com rótulo + hex da cor + paleta de botões predefinidos (`BG_COLOR_PRESETS`) + seletor nativo `<input type="color">`.
+     - **Cor do Texto do Título:** Cabeçalho com rótulo + hex da cor + paleta de botões predefinidos (`TEXT_COLOR_PRESETS`) + seletor nativo `<input type="color">`.
+     - **Cor do Ícone de Destaque:** Cabeçalho com rótulo + hex da cor + paleta de botões predefinidos (`COLOR_PRESETS`) + seletor nativo `<input type="color">`.
+     - **Contorno de Borda:** Cartões de escolha dupla (`bordered` -> `Com Borda` | `Borda inferior delimitadora`, `none` -> `Sem Borda` | `Superfície sem divisor de borda`).
+  3. **Manutenção da Atualização em Tempo Real (`autoSyncSettings`):** Todas as escolhas continuam acionando a propagação instantânea para o estado global e refletindo na barra de títulos fixas (`sticky top-0 z-30`) em tempo real.
+
+### [2026-10-22] — Fixação Obrigatória da Barra de Título das Seções (`sticky top-0 z-30`) (`src/utils/sectionHeaderStyle.ts`, `LayoutCardView.tsx`, `BusinessDataCardView.tsx`, `VisualIdentityCardView.tsx`, `SalonCustomizationHub.tsx`, `SalonProfileView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Sticky Fixed Header]`
+- **Motivo / Solicitação:** Usuário solicitou que a barra de títulos das seções permaneça obrigatoriamente fixa no topo durante a rolagem do conteúdo ("perfeito, porem a barra de titulos deve ser fixa").
+- **Arquivos Impactados:**
+  - `src/utils/sectionHeaderStyle.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Adicionadas as classes `sticky top-0 z-30` à propriedade `containerClass` do gerador de estilos `getSectionHeaderStyleData` em `src/utils/sectionHeaderStyle.ts`.
+  2. A barra de títulos das seções do editor (`div` selecionada no Focus Mode) e de todas as abas públicas e de gestão (`#section-servicos`, `#section-vagas`, `#section-espaco`, `LayoutCardView`, `BusinessDataCardView`, `VisualIdentityCardView`, `SalonCustomizationHub`) agora permanece 100% fixa e sticky no topo da tela enquanto o conteúdo e os formulários rolam por baixo.
+
+### [2026-10-22] — Correção de Violamento da Regra dos Hooks em Renderização Condicional (`SalonCustomizationHub.tsx`, `SalonProfileView.tsx`, `BottomNav.tsx`)
+- **Tipo:** `[Fix / React Rules of Hooks / Stability]`
+- **Motivo / Solicitação:** Correção do erro de execução `Rendered fewer hooks than expected. This may be caused by an accidental early return statement.`.
+- **Causa Raiz Identificada:** Chamadas a hooks de React (`useMemo`) foram declaradas após instruções de retorno antecipado (`if (selectedCard === 'dados') return ...;`, `if (isLoadingSalon && hasActiveSubdomain) return ...;`, `if (!onSelectTab) return ...;`).
+- **Arquivos Impactados:**
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/BottomNav.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Realocadas todas as chamadas de hooks (`useMemo`, `useState`, `useEffect`) para o topo absoluto do corpo dos componentes, antes de qualquer condicional de renderização antecipada (`return ...;`).
+  2. Eliminada a duplicidade de invocação de hooks em renderizações condicionais, garantindo execução incondicional e ordem imutável de hooks em 100% dos fluxos de renderização do aplicativo.
+
+### [2026-10-22] — Vinculação Dinâmica da Barra de Título em Tempo Real nas Sub-telas de Gestão (`src/utils/sectionHeaderStyle.ts`, `LayoutCardView.tsx`, `VisualIdentityCardView.tsx`, `BusinessDataCardView.tsx`, `SalonCustomizationHub.tsx`, `SalonProfileView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Focus Mode / Real-Time Live Binding]`
+- **Motivo / Solicitação:** Usuário identificou através da seleção do elemento no Focus Mode (`div#root ... > div:nth-of-type(1)`) que a barra de títulos das sub-seções de gestão e do editor não refletia visualmente as alterações de cor e estilo em tempo real ("A div barra de titulos não sofre alteração em tempo real como solicitado").
+- **Causa Raiz Identificada:** A barra de topo fixa (`px-3.5 py-2.5 min-h-[44px] border-b`) de cada sub-tela (`LayoutCardView`, `VisualIdentityCardView`, `BusinessDataCardView`, `SalonCustomizationHub`) utilizava classes estáticas (`bg-slate-900/95` / `bg-white/95`) em vez de se vincular dinamicamente às variáveis `sectionHeaderBgColor`, `sectionHeaderTextColor`, `sectionHeaderIconColor`, `sectionHeaderBgStyle` e `sectionHeaderBorder`.
+- **Arquivos Impactados:**
+  - `src/utils/sectionHeaderStyle.ts` (novo)
+  - `src/components/professional/LayoutCardView.tsx`
+  - `src/components/professional/VisualIdentityCardView.tsx`
+  - `src/components/professional/BusinessDataCardView.tsx`
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Utilitário Único (`getSectionHeaderStyleData`):** Criado utilitário unificado em `src/utils/sectionHeaderStyle.ts` para calcular de forma resiliente as classes de fundo, transparência, vidro jateado, bordas e estilos inline (`containerStyle`, `titleStyle`, `iconStyle`, `badgeStyle`).
+  2. **Vinculação Direta em Tempo Real:** Atualizadas todas as barras de topo fixas (`div:nth-of-type(1)`) das sub-telas do editor para consumir `sectionHeaderStyleData`. No `LayoutCardView.tsx`, conforme o usuário ajusta a cor de fundo, cor do texto, cor do ícone ou opacidade, a própria barra superior do editor (`div` selecionada) atualiza na mesma fração de segundo ao vivo.
+
+### [2026-10-22] — Editor Dedicado da Barra de Títulos das Seções & Sincronização em Tempo Real (`types.ts`, `LayoutCardView.tsx`, `SalonProfileView.tsx`)
+- **Tipo:** `[Feat / UI-UX / Real-Time Live Section Header Editor]`
+- **Motivo / Solicitação:** Atendimento à solicitação do usuário para criação de um editor dedicado para a Barra de Títulos das Seções ("por favor preciso de um editor para essa barra selecionada, para a barra de titulos") e garantia de atualização instantânea ao vivo sem necessidade de salvar ("ao editar a barra de titulo ou o cabeçalho principal ele deve alterar instantaneamente para ver ao vivo sua atualização!").
+- **Arquivos Impactados:**
+  - `src/types.ts`
+  - `src/components/professional/LayoutCardView.tsx`
+  - `src/components/professional/VisualIdentityCardView.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Tipagem (`src/types.ts`):** Adicionadas as propriedades `sectionHeaderBgColor`, `sectionHeaderTextColor`, `sectionHeaderIconColor`, `sectionHeaderBgStyle` e `sectionHeaderBorder` ao tipo `SalonAdminSettings`.
+  2. **Editor Dedicado (`LayoutCardView.tsx`):**
+     - Criado o Card 3 ("Barra de Títulos das Seções") no menu de cards de opções de Layout & Navegação.
+     - Construída a sub-seção de edição (`activeSection === 'section_header'`) contendo: (a) Estilo do Fundo (Vidro Jateado, Sólido, Transparente), (b) Cor de Fundo Personalizada, (c) Cor do Texto do Título, (d) Cor do Ícone de Destaque, e (e) Estilo de Borda Inferior.
+  3. **Sincronização ao Vivo em Tempo Real (`autoSyncSettings`):** Todas as alterações na barra de títulos das seções e no cabeçalho principal acionam a propagação imediata dos valores para o estado global do salão sem necessidade de salvar ou exibir prévias estáticas simuladas.
+  4. **Aplicação Dinâmica e Unificada (`SalonProfileView.tsx`):** O helper memorizado `sectionHeaderStyleData` recomputa em tempo real e aplica dinamicamente o fundo, cor do texto, cor do ícone, badges e bordas a todas as barras de título do aplicativo (`#section-servicos`, `#section-vagas`, `#section-espaco`).
+
+### [2026-10-22] — Remoção da Prévia Simulada Inferior & Prévia Direta no Cabeçalho do App (`LayoutCardView.tsx`, `VisualIdentityCardView.tsx`)
+- **Tipo:** `[Feat / UI-UX / Live Header Direct Preview]`
+- **Motivo / Solicitação:** Atendimento à solicitação do usuário em relação à aba "Cabeçalho & Identificação" ("excluir a previa inferior e fazer previa direto no cabeçalho e identificação", conforme marcado no print `image_636d22c3.png`).
+- **Arquivos Impactados:**
+  - `src/components/professional/LayoutCardView.tsx`
+  - `src/components/professional/VisualIdentityCardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção da Caixa de Prévia Simulada:** Eliminado o bloco de "PRÉVIA DO CABEÇALHO EM TEMPO REAL" do formulário de edição do cabeçalho em `LayoutCardView.tsx` e `VisualIdentityCardView.tsx`, liberando espaço na interface e removendo a duplicidade visual de caixas.
+  2. **Prévia Direta no Cabeçalho Principal do App (`#salon-profile-header`):** Todas as alterações em "Cabeçalho & Identificação" (Exibição de Slogan, Texto Provisório, Cor da Fonte Provisória, Slogan Curto, Fonte da Marca e Ícone/Logo) acionam `autoSyncSettings` em tempo real. Os ajustes são refletidos de forma instantânea diretamente no próprio cabeçalho oficial do aplicativo no topo da tela, servindo como palco vivo e real.
+
+### [2026-10-22] — Padronização Uniforme da Barra de Título das Seções & Sincronização em Tempo Real do Cabeçalho (`BusinessDataCardView.tsx`, `CaixaManagerView.tsx`, `UtilitiesAndToolsView.tsx`, `SalonProfileView.tsx`)
+- **Tipo:** `[Feat / UI-UX / Standardized Header Bar & Real-Time Sync]`
+- **Motivo / Solicitação:** Usuário solicitou que a barra de título da seção atualize em tempo real durante a edição (como slogan, fonte e nome) assim como no cabeçalho do aplicativo, e que este estilo de barra superior com dimensões idênticas seja aplicado de forma uniforme a todas as seções do aplicativo.
+- **Arquivos Impactados:**
+  - `src/components/professional/BusinessDataCardView.tsx`
+  - `src/components/professional/CaixaManagerView.tsx`
+  - `src/components/professional/UtilitiesAndToolsView.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Dimensões & Estilo Padronizados (`min-h-[44px]`, `px-3.5 py-2.5`):** Aplicada a classe de contêiner e estilo `px-3.5 py-2.5 min-h-[44px] border-b flex items-center justify-between` com tipografia `font-['Poppins'] font-bold text-xs sm:text-sm`, ícones da biblioteca `lucide-react` com `w-4 h-4 text-emerald-500` e selos/botões com arredondamento `rounded-[4px]` para todas as seções.
+  2. **Subcabeçalhos em Todas as Seções do App:** Incluídos e padronizados os subcabeçalhos de título para Seção Início (`Sparkles` • `Início • Destaques & Boas-Vindas`), Seção Serviços (`Scissors` • `Catálogo de Serviços`), Seção Agendamento (`Calendar` • `Agendamento & Vagas`), Seção Espaço (`Store` • `Espaço, Equipe & Localização`), Dados do Negócio, Caixa / Financeiro e Utilidades & Ferramentas.
+  3. **Sincronização ao Vivo:** Adicionada chamada automática a `onUpdateSettings` ao digitar/alterar dados comerciais (Nome Fantasia, Categoria, Slogan e Fonte da Marca), fazendo o cabeçalho do perfil e as barras de título refletirem instantaneamente todas as alterações sem necessidade de salvar.
+
+### [2026-10-22] — Inativação Absoluta de Redirecionamento de Seção no Modo Edição (`SalonProfileView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Interactive Sandbox Navigation Guard]`
+- **Motivo / Solicitação:** Usuário reforçou que, em modo de edição de cores/layout/fundo, ao clicar em qualquer botão da barra inferior o sistema NÃO pode redirecionar ou trocar a tela do usuário para a seção pública ("ao clicar no botão no mode de edição o botão não pode redirecionar o usuário a seção. Ele deve ter essa função inativa em modo de edição de cores, fundo e etc. so pode funcionar o botão ativo").
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Trava de Segurança de Navegação (`isEditingMode`):** Unificados todos os estados e abas do Hub de Customização (`personalizar`, `preferencias`, `dados`, `visual`, `layout`, `servicos`, `espaco`, `equipe`).
+  2. **Comportamento no Clique:** Quando `isEditingMode` estiver ativo, o clique em qualquer botão na `BottomNav` chama exclusivamente `setPreviewTestTab(tab)` com haptic feedback para alternar a indicação visual de botão ativo, e realiza um `return` imediato sem invocar `handleSelectTab(tab)`.
+  3. **Garantia de Permanência:** Impossibilita qualquer scroll, troca de rota ou fechamento acidental da tela de edição enquanto o gestor ajusta cores, fundos e estilos da barra.
+
+### [2026-10-22] — Adição dos Seletores de Cor de Fundo dos Botões da Barra Inferior (`src/types.ts`, `LayoutCardView.tsx`, `BottomNav.tsx`, `SalonProfileView.tsx`)
+- **Tipo:** `[Feat / UI-UX / BottomNav Customization]`
+- **Motivo / Solicitação:** Usuário observou que estava faltando a opção dedicada para escolher a cor de fundo dos botões da barra de navegação inferior ("esta faltando opção de a cor de fundo dos botões").
+- **Arquivos Impactados:**
+  - `src/types.ts`
+  - `src/components/professional/LayoutCardView.tsx`
+  - `src/components/BottomNav.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Tipagem:** Adicionados os campos `navBtnBgColor` (Cor de fundo dos botões inativos/base) e `navBtnActiveBgColor` (Cor de fundo do botão ativo/selecionado) em `SalonAdminSettings`.
+  2. **Controles na Edição:** Incluídas duas seções dedicadas com paleta de cores predefinidas (`BTN_BG_PRESETS`) + seletor de cor hexadecimal nativo (`<input type="color">`) em `LayoutCardView.tsx`.
+  3. **Aplicação Visual:** Atualizados os seletores de estilo em `BottomNav.tsx` para aplicar as cores de fundo personalizadas tanto para os botões inativos quanto para o botão ativo em todos os modos (`minimal`, `solid` e `boxed`), refletindo instantaneamente na barra real em tempo real.
+
+### [2026-10-22] — Remoção da Div de Prévia Simulada & Modo Teste Interativo da Barra de Navegação no Editor (`LayoutCardView.tsx`, `SalonProfileView.tsx`)
+- **Tipo:** `[Feat / UI-UX / Real-Time Live Editor & Interactive Sandbox]`
+- **Motivo / Solicitação:** Usuário solicitou a remoção da div/caixa de prévia do rodapé da tela de edição (`LayoutCardView.tsx`) e a sincronização direta e instantânea na barra de navegação inferior real do aplicativo. Além disso, no modo de edição, permitiu que os botões da barra real sejam clicáveis para testar visualmente o estado ativo ("item selecionado"), mas sem disparar a navegação real para que o usuário não saia da tela de edição.
+- **Arquivos Impactados:**
+  - `src/components/professional/LayoutCardView.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção da Prévia Simulada:** Eliminada a div redundante do "Palco de Prévia do Rodapé em Tempo Real" do formulário de edição em `LayoutCardView.tsx`.
+  2. **Atualização Instantânea na Barra Real:** Todas as opções (Efeito do Fundo, Cor de Fundo, Cor de Destaque, Cor dos Ícones/Texto, Formato dos Botões, Borda e Estilo de Destaque) aplicam e sincronizam as configurações imediatamente no estado global do salão.
+  3. **Sandbox Interativo de Teste:** Criado o estado `previewTestTab` no `SalonProfileView.tsx`. Quando em modo de edição de Layout (`activeTab === 'layout'`), os cliques na `BottomNav` alternam visualmente o item ativo (Início, Serviços, Agendar, Espaço) em tempo real na barra real com haptic feedback, sem fechar ou navegar para fora da tela de edição.
+
 ### [2026-10-22] — Restauração do Subcabeçalho de Título nas Seções "Serviços" e "Espaço" (`SalonProfileView.tsx`)
 - **Tipo:** `[Fix / UI-UX / Section Header & Identification]`
 - **Motivo / Solicitação:** Análise do print enviado pelo usuário (`image_476da2e3.png`) na aba "Serviços", apontando que estava faltando o subcabeçalho de título da seção entre o cabeçalho superior do salão e o grid/lista de procedimentos.

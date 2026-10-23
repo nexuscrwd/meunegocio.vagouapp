@@ -21,8 +21,13 @@ export interface SalonNavContext {
   navBorder?: 'bordered' | 'none';
   navBgStyle?: 'solid' | 'glass' | 'transparent';
   navBgColor?: string;
+  navBtnBgColor?: string;
+  navBtnActiveBgColor?: string;
   navActiveColor?: string;
   navTextColor?: string;
+  navBtnShadow?: 'none' | 'subtle' | 'medium' | 'glow';
+  navBtnBlur?: 'none' | 'sm' | 'md' | 'lg';
+  navBtnFont?: string;
 }
 
 interface BottomNavProps {
@@ -43,8 +48,13 @@ interface BottomNavProps {
   navBorder?: 'bordered' | 'none';
   navBgStyle?: 'solid' | 'glass' | 'transparent';
   navBgColor?: string;
+  navBtnBgColor?: string;
+  navBtnActiveBgColor?: string;
   navActiveColor?: string;
   navTextColor?: string;
+  navBtnShadow?: 'none' | 'subtle' | 'medium' | 'glow';
+  navBtnBlur?: 'none' | 'sm' | 'md' | 'lg';
+  navBtnFont?: string;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
@@ -64,8 +74,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   navBorder: propNavBorder,
   navBgStyle: propNavBgStyle,
   navBgColor: propNavBgColor,
+  navBtnBgColor: propNavBtnBgColor,
+  navBtnActiveBgColor: propNavBtnActiveBgColor,
   navActiveColor: propNavActiveColor,
   navTextColor: propNavTextColor,
+  navBtnShadow: propNavBtnShadow,
+  navBtnBlur: propNavBtnBlur,
+  navBtnFont: propNavBtnFont,
 }) => {
   const { isDark } = useTheme();
 
@@ -83,39 +98,27 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const navBorder = propNavBorder || salonContext?.navBorder || 'bordered';
   const navBgStyle = propNavBgStyle || salonContext?.navBgStyle || 'glass';
   const navBgColor = propNavBgColor || salonContext?.navBgColor;
+  const navBtnBgColor = propNavBtnBgColor || salonContext?.navBtnBgColor;
+  const navBtnActiveBgColor = propNavBtnActiveBgColor || salonContext?.navBtnActiveBgColor;
   const navActiveColor = propNavActiveColor || salonContext?.navActiveColor || '#10b981';
   const navTextColor = propNavTextColor || salonContext?.navTextColor;
+  const navBtnShadow = propNavBtnShadow || salonContext?.navBtnShadow || 'none';
+  const navBtnBlur = propNavBtnBlur || salonContext?.navBtnBlur || 'none';
+  const navBtnFont = propNavBtnFont || salonContext?.navBtnFont || 'Poppins';
 
-  if (!onSelectTab) {
-    return null;
-  }
+  const btnShadowCss = React.useMemo(() => {
+    if (navBtnShadow === 'subtle') return '0 2px 8px -2px rgba(0,0,0,0.3)';
+    if (navBtnShadow === 'medium') return '0 4px 16px -2px rgba(0,0,0,0.5)';
+    if (navBtnShadow === 'glow') return `0 0 14px ${navActiveColor || '#10b981'}80`;
+    return 'none';
+  }, [navBtnShadow, navActiveColor]);
 
-  let establishmentTabs: Array<{
-    id: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout';
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-  }> = [];
-
-  if (isOwnerOrManager) {
-    establishmentTabs = [
-      { id: 'home', label: 'Painel', icon: LayoutDashboard },
-      { id: 'caixa', label: 'Caixa', icon: Wallet },
-      { id: 'vagas', label: vagasTabLabel, icon: Calendar },
-      { id: 'utilidades', label: 'Utilidades', icon: Wrench },
-    ];
-  } else if (isProfessionalStaff) {
-    establishmentTabs = [
-      { id: 'home', label: 'Painel', icon: LayoutDashboard },
-      { id: 'vagas', label: vagasTabLabel, icon: Calendar },
-    ];
-  } else {
-    establishmentTabs = [
-      { id: 'home', label: 'Início', icon: Home },
-      { id: 'servicos', label: 'Serviços', icon: ServicesIconComponent },
-      { id: 'vagas', label: vagasTabLabel || 'Agenda', icon: Calendar },
-      { id: 'espaco', label: spaceTabLabel, icon: SpaceIconComponent },
-    ];
-  }
+  const btnBlurCss = React.useMemo(() => {
+    if (navBtnBlur === 'sm') return 'blur(4px)';
+    if (navBtnBlur === 'md') return 'blur(8px)';
+    if (navBtnBlur === 'lg') return 'blur(16px)';
+    return 'none';
+  }, [navBtnBlur]);
 
   // Estilização dinâmica do contêiner da barra conforme navBgStyle e navBgColor
   const navContainerStyle = React.useMemo(() => {
@@ -175,6 +178,37 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     }`;
   }, [navBgStyle, navBgColor, isDark]);
 
+  if (!onSelectTab) {
+    return null;
+  }
+
+  let establishmentTabs: Array<{
+    id: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout';
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }> = [];
+
+  if (isOwnerOrManager) {
+    establishmentTabs = [
+      { id: 'home', label: 'Painel', icon: LayoutDashboard },
+      { id: 'caixa', label: 'Caixa', icon: Wallet },
+      { id: 'vagas', label: vagasTabLabel, icon: Calendar },
+      { id: 'utilidades', label: 'Utilidades', icon: Wrench },
+    ];
+  } else if (isProfessionalStaff) {
+    establishmentTabs = [
+      { id: 'home', label: 'Painel', icon: LayoutDashboard },
+      { id: 'vagas', label: vagasTabLabel, icon: Calendar },
+    ];
+  } else {
+    establishmentTabs = [
+      { id: 'home', label: 'Início', icon: Home },
+      { id: 'servicos', label: 'Serviços', icon: ServicesIconComponent },
+      { id: 'vagas', label: vagasTabLabel || 'Agenda', icon: Calendar },
+      { id: 'espaco', label: spaceTabLabel, icon: SpaceIconComponent },
+    ];
+  }
+
   return (
     <nav 
       id="vagou-bottom-nav"
@@ -194,7 +228,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 hapticLight();
                 onSelectTab(tab.id);
               }}
-              style={isActive ? { backgroundColor: navActiveColor } : undefined}
+              style={{
+                backgroundColor: isActive
+                  ? navBtnActiveBgColor || navActiveColor
+                  : navBtnBgColor || undefined,
+                boxShadow: btnShadowCss !== 'none' ? btnShadowCss : undefined,
+                backdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
+                WebkitBackdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
+                fontFamily: navBtnFont,
+              }}
               className={`flex flex-col items-center justify-center gap-1 h-[50px] px-2 sm:px-3.5 transition-all active:scale-95 cursor-pointer flex-1 max-w-[96px] ${
                 navShape === 'circle' ? 'rounded-full' : 'rounded-[4px]'
               } ${
@@ -218,8 +260,11 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 style={!isActive && navTextColor ? { color: navTextColor } : undefined}
               />
               <span 
-                style={!isActive && navTextColor ? { color: navTextColor } : undefined}
-                className={`text-[10px] tracking-wide font-['Poppins'] font-bold truncate max-w-[72px] leading-none ${
+                style={{
+                  fontFamily: navBtnFont,
+                  color: !isActive && navTextColor ? navTextColor : undefined,
+                }}
+                className={`text-[10px] tracking-wide font-bold truncate max-w-[72px] leading-none ${
                   isActive ? 'text-white' : isDark ? 'text-slate-400' : 'text-slate-500'
                 }`}
               >
@@ -238,15 +283,30 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 hapticLight();
                 onSelectTab(tab.id);
               }}
-              className="flex flex-col items-center justify-center gap-1 py-1 px-1.5 sm:px-3 transition active:scale-95 cursor-pointer group flex-1 max-w-[100px]"
+              style={{
+                backgroundColor: !isActive && navBtnBgColor ? navBtnBgColor : isActive && navBtnActiveBgColor ? navBtnActiveBgColor : undefined,
+                fontFamily: navBtnFont,
+              }}
+              className="flex flex-col items-center justify-center gap-1 py-1 px-1.5 sm:px-3 transition active:scale-95 cursor-pointer group flex-1 max-w-[100px] rounded-[4px]"
             >
               <div 
-                style={isActive ? { 
-                  borderColor: navBorder === 'bordered' ? navActiveColor : 'transparent', 
-                  backgroundColor: navActiveColor 
-                } : !isActive && navTextColor && navBorder === 'bordered' ? {
-                  borderColor: `${navTextColor}40`
-                } : undefined}
+                style={
+                  isActive
+                    ? { 
+                        borderColor: navBorder === 'bordered' ? navActiveColor : 'transparent', 
+                        backgroundColor: navBtnActiveBgColor || navActiveColor,
+                        boxShadow: btnShadowCss !== 'none' ? btnShadowCss : undefined,
+                        backdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
+                        WebkitBackdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
+                      }
+                    : {
+                        backgroundColor: navBtnBgColor || undefined,
+                        borderColor: navBorder === 'bordered' ? (navTextColor ? `${navTextColor}40` : undefined) : 'transparent',
+                        boxShadow: btnShadowCss !== 'none' ? btnShadowCss : undefined,
+                        backdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
+                        WebkitBackdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
+                      }
+                }
                 className={`w-[34px] h-[34px] flex items-center justify-center transition-all ${
                   navShape === 'circle' ? 'rounded-full' : 'rounded-[4px]'
                 } ${
@@ -265,8 +325,11 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 />
               </div>
               <span 
-                style={isActive ? { color: navActiveColor } : navTextColor ? { color: navTextColor } : undefined}
-                className={`text-[10px] tracking-wide font-['Poppins'] font-bold truncate max-w-[68px] transition-colors ${
+                style={{
+                  fontFamily: navBtnFont,
+                  color: isActive ? navActiveColor : navTextColor || undefined,
+                }}
+                className={`text-[10px] tracking-wide font-bold truncate max-w-[68px] transition-colors ${
                   isActive
                     ? ''
                     : isDark ? 'text-slate-400' : 'text-slate-500'
@@ -287,11 +350,24 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               hapticLight();
               onSelectTab(tab.id);
             }}
+            style={{
+              backgroundColor: isActive && navBtnActiveBgColor
+                ? navBtnActiveBgColor
+                : !isActive && navBtnBgColor
+                ? navBtnBgColor
+                : undefined,
+              boxShadow: btnShadowCss !== 'none' ? btnShadowCss : undefined,
+              backdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
+              WebkitBackdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
+              fontFamily: navBtnFont,
+            }}
             className={`relative h-full flex flex-col items-center justify-center gap-1 px-2 sm:px-3.5 transition-all active:scale-95 cursor-pointer group flex-1 max-w-[100px] ${
+              navShape === 'circle' ? 'rounded-full' : 'rounded-[4px]'
+            } ${
               navBorder === 'bordered'
                 ? isActive
                   ? navShape === 'circle' ? 'rounded-full border border-white/20' : 'rounded-[4px] border border-white/20'
-                  : ''
+                  : 'border border-slate-800/40'
                 : ''
             }`}
           >
@@ -317,8 +393,11 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             />
 
             <span
-              style={isActive ? { color: isDark ? '#ffffff' : navActiveColor } : navTextColor ? { color: navTextColor } : undefined}
-              className={`text-[10px] tracking-wide font-['Poppins'] font-bold truncate max-w-[72px] leading-none transition-colors ${
+              style={{
+                fontFamily: navBtnFont,
+                color: isActive ? (isDark ? '#ffffff' : navActiveColor) : navTextColor || undefined,
+              }}
+              className={`text-[10px] tracking-wide font-bold truncate max-w-[72px] leading-none transition-colors ${
                 isActive
                   ? 'font-extrabold'
                   : isDark

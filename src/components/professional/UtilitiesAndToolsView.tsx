@@ -263,26 +263,28 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
       isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
     }`}>
       {/* 1. CABEÇALHO */}
-      <header className={`p-3.5 border-b shrink-0 flex items-center justify-between gap-2 ${
-        isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+      <header className={`w-full shrink-0 px-3.5 py-2.5 min-h-[44px] border-b flex items-center justify-between gap-2 transition-colors z-20 ${
+        isDark ? 'bg-slate-900/95 border-slate-800 text-slate-100' : 'bg-slate-100/95 border-slate-200 text-slate-900 shadow-xs'
       }`}>
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
             id="utilidades-btn-voltar"
             onClick={handleBackNavigation}
-            className={`p-1.5 rounded transition cursor-pointer ${
-              isDark ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-900'
+            className={`p-1.5 rounded-[4px] transition cursor-pointer active:scale-95 ${
+              isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-200/80 hover:bg-slate-200 text-slate-700'
             }`}
             title={activeSubTab !== 'hub' ? 'Voltar' : 'Voltar ao Painel'}
             aria-label="Voltar"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4 text-emerald-500" />
           </button>
 
-          <h2 className="text-xs font-bold uppercase tracking-wider font-['Poppins'] truncate">
-            {headerInfo.title}
-          </h2>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h2 className="text-xs sm:text-sm font-bold font-['Poppins'] tracking-tight truncate">
+              {headerInfo.title}
+            </h2>
+          </div>
         </div>
 
         {/* Atalhos Rápidos no Cabeçalho */}
