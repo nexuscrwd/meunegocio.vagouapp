@@ -723,7 +723,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       const explicitUserPref = localStorage.getItem('vagou_user_theme_preference');
       // Se não há preferência manual do usuário, aplica o tema padrão do salão na inicialização
       if (!explicitUserPref && !initialThemeSyncDoneRef.current) {
-        setTheme(adminSettings.defaultTheme);
+        setTheme(adminSettings.defaultTheme, { isExplicitUserChoice: false });
         initialThemeSyncDoneRef.current = true;
       }
     }
@@ -1004,7 +1004,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             updatedSettings.defaultTheme = remoteTheme;
             const explicitUserChoice = localStorage.getItem('vagou_user_theme_preference');
             if (!explicitUserChoice) {
-              setTheme(remoteTheme);
+              setTheme(remoteTheme, { isExplicitUserChoice: false });
               initialThemeSyncDoneRef.current = true;
             }
           }

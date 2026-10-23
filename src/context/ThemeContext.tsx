@@ -4,7 +4,7 @@ export interface ThemeContextType {
   theme: 'dark' | 'light';
   isDark: boolean;
   toggleTheme: () => void;
-  setTheme: (theme: 'dark' | 'light') => void;
+  setTheme: (theme: 'dark' | 'light', options?: { isExplicitUserChoice?: boolean }) => void;
   accentColor: string;
   setAccentColor: (color: string) => void;
 }
@@ -140,19 +140,67 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [theme, setThemeState] = useState<'dark' | 'light'>(() => {
     try {
       const explicitChoice = localStorage.getItem('vagou_user_theme_preference');
-      if (explicitChoice === 'dark' || explicitChoice === 'light') {
-        return explicitChoice;
-      }
+      let salonDefaultTheme: 'dark' | 'light' | undefined = undefined;
+
       const settingsStr = localStorage.getItem('vagou_salon_admin_settings');
       if (settingsStr) {
-        const parsed = JSON.parse(settingsStr);
-        if (parsed && (parsed.defaultTheme === 'dark' || parsed.defaultTheme === 'light')) {
-          return parsed.defaultTheme;
+        try {
+          const parsed = JSON.parse(settingsStr);
+          if (parsed && (parsed.defaultTheme === 'dark' || parsed.defaultTheme === 'light')) {
+            salonDefaultTheme = parsed.defaultTheme;
+          }
+        } catch (e) {
+          console.warn('[Theme:ThemeProvider] Erro ao parsear vagou_salon_admin_settings:', e);
         }
       }
-      localStorage.removeItem('vagou_theme');
-    } catch {}
-    return 'light';
+
+      if (!salonDefaultTheme) {
+        try {
+          const partnerStr = localStorage.getItem('vagou_partner_data');
+          if (partnerStr) {
+            const parsed = JSON.parse(partnerStr);
+            if (parsed && (parsed.defaultTheme === 'dark' || parsed.defaultTheme === 'light')) {
+              salonDefaultTheme = parsed.defaultTheme;
+            }
+          }
+        } catch {}
+      }
+
+      const hasExplicitChoice = explicitChoice === 'dark' || explicitChoice === 'light';
+      const resolvedTheme: 'dark' | 'light' = hasExplicitChoice
+        ? (explicitChoice as 'dark' | 'light')
+        : (salonDefaultTheme === 'dark' || salonDefaultTheme === 'light')
+          ? salonDefaultTheme
+          : 'light';
+
+      const sourceDescription = hasExplicitChoice
+        ? 'vagou_user_theme_preference'
+        : salonDefaultTheme
+          ? 'salonSettings.defaultTheme'
+          : 'fallback_light';
+
+      console.log('[Theme:ThemeProvider] Rastreamento de Fonte de Preferência de Tema:', {
+        vagou_user_theme_preference: explicitChoice,
+        'salonSettings.defaultTheme': salonDefaultTheme,
+        source: sourceDescription,
+        resolvedTheme,
+        documentHasDarkClass: typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') : false
+      });
+
+      // Aplica imediatamente no documentElement para garantir alinhamento pré-render
+      if (typeof document !== 'undefined') {
+        if (resolvedTheme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      }
+
+      return resolvedTheme;
+    } catch (err) {
+      console.warn('[Theme:ThemeProvider] Erro inesperado na inicialização:', err);
+      return 'light';
+    }
   });
 
   const [accentColor, setAccentColorState] = useState<string>(() => {
@@ -177,12 +225,22 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     try {
+      const hadDarkBefore = document.documentElement.classList.contains('dark');
       if (theme === 'dark') {
         document.documentElement.classList.add('dark');
       } else {
         document.documentElement.classList.remove('dark');
       }
-    } catch {}
+      const hasDarkAfter = document.documentElement.classList.contains('dark');
+      console.log('[Theme:useEffect[theme]] Sincronizando classe "dark" no DOM:', {
+        theme,
+        hadDarkBefore,
+        hasDarkAfter,
+        domDarkApplied: hasDarkAfter
+      });
+    } catch (err) {
+      console.warn('[Theme:useEffect[theme]] Erro ao sincronizar classes DOM:', err);
+    }
   }, [theme]);
 
   useEffect(() => {
@@ -192,20 +250,36 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const toggleTheme = () => {
     setThemeState((prev) => {
       const next = prev === 'dark' ? 'light' : 'dark';
+      console.log('[Theme:toggleTheme] Alternando tema manualmente pelo usuário:', {
+        previousTheme: prev,
+        nextTheme: next
+      });
       try {
         localStorage.setItem('vagou_user_theme_preference', next);
         localStorage.setItem('vagou_theme', next);
-      } catch {}
+      } catch (err) {
+        console.warn('[Theme:toggleTheme] Erro ao persistir tema:', err);
+      }
       return next;
     });
   };
 
-  const setTheme = (newTheme: 'dark' | 'light') => {
+  const setTheme = (newTheme: 'dark' | 'light', options?: { isExplicitUserChoice?: boolean }) => {
+    const isExplicit = options?.isExplicitUserChoice !== false;
+    console.log('[Theme:setTheme] Definindo tema:', {
+      newTheme,
+      isExplicitUserChoice: isExplicit,
+      source: isExplicit ? 'user_manual_selection' : 'salon_sync'
+    });
     setThemeState(newTheme);
     try {
-      localStorage.setItem('vagou_user_theme_preference', newTheme);
+      if (isExplicit) {
+        localStorage.setItem('vagou_user_theme_preference', newTheme);
+      }
       localStorage.setItem('vagou_theme', newTheme);
-    } catch {}
+    } catch (err) {
+      console.warn('[Theme:setTheme] Erro ao persistir tema:', err);
+    }
   };
 
   const setAccentColor = (color: string) => {

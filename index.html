@@ -20,12 +20,33 @@
           try {
             salonSettings = JSON.parse(localStorage.getItem('vagou_salon_admin_settings') || '{}');
           } catch(e) {}
-          var effectiveTheme = userSelectedTheme || (salonSettings && salonSettings.defaultTheme) || 'light';
+
+          var partnerData = null;
+          try {
+            partnerData = JSON.parse(localStorage.getItem('vagou_partner_data') || '{}');
+          } catch(e) {}
+
+          var salonDefault = (salonSettings && salonSettings.defaultTheme) || (partnerData && partnerData.defaultTheme);
+          var effectiveTheme = userSelectedTheme || salonDefault || 'light';
+
+          var hadDarkBefore = document.documentElement.classList.contains('dark');
           if (effectiveTheme === 'dark') {
             document.documentElement.classList.add('dark');
           } else {
             document.documentElement.classList.remove('dark');
           }
+          var hasDarkNow = document.documentElement.classList.contains('dark');
+
+          console.log('[Theme:index.html] Verificação Pré-Hidratação no HTML:', {
+            'localStorage.vagou_user_theme_preference': userSelectedTheme,
+            'salonSettings.defaultTheme': salonSettings ? salonSettings.defaultTheme : null,
+            'partnerData.defaultTheme': partnerData ? partnerData.defaultTheme : null,
+            effectiveTheme: effectiveTheme,
+            source: userSelectedTheme ? 'vagou_user_theme_preference' : salonDefault ? 'salonSettings.defaultTheme' : 'fallback_light',
+            hadDarkBefore: hadDarkBefore,
+            hasDarkNow: hasDarkNow,
+            isDarkClassApplied: hasDarkNow
+          });
 
           var savedColor = localStorage.getItem('vagou_accent_color');
           if (!savedColor) {
