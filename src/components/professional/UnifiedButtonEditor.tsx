@@ -93,10 +93,19 @@ export const UnifiedButtonEditor: React.FC<UnifiedButtonEditorProps> = ({
                 title={color.name}
               >
                 {color.hex === 'transparent' ? (
-                  <span className="text-[8px] font-bold text-slate-400">OFF</span>
+                  <div className="w-full h-full rounded-[3px] border border-rose-500/90 bg-rose-500/10 flex items-center justify-center relative overflow-hidden">
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-[140%] h-[1.5px] bg-rose-500 -rotate-45" />
+                    </div>
+                    <span className="text-[7px] font-black text-rose-500 z-10 uppercase">OFF</span>
+                  </div>
                 ) : (
                   isSel && (
-                    <Check className={`w-3.5 h-3.5 ${color.hex === '#ffffff' || color.hex === '#f1f5f9' ? 'text-slate-900' : 'text-white'}`} />
+                    <Check className={`w-3.5 h-3.5 ${
+                      color.hex === '#ffffff' || color.hex.toLowerCase().startsWith('#f') || color.hex.toLowerCase().startsWith('#e')
+                        ? 'text-slate-900'
+                        : 'text-white'
+                    }`} />
                   )
                 )}
               </button>

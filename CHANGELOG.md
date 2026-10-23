@@ -15,6 +15,22 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-23] — Restauração da Borda da Caixa do Botão no Rodapé e Expansão da Paleta de Cores (Cor Secundária Clara e Indicador "Sem Cor")
+- **Tipo:** `[Feat / UI & Design System / Customization]`
+- **Motivo / Solicitação:**
+  1. Restaurar a opção de borda na caixa do botão quadrado da barra de navegação inferior (rodapé) em `BottomNav.tsx`, aplicando o contorno visível na caixa externa do botão além do ícone interno.
+  2. Ajustar a paleta de cores proposta no `colorPresets.ts` para incluir a variedade completa com: Cor Principal, Cor Secundária Clara derivada da principal, Cor Branca (terciária), Cor Preta/Escura (quaternária) e "Sem cor" (transparente) identificada com uma caixa com contorno e corte em vermelho com o selo OFF.
+- **Arquivos Impactados:**
+  - `src/components/BottomNav.tsx`
+  - `src/utils/colorPresets.ts`
+  - `src/components/professional/LayoutCardView.tsx`
+  - `src/components/professional/UnifiedButtonEditor.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Borda na Caixa do Botão:** Em `BottomNav.tsx`, o estilo `boxed` teve a classe `navBorder === 'bordered'` estendida ao contêiner externo do botão (`<button className="...">`), garantindo que o box quadrado do botão exiba seu contorno visível nítido.
+  2. **Cor Secundária Clara Derivada:** Em `colorPresets.ts`, criada a função `getDerivedLightTone` que mistura 80% branco com 20% da cor principal do tema, gerando um tom pastel claro suave e perfeito que respeita a cor mestre do salão (ex: tom vinho suave para salão em tom vinho).
+  3. **Identificador "Sem Cor" (Caixinha Vermelha):** O swatch `transparent` agora é renderizado visualmente com uma caixinha vermelha com diagonal em degradê e texto `OFF` em vermelho, deixando inequivocamente claro qual botão desativa a cor de fundo.
+
 ### [2026-10-23] — Correção Definitiva da Ativação do Modo Claro no PWA Instalado e Eliminação do Loop de Tema em `SalonProfileView.tsx`
 - **Tipo:** `[Fix / PWA & Theme Architecture / UI & Mobile Experience]`
 - **Motivo / Solicitação:** Usuário reportou que o app instalado (PWA) só abria no modo escuro e não ativava o modo claro, mesmo após rodar a migração no Supabase sem erros.

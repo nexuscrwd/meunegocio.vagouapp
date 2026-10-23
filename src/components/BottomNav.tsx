@@ -317,7 +317,17 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 fontFamily: navBtnFont,
                 color: isActive ? resolvedActiveFg : resolvedInactiveFg,
               }}
-              className="flex flex-col items-center justify-center gap-1 py-1 px-1.5 sm:px-3 transition active:scale-95 cursor-pointer group flex-1 min-w-0 max-w-[100px] rounded-[4px]"
+              className={`flex flex-col items-center justify-center gap-1 py-1 px-1.5 sm:px-3 transition active:scale-95 cursor-pointer group flex-1 min-w-0 max-w-[100px] ${
+                navShape === 'circle' ? 'rounded-2xl' : 'rounded-[4px]'
+              } ${
+                navBorder === 'bordered'
+                  ? isActive
+                    ? 'border border-white/35 shadow-xs'
+                    : isDark
+                      ? 'border border-slate-800/80'
+                      : 'border border-slate-200'
+                  : 'border-0'
+              }`}
             >
               <div 
                 style={
