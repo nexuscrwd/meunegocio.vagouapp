@@ -2062,10 +2062,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       {/* 1. CABEÇALHO DO APLICATIVO DO SALÃO (Logo Full Height & Botões Selecionados) */}
       <header 
         id="salon-profile-header"
-        className={`sticky top-0 z-40 ${isDark ? 'bg-[#151A1E]/95 border-slate-800/80' : 'bg-white/95 border-slate-200/90 shadow-xs'} backdrop-blur-md border-b px-2 sm:px-4 shadow-md flex items-center justify-between gap-1.5 sm:gap-3 transition-colors h-14 sm:h-16 overflow-hidden shrink-0 w-full max-w-full`}
+        className={`sticky top-0 z-40 ${isDark ? 'bg-[#151A1E]/95 border-slate-800/80' : 'bg-white/95 border-slate-200/90 shadow-xs'} backdrop-blur-md border-b pl-0 pr-2 sm:pr-4 py-0 shadow-md flex items-center justify-between gap-1 sm:gap-2 transition-colors h-14 sm:h-16 overflow-hidden shrink-0 w-full max-w-full`}
       >
         {/* Lado Esquerdo: Botão Voltar (quando aberto via Radar) + Logotipia / Logo do Salão no Cabeçalho */}
-        <div className="h-full min-w-0 flex items-center justify-start gap-1 shrink overflow-hidden">
+        <div className="h-full min-w-0 flex items-center justify-start gap-1 shrink overflow-hidden pl-0 ml-0 py-0 my-0">
           {onBack && (
             <button
               onClick={onBack}
@@ -2082,16 +2082,16 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           )}
           <div 
             onClick={() => handleSelectTab('home')}
-            style={{ padding: '0px' }}
-            className="h-full min-w-0 max-w-[220px] xs:max-w-[260px] sm:max-w-[320px] flex items-center justify-start gap-1 shrink select-none cursor-pointer overflow-hidden"
+            style={{ padding: '0px', margin: '0px' }}
+            className="h-full min-w-0 max-w-[320px] sm:max-w-[400px] flex items-center justify-start shrink select-none cursor-pointer overflow-hidden pl-0 ml-0 py-0 my-0"
             title={salonInfo.name}
           >
           {activeLogo || adminSettings.salonIcon ? (
-            <div className="h-full flex items-center justify-start min-w-0">
+            <div className="h-full w-full flex items-center justify-start min-w-0 pl-0 ml-0 py-0 my-0">
               <img 
                 src={activeLogo || adminSettings.salonIcon} 
                 alt={salonInfo.name}
-                className="h-full max-h-12 sm:max-h-14 w-auto object-contain object-left shrink-0 py-1"
+                className="h-full w-auto max-h-full object-contain object-left shrink-0 pl-0 ml-0 py-0 my-0"
               />
             </div>
           ) : (

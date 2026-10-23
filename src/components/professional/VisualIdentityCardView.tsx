@@ -210,6 +210,42 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
     }
   };
 
+  const handleInstantSaveLogo = async () => {
+    hapticSuccess();
+    setIsSaving(true);
+    setSaveFeedback('Salvando logo no banco de dados...');
+
+    const finalLogo = isDark ? (salonLogoDark || salonLogoLight) : (salonLogoLight || salonLogoDark);
+
+    try {
+      if (salonLogoLight) localStorage.setItem('vagou_salon_logo_light', salonLogoLight);
+      if (salonLogoDark) localStorage.setItem('vagou_salon_logo_dark', salonLogoDark);
+      if (salonIcon) localStorage.setItem('vagou_salon_icon', salonIcon);
+    } catch {}
+
+    updateDynamicPwaAssets(pwaName.trim() || salonName, salonIcon || finalLogo);
+
+    const result = await onUpdateSettings({
+      salonLogo: finalLogo,
+      salonLogoLight,
+      salonLogoDark,
+      salonIcon,
+    });
+
+    setIsSaving(false);
+    if (result && result.success === false) {
+      setSaveFeedback(`Erro ao salvar logo: ${result.error || 'Falha'}`);
+      setSavedSuccess(false);
+    } else {
+      setSaveFeedback('Logo salvo no banco de dados com sucesso!');
+      setSavedSuccess(true);
+      setTimeout(() => {
+        setSavedSuccess(false);
+        setSaveFeedback('');
+      }, 3500);
+    }
+  };
+
   const autoSyncSettings = (updates: Partial<SalonAdminSettings>) => {
     try {
       onUpdateSettings(updates);
@@ -392,9 +428,22 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
             </span>
           </div>
 
-          <p className="text-[11px] text-slate-400">
-            Envie as duas versões do seu logo horizontal (PNG/SVG com fundo transparente) para alternar automaticamente de acordo com o tema selecionado.
-          </p>
+
+
+          <div className="flex items-center justify-between pt-1 pb-1">
+            <span className={`text-[10px] font-semibold truncate ${savedSuccess ? 'text-emerald-400' : 'text-slate-400'}`}>
+              {saveFeedback || 'Logo PNG ou SVG'}
+            </span>
+            <button
+              type="button"
+              onClick={handleInstantSaveLogo}
+              disabled={isSaving}
+              className="py-1.5 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 active:scale-98 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs disabled:opacity-50 shrink-0"
+            >
+              <Save className="w-3.5 h-3.5 text-white" />
+              <span className="text-white">{isSaving ? 'Salvando...' : 'Salvar'}</span>
+            </button>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             

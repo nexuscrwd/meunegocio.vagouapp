@@ -15,6 +15,69 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-23] — Atualização de Legenda do Botão para "Salvar" e Texto do Span para "Logo PNG ou SVG" (`src/components/professional/VisualIdentityCardView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Button & Span Text Update]`
+- **Motivo / Solicitação:** Solicitação do usuário para alterar a legenda do botão para "Salvar" e o texto do span para "Logo PNG ou SVG".
+- **Arquivos Impactados:**
+  - `src/components/professional/VisualIdentityCardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Atualização de Textos:** Legenda do botão ajustada para "Salvar" e texto do span ajustado para "Logo PNG ou SVG".
+
+### [2026-10-23] — Remoção de Parágrafo Descritivo na Seção de Logos (`src/components/professional/VisualIdentityCardView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Clean Interface]`
+- **Motivo / Solicitação:** Solicitação do usuário para remover o parágrafo descritivo na seção de Logos do Cabeçalho.
+- **Arquivos Impactados:**
+  - `src/components/professional/VisualIdentityCardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção de Elemento:** Removido o elemento `<p>` descritivo das versões de logo.
+
+### [2026-10-23] — Adição de Botão "Salvar Logo no Banco" para Persistência Imediata (`src/components/professional/VisualIdentityCardView.tsx`)
+- **Tipo:** `[Feat / UX / Logo Database Persistence]`
+- **Motivo / Solicitação:** Solicitação do usuário para adicionar uma opção de salvar diretamente no banco de dados após a seleção/envio do logotipo ("Apos a seleção do logo deve ter a opção de salvar no banco de dados").
+- **Arquivos Impactados:**
+  - `src/components/professional/VisualIdentityCardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Botão de Salvamento Direto:** Adicionado o botão "Salvar Logo no Banco" com feedback visual imediato (`handleInstantSaveLogo`).
+
+### [2026-10-23] — Zeragem de Padding Vertical (`py-0`, `my-0`) no Cabeçalho e na Logo (`src/components/SalonProfileView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Header Vertical Zero Padding]`
+- **Motivo / Solicitação:** Solicitação do usuário para definir o padding vertical como 0 (`py-0`, `my-0`) na barra de cabeçalho e na imagem do logotipo.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Padding Vertical Zero:** Aplicado `py-0` no `<header>` e `py-0 my-0` nos contêineres e imagem do logotipo.
+
+### [2026-10-23] — Remoção de Padding Esquerdo no Cabeçalho (`pl-0`) para Alinhamento Absoluto na Borda (`src/components/SalonProfileView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Header Left Edge Alignment]`
+- **Motivo / Solicitação:** Remoção completa do padding esquerdo do cabeçalho (`pl-0`) para garantir que o logotipo encoste na borda esquerda absoluta da tela.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Borda Esquerda Zero:** Alterado o padding do `<header>` de `px-...` para `pl-0 pr-2 sm:pr-4`.
+
+### [2026-10-23] — Alinhamento Estrito à Esquerda da Imagem e Contêiner na Div Pai do Cabeçalho (`src/components/SalonProfileView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Header Logo Strict Left Alignment]`
+- **Motivo / Solicitação:** Ajuste estrito solicitado pelo usuário para fixar e alinhar a imagem do logotipo rigorosamente à esquerda da div pai (`pl-0 ml-0 object-left justify-start`).
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Alinhamento à Esquerda Rigoroso:** Removidos espaçamentos horizontais residuais e aplicado `pl-0 ml-0 object-left justify-start` no contêiner do cabeçalho e na imagem.
+
+### [2026-10-23] — Maximização da Imagem do Logo para Altura Total do Cabeçalho (`src/components/SalonProfileView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Header Logo Max Height]`
+- **Motivo / Solicitação:** Ajuste estrito na imagem do logotipo para ocupar toda a altura da barra de cabeçalho (`max-h-[52px] sm:max-h-[60px]`) com padding zero (`padding: '0px'`, `margin: '0px'`) e alinhamento à esquerda.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Expansão de Tamanho:** Ajustadas as classes da tag `img` para `h-full w-auto max-h-[52px] sm:max-h-[60px] object-contain object-left`.
+
 ### [2026-10-23] — Suporte Completo a `activeLogo` ou `salonIcon` na Exibição do Logo Responsivo no Cabeçalho (`src/components/SalonProfileView.tsx`)
 - **Tipo:** `[Fix / UI-UX / Header Logo Rendering]`
 - **Motivo / Solicitação:** Correção para garantir que tanto `activeLogo` quanto `salonIcon` sejam exibidos como a imagem de logotipo principal preenchendo a altura do cabeçalho de forma responsiva, eliminando miniaturas em caixa com texto.
