@@ -10,6 +10,7 @@ import { SalonAdminSettings } from '../../types';
 import { hapticLight, hapticSuccess } from '../../utils/haptics';
 import { getSectionHeaderStyleData } from '../../utils/sectionHeaderStyle';
 import { UnifiedButtonEditor } from './UnifiedButtonEditor';
+import { getThemeColorPresets } from '../../utils/colorPresets';
 
 export interface LayoutCardViewProps {
   adminSettings: SalonAdminSettings;
@@ -19,56 +20,17 @@ export interface LayoutCardViewProps {
 
 type LayoutSectionKey = 'theme' | 'header' | 'section_header' | 'hero' | 'bottom_nav' | 'welcome';
 
-const COLOR_PRESETS = [
-  { name: 'Esmeralda', hex: '#10b981' },
-  { name: 'Branco', hex: '#ffffff' },
-  { name: 'Dourado', hex: '#f59e0b' },
-  { name: 'Ciano', hex: '#06b6d4' },
-  { name: 'Violeta', hex: '#8b5cf6' },
-  { name: 'Rosa', hex: '#f43f5e' },
-  { name: 'Azul', hex: '#3b82f6' },
-  { name: 'Platina', hex: '#94a3b8' },
-];
-
-const BG_COLOR_PRESETS = [
-  { name: 'Padrão do Tema', hex: '' },
-  { name: 'Dark Slate', hex: '#020617' },
-  { name: 'Preto Puro', hex: '#000000' },
-  { name: 'Noite Profunda', hex: '#0f172a' },
-  { name: 'Grafite', hex: '#1e293b' },
-  { name: 'Esmeralda Escuro', hex: '#064e3b' },
-  { name: 'Azul Petróleo', hex: '#0c4a6e' },
-  { name: 'Branco Puro', hex: '#ffffff' },
-  { name: 'Off-White', hex: '#f8fafc' },
-];
-
-const TEXT_COLOR_PRESETS = [
-  { name: 'Padrão do Tema', hex: '' },
-  { name: 'Platina Padrão', hex: '#94a3b8' },
-  { name: 'Branco Puro', hex: '#ffffff' },
-  { name: 'Preto / Escuro', hex: '#0f172a' },
-  { name: 'Esmeralda', hex: '#10b981' },
-  { name: 'Dourado', hex: '#f59e0b' },
-  { name: 'Ciano Céu', hex: '#38bdf8' },
-];
-
-const BTN_BG_PRESETS = [
-  { name: 'Padrão / Transparente', hex: 'transparent' },
-  { name: 'Slate Noturno', hex: '#0f172a' },
-  { name: 'Grafite Escuro', hex: '#1e293b' },
-  { name: 'Ardósia Média', hex: '#334155' },
-  { name: 'Preto Puro', hex: '#000000' },
-  { name: 'Esmeralda Escuro', hex: '#064e3b' },
-  { name: 'Branco Puro', hex: '#ffffff' },
-  { name: 'Gelo Claro', hex: '#f1f5f9' },
-];
-
 export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
   adminSettings,
   onUpdateSettings,
   onBack,
 }) => {
   const { isDark, setTheme } = useTheme();
+
+  const COLOR_PRESETS = getThemeColorPresets(adminSettings.accentColor || '#10b981');
+  const BG_COLOR_PRESETS = getThemeColorPresets(adminSettings.accentColor || '#10b981');
+  const TEXT_COLOR_PRESETS = getThemeColorPresets(adminSettings.accentColor || '#10b981');
+  const BTN_BG_PRESETS = getThemeColorPresets(adminSettings.accentColor || '#10b981');
 
   // Seção ativa independente: null = tela de cards de opções; key = seção específica aberta
   const [activeSection, setActiveSection] = useState<LayoutSectionKey | null>(null);

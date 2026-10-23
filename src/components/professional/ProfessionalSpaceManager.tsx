@@ -10,6 +10,7 @@ import { SalonAdminSettings, SalonProfessionalItem } from '../../types';
 import { hapticSuccess, hapticLight } from '../../utils/haptics';
 import { updateDynamicPwaAssets } from '../../utils/pwaAssets';
 import { compressImageFile } from '../../utils/imageCompressor';
+import { getThemeColorPresets } from '../../utils/colorPresets';
 
 export interface ProfessionalSpaceManagerProps {
   adminSettings: SalonAdminSettings;
@@ -128,14 +129,8 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
     setTimeout(() => setSavedSuccess(false), 2500);
   };
 
-  // Presets rápidos de cores elegantes
-  const COLOR_PRESETS = [
-    { label: 'Esmeralda', hex: '#10b981' },
-    { label: 'Azul Real', hex: '#3b82f6' },
-    { label: 'Âmbar Ouro', hex: '#f59e0b' },
-    { label: 'Rubi', hex: '#ef4444' },
-    { label: 'Violeta', hex: '#8b5cf6' },
-  ];
+  // Presets rápidos de cores elegantes baseadas no tema
+  const COLOR_PRESETS = getThemeColorPresets(accentColor);
 
   return (
     <div className={`w-full h-full flex flex-col justify-between overflow-y-auto no-scrollbar ${

@@ -9,6 +9,7 @@ import { hapticSuccess, hapticLight } from '../../utils/haptics';
 import { updateDynamicPwaAssets } from '../../utils/pwaAssets';
 import { compressImageFile } from '../../utils/imageCompressor';
 import { getSectionHeaderStyleData } from '../../utils/sectionHeaderStyle';
+import { getThemeColorPresets } from '../../utils/colorPresets';
 
 export interface VisualIdentityCardViewProps {
   adminSettings: SalonAdminSettings;
@@ -41,13 +42,7 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
   const logoDarkInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
 
-  const COLOR_PRESETS = [
-    { label: 'Esmeralda', hex: '#10b981' },
-    { label: 'Azul Real', hex: '#3b82f6' },
-    { label: 'Âmbar Ouro', hex: '#f59e0b' },
-    { label: 'Rubi', hex: '#ef4444' },
-    { label: 'Violeta', hex: '#8b5cf6' },
-  ];
+  const COLOR_PRESETS = getThemeColorPresets(accentColor);
 
   const BRAND_FONT_PRESETS = [
     {

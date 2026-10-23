@@ -2,6 +2,7 @@ import React from 'react';
 import { Palette, Type, Check, Sparkles, Sliders } from 'lucide-react';
 import { SalonAdminSettings } from '../../types';
 import { hapticLight } from '../../utils/haptics';
+import { getThemeColorPresets } from '../../utils/colorPresets';
 
 interface UnifiedButtonEditorProps {
   title?: string;
@@ -12,18 +13,6 @@ interface UnifiedButtonEditorProps {
   prefixKey?: 'nav' | 'sectionHeader';
 }
 
-const BTN_BG_PRESETS = [
-  { name: 'Padrão / Transparente', hex: 'transparent' },
-  { name: 'Slate Noturno', hex: '#0f172a' },
-  { name: 'Grafite Escuro', hex: '#1e293b' },
-  { name: 'Ardósia Média', hex: '#334155' },
-  { name: 'Preto Puro', hex: '#000000' },
-  { name: 'Esmeralda Escuro', hex: '#064e3b' },
-  { name: 'Esmeralda Vibrante', hex: '#10b981' },
-  { name: 'Branco Puro', hex: '#ffffff' },
-  { name: 'Gelo Claro', hex: '#f1f5f9' },
-];
-
 export const UnifiedButtonEditor: React.FC<UnifiedButtonEditorProps> = ({
   title = 'Editor de Botões',
   subtitle = 'Fundo, borda, fonte, sombra e blur em tempo real',
@@ -32,6 +21,7 @@ export const UnifiedButtonEditor: React.FC<UnifiedButtonEditorProps> = ({
   isDark,
   prefixKey = 'nav',
 }) => {
+  const BTN_BG_PRESETS = getThemeColorPresets(adminSettings.accentColor || '#10b981');
   const isNav = prefixKey === 'nav';
   const bgCol = isNav ? (adminSettings.navBtnBgColor || '') : (adminSettings.sectionHeaderBtnBgColor || '');
   const borderOpt = isNav ? (adminSettings.navBorder || 'bordered') : (adminSettings.sectionHeaderBtnBorder || 'bordered');

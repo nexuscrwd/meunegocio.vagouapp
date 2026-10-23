@@ -15,6 +15,20 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-23] — Padronização de Sugestão de Cores Baseadas no Tema Principal em Todas as Ferramentas (`src/utils/colorPresets.ts`, `VisualIdentityCardView.tsx`, `ProfessionalSpaceManager.tsx`, `LayoutCardView.tsx`, `UnifiedButtonEditor.tsx`)
+- **Tipo:** `[Feat / UI-UX / Theme-Based Color Palettes]`
+- **Motivo / Solicitação:** Solicitação do usuário para que as ferramentas de cores do app ofereçam no máximo 5 cores baseadas na cor do tema selecionado (Transparente, Branco, Preto e mais 2 tons baseados no tema).
+- **Arquivos Impactados:**
+  - `src/utils/colorPresets.ts` (criado)
+  - `src/components/professional/VisualIdentityCardView.tsx`
+  - `src/components/professional/ProfessionalSpaceManager.tsx`
+  - `src/components/professional/LayoutCardView.tsx`
+  - `src/components/professional/UnifiedButtonEditor.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Utilitário Centralizado (`colorPresets.ts`):** Criação de gerador de paleta com exatamente 5 cores alinhadas à cor de destaque (accent color).
+  2. **Aplicação Universal:** Substituição de paletas genéricas estáticas em todos os editores e hubs de customização do app.
+
 ### [2026-10-23] — Atualização de Legenda do Botão para "Salvar" e Texto do Span para "Logo PNG ou SVG" (`src/components/professional/VisualIdentityCardView.tsx`)
 - **Tipo:** `[Fix / UI-UX / Button & Span Text Update]`
 - **Motivo / Solicitação:** Solicitação do usuário para alterar a legenda do botão para "Salvar" e o texto do span para "Logo PNG ou SVG".
