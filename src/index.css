@@ -71,49 +71,49 @@ input[type="number"] {
 .border-\[\#20C933\] { border-color: var(--accent-color) !important; }
 
 /* Harmonização Cromática de Bordas — Tema Escuro (Dark Slate) */
-.dark .border-slate-800,
-.dark .border-slate-800\/90,
-.dark .border-slate-800\/80,
-.dark .border-slate-800\/60 {
-  border-color: color-mix(in srgb, var(--accent-color) 24%, #1e293b 76%) !important;
+.dark .border-slate-800:not([style*="border-color"]),
+.dark .border-slate-800\/90:not([style*="border-color"]),
+.dark .border-slate-800\/80:not([style*="border-color"]),
+.dark .border-slate-800\/60:not([style*="border-color"]) {
+  border-color: color-mix(in srgb, var(--accent-color) 24%, #1e293b 76%);
 }
 
-.dark .border-slate-700,
-.dark .border-slate-700\/80,
-.dark .border-slate-700\/60 {
-  border-color: color-mix(in srgb, var(--accent-color) 32%, #334155 68%) !important;
+.dark .border-slate-700:not([style*="border-color"]),
+.dark .border-slate-700\/80:not([style*="border-color"]),
+.dark .border-slate-700\/60:not([style*="border-color"]) {
+  border-color: color-mix(in srgb, var(--accent-color) 32%, #334155 68%);
 }
 
 /* Harmonização Cromática de Bordas — Tema Claro (Light Pearl) */
-html:not(.dark) .border-slate-200,
-html:not(.dark) .border-slate-200\/90,
-html:not(.dark) .border-slate-200\/80 {
-  border-color: color-mix(in srgb, var(--accent-color) 22%, #e2e8f0 78%) !important;
+html:not(.dark) .border-slate-200:not([style*="border-color"]),
+html:not(.dark) .border-slate-200\/90:not([style*="border-color"]),
+html:not(.dark) .border-slate-200\/80:not([style*="border-color"]) {
+  border-color: color-mix(in srgb, var(--accent-color) 22%, #e2e8f0 78%);
 }
 
-html:not(.dark) .border-slate-300 {
-  border-color: color-mix(in srgb, var(--accent-color) 28%, #cbd5e1 72%) !important;
+html:not(.dark) .border-slate-300:not([style*="border-color"]) {
+  border-color: color-mix(in srgb, var(--accent-color) 28%, #cbd5e1 72%);
 }
 
 /* Harmonização Cromática de Subtítulos e Textos Secundários (Atmospheric Brand Tinting) */
-.dark .text-slate-300 {
-  color: color-mix(in srgb, var(--accent-color) 16%, #cbd5e1 84%) !important;
+.dark .text-slate-300:not([style*="color"]) {
+  color: color-mix(in srgb, var(--accent-color) 16%, #cbd5e1 84%);
 }
-.dark .text-slate-400 {
-  color: color-mix(in srgb, var(--accent-color) 24%, #94a3b8 76%) !important;
+.dark .text-slate-400:not([style*="color"]) {
+  color: color-mix(in srgb, var(--accent-color) 24%, #94a3b8 76%);
 }
-.dark .text-slate-500 {
-  color: color-mix(in srgb, var(--accent-color) 20%, #64748b 80%) !important;
+.dark .text-slate-500:not([style*="color"]) {
+  color: color-mix(in srgb, var(--accent-color) 20%, #64748b 80%);
 }
 
-html:not(.dark) .text-slate-400 {
-  color: color-mix(in srgb, var(--accent-color) 25%, #64748b 75%) !important;
+html:not(.dark) .text-slate-400:not([style*="color"]) {
+  color: color-mix(in srgb, var(--accent-color) 25%, #64748b 75%);
 }
-html:not(.dark) .text-slate-500 {
-  color: color-mix(in srgb, var(--accent-color) 28%, #475569 72%) !important;
+html:not(.dark) .text-slate-500:not([style*="color"]) {
+  color: color-mix(in srgb, var(--accent-color) 28%, #475569 72%);
 }
-html:not(.dark) .text-slate-600 {
-  color: color-mix(in srgb, var(--accent-color) 24%, #334155 76%) !important;
+html:not(.dark) .text-slate-600:not([style*="color"]) {
+  color: color-mix(in srgb, var(--accent-color) 24%, #334155 76%);
 }
 
 /* Regra inegociável de contraste do Vagou: texto sobre fundo colorido sólido deve ser branco puro */

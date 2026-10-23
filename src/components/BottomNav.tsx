@@ -213,11 +213,29 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     <nav 
       id="vagou-bottom-nav"
       style={navContainerStyle}
-      className={`shrink-0 w-full h-[66px] px-2.5 sm:px-6 flex items-center justify-around z-30 transition-colors pb-[env(safe-area-inset-bottom,0px)] select-none ${navContainerClasses}`}
+      className={`shrink-0 w-full h-[66px] px-3 sm:px-6 gap-2 sm:gap-3 flex items-center justify-center z-30 transition-colors pb-[env(safe-area-inset-bottom,0px)] select-none ${navContainerClasses}`}
     >
       {establishmentTabs.map((tab) => {
         const Icon = tab.icon;
         const isActive = activeTab === tab.id;
+
+        const effectiveActiveBg = (navBtnActiveBgColor && navBtnActiveBgColor !== 'transparent')
+          ? navBtnActiveBgColor
+          : navActiveColor;
+
+        // Se a cor ativa do texto/ícone for idêntica ao fundo ativo do botão (ex.: ambos #ffffff), aplica contraste automático para não sumir
+        const resolvedActiveFg = (() => {
+          const bgLower = (effectiveActiveBg || '').trim().toLowerCase();
+          const fgLower = (navActiveColor || '').trim().toLowerCase();
+          if (bgLower && fgLower && bgLower === fgLower) {
+            return bgLower === '#ffffff' || bgLower === '#f8fafc' || bgLower === '#f1f5f9'
+              ? '#0f172a'
+              : '#ffffff';
+          }
+          return navActiveColor || '#ffffff';
+        })();
+
+        const resolvedInactiveFg = navTextColor && navTextColor !== 'transparent' ? navTextColor : undefined;
 
         if (navStyle === 'solid') {
           return (
@@ -230,14 +248,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               }}
               style={{
                 backgroundColor: isActive
-                  ? navBtnActiveBgColor || navActiveColor
+                  ? effectiveActiveBg
                   : navBtnBgColor || undefined,
                 boxShadow: btnShadowCss !== 'none' ? btnShadowCss : undefined,
                 backdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
                 WebkitBackdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
                 fontFamily: navBtnFont,
+                color: isActive ? resolvedActiveFg : resolvedInactiveFg,
               }}
-              className={`flex flex-col items-center justify-center gap-1 h-[50px] px-2 sm:px-3.5 transition-all active:scale-95 cursor-pointer flex-1 max-w-[96px] ${
+              className={`flex flex-col items-center justify-center gap-1 h-[50px] px-1.5 sm:px-3.5 transition-all active:scale-95 cursor-pointer flex-1 min-w-0 max-w-[96px] ${
                 navShape === 'circle' ? 'rounded-full' : 'rounded-[4px]'
               } ${
                 navBorder === 'bordered'
@@ -249,23 +268,33 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                   : 'border-0'
               } ${
                 isActive
-                  ? 'text-white shadow-sm'
-                  : isDark
-                    ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80'
+                  ? 'shadow-sm'
+                  : resolvedInactiveFg
+                    ? 'hover:opacity-90'
+                    : isDark
+                      ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80'
               }`}
             >
               <Icon 
-                className={`w-5 h-5 stroke-[2.2] ${isActive ? 'text-white' : ''}`}
-                style={!isActive && navTextColor ? { color: navTextColor } : undefined}
+                className="w-5 h-5 stroke-[2.2] shrink-0"
+                style={{
+                  color: isActive ? resolvedActiveFg : resolvedInactiveFg,
+                }}
               />
               <span 
                 style={{
                   fontFamily: navBtnFont,
-                  color: !isActive && navTextColor ? navTextColor : undefined,
+                  color: isActive ? resolvedActiveFg : resolvedInactiveFg,
                 }}
-                className={`text-[10px] tracking-wide font-bold truncate max-w-[72px] leading-none ${
-                  isActive ? 'text-white' : isDark ? 'text-slate-400' : 'text-slate-500'
+                className={`text-[10px] tracking-wide font-bold truncate max-w-full leading-none ${
+                  isActive
+                    ? ''
+                    : resolvedInactiveFg
+                      ? ''
+                      : isDark
+                        ? 'text-slate-400'
+                        : 'text-slate-500'
                 }`}
               >
                 {tab.label}
@@ -286,22 +315,23 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               style={{
                 backgroundColor: !isActive && navBtnBgColor ? navBtnBgColor : isActive && navBtnActiveBgColor ? navBtnActiveBgColor : undefined,
                 fontFamily: navBtnFont,
+                color: isActive ? resolvedActiveFg : resolvedInactiveFg,
               }}
-              className="flex flex-col items-center justify-center gap-1 py-1 px-1.5 sm:px-3 transition active:scale-95 cursor-pointer group flex-1 max-w-[100px] rounded-[4px]"
+              className="flex flex-col items-center justify-center gap-1 py-1 px-1.5 sm:px-3 transition active:scale-95 cursor-pointer group flex-1 min-w-0 max-w-[100px] rounded-[4px]"
             >
               <div 
                 style={
                   isActive
                     ? { 
                         borderColor: navBorder === 'bordered' ? navActiveColor : 'transparent', 
-                        backgroundColor: navBtnActiveBgColor || navActiveColor,
+                        backgroundColor: effectiveActiveBg,
                         boxShadow: btnShadowCss !== 'none' ? btnShadowCss : undefined,
                         backdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
                         WebkitBackdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
                       }
                     : {
                         backgroundColor: navBtnBgColor || undefined,
-                        borderColor: navBorder === 'bordered' ? (navTextColor ? `${navTextColor}40` : undefined) : 'transparent',
+                        borderColor: navBorder === 'bordered' ? (resolvedInactiveFg ? `${resolvedInactiveFg}40` : undefined) : 'transparent',
                         boxShadow: btnShadowCss !== 'none' ? btnShadowCss : undefined,
                         backdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
                         WebkitBackdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
@@ -313,24 +343,28 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                   navBorder === 'bordered' ? 'border' : 'border-0'
                 } ${
                   isActive
-                    ? 'text-white scale-105 shadow-xs'
-                    : isDark
-                      ? 'text-slate-400 hover:text-slate-200 border-slate-800 bg-slate-950/70 hover:border-emerald-500/40'
-                      : 'text-slate-500 hover:text-slate-800 border-slate-200 bg-slate-50 hover:border-emerald-500/40'
+                    ? 'scale-105 shadow-xs'
+                    : resolvedInactiveFg
+                      ? 'border-white/25 bg-slate-950/30'
+                      : isDark
+                        ? 'text-slate-400 hover:text-slate-200 border-slate-800 bg-slate-950/70 hover:border-emerald-500/40'
+                        : 'text-slate-500 hover:text-slate-800 border-slate-200 bg-slate-50 hover:border-emerald-500/40'
                 }`}
               >
                 <Icon 
-                  className={`w-4.5 h-4.5 stroke-[2.2] ${isActive ? 'text-white' : ''}`}
-                  style={!isActive && navTextColor ? { color: navTextColor } : undefined}
+                  className="w-4.5 h-4.5 stroke-[2.2] shrink-0"
+                  style={{
+                    color: isActive ? resolvedActiveFg : resolvedInactiveFg,
+                  }}
                 />
               </div>
               <span 
                 style={{
                   fontFamily: navBtnFont,
-                  color: isActive ? navActiveColor : navTextColor || undefined,
+                  color: isActive ? (navActiveColor || resolvedActiveFg) : resolvedInactiveFg,
                 }}
-                className={`text-[10px] tracking-wide font-bold truncate max-w-[68px] transition-colors ${
-                  isActive
+                className={`text-[10px] tracking-wide font-bold truncate max-w-full transition-colors ${
+                  isActive || resolvedInactiveFg
                     ? ''
                     : isDark ? 'text-slate-400' : 'text-slate-500'
                 }`}
@@ -342,6 +376,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         }
 
         // Padrão 'minimal' (Clean Line — Zero Box-in-Box + Indicador Luminoso no Topo)
+        const minimalActiveFg = (() => {
+          if (navBtnActiveBgColor && navBtnActiveBgColor !== 'transparent') {
+            return resolvedActiveFg;
+          }
+          return navActiveColor || (isDark ? '#ffffff' : '#10b981');
+        })();
+
         return (
           <button
             key={tab.id}
@@ -360,14 +401,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               backdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
               WebkitBackdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
               fontFamily: navBtnFont,
+              color: isActive ? minimalActiveFg : resolvedInactiveFg,
             }}
-            className={`relative h-full flex flex-col items-center justify-center gap-1 px-2 sm:px-3.5 transition-all active:scale-95 cursor-pointer group flex-1 max-w-[100px] ${
+            className={`relative h-[52px] flex flex-col items-center justify-center gap-1 px-1.5 sm:px-3.5 transition-all active:scale-95 cursor-pointer group flex-1 min-w-0 max-w-[100px] ${
               navShape === 'circle' ? 'rounded-full' : 'rounded-[4px]'
             } ${
               navBorder === 'bordered'
                 ? isActive
-                  ? navShape === 'circle' ? 'rounded-full border border-white/20' : 'rounded-[4px] border border-white/20'
-                  : 'border border-slate-800/40'
+                  ? navShape === 'circle' ? 'rounded-full border border-white/35' : 'rounded-[4px] border border-white/35'
+                  : 'border border-white/25'
                 : ''
             }`}
           >
@@ -382,27 +424,33 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             />
 
             <Icon
-              style={isActive ? { color: navActiveColor } : navTextColor ? { color: navTextColor } : undefined}
-              className={`w-5 h-5 transition-transform duration-200 ${
+              style={{
+                color: isActive ? minimalActiveFg : resolvedInactiveFg,
+              }}
+              className={`w-5 h-5 shrink-0 transition-transform duration-200 ${
                 isActive
                   ? 'stroke-[2.4] -translate-y-0.5'
-                  : isDark
-                    ? 'text-slate-400 group-hover:text-slate-200 stroke-[2]'
-                    : 'text-slate-500 group-hover:text-slate-800 stroke-[2]'
+                  : resolvedInactiveFg
+                    ? 'stroke-[2]'
+                    : isDark
+                      ? 'text-slate-400 group-hover:text-slate-200 stroke-[2]'
+                      : 'text-slate-500 group-hover:text-slate-800 stroke-[2]'
               }`}
             />
 
             <span
               style={{
                 fontFamily: navBtnFont,
-                color: isActive ? (isDark ? '#ffffff' : navActiveColor) : navTextColor || undefined,
+                color: isActive ? minimalActiveFg : resolvedInactiveFg,
               }}
-              className={`text-[10px] tracking-wide font-bold truncate max-w-[72px] leading-none transition-colors ${
+              className={`text-[10px] tracking-wide font-bold truncate max-w-full leading-none transition-colors ${
                 isActive
                   ? 'font-extrabold'
-                  : isDark
-                    ? 'text-slate-400 group-hover:text-slate-300'
-                    : 'text-slate-500 group-hover:text-slate-800'
+                  : resolvedInactiveFg
+                    ? ''
+                    : isDark
+                      ? 'text-slate-400 group-hover:text-slate-300'
+                      : 'text-slate-500 group-hover:text-slate-800'
               }`}
             >
               {tab.label}

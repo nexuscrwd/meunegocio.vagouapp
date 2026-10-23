@@ -159,15 +159,82 @@ const locationGeoCache = new Map<
   { lat: number; lng: number; formattedAddress: string; cep?: string }
 >();
 
+export type TransportMode = 'car' | 'motorcycle' | 'transit' | 'rideshare';
+
+export const TRANSPORT_MODE_META: Record<
+  TransportMode,
+  { label: string; shortLabel: string; safetyBufferMinutes: number; description: string }
+> = {
+  car: {
+    label: 'Carro',
+    shortLabel: 'Carro',
+    safetyBufferMinutes: 6,
+    description: 'Trânsito urbano + 6 min de folga para semáforos/estacionar',
+  },
+  motorcycle: {
+    label: 'Moto',
+    shortLabel: 'Moto',
+    safetyBufferMinutes: 4,
+    description: 'Rota rápida (corredor) + 4 min de margem de segurança',
+  },
+  transit: {
+    label: 'Transporte Público',
+    shortLabel: 'Transp. Público',
+    safetyBufferMinutes: 12,
+    description: 'Ônibus/Metrô + caminhada e tempo de espera/baldeação',
+  },
+  rideshare: {
+    label: 'App (Uber / 99)',
+    shortLabel: 'Uber / 99',
+    safetyBufferMinutes: 10,
+    description: 'Tempo de chamada do motorista + trajeto urbano com folga',
+  },
+};
+
+/**
+ * Aplica calibragem de tráfego real (padrão Google Maps em horário comercial) + margem de folga
+ * para garantir que o app NUNCA subestime o tempo real da rota.
+ */
+export function computeCalibratedEtaForMode(
+  distanceKm: number,
+  osrmRawMinutes: number | null,
+  mode: TransportMode = 'car'
+): number {
+  const safeDist = Math.max(0.2, distanceKm);
+
+  if (mode === 'motorcycle') {
+    const urbanMotoMinutes = (safeDist / (safeDist <= 15 ? 24.5 : 32.0)) * 60;
+    const baseMoto = osrmRawMinutes ? Math.max(urbanMotoMinutes, osrmRawMinutes * 1.12) : urbanMotoMinutes;
+    return Math.max(5, Math.ceil(baseMoto + TRANSPORT_MODE_META.motorcycle.safetyBufferMinutes));
+  }
+
+  if (mode === 'transit') {
+    const urbanTransitMinutes = (safeDist / (safeDist <= 12 ? 12.5 : 15.5)) * 60;
+    const baseTransit = osrmRawMinutes ? Math.max(urbanTransitMinutes, osrmRawMinutes * 1.85) : urbanTransitMinutes;
+    return Math.max(12, Math.ceil(baseTransit + TRANSPORT_MODE_META.transit.safetyBufferMinutes));
+  }
+
+  // Base de Carro (trânsito urbano severo/moderado estilo Google Maps: ~16.8 km/h até 15km, ~22 km/h acima)
+  const urbanCarMinutes = (safeDist / (safeDist <= 15 ? 16.8 : 22.0)) * 60;
+  const baseCar = osrmRawMinutes ? Math.max(urbanCarMinutes, osrmRawMinutes * 1.42) : urbanCarMinutes;
+
+  if (mode === 'rideshare') {
+    return Math.max(8, Math.ceil(baseCar + TRANSPORT_MODE_META.rideshare.safetyBufferMinutes));
+  }
+
+  return Math.max(6, Math.ceil(baseCar + TRANSPORT_MODE_META.car.safetyBufferMinutes));
+}
+
 /**
  * Fórmula de Haversine + fator de tortuosidade urbana realista (1.42x em malha viária urbana)
- * Velocidade média urbana calibrada com Google Maps (~23.3 km/h para trechos urbanos <= 15 km)
+ * Com calibragem Google Maps + margem de segurança por modal de transporte.
  */
 export function calculateHaversineDistanceAndEta(
   lat1: number,
   lng1: number,
   lat2: number,
-  lng2: number
+  lng2: number,
+  mode: TransportMode = 'car'
 ): { distanceKm: number; etaMinutes: number } {
   const R = 6371; // Raio da Terra em km
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -182,25 +249,25 @@ export function calculateHaversineDistanceAndEta(
   const straightDistanceKm = R * c;
 
   if (straightDistanceKm < 0.08) {
-    return { distanceKm: 0.2, etaMinutes: 3 };
+    return { distanceKm: 0.2, etaMinutes: mode === 'transit' ? 8 : 5 };
   }
 
   // Fator de tortuosidade viária urbana (1.42x da linha reta reflete curvas e retornos reais de rua)
   const roadDistanceKm = Math.max(0.3, Number((straightDistanceKm * 1.42).toFixed(1)));
-  const avgUrbanSpeedKmh = roadDistanceKm <= 15 ? 23.3 : 28.0;
-  const etaMinutes = Math.max(4, Math.round((roadDistanceKm / avgUrbanSpeedKmh) * 60));
+  const etaMinutes = computeCalibratedEtaForMode(roadDistanceKm, null, mode);
 
   return { distanceKm: roadDistanceKm, etaMinutes };
 }
 
 /**
- * Calcula a distância real de condução por ruas (OSRM Driving API) e o tempo estimado urbano (padrão Google Maps)
+ * Calcula a distância real de condução por ruas (OSRM Driving API) e o tempo estimado urbano (padrão Google Maps + margem de folga)
  */
 export async function calculateDrivingRouteDistanceAndEta(
   lat1: number,
   lng1: number,
   lat2: number,
-  lng2: number
+  lng2: number,
+  mode: TransportMode = 'car'
 ): Promise<{ distanceKm: number; etaMinutes: number; routeSummary?: string }> {
   try {
     const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=false`;
@@ -210,18 +277,15 @@ export async function calculateDrivingRouteDistanceAndEta(
       if (data?.code === 'Ok' && Array.isArray(data.routes) && data.routes.length > 0) {
         const route = data.routes[0];
         const distanceKm = Math.max(0.2, Number((route.distance / 1000).toFixed(1)));
-        // Calibragem de tráfego urbano (semáforos + cruzamentos = ~23.3 km/h até 15 km, ~28 km/h acima)
-        const avgUrbanSpeedKmh = distanceKm <= 15 ? 23.3 : 28.0;
-        const urbanTrafficMinutes = Math.round((distanceKm / avgUrbanSpeedKmh) * 60);
         const osrmRawMinutes = Math.round(route.duration / 60);
-        const etaMinutes = Math.max(4, Math.max(urbanTrafficMinutes, osrmRawMinutes));
+        const etaMinutes = computeCalibratedEtaForMode(distanceKm, osrmRawMinutes, mode);
         const legSummary = route.legs?.[0]?.summary ? `via ${route.legs[0].summary}` : undefined;
         return { distanceKm, etaMinutes, routeSummary: legSummary };
       }
     }
   } catch {}
 
-  return calculateHaversineDistanceAndEta(lat1, lng1, lat2, lng2);
+  return calculateHaversineDistanceAndEta(lat1, lng1, lat2, lng2, mode);
 }
 
 /**
@@ -237,7 +301,7 @@ export async function geocodeBrazilLocation(
   if (!cleanQuery) return null;
 
   const onlyDigits = cleanQuery.replace(/\D/g, '');
-  const cacheKey = onlyDigits.length === 8 ? `cep:${onlyDigits}` : `addr:${cleanQuery.toLowerCase()}`;
+  const cacheKey = onlyDigits.length === 8 ? `cep_v2:${onlyDigits}` : `addr_v2:${cleanQuery.toLowerCase()}`;
   const cached = locationGeoCache.get(cacheKey);
   if (cached) return cached;
 
@@ -247,6 +311,45 @@ export async function geocodeBrazilLocation(
   let state = '';
   let formattedAddress = cleanQuery;
 
+  const abbreviateAddressPrefixes = (text: string): string => {
+    if (!text) return '';
+    return text
+      .trim()
+      .replace(/\bAvenida\b/gi, 'Av.')
+      .replace(/\bPraça\b/gi, 'Pça.')
+      .replace(/\bAlameda\b/gi, 'Al.')
+      .replace(/\bTravessa\b/gi, 'Trav.')
+      .replace(/\bRua\b/gi, 'R.')
+      .replace(/\bEstrada\b/gi, 'Estr.')
+      .replace(/\bRodovia\b/gi, 'Rod.')
+      .replace(/\bLargo\b/gi, 'Lg.')
+      .replace(/\bViela\b/gi, 'Vl.')
+      .replace(/\bBeco\b/gi, 'Bc.')
+      .replace(/\bConjunto\b/gi, 'Conj.')
+      .replace(/\bCondomínio\b/gi, 'Cond.')
+      .replace(/\bParque\b/gi, 'Pq.')
+      .replace(/\bJardim\b/gi, 'Jd.')
+      .replace(/\bVila\b/gi, 'Vl.')
+      .replace(/\bDoutora?\b/gi, 'Dr.')
+      .replace(/\bProfessora?\b/gi, 'Prof.')
+      .replace(/\bEngenheiro\b/gi, 'Eng.')
+      .replace(/\bCapitão\b/gi, 'Cap.')
+      .replace(/\bCoronel\b/gi, 'Cel.')
+      .replace(/\bGeneral\b/gi, 'Gen.')
+      .replace(/\bMarechal\b/gi, 'Mal.')
+      .replace(/\bPresidente\b/gi, 'Pres.')
+      .replace(/\bGovernador\b/gi, 'Gov.')
+      .replace(/\bSenador\b/gi, 'Sen.')
+      .replace(/\bDeputado\b/gi, 'Dep.');
+  };
+
+  const formatCepAddressString = (st: string, nb: string, ct: string, uf: string, fallback: string) => {
+    const abbrSt = abbreviateAddressPrefixes(st);
+    const abbrNb = abbreviateAddressPrefixes(nb);
+    const parts = [abbrSt, abbrNb, ct.trim(), uf.trim()].filter(Boolean);
+    return parts.length > 0 ? parts.join('-') : fallback;
+  };
+
   // Fluxo A: É um CEP de 8 dígitos (ex.: 08235-770 ou 08285-010)
   if (onlyDigits.length === 8) {
     // 1. Tenta AwesomeAPI CEP (retorna lat e lng exatos do CEP instantaneamente)
@@ -254,14 +357,14 @@ export async function geocodeBrazilLocation(
       const awesomeRes = await fetch(`https://cep.awesomeapi.com.br/json/${onlyDigits}`);
       if (awesomeRes.ok) {
         const awData = await awesomeRes.json();
-        if (awData && !awData.status && awData.lat && awData.lng) {
+        if (awData && !awData.status) {
+          street = awData.address || street;
+          neighborhood = awData.district || neighborhood;
+          city = awData.city || city;
+          state = awData.state || state;
+          formattedAddress = formatCepAddressString(street, neighborhood, city, state, onlyDigits);
           const lat = parseFloat(awData.lat);
           const lng = parseFloat(awData.lng);
-          street = awData.address || '';
-          neighborhood = awData.district || '';
-          city = awData.city || '';
-          state = awData.state || '';
-          formattedAddress = `${street ? street + ' - ' : ''}${neighborhood || onlyDigits}, ${city}/${state}`;
           if (!Number.isNaN(lat) && !Number.isNaN(lng) && lat !== 0 && lng !== 0) {
             const resolved = { lat, lng, formattedAddress, cep: onlyDigits };
             locationGeoCache.set(cacheKey, resolved);
@@ -280,7 +383,7 @@ export async function geocodeBrazilLocation(
         neighborhood = brData.neighborhood || neighborhood;
         city = brData.city || city;
         state = brData.state || state;
-        formattedAddress = `${street ? street + ' - ' : ''}${neighborhood || onlyDigits}, ${city}/${state}`;
+        formattedAddress = formatCepAddressString(street, neighborhood, city, state, onlyDigits);
         const lat = parseFloat(brData?.location?.coordinates?.latitude);
         const lng = parseFloat(brData?.location?.coordinates?.longitude);
         if (!Number.isNaN(lat) && !Number.isNaN(lng) && lat !== 0 && lng !== 0) {
@@ -292,17 +395,17 @@ export async function geocodeBrazilLocation(
     } catch {}
 
     // 3. Tenta ViaCEP para enriquecer logradouro/bairro caso ainda não tenhamos
-    if (!city) {
+    if (!street || !neighborhood || !city) {
       try {
         const viaRes = await fetch(`https://viacep.com.br/ws/${onlyDigits}/json/`);
         if (viaRes.ok) {
           const viaData = await viaRes.json();
           if (!viaData.erro) {
-            street = viaData.logradouro || '';
-            neighborhood = viaData.bairro || '';
-            city = viaData.localidade || '';
-            state = viaData.uf || '';
-            formattedAddress = `${street ? street + ' - ' : ''}${neighborhood || onlyDigits}, ${city}/${state}`;
+            street = viaData.logradouro || street;
+            neighborhood = viaData.bairro || neighborhood;
+            city = viaData.localidade || city;
+            state = viaData.uf || state;
+            formattedAddress = formatCepAddressString(street, neighborhood, city, state, onlyDigits);
           }
         }
       } catch {}
@@ -336,6 +439,12 @@ export async function geocodeBrazilLocation(
         }
       } catch {}
     }
+
+    if (city || street || neighborhood) {
+      const resolved = { lat: -23.5505, lng: -46.6333, formattedAddress, cep: onlyDigits };
+      locationGeoCache.set(cacheKey, resolved);
+      return resolved;
+    }
   }
 
   // Fluxo B: Endereço textual livre (ex.: "Av. Itaquera, São Paulo" ou "Parque Guarani, SP")
@@ -365,12 +474,13 @@ export async function geocodeBrazilLocation(
 }
 
 /**
- * Geocodifica o endereço/CEP do cliente e do estabelecimento em tempo real e calcula a rota real de carro (OSRM)
+ * Geocodifica o endereço/CEP do cliente e do estabelecimento em tempo real e calcula a rota real com calibragem por modal e margem de folga
  */
 export async function resolveAddressDistanceToSalon(
   addressOrCepQuery: string,
   salonCoords: { lat: number; lng: number } = { lat: -23.5621, lng: -46.4795 },
-  salonDestinationQuery?: string
+  salonDestinationQuery?: string,
+  transportMode: TransportMode = 'car'
 ): Promise<{
   formattedAddress: string;
   salonFormattedAddress?: string;
@@ -404,7 +514,8 @@ export async function resolveAddressDistanceToSalon(
       originGeo.lat,
       originGeo.lng,
       targetSalonLat,
-      targetSalonLng
+      targetSalonLng,
+      transportMode
     );
 
     return {
@@ -424,7 +535,7 @@ export async function resolveAddressDistanceToSalon(
   const cleanQuery = addressOrCepQuery.trim();
   const seed = cleanQuery.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const simulatedDistanceKm = Number((3.5 + (seed % 85) / 10).toFixed(1));
-  const simulatedEtaMinutes = Math.max(8, Math.round((simulatedDistanceKm / 23.3) * 60));
+  const simulatedEtaMinutes = computeCalibratedEtaForMode(simulatedDistanceKm, null, transportMode);
 
   return {
     formattedAddress: cleanQuery,
@@ -435,6 +546,113 @@ export async function resolveAddressDistanceToSalon(
     salonLng: targetSalonLng,
     distanceKm: simulatedDistanceKm,
     etaMinutes: simulatedEtaMinutes,
+  };
+}
+
+/**
+ * Calcula o Horário Máximo de Saída (ex: "13H20") com base no horário agendado (ex: "14:00") e no tempo de trajeto (etaMinutes)
+ */
+export function formatMaxDepartureTime(timeSlot: string, etaMinutes: number): string {
+  const [sh, sm] = String(timeSlot || '').split(':').map(Number);
+  if (Number.isNaN(sh) || Number.isNaN(sm)) return '--H--';
+  const totalAppointmentMinutes = sh * 60 + sm;
+  const departureMinutes = Math.max(0, totalAppointmentMinutes - Math.max(0, etaMinutes));
+  const clamped = Math.min(23 * 60 + 59, departureMinutes);
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return `${String(h).padStart(2, '0')}H${String(m).padStart(2, '0')}`;
+}
+
+/**
+ * Gera Deep Links Universais (Google Maps com modo exato e baldeações, Waze, Uber e 99) já com origem e destino preenchidos
+ */
+export function buildTransportDeepLinks(params: {
+  originAddress?: string;
+  originLat?: number;
+  originLng?: number;
+  salonName?: string;
+  salonAddress?: string;
+  salonLat?: number;
+  salonLng?: number;
+  transportMode?: TransportMode;
+}) {
+  const originCoordStr =
+    typeof params.originLat === 'number' && typeof params.originLng === 'number'
+      ? `${params.originLat},${params.originLng}`
+      : '';
+  const salonCoordStr =
+    typeof params.salonLat === 'number' && typeof params.salonLng === 'number'
+      ? `${params.salonLat},${params.salonLng}`
+      : '';
+
+  const originQuery = (params.originAddress || originCoordStr || '').trim();
+  const destLabel = [params.salonName, params.salonAddress].filter(Boolean).join(' - ').trim() || salonCoordStr;
+  const destAddressOnly = (params.salonAddress || params.salonName || salonCoordStr || 'Estabelecimento').trim();
+
+  const googleTravelMode =
+    params.transportMode === 'transit'
+      ? 'transit'
+      : params.transportMode === 'motorcycle'
+      ? 'two-wheeler'
+      : 'driving';
+
+  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
+    originQuery || originCoordStr
+  )}&destination=${encodeURIComponent(destAddressOnly || salonCoordStr)}&travelmode=${googleTravelMode}`;
+
+  const googleMapsTransitUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
+    originQuery || originCoordStr
+  )}&destination=${encodeURIComponent(destAddressOnly || salonCoordStr)}&travelmode=transit`;
+
+  const wazeUrl = salonCoordStr
+    ? `https://waze.com/ul?ll=${salonCoordStr}&q=${encodeURIComponent(destAddressOnly)}&navigate=yes`
+    : `https://waze.com/ul?q=${encodeURIComponent(destAddressOnly)}&navigate=yes`;
+
+  // Deep Link Oficial Universal Uber (pré-preenche origem e endereço/coordenadas exatas do salão)
+  const uberParams = new URLSearchParams({
+    action: 'setPickup',
+    'dropoff[formatted_address]': destLabel,
+    'dropoff[nickname]': params.salonName || 'Salão',
+  });
+  if (typeof params.salonLat === 'number' && typeof params.salonLng === 'number') {
+    uberParams.set('dropoff[latitude]', String(params.salonLat));
+    uberParams.set('dropoff[longitude]', String(params.salonLng));
+  }
+  if (typeof params.originLat === 'number' && typeof params.originLng === 'number') {
+    uberParams.set('pickup[latitude]', String(params.originLat));
+    uberParams.set('pickup[longitude]', String(params.originLng));
+    if (params.originAddress) {
+      uberParams.set('pickup[formatted_address]', params.originAddress);
+    }
+  } else {
+    uberParams.set('pickup', 'my_location');
+  }
+  const uberUrl = `https://m.uber.com/ul/?${uberParams.toString()}`;
+
+  // Deep Link 99 App com coordenadas e endereço do destino
+  const app99Params = new URLSearchParams({
+    dropoff_title: destLabel,
+  });
+  if (typeof params.salonLat === 'number' && typeof params.salonLng === 'number') {
+    app99Params.set('dropoff_latitude', String(params.salonLat));
+    app99Params.set('dropoff_longitude', String(params.salonLng));
+  }
+  if (typeof params.originLat === 'number' && typeof params.originLng === 'number') {
+    app99Params.set('pickup_latitude', String(params.originLat));
+    app99Params.set('pickup_longitude', String(params.originLng));
+    if (params.originAddress) {
+      app99Params.set('pickup_title', params.originAddress);
+    }
+  }
+  const app99Url = `https://99app.com/?${app99Params.toString()}`;
+
+  return {
+    googleMapsUrl,
+    googleMapsTransitUrl,
+    wazeUrl,
+    uberUrl,
+    app99Url,
+    destAddressOnly,
   };
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   ArrowLeft, Heart, Zap, 
   Calendar,
@@ -6,12 +6,21 @@ import {
   Check, MessageCircle, MessageSquare,
   Scissors, Hand, Smile, Eye, Sparkles, LayoutDashboard,
   Store, Car, MapPin, Clock, Users, Wifi, Coffee, Wind,
-  LogOut, EyeOff, User, Share2, Loader2, Bookmark, X
+  LogOut, EyeOff, User, Share2, Loader2, Bookmark, X,
+  Bike, Bus, Smartphone, Navigation, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ServiceOffer, BookingAppointment, SalonAdminSettings, UserPersona, ProfessionalTeamMember } from '../types';
 import { SalonBookingModal, CatalogServiceItem, SalonProfessionalItem } from './SalonBookingModal';
-import { getSavedBookingDraft, saveBookingDraft, BookingDraftItem } from '../utils/bookingSlots';
+import {
+  getSavedBookingDraft,
+  saveBookingDraft,
+  BookingDraftItem,
+  TransportMode,
+  TRANSPORT_MODE_META,
+  buildTransportDeepLinks,
+  formatMaxDepartureTime,
+} from '../utils/bookingSlots';
 import { ProfessionalDashboardView } from './professional/ProfessionalDashboardView';
 import { ProfessionalServicesManager } from './professional/ProfessionalServicesManager';
 import { ProfessionalAgendaView } from './professional/ProfessionalAgendaView';
@@ -1345,28 +1354,18 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     return () => window.removeEventListener('vagou:booking-draft-updated', handleDraftUpdated);
   }, []);
 
-  // Refs para controle do scroll snap da landing page (4 seções) e micro-swipe vertical
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const homeSectionRef = useRef<HTMLElement>(null);
-  const servicosSectionRef = useRef<HTMLElement>(null);
-  const vagasSectionRef = useRef<HTMLElement>(null);
-  const espacoSectionRef = useRef<HTMLElement>(null);
-  const isProgrammaticScroll = useRef<boolean>(false);
-  const scrollLockTimeoutRef = useRef<number | null>(null);
-  const touchStartYRef = useRef<number>(0);
-  const touchStartXRef = useRef<number>(0);
-  const touchStartSectionIdxRef = useRef<number>(0);
-  const touchStartTargetRef = useRef<EventTarget | null>(null);
-  const isTouchingRef = useRef<boolean>(false);
-  const lastSettledSectionIdxRef = useRef<number>(0);
-
-  // Sub-abas e efeito swipe para a Seção Espaço (0: Equipe, 1: Estrutura, 2: Localização)
+  // Sub-abas e efeito swipe horizontal para a Seção Espaço (0: Equipe, 1: Estrutura, 2: Localização)
   const [espacoSlideIndex, setEspacoSlideIndex] = useState<number>(0);
   const [espacoSwipeDirection, setEspacoSwipeDirection] = useState<number>(1);
 
   // Paginação e efeito swap para o catálogo enquadrado de serviços (4 por visualização)
   const [servicePage, setServicePage] = useState<number>(0);
   const [swapDirection, setSwapDirection] = useState<number>(1);
+
+  const [bookingIsDependent, setBookingIsDependent] = useState(false);
+  const [bookingDependentName, setBookingDependentName] = useState('');
+  const [bookingSelectedService, setBookingSelectedService] = useState<CatalogServiceItem | null>(null);
+  const [bookingOpenModalFn, setBookingOpenModalFn] = useState<(() => void) | null>(null);
 
   // Estado para agendamento confirmado exibido dentro da seção do salão
   const [confirmedBookingData, setConfirmedBookingData] = useState<{
@@ -1377,6 +1376,15 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     dateTime: string;
     totalPrice: number;
     address: string;
+    distanceKm?: number;
+    etaMinutes?: number;
+    maxDepartureTime?: string;
+    uiTransportMode?: TransportMode;
+    originFormattedAddress?: string;
+    originLat?: number;
+    originLng?: number;
+    salonLat?: number;
+    salonLng?: number;
   } | null>(null);
 
   // Sincronização da tabela de horários com o modal
@@ -1526,9 +1534,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     return Sparkles;
   }, [primaryOffer, salonName, salonOffers, offers]);
 
-  // Navegação direta: no modo público rola para a seção; no modo gerenciamento alterna a aba diretamente
+  // Navegação direta entre abas tanto no modo público quanto no modo gerenciamento (sem efeito swap vertical)
   const handleSelectTab = useCallback((tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout') => {
-    // 3. Abas de gestão só para owner e manager.
+    // Abas de gestão só para owner e manager
     if (tab === 'caixa' || tab === 'financeiro' || tab === 'utilidades' || tab === 'personalizar' || tab === 'equipe' || tab === 'dados' || tab === 'visual' || tab === 'preferencias' || tab === 'layout') {
       if (!isOwnerOrManager) {
         setIsClientAuthModalOpen(true);
@@ -1549,17 +1557,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       }
       setActiveTab('espaco');
       setEspacoSlideIndex(1);
-      lastSettledSectionIdxRef.current = 3;
-      isProgrammaticScroll.current = true;
-      if (espacoSectionRef.current && scrollContainerRef.current) {
-        scrollContainerRef.current.scrollTo({
-          top: espacoSectionRef.current.offsetTop,
-          behavior: 'smooth',
-        });
-      }
-      setTimeout(() => {
-        isProgrammaticScroll.current = false;
-      }, 600);
       return;
     }
 
@@ -1573,220 +1570,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         return;
       }
       setActiveTab('servicos');
-      lastSettledSectionIdxRef.current = 1;
-      isProgrammaticScroll.current = true;
-      if (servicosSectionRef.current && scrollContainerRef.current) {
-        scrollContainerRef.current.scrollTo({
-          top: servicosSectionRef.current.offsetTop,
-          behavior: 'smooth',
-        });
-      }
-      setTimeout(() => {
-        isProgrammaticScroll.current = false;
-      }, 600);
       return;
     }
 
     setActiveTab(tab);
-    if (isGerMode) {
-      // No modo gerenciamento, a navegação é exclusivamente por botões (troca direta de estado)
-      return;
-    }
-    if (tab === 'home') lastSettledSectionIdxRef.current = 0;
-    if (tab === 'vagas') lastSettledSectionIdxRef.current = 2;
-    isProgrammaticScroll.current = true;
-    const targetMap: Record<'home' | 'servicos' | 'vagas', HTMLElement | null> = {
-      home: homeSectionRef.current,
-      servicos: servicosSectionRef.current,
-      vagas: vagasSectionRef.current,
-    };
-    const target = targetMap[tab as 'home' | 'servicos' | 'vagas'];
-    if (target && scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({
-        top: target.offsetTop,
-        behavior: 'smooth',
-      });
-    }
-    setTimeout(() => {
-      isProgrammaticScroll.current = false;
-    }, 600);
-  }, [isGerMode, currentPersona]);
-
-  // Verifica se o elemento tocado/rolado possui scroll interno ativo na direção do movimento
-  const canInnerElementScroll = useCallback((target: EventTarget | null, container: HTMLElement, deltaY: number): boolean => {
-    let el = target as HTMLElement | null;
-    while (el && el !== container) {
-      const style = window.getComputedStyle(el);
-      const overflowY = style.overflowY;
-      const isScrollableY = (overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 2;
-      if (isScrollableY) {
-        if (deltaY > 0 && el.scrollTop + el.clientHeight < el.scrollHeight - 2) {
-          return true;
-        }
-        if (deltaY < 0 && el.scrollTop > 2) {
-          return true;
-        }
-      }
-      el = el.parentElement;
-    }
-    return false;
-  }, []);
-
-  // Rola suavemente até a seção pelo índice (0: home, 1: servicos, 2: vagas, 3: espaco)
-  const scrollToPublicSectionIndex = useCallback((targetIdx: number) => {
-    const clampedIdx = Math.max(0, Math.min(3, targetIdx));
-    const sectionOrder: Array<'home' | 'servicos' | 'vagas' | 'espaco'> = ['home', 'servicos', 'vagas', 'espaco'];
-    const targetKey = sectionOrder[clampedIdx];
-    const sectionRefs = [
-      homeSectionRef.current,
-      servicosSectionRef.current,
-      vagasSectionRef.current,
-      espacoSectionRef.current,
-    ];
-    const targetEl = sectionRefs[clampedIdx];
-    const container = scrollContainerRef.current;
-    if (!targetEl || !container) return;
-
-    isProgrammaticScroll.current = true;
-    lastSettledSectionIdxRef.current = clampedIdx;
-
-    if (targetKey === 'espaco') {
-      setActiveTab(espacoSlideIndex === 0 ? 'equipe' : 'espaco');
-    } else {
-      setActiveTab(targetKey);
-    }
-
-    container.scrollTo({
-      top: targetEl.offsetTop,
-      behavior: 'smooth',
-    });
-
-    if (scrollLockTimeoutRef.current) {
-      window.clearTimeout(scrollLockTimeoutRef.current);
-    }
-    scrollLockTimeoutRef.current = window.setTimeout(() => {
-      isProgrammaticScroll.current = false;
-    }, 520);
-  }, [espacoSlideIndex]);
-
-  // Handlers de Micro-Swipe Vertical (Touch) para rolar o restante da página com movimento mínimo
-  const handlePublicTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    if (isGerMode || e.touches.length !== 1) return;
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    isTouchingRef.current = true;
-    touchStartYRef.current = e.touches[0].clientY;
-    touchStartXRef.current = e.touches[0].clientX;
-    touchStartTargetRef.current = e.target;
-    const sectionHeight = container.clientHeight || 1;
-    touchStartSectionIdxRef.current = Math.max(0, Math.min(3, Math.round(container.scrollTop / sectionHeight)));
-  }, [isGerMode]);
-
-  const handlePublicTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    if (isGerMode || e.changedTouches.length === 0) return;
-    isTouchingRef.current = false;
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const deltaY = touchStartYRef.current - e.changedTouches[0].clientY;
-    const deltaX = touchStartXRef.current - e.changedTouches[0].clientX;
-
-    // Ignora se o gesto foi predominantemente horizontal (ex.: carrossel de fotos ou abas)
-    if (Math.abs(deltaX) > Math.abs(deltaY) * 1.1) {
-      return;
-    }
-
-    // Respeita rolagem interna de sub-listas (ex.: horários ou lista de equipe)
-    if (canInnerElementScroll(touchStartTargetRef.current, container, deltaY)) {
-      return;
-    }
-
-    const baseIdx = touchStartSectionIdxRef.current;
-    // Movimento vertical mínimo (>= 18px) já dispara o avanço/recuo completo para a próxima seção
-    const SWIPE_THRESHOLD_PX = 18;
-
-    if (deltaY >= SWIPE_THRESHOLD_PX && baseIdx < 3) {
-      hapticLight();
-      scrollToPublicSectionIndex(baseIdx + 1);
-    } else if (deltaY <= -SWIPE_THRESHOLD_PX && baseIdx > 0) {
-      hapticLight();
-      scrollToPublicSectionIndex(baseIdx - 1);
-    } else {
-      // Garante alinhamento exato caso tenha havido micro-deslocamento menor que o limiar
-      scrollToPublicSectionIndex(baseIdx);
-    }
-  }, [isGerMode, canInnerElementScroll, scrollToPublicSectionIndex]);
-
-  // Controle de Wheel/Trackpad e guarda de alinhamento para impedir que a divisão entre seções pare no meio da tela
-  useEffect(() => {
-    if (isGerMode) return;
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    let scrollEndTimer: number | null = null;
-
-    const handleWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
-      if (canInnerElementScroll(e.target, container, e.deltaY)) return;
-
-      e.preventDefault();
-      if (isProgrammaticScroll.current) return;
-
-      if (Math.abs(e.deltaY) >= 8) {
-        const sectionHeight = container.clientHeight || 1;
-        const currentIdx = Math.max(0, Math.min(3, Math.round(container.scrollTop / sectionHeight)));
-        if (e.deltaY > 0 && currentIdx < 3) {
-          scrollToPublicSectionIndex(currentIdx + 1);
-        } else if (e.deltaY < 0 && currentIdx > 0) {
-          scrollToPublicSectionIndex(currentIdx - 1);
-        }
-      }
-    };
-
-    const handleScroll = () => {
-      if (isProgrammaticScroll.current || isTouchingRef.current) return;
-      if (scrollEndTimer) window.clearTimeout(scrollEndTimer);
-
-      scrollEndTimer = window.setTimeout(() => {
-        if (isProgrammaticScroll.current || isTouchingRef.current) return;
-        const sectionHeight = container.clientHeight || 1;
-        const rawProgress = container.scrollTop / sectionHeight;
-        const remainder = Math.abs(rawProgress - Math.round(rawProgress)) * sectionHeight;
-
-        // Se a página parou desalinhada entre duas seções (> 4px), completa o movimento na direção iniciada
-        if (remainder > 4) {
-          const prevIdx = lastSettledSectionIdxRef.current;
-          const diffFromPrev = rawProgress - prevIdx;
-          if (diffFromPrev > 0.04 && prevIdx < 3) {
-            scrollToPublicSectionIndex(prevIdx + 1);
-          } else if (diffFromPrev < -0.04 && prevIdx > 0) {
-            scrollToPublicSectionIndex(prevIdx - 1);
-          } else {
-            scrollToPublicSectionIndex(Math.round(rawProgress));
-          }
-        } else {
-          const settledIdx = Math.max(0, Math.min(3, Math.round(rawProgress)));
-          lastSettledSectionIdxRef.current = settledIdx;
-          const sectionOrder: Array<'home' | 'servicos' | 'vagas' | 'espaco'> = ['home', 'servicos', 'vagas', 'espaco'];
-          const tabId = sectionOrder[settledIdx];
-          if (tabId === 'espaco') {
-            setActiveTab(espacoSlideIndex === 0 ? 'equipe' : 'espaco');
-          } else {
-            setActiveTab(tabId);
-          }
-        }
-      }, 90);
-    };
-
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    container.addEventListener('scroll', handleScroll, { passive: true });
-
-    return () => {
-      container.removeEventListener('wheel', handleWheel);
-      container.removeEventListener('scroll', handleScroll);
-      if (scrollEndTimer) window.clearTimeout(scrollEndTimer);
-    };
-  }, [isGerMode, espacoSlideIndex, canInnerElementScroll, scrollToPublicSectionIndex]);
+  }, [isGerMode, isOwnerOrManager]);
 
   // Catálogo completo de serviços conectado ao estado dinâmico gerenciável
   const filteredCatalogServices = useMemo(() => {
@@ -1879,6 +1667,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     etaMinutes?: number;
     prepBufferMinutes?: number;
     transportMode?: 'driving' | 'motorcycle' | 'walking' | 'transit';
+    uiTransportMode?: TransportMode;
+    maxDepartureTime?: string;
+    originFormattedAddress?: string;
+    originLat?: number;
+    originLng?: number;
+    salonLat?: number;
+    salonLng?: number;
     selectedRouteSummary?: string;
   }): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -2016,6 +1811,17 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         dateTime: `${bookingData.dateFormatted} às ${bookingData.timeSlot}`,
         totalPrice: bookingData.price,
         address: bookingData.salonAddress,
+        distanceKm: bookingData.distanceKm,
+        etaMinutes: bookingData.etaMinutes,
+        maxDepartureTime:
+          bookingData.maxDepartureTime ||
+          formatMaxDepartureTime(bookingData.timeSlot, bookingData.etaMinutes ?? 15),
+        uiTransportMode: bookingData.uiTransportMode || 'car',
+        originFormattedAddress: bookingData.originFormattedAddress,
+        originLat: bookingData.originLat,
+        originLng: bookingData.originLng,
+        salonLat: bookingData.salonLat,
+        salonLng: bookingData.salonLng,
       });
 
       // Salvar nos agendamentos do usuário para visualização em Minha Agenda (com dados BOL-020 + Dependente)
@@ -2388,21 +2194,14 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           )}
         </main>
       ) : (
-        /* MODO PÚBLICO / CLIENTE: SWIPE VERTICAL DE ALTA SENSIBILIDADE COM ALTURA ESTÁVEL */
-        <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden relative">
-          {/* CONTAINER DE SEÇÕES COM SNAP OBRIGATÓRIO E MICRO-SWIPE */}
-          <div 
-            ref={scrollContainerRef}
-            onTouchStart={handlePublicTouchStart}
-            onTouchEnd={handlePublicTouchEnd}
-            className="flex-1 min-h-0 w-full relative overflow-y-auto snap-y snap-mandatory scroll-smooth no-scrollbar overscroll-y-contain touch-pan-y"
-          >
-            {/* SEÇÃO 1: INÍCIO */}
+        /* MODO PÚBLICO / CLIENTE: NAVEGAÇÃO POR ABAS DEDICADAS (SEM EFEITO SWAP VERTICAL) */
+        <main className="flex-1 min-h-0 w-full flex flex-col overflow-hidden relative">
+          {/* SEÇÃO 1: INÍCIO */}
+          {activeTab === 'home' && (
             <section
               id="section-home"
-              ref={homeSectionRef}
               data-tab-id="home"
-              className="w-full h-full min-h-full shrink-0 snap-start snap-always snap-section overflow-hidden flex flex-col justify-between"
+              className="w-full h-full flex-1 min-h-0 overflow-hidden flex flex-col justify-between animate-in fade-in duration-150"
             >
               {/* SLIDER / CARROSSEL PUBLICITÁRIO OU PAINEL DIRETO */}
               {adminSettings.showHeroSlides !== false ? (
@@ -2507,7 +2306,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         type="button"
                         onClick={() => {
                           hapticLight();
-                          scrollToPublicSectionIndex(1);
+                          handleSelectTab('servicos');
                         }}
                         className="p-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-between shadow-xs transition active:scale-95 cursor-pointer font-['Poppins']"
                       >
@@ -2519,7 +2318,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         type="button"
                         onClick={() => {
                           hapticLight();
-                          scrollToPublicSectionIndex(2);
+                          handleSelectTab('vagas');
                         }}
                         className={`p-3 rounded-[4px] border font-bold text-xs flex items-center justify-between transition active:scale-95 cursor-pointer font-['Poppins'] ${
                           isDark 
@@ -2542,7 +2341,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                       type="button"
                       onClick={() => {
                         hapticLight();
-                        scrollToPublicSectionIndex(3);
+                        handleSelectTab('espaco');
                       }}
                       className="text-emerald-400 hover:underline font-bold cursor-pointer"
                     >
@@ -2552,14 +2351,15 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 </div>
               )}
             </section>
+          )}
 
-        {/* SEÇÃO 2: SERVIÇOS */}
-        <section
-          id="section-servicos"
-          ref={servicosSectionRef}
-          data-tab-id="servicos"
-          className="w-full h-full min-h-full shrink-0 snap-start snap-always snap-section overflow-hidden flex flex-col justify-between"
-        >
+          {/* SEÇÃO 2: SERVIÇOS */}
+          {activeTab === 'servicos' && (
+            <section
+              id="section-servicos"
+              data-tab-id="servicos"
+              className="w-full h-full flex-1 min-h-0 overflow-hidden flex flex-col justify-between animate-in fade-in duration-150"
+            >
           {/* Subcabeçalho de Título da Seção: Serviços */}
           <div className={sectionHeaderStyleData.containerClass} style={sectionHeaderStyleData.containerStyle}>
             <div className="flex items-center gap-2">
@@ -2650,25 +2450,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     )}
                   </div>
                 ) : (
-                <AnimatePresence mode="wait" custom={swapDirection}>
-                  <motion.div
-                    key={servicePage}
-                    custom={swapDirection}
-                    initial={{ opacity: 0, x: swapDirection > 0 ? 40 : -40 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: swapDirection > 0 ? -40 : 40 }}
-                    transition={{ duration: 0.25, ease: 'easeOut' }}
-                    drag={totalServicePages > 1 ? 'x' : false}
-                    dragConstraints={{ left: 0, right: 0 }}
-                    dragElastic={0.2}
-                    onDragEnd={(_, info) => {
-                      if (info.offset.x < -35 || info.velocity.x < -200) {
-                        handleNextServicePage();
-                      } else if (info.offset.x > 35 || info.velocity.x > 200) {
-                        handlePrevServicePage();
-                      }
-                    }}
-                    className={`grid grid-cols-2 grid-rows-2 gap-0 w-full flex-1 min-h-0 cursor-grab active:cursor-grabbing touch-pan-y ${
+                  <div
+                    className={`grid grid-cols-2 grid-rows-2 gap-0 w-full flex-1 min-h-0 ${
                       isDark ? 'bg-slate-950' : 'bg-slate-100'
                     }`}
                   >
@@ -2713,8 +2496,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         </div>
                       </div>
                     ))}
-                  </motion.div>
-                </AnimatePresence>
+                  </div>
                 )}
 
                 {/* Barra de Paginação e Navegação de Alta Precisão */}
@@ -2803,29 +2585,53 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   </div>
                 )}
               </div>
-        </section>
+            </section>
+          )}
 
-        {/* SEÇÃO 3: AGENDAR */}
-        <section
-          id="section-vagas"
-          ref={vagasSectionRef}
-          data-tab-id="vagas"
-          className="w-full h-full min-h-full shrink-0 snap-start snap-always snap-section overflow-hidden flex flex-col justify-start"
-        >
-          {/* Subcabeçalho de Título da Seção: Agendamento */}
-          <div className={sectionHeaderStyleData.containerClass} style={sectionHeaderStyleData.containerStyle}>
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 shrink-0" style={sectionHeaderStyleData.iconStyle} />
-              <h2 className={`text-xs sm:text-sm font-bold font-['Poppins'] ${
-                !adminSettings.sectionHeaderTextColor ? (isDark ? 'text-white' : 'text-slate-900') : ''
-              }`} style={sectionHeaderStyleData.titleStyle}>
-                Agendamento & Vagas
-              </h2>
-            </div>
-            <span className="text-[10px] font-bold border px-2 py-0.5 rounded-[4px]" style={sectionHeaderStyleData.badgeStyle}>
-              Reserva On-line
-            </span>
-          </div>
+          {/* SEÇÃO 3: AGENDAR */}
+          {activeTab === 'vagas' && (
+            <section
+              id="section-vagas"
+              data-tab-id="vagas"
+              className="w-full h-full flex-1 min-h-0 overflow-hidden flex flex-col justify-start animate-in fade-in duration-150"
+            >
+              {/* Subcabeçalho de Título da Seção: Agendamento */}
+              <div className={sectionHeaderStyleData.containerClass} style={sectionHeaderStyleData.containerStyle}>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 shrink-0" style={sectionHeaderStyleData.iconStyle} />
+                  <h2 className={`text-xs sm:text-sm font-bold font-['Poppins'] ${
+                    !adminSettings.sectionHeaderTextColor ? (isDark ? 'text-white' : 'text-slate-900') : ''
+                  }`} style={sectionHeaderStyleData.titleStyle}>
+                    Agendamento & Vagas
+                  </h2>
+                </div>
+                {bookingSelectedService ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (bookingOpenModalFn) bookingOpenModalFn();
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] font-bold text-xs transition cursor-pointer shrink-0 whitespace-nowrap ${
+                      bookingIsDependent
+                        ? 'bg-emerald-500 text-white'
+                        : isDark
+                        ? 'bg-slate-800 text-slate-100 hover:bg-slate-700'
+                        : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+                    }`}
+                    style={sectionHeaderStyleData.badgeStyle}
+                    title="Alterar para quem é o agendamento"
+                  >
+                    {bookingIsDependent ? (
+                      <Users className="w-3.5 h-3.5 text-white shrink-0" />
+                    ) : (
+                      <User className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    )}
+                    <span className={bookingIsDependent ? 'text-white' : ''}>
+                      {bookingIsDependent && bookingDependentName ? bookingDependentName : 'Para Você'}
+                    </span>
+                  </button>
+                ) : null}
+              </div>
 
               <div className="flex-1 min-h-0 flex flex-col justify-start overflow-hidden w-full">
                 <SalonBookingModal
@@ -2851,19 +2657,26 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   initialTimeSlot={selectedTimeSlotForBooking}
                   initialDateIso={selectedCalendarDateIso}
                   preSelectedProfessionalName={selectedPublicProfessional}
+                  onBeneficiaryState={(state) => {
+                    setBookingIsDependent(state.isDependentBooking);
+                    setBookingDependentName(state.dependentName);
+                    setBookingSelectedService(state.selectedService);
+                    setBookingOpenModalFn(() => state.openBeneficiaryModal);
+                  }}
                   onDraftSaved={(draft) => setActiveBookingDraft(draft)}
                   onConfirmAppointment={handleConfirmSchedule}
                 />
               </div>
-        </section>
+            </section>
+          )}
 
-        {/* SEÇÃO 4: ESPAÇO, LOCALIZAÇÃO & EQUIPE */}
-        <section
-          id="section-espaco"
-          ref={espacoSectionRef}
-          data-tab-id="espaco"
-          className="w-full h-full min-h-full shrink-0 snap-start snap-always snap-section overflow-hidden flex flex-col justify-start"
-        >
+          {/* SEÇÃO 4: ESPAÇO, LOCALIZAÇÃO & EQUIPE */}
+          {(activeTab === 'espaco' || activeTab === 'equipe') && (
+            <section
+              id="section-espaco"
+              data-tab-id="espaco"
+              className="w-full h-full flex-1 min-h-0 overflow-hidden flex flex-col justify-start animate-in fade-in duration-150"
+            >
           {/* Subcabeçalho de Título da Seção: Espaço */}
           <div className={sectionHeaderStyleData.containerClass} style={sectionHeaderStyleData.containerStyle}>
             <div className="flex items-center gap-2">
@@ -3205,8 +3018,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 </div>
               </div>
             </section>
-          </div>
-        </div>
+          )}
+        </main>
       )}
 
       {/* Banner Flutuante de Pré-Agendamento Pausado (Retomada em 1 Toque) */}
@@ -3263,9 +3076,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           'personalizar', 'preferencias', 'dados', 'visual', 'layout', 'servicos', 'espaco', 'equipe'
         ].includes(activeTab);
 
+        const isHeroOverlay = !isGerMode && activeTab === 'home' && adminSettings.showHeroSlides !== false;
+
         return (
           <footer className={`w-full z-30 shrink-0 ${
-            adminSettings.navBgStyle === 'transparent' || adminSettings.navBgStyle === 'glass'
+            isHeroOverlay && (adminSettings.navBgStyle === 'transparent' || adminSettings.navBgStyle === 'glass')
               ? '-mt-[66px] pointer-events-none'
               : ''
           }`}>
@@ -3364,6 +3179,134 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     {confirmedBookingData.dateTime}
                   </span>
                 </div>
+
+                {confirmedBookingData.maxDepartureTime && (
+                  <div className={`pt-2 border-t space-y-1.5 ${isDark ? 'border-slate-800/80' : 'border-slate-200'}`}>
+                    {confirmedBookingData.originFormattedAddress && (
+                      <div className="text-[11px] font-extrabold text-emerald-400 truncate">
+                        {confirmedBookingData.originFormattedAddress}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span>Distância / Trajeto:</span>
+                      </span>
+                      <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                        {(confirmedBookingData.distanceKm ?? 4.2).toFixed(1).replace('.', ',')} km •{' '}
+                        {Math.floor((confirmedBookingData.etaMinutes ?? 15) / 60)}h e{' '}
+                        {String((confirmedBookingData.etaMinutes ?? 15) % 60).padStart(2, '0')}m
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span>Horário Máx. de saída:</span>
+                      </span>
+                      <span className="font-black text-emerald-400">
+                        {confirmedBookingData.maxDepartureTime}
+                      </span>
+                    </div>
+
+                    {/* Botões Diretos de Navegação / App no Comprovante Confirmado */}
+                    {(() => {
+                      const mode = confirmedBookingData.uiTransportMode || 'car';
+                      const links = buildTransportDeepLinks({
+                        originAddress: confirmedBookingData.originFormattedAddress,
+                        originLat: confirmedBookingData.originLat,
+                        originLng: confirmedBookingData.originLng,
+                        salonName: confirmedBookingData.salonName,
+                        salonAddress: confirmedBookingData.address || salonInfo.address,
+                        salonLat: confirmedBookingData.salonLat,
+                        salonLng: confirmedBookingData.salonLng,
+                        transportMode: mode,
+                      });
+
+                      if (mode === 'transit') {
+                        return (
+                          <div className="pt-1">
+                            <a
+                              href={links.googleMapsTransitUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                            >
+                              <Bus className="w-3.5 h-3.5 text-white shrink-0" />
+                              <span className="text-white">Ver Linhas e Baldeações no Maps</span>
+                              <ExternalLink className="w-3 h-3 text-white shrink-0" />
+                            </a>
+                          </div>
+                        );
+                      }
+
+                      if (mode === 'rideshare') {
+                        return (
+                          <div className="grid grid-cols-2 gap-1.5 pt-1">
+                            <a
+                              href={links.uberUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="py-2 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                            >
+                              <Smartphone className="w-3.5 h-3.5 text-white shrink-0" />
+                              <span className="text-white">Abrir Uber</span>
+                              <ExternalLink className="w-3 h-3 text-white shrink-0" />
+                            </a>
+                            <a
+                              href={links.app99Url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`py-2 px-2.5 rounded-[4px] font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                                isDark
+                                  ? 'bg-slate-800 hover:bg-slate-700 text-amber-400'
+                                  : 'bg-amber-100 hover:bg-amber-200 text-amber-900'
+                              }`}
+                            >
+                              <Car className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                              <span>Abrir 99</span>
+                              <ExternalLink className="w-3 h-3 text-amber-500 shrink-0" />
+                            </a>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="grid grid-cols-2 gap-1.5 pt-1">
+                          <a
+                            href={links.googleMapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="py-2 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                          >
+                            {mode === 'motorcycle' ? (
+                              <Bike className="w-3.5 h-3.5 text-white shrink-0" />
+                            ) : (
+                              <MapPin className="w-3.5 h-3.5 text-white shrink-0" />
+                            )}
+                            <span className="text-white">
+                              Maps ({TRANSPORT_MODE_META[mode].shortLabel})
+                            </span>
+                            <ExternalLink className="w-3 h-3 text-white shrink-0" />
+                          </a>
+                          <a
+                            href={links.wazeUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`py-2 px-2.5 rounded-[4px] font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                              isDark
+                                ? 'bg-slate-800 hover:bg-slate-700 text-white'
+                                : 'bg-slate-200 hover:bg-slate-300 text-slate-900'
+                            }`}
+                          >
+                            <Navigation className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            <span>Abrir Waze</span>
+                            <ExternalLink className="w-3 h-3 text-emerald-500 shrink-0" />
+                          </a>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
                   <span className="text-slate-400 font-bold">Total pago no local:</span>

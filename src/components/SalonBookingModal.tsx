@@ -3,7 +3,8 @@ import {
   X, Calendar, Clock, User, Users, CheckCircle2, ChevronLeft, ChevronRight,
   Sparkles, Star, Scissors, ArrowLeft, Building2, AlertCircle,
   Check, Video, Images, Phone, Plus, Navigation, MapPin, Search,
-  Sun, Sunset, Moon, Bookmark, RotateCcw, Loader2, Car
+  Sun, Sunset, Moon, Bookmark, RotateCcw, Loader2, Car, Home,
+  Bike, Bus, Smartphone, ExternalLink
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured, fetchClientFamilyMembers, generateUuidV4 } from '../lib/supabase';
 import { syncClientDependentToDatabase } from '../services/mnvSupabaseSync';
@@ -16,6 +17,10 @@ import {
   saveBookingDraft,
   BookingDraftItem,
   BookingSlotItem,
+  TransportMode,
+  TRANSPORT_MODE_META,
+  buildTransportDeepLinks,
+  formatMaxDepartureTime,
 } from '../utils/bookingSlots';
 import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
 import { SalonClientAuthModal } from './SalonClientAuthModal';
@@ -54,6 +59,12 @@ interface SalonBookingModalProps {
   initialDateIso?: string;
   preSelectedProfessionalName?: string;
   onDraftSaved?: (draft: BookingDraftItem | null) => void;
+  onBeneficiaryState?: (state: {
+    isDependentBooking: boolean;
+    dependentName: string;
+    selectedService: CatalogServiceItem | null;
+    openBeneficiaryModal: () => void;
+  }) => void;
   onConfirmAppointment: (bookingData: {
     service: CatalogServiceItem;
     professional: string;
@@ -74,6 +85,13 @@ interface SalonBookingModalProps {
     etaMinutes?: number;
     prepBufferMinutes?: number;
     transportMode?: 'driving' | 'motorcycle' | 'walking' | 'transit';
+    uiTransportMode?: TransportMode;
+    maxDepartureTime?: string;
+    originFormattedAddress?: string;
+    originLat?: number;
+    originLng?: number;
+    salonLat?: number;
+    salonLng?: number;
     selectedRouteSummary?: string;
   }) => Promise<{ success: boolean; error?: string } | void> | void;
 }
@@ -104,6 +122,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   initialDateIso,
   preSelectedProfessionalName,
   onDraftSaved,
+  onBeneficiaryState,
   onConfirmAppointment,
 }) => {
   const { isDark } = useTheme();
@@ -172,6 +191,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   const [isBeneficiaryModalOpen, setIsBeneficiaryModalOpen] = useState(false);
   const [hasChosenBeneficiary, setHasChosenBeneficiary] = useState(false);
 
+  // Modal Simples de Origem ("Saindo de Casa" vs "Outro Local" com cálculo de CEP/ETA)
+  const [isOriginModalOpen, setIsOriginModalOpen] = useState(false);
+  const [originModalMode, setOriginModalMode] = useState<'choice' | 'custom_cep'>('choice');
+  const [originType, setOriginType] = useState<'home' | 'other'>('home');
+  const [customCepInput, setCustomCepInput] = useState('');
+  const [hasCalculatedCustomCep, setHasCalculatedCustomCep] = useState(false);
+
   // Modal Independente de Resumo Final / Pré-Salvamento
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [draftSavedFeedback, setDraftSavedFeedback] = useState<string | null>(null);
@@ -208,17 +234,27 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(initialTimeSlot || null);
   const [timePeriodFilter, setTimePeriodFilter] = useState<'manha' | 'tarde' | 'noite' | 'todos'>('manha');
 
-  // 5. Comparador de Endereço em Tempo Real + Cálculo Preditivo (Deslocamento + 15 min preparo)
+  // 5. Cálculo Preditivo de Deslocamento (Casa ou Outro Local via CEP + Modal de Transporte + Margem de Folga + 15 min preparo)
+  const [transportMode, setTransportMode] = useState<TransportMode>('car');
   const [addressQuery, setAddressQuery] = useState<string>(() => {
-    return localStorage.getItem('vagou_client_test_address') || '08235-770';
+    return (
+      localStorage.getItem('vagou_user_cep') ||
+      localStorage.getItem('vagou_user_address') ||
+      localStorage.getItem('vagou_client_test_address') ||
+      '08235-770'
+    );
   });
   const [salonDestQuery, setSalonDestQuery] = useState<string>(() => {
     return salonCep || salonAddress || '08285-010';
   });
-  const [resolvedAddressLabel, setResolvedAddressLabel] = useState<string>('Parque Guarani, São Paulo/SP');
-  const [resolvedSalonLabel, setResolvedSalonLabel] = useState<string>(salonCep || salonAddress || '08285-010');
+  const [resolvedAddressLabel, setResolvedAddressLabel] = useState<string>('Endereço Residencial');
+  const [originCoords, setOriginCoords] = useState<{ lat: number; lng: number }>({
+    lat: -23.5505,
+    lng: -46.6333,
+  });
+  const [resolvedSalonCoords, setResolvedSalonCoords] = useState<{ lat: number; lng: number }>(salonCoords);
   const [distanceKm, setDistanceKm] = useState<number>(6.6);
-  const [etaMinutes, setEtaMinutes] = useState<number>(17);
+  const [etaMinutes, setEtaMinutes] = useState<number>(28);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState<boolean>(false);
 
   // Sincronizar CEP/Endereço real do salão assim que hidratar do Supabase
@@ -264,6 +300,15 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   const [newDepBirthDate, setNewDepBirthDate] = useState('');
   const [newDepNotes, setNewDepNotes] = useState('');
   const [isSavingInlineDependent, setIsSavingInlineDependent] = useState(false);
+
+  useEffect(() => {
+    onBeneficiaryState?.({
+      isDependentBooking,
+      dependentName,
+      selectedService,
+      openBeneficiaryModal: () => setIsBeneficiaryModalOpen(true),
+    });
+  }, [isDependentBooking, dependentName, selectedService]);
 
   const [clientPhoneInput, setClientPhoneInput] = useState(() => {
     return localStorage.getItem('vagou_user_phone') || '';
@@ -479,24 +524,35 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     setIsCreatingDependentInline(false);
     setIsSavingInlineDependent(false);
     setIsBeneficiaryModalOpen(false);
-    setCurrentStep('date');
+    if (skipDateStep) {
+      setCurrentStep('professionals_and_time');
+      setOriginModalMode('choice');
+      setIsOriginModalOpen(true);
+    } else {
+      setCurrentStep('date');
+    }
     hapticSuccess();
   };
 
-  // Handler do Comparador de Endereço em Tempo Real (Origem Cliente -> Destino Salão via OSRM)
-  const runRouteCalculation = async (originInput: string, destInput: string) => {
+  // Handler de Cálculo de Rota e ETA (Origem Cliente -> Destino Salão via OSRM + Modal de Transporte + Margem de Folga)
+  const runRouteCalculation = async (
+    originInput: string,
+    destInput: string,
+    modeOverride?: TransportMode
+  ) => {
     if (!originInput.trim()) return;
+    const effectiveMode = modeOverride || transportMode;
     setIsCalculatingRoute(true);
     try {
       const result = await resolveAddressDistanceToSalon(
         originInput,
         salonCoords,
-        destInput || salonCep || salonAddress || '08285-010'
+        destInput || salonCep || salonAddress || '08285-010',
+        effectiveMode
       );
       setResolvedAddressLabel(result.formattedAddress);
-      if (result.salonFormattedAddress) {
-        setResolvedSalonLabel(result.salonFormattedAddress);
-      }
+      setOriginCoords({ lat: result.lat, lng: result.lng });
+      setResolvedSalonCoords({ lat: result.salonLat, lng: result.salonLng });
       setDistanceKm(result.distanceKm);
       setEtaMinutes(result.etaMinutes);
       setSelectedTimeSlot(null);
@@ -508,22 +564,26 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     }
   };
 
-  const handleSimulateAddress = async (e?: React.FormEvent) => {
+  const handleCalculateCustomCep = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    const cleanCep = customCepInput.trim();
+    if (!cleanCep) return;
     hapticLight();
-    await runRouteCalculation(addressQuery, salonDestQuery);
+    setAddressQuery(cleanCep);
+    await runRouteCalculation(cleanCep, salonDestQuery, transportMode);
+    setHasCalculatedCustomCep(true);
   };
 
-  // Auto-calcular rota real ao abrir ou quando digitar um CEP completo de 8 dígitos
+  // Auto-calcular rota real ao abrir ou quando digitar um CEP completo de 8 dígitos ou mudar o meio de transporte
   useEffect(() => {
     const cleanOriginDigits = addressQuery.replace(/\D/g, '');
     if (cleanOriginDigits.length === 8 || addressQuery.trim().length >= 6) {
       const timer = setTimeout(() => {
-        runRouteCalculation(addressQuery, salonDestQuery);
+        runRouteCalculation(addressQuery, salonDestQuery, transportMode);
       }, 250);
       return () => clearTimeout(timer);
     }
-  }, [addressQuery, salonDestQuery]);
+  }, [addressQuery, salonDestQuery, transportMode]);
 
   // Monthly Calendar Generation
   const monthData = useMemo(() => {
@@ -599,13 +659,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   const nowMinutes = currentTimeTick.getHours() * 60 + currentTimeTick.getMinutes();
   const totalLeadMinutes = etaMinutes + PREP_BUFFER_MINUTES;
   const minAllowedMinutesToday = nowMinutes + totalLeadMinutes;
-
-  const minAllowedTimeFormatted = useMemo(() => {
-    const clamped = Math.min(23 * 60 + 59, minAllowedMinutesToday);
-    const h = Math.floor(clamped / 60);
-    const m = clamped % 60;
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-  }, [minAllowedMinutesToday]);
 
   // Regra de Indisponibilização Automática de Abas de Período Passadas (Manhã < 12:00, Tarde < 18:00)
   const isManhaPeriodDisabled = isSelectedDateToday && (nowMinutes >= 12 * 60 || minAllowedMinutesToday > 11 * 60 + 30);
@@ -734,6 +787,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
 
     setIsSubmittingBooking(true);
     try {
+      const dbTransportMode =
+        transportMode === 'motorcycle'
+          ? 'motorcycle'
+          : transportMode === 'transit'
+          ? 'transit'
+          : 'driving';
+
       const result = await onConfirmAppointment({
         service: selectedService,
         professional: selectedProfessional === 'any' ? `${resolvedProfessionalName} (Designado)` : selectedProfessional,
@@ -753,8 +813,15 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         distanceKm,
         etaMinutes,
         prepBufferMinutes: PREP_BUFFER_MINUTES,
-        transportMode: 'driving',
-        selectedRouteSummary: `${resolvedAddressLabel} (${distanceKm.toFixed(1)} km • ~${etaMinutes} min + 15 min preparo)`,
+        transportMode: dbTransportMode,
+        uiTransportMode: transportMode,
+        maxDepartureTime: formatMaxDepartureTime(selectedTimeSlot, etaMinutes),
+        originFormattedAddress: resolvedAddressLabel,
+        originLat: originCoords.lat,
+        originLng: originCoords.lng,
+        salonLat: resolvedSalonCoords.lat,
+        salonLng: resolvedSalonCoords.lng,
+        selectedRouteSummary: `${resolvedAddressLabel} (${TRANSPORT_MODE_META[transportMode].shortLabel} • ${distanceKm.toFixed(1).replace('.', ',')} km • ~${etaMinutes} min c/ folga)`,
       });
 
       if (result && !result.success && result.error) {
@@ -915,23 +982,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               </button>
             )}
 
-            {/* Sub-Cabeçalho de Título da Seção */}
-            <div className="flex items-center gap-1.5 min-w-0">
-              <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <h2 className={`text-xs sm:text-sm font-bold font-['Poppins'] truncate ${
-                isDark ? 'text-white' : 'text-slate-900'
-              }`}>
-                {currentStep === 'service'
-                  ? 'Agendar Horário • Serviços'
-                  : currentStep === 'date'
-                  ? 'Agendar Horário • Data'
-                  : 'Agendar Horário • Horários'}
-              </h2>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-1.5 ml-auto">
-            {selectedService && (
+            {!inline && selectedService && (
               <button
                 type="button"
                 onClick={() => {
@@ -957,23 +1008,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 </span>
               </button>
             )}
+          </div>
 
-            {selectedService && currentStep !== 'service' && (
-              <button
-                type="button"
-                onClick={() => {
-                  hapticLight();
-                  setIsAddingExtraServices(true);
-                  setCurrentStep('service');
-                }}
-                className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition cursor-pointer whitespace-nowrap"
-                title="Adicionar mais serviços"
-              >
-                <Plus className="w-3.5 h-3.5 text-white shrink-0" />
-                <span className="text-white">Mais</span>
-              </button>
-            )}
-
+          <div className="flex items-center justify-end gap-1.5 ml-auto">
             {!inline && onClose && (
               <button
                 type="button"
@@ -1317,9 +1354,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                       disabled={isDayDisabled}
                       onClick={() => {
                         if (item.isoString && selectedService) {
-                          hapticLight();
+                          hapticMedium();
                           setSelectedDateIso(item.isoString);
                           setSelectedTimeSlot(null);
+                          setCurrentStep('professionals_and_time');
+                          setOriginModalMode('choice');
+                          setIsOriginModalOpen(true);
                         }
                       }}
                       className={`h-11 rounded-[4px] font-bold text-xs transition-all relative flex flex-col items-center justify-center cursor-pointer ${
@@ -1442,111 +1482,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               </div>
             </div>
 
-            {/* BLOCO 2: COMPARADOR DE ENDEREÇO EM TEMPO REAL (Deslocamento Real OSRM + 15 min Preparo) */}
-            <div className={`pt-1.5 border-t space-y-1.5 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <Navigation className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span className={`text-[11px] font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                    Comparador de Distância & Tempo (+15m preparo)
-                  </span>
-                </div>
-                {isSelectedDateToday && (
-                  <span className="px-2 py-0.5 rounded-[4px] bg-emerald-500 text-white text-[10px] font-extrabold whitespace-nowrap">
-                    Liberado após {minAllowedTimeFormatted}
-                  </span>
-                )}
-              </div>
-
-              <form onSubmit={handleSimulateAddress} className="grid grid-cols-12 gap-1.5 items-center">
-                <div className="relative col-span-5 sm:col-span-5">
-                  <MapPin className="w-3 h-3 text-emerald-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={addressQuery}
-                    onChange={(e) => setAddressQuery(e.target.value)}
-                    placeholder="Seu CEP/Endereço"
-                    title="Origem (Seu CEP ou Endereço)"
-                    className={`w-full pl-6 pr-1.5 py-1 text-[11px] rounded-[4px] border outline-hidden transition-colors ${
-                      isDark
-                        ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500'
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-600'
-                    }`}
-                  />
-                </div>
-                <div className="relative col-span-4 sm:col-span-4">
-                  <input
-                    type="text"
-                    value={salonDestQuery}
-                    onChange={(e) => setSalonDestQuery(e.target.value)}
-                    placeholder="CEP Salão"
-                    title={`Destino (${salonName}): ${resolvedSalonLabel}`}
-                    className={`w-full px-2 py-1 text-[11px] rounded-[4px] border outline-hidden transition-colors ${
-                      isDark
-                        ? 'bg-slate-900 border-slate-800 text-slate-300 focus:border-emerald-500'
-                        : 'bg-slate-50 border-slate-300 text-slate-700 focus:border-emerald-600'
-                    }`}
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={isCalculatingRoute || !addressQuery.trim()}
-                  className="col-span-3 sm:col-span-3 py-1 px-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer whitespace-nowrap"
-                >
-                  {isCalculatingRoute ? (
-                    <Loader2 className="w-3 h-3 animate-spin text-white" />
-                  ) : (
-                    <Search className="w-3 h-3 text-white" />
-                  )}
-                  <span className="text-white">Calcular</span>
-                </button>
-              </form>
-
-              {/* Resumo Ao Vivo da Equação de Deslocamento + Atalhos Rápidos de Teste */}
-              <div className="flex items-center justify-between gap-1.5 flex-wrap text-[10px]">
-                <div className={`flex items-center gap-1.5 font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                  <Car className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span>
-                    <strong className="text-emerald-400">{distanceKm.toFixed(1)} km</strong> • <strong>{etaMinutes} min</strong> carro + <strong>15 min</strong> saída ={' '}
-                    <strong className="text-emerald-400">{totalLeadMinutes} min total</strong>
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-1">
-                  {[
-                    { label: '17m (+15m=32m)', eta: 17, km: 6.6 },
-                    { label: '30m (+15m=45m)', eta: 30, km: 11.5 },
-                    { label: '45m (+15m=1h)', eta: 45, km: 18.0 },
-                  ].map((preset) => {
-                    const activePreset = etaMinutes === preset.eta;
-                    return (
-                      <button
-                        key={preset.eta}
-                        type="button"
-                        onClick={() => {
-                          hapticLight();
-                          setEtaMinutes(preset.eta);
-                          setDistanceKm(preset.km);
-                          setResolvedAddressLabel(`Simulação (${preset.km} km)`);
-                          setSelectedTimeSlot(null);
-                        }}
-                        className={`px-1.5 py-0.5 rounded-[4px] font-bold transition cursor-pointer whitespace-nowrap ${
-                          activePreset
-                            ? 'bg-emerald-500 text-white'
-                            : isDark
-                            ? 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                            : 'bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200'
-                        }`}
-                      >
-                        <span className={activePreset ? 'text-white' : ''}>{preset.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* BLOCO 3: TABELA DE HORÁRIOS CLASSIFICADA POR PERÍODO (Manhã -> Tarde -> Noite -> Todos) */}
+            {/* BLOCO 2: TABELA DE HORÁRIOS CLASSIFICADA POR PERÍODO (Manhã -> Tarde -> Noite -> Todos) */}
             <div className={`pt-2 border-t space-y-2.5 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <div className="flex items-center justify-between gap-1.5 flex-wrap">
                 <h4 className={`text-[11px] font-bold font-['Poppins'] flex items-center gap-1 uppercase tracking-wider ${
@@ -1619,7 +1555,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       {/* ============================================================ */}
       {/* RODAPÉ FIXO DE AÇÃO (sticky bottom-0 z-20) */}
       {/* ============================================================ */}
-      {(currentStep !== 'professionals_and_time' || Boolean(selectedTimeSlot)) && (
+      {(currentStep === 'service' || (currentStep === 'professionals_and_time' && Boolean(selectedTimeSlot))) && (
         <div className={`px-3.5 py-2 border-t shrink-0 sticky bottom-0 z-20 transition-colors ${
           isDark ? 'bg-[#151A1E]/95 border-slate-800 backdrop-blur-md' : 'bg-white/95 border-slate-200 backdrop-blur-md'
         }`}>
@@ -1654,32 +1590,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   : 'Selecione ao menos 1 serviço'}
               </span>
               <ChevronRight className={`w-3.5 h-3.5 ${selectedServices.length > 0 ? 'text-white' : ''}`} />
-            </button>
-          )}
-
-          {currentStep === 'date' && (
-            <button
-              id="btn-avancar-horarios"
-              type="button"
-              disabled={!selectedService || !selectedDateIso}
-              onClick={() => {
-                if (selectedService && selectedDateIso) {
-                  hapticMedium();
-                  setCurrentStep('professionals_and_time');
-                }
-              }}
-              className={`w-full py-2.5 px-4 font-black text-xs uppercase tracking-wider rounded-[4px] transition flex items-center justify-center gap-1.5 font-['Poppins'] ${
-                selectedService && selectedDateIso
-                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer active:scale-98'
-                  : isDark
-                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-50'
-                  : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-50'
-              }`}
-            >
-              <span className={selectedService && selectedDateIso ? 'text-white' : ''}>
-                Escolher Horário ({shortDateFormatted})
-              </span>
-              <ChevronRight className={`w-3.5 h-3.5 ${selectedService && selectedDateIso ? 'text-white' : ''}`} />
             </button>
           )}
 
@@ -1747,7 +1657,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               setDependentName('');
               setHasChosenBeneficiary(true);
               setIsBeneficiaryModalOpen(false);
-              setCurrentStep('date');
+              if (skipDateStep) {
+                setCurrentStep('professionals_and_time');
+                setOriginModalMode('choice');
+                setIsOriginModalOpen(true);
+              } else {
+                setCurrentStep('date');
+              }
             }}
             className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 transition cursor-pointer ${
               !isDependentBooking
@@ -1811,7 +1727,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                           setDependentName(dep.full_name);
                           setHasChosenBeneficiary(true);
                           setIsBeneficiaryModalOpen(false);
-                          setCurrentStep('date');
+                          if (skipDateStep) {
+                            setCurrentStep('professionals_and_time');
+                            setOriginModalMode('choice');
+                            setIsOriginModalOpen(true);
+                          } else {
+                            setCurrentStep('date');
+                          }
                         }}
                         className={`w-full p-2.5 rounded-[4px] border text-left flex items-center justify-between transition cursor-pointer ${
                           isSelectedDep
@@ -1933,7 +1855,298 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   );
 
   // ============================================================================
-  // MODAL INDEPENDENTE 2: RESUMO DO AGENDAMENTO + PRÉ-SALVAR / CONFIRMAR
+  // MODAL SIMPLES 1.5: ORIGEM DO CLIENTE + MODAL DE TRANSPORTE (ANTES DO HORÁRIO)
+  // ============================================================================
+  const originHours = Math.floor(etaMinutes / 60);
+  const originRemainderMinutes = etaMinutes % 60;
+  const formattedEtaHoursAndMinutes = `${originHours} ${originHours === 1 ? 'hora' : 'horas'} e ${String(originRemainderMinutes).padStart(2, '0')} minutos`;
+  const formattedDistanceComma = distanceKm.toFixed(1).replace('.', ',');
+
+  const maxDepartureTimeFormatted = useMemo(() => {
+    if (selectedTimeSlot) {
+      return formatMaxDepartureTime(selectedTimeSlot, etaMinutes);
+    }
+    const nextSlot = generatedSlots.find((s) => s.available);
+    if (nextSlot) {
+      return formatMaxDepartureTime(nextSlot.time, etaMinutes);
+    }
+    return '--H--';
+  }, [generatedSlots, selectedTimeSlot, etaMinutes]);
+
+  const transportLinks = useMemo(() => {
+    return buildTransportDeepLinks({
+      originAddress: resolvedAddressLabel,
+      originLat: originCoords.lat,
+      originLng: originCoords.lng,
+      salonName,
+      salonAddress: salonAddress || salonCep,
+      salonLat: resolvedSalonCoords.lat,
+      salonLng: resolvedSalonCoords.lng,
+      transportMode,
+    });
+  }, [
+    resolvedAddressLabel,
+    originCoords.lat,
+    originCoords.lng,
+    salonName,
+    salonAddress,
+    salonCep,
+    resolvedSalonCoords.lat,
+    resolvedSalonCoords.lng,
+    transportMode,
+  ]);
+
+  const transportModeOptions: Array<{
+    key: TransportMode;
+    label: string;
+    Icon: React.ElementType;
+  }> = [
+    { key: 'car', label: 'Carro', Icon: Car },
+    { key: 'motorcycle', label: 'Moto', Icon: Bike },
+    { key: 'transit', label: 'Transp. Público', Icon: Bus },
+    { key: 'rideshare', label: 'Uber / 99', Icon: Smartphone },
+  ];
+
+  const renderTransportSelectorGrid = () => (
+    <div className="space-y-1.5">
+      <span className={`text-[10px] font-bold uppercase tracking-wider block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+        Como você vai se deslocar? (com margem de folga)
+      </span>
+      <div className="grid grid-cols-4 gap-1.5">
+        {transportModeOptions.map((opt) => {
+          const isSelectedMode = transportMode === opt.key;
+          const ModeIcon = opt.Icon;
+          return (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => {
+                hapticLight();
+                setTransportMode(opt.key);
+                const activeOrigin =
+                  originModalMode === 'custom_cep' && customCepInput.replace(/\D/g, '').length === 8
+                    ? customCepInput
+                    : addressQuery;
+                runRouteCalculation(activeOrigin, salonDestQuery, opt.key);
+              }}
+              className={`py-2 px-1 rounded-[4px] border font-bold text-[10px] flex flex-col items-center justify-center gap-1 transition cursor-pointer whitespace-nowrap ${
+                isSelectedMode
+                  ? 'bg-emerald-500 border-emerald-500 text-white'
+                  : isDark
+                  ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-emerald-500/50'
+                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500/50'
+              }`}
+            >
+              <ModeIcon className={`w-4 h-4 shrink-0 ${isSelectedMode ? 'text-white' : 'text-emerald-500'}`} />
+              <span className={`truncate max-w-full ${isSelectedMode ? 'text-white' : ''}`}>{opt.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const originModalNode = isOriginModalOpen && selectedService && (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
+      <div
+        className={`w-full max-w-md border rounded-[4px] p-4 shadow-2xl space-y-3.5 transition-colors ${
+          isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+        }`}
+      >
+        <div className={`flex items-center justify-between pb-2 border-b ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
+          <div className="flex items-center gap-2 min-w-0">
+            {originModalMode === 'custom_cep' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setOriginModalMode('choice');
+                }}
+                className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
+                  isDark ? 'bg-slate-900 text-slate-300 hover:text-white' : 'bg-slate-100 text-slate-700 hover:text-slate-900'
+                }`}
+                title="Voltar"
+              >
+                <ArrowLeft className="w-4 h-4 text-emerald-500" />
+              </button>
+            ) : (
+              <Navigation className="w-4 h-4 text-emerald-500 shrink-0" />
+            )}
+            <div className="min-w-0">
+              <h3 className="text-sm font-extrabold font-['Poppins'] truncate">
+                {originModalMode === 'choice' ? 'De onde você vai sair?' : 'Saindo de Outro Local'}
+              </h3>
+              <p className={`text-[11px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                {originModalMode === 'choice'
+                  ? 'Ajustamos os horários conforme seu deslocamento'
+                  : 'Informe o CEP para calcularmos seu tempo de chegada'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsOriginModalOpen(false)}
+            className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
+              isDark ? 'bg-slate-900 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Seletor de Meio de Transporte (Carro, Moto, Transporte Público, App Uber/99) */}
+        {renderTransportSelectorGrid()}
+
+        {originModalMode === 'choice' ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  hapticMedium();
+                  setOriginType('home');
+                  const savedHomeOrigin =
+                    localStorage.getItem('vagou_user_cep') ||
+                    localStorage.getItem('vagou_user_address') ||
+                    localStorage.getItem('vagou_client_test_address') ||
+                    '08235-770';
+                  setAddressQuery(savedHomeOrigin);
+                  runRouteCalculation(savedHomeOrigin, salonDestQuery, transportMode);
+                  setIsOriginModalOpen(false);
+                }}
+                className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 transition cursor-pointer ${
+                  originType === 'home'
+                    ? 'bg-emerald-500 border-emerald-500 text-white'
+                    : isDark
+                    ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-emerald-500/50'
+                    : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
+                }`}
+              >
+                <Home className={`w-5 h-5 ${originType === 'home' ? 'text-white' : 'text-emerald-500'}`} />
+                <span className={originType === 'home' ? 'text-white' : ''}>Saindo de Casa</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setOriginType('other');
+                  setOriginModalMode('custom_cep');
+                }}
+                className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 transition cursor-pointer ${
+                  originType === 'other'
+                    ? 'bg-emerald-500 border-emerald-500 text-white'
+                    : isDark
+                    ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-emerald-500/50'
+                    : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
+                }`}
+              >
+                <MapPin className={`w-5 h-5 ${originType === 'other' ? 'text-white' : 'text-emerald-500'}`} />
+                <span className={originType === 'other' ? 'text-white' : ''}>Outro Local</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3 animate-in fade-in duration-150">
+            <form onSubmit={handleCalculateCustomCep} className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <MapPin className="w-3.5 h-3.5 text-emerald-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={customCepInput}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+                    const formatted = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+                    setCustomCepInput(formatted);
+                    if (digits.length === 8) {
+                      setAddressQuery(formatted);
+                      runRouteCalculation(formatted, salonDestQuery, transportMode).then(() => {
+                        setHasCalculatedCustomCep(true);
+                      });
+                    } else {
+                      setHasCalculatedCustomCep(false);
+                    }
+                  }}
+                  placeholder="00000-000"
+                  className={`w-full pl-8 pr-3 py-2 text-xs rounded-[4px] border outline-hidden transition-colors ${
+                    isDark
+                      ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500'
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-600'
+                  }`}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isCalculatingRoute || customCepInput.replace(/\D/g, '').length < 8}
+                className="py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+              >
+                {isCalculatingRoute ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                ) : (
+                  <Search className="w-3.5 h-3.5 text-white" />
+                )}
+                <span className="text-white">Calcular</span>
+              </button>
+            </form>
+
+            <p className={`text-xs leading-relaxed font-bold ${
+              hasCalculatedCustomCep && !isCalculatingRoute
+                ? isDark ? 'text-emerald-400' : 'text-emerald-700'
+                : isDark ? 'text-slate-400' : 'text-slate-500'
+            }`}>
+              {isCalculatingRoute
+                ? 'Localizando CEP...'
+                : hasCalculatedCustomCep && resolvedAddressLabel
+                ? resolvedAddressLabel
+                : 'Digite o CEP de origem acima.'}
+            </p>
+
+            {hasCalculatedCustomCep && !isCalculatingRoute && (
+              <div className={`p-3 rounded-[4px] space-y-1 text-xs font-bold ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'}`}>
+                <div className="flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <span>Distância de {formattedDistanceComma} km</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {transportMode === 'motorcycle' ? (
+                    <Bike className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  ) : transportMode === 'transit' ? (
+                    <Bus className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  ) : transportMode === 'rideshare' ? (
+                    <Smartphone className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  ) : (
+                    <Car className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  )}
+                  <span>Trajeto de {formattedEtaHoursAndMinutes}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="pt-1 sticky bottom-0 z-20">
+              <button
+                type="button"
+                disabled={isCalculatingRoute || !hasCalculatedCustomCep}
+                onClick={() => {
+                  hapticMedium();
+                  setIsOriginModalOpen(false);
+                }}
+                className="w-full py-2.5 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+              >
+                <Check className="w-4 h-4 text-white" />
+                <span className="text-white">Ver Horários Disponíveis</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // ============================================================================
+  // MODAL INDEPENDENTE 2: RESUMO DO AGENDAMENTO + HORÁRIO MÁX DE SAÍDA + ROTAS / APPS
   // ============================================================================
   const summaryModalNode = isSummaryModalOpen && selectedService && selectedTimeSlot && (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-xs animate-in fade-in duration-150">
@@ -2017,13 +2230,129 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               </span>
             </div>
 
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-1.5 text-slate-400">
-                <Car className="w-3.5 h-3.5 text-emerald-500" /> Deslocamento + Preparo:
-              </span>
-              <span className="font-semibold text-right">
-                {distanceKm.toFixed(1)} km • {etaMinutes}m + 15m = {totalLeadMinutes}m
-              </span>
+            {/* BLOCO DE LOGÍSTICA PÓS-ESCOLHA DO HORÁRIO: Horário Máx. de Saída + Rotas/Apps */}
+            <div className={`p-3 rounded-[4px] space-y-2.5 mt-2 ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'}`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-extrabold text-emerald-400 truncate">
+                  {resolvedAddressLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    setIsSummaryModalOpen(false);
+                    setIsOriginModalOpen(true);
+                  }}
+                  className="text-[10px] font-bold text-emerald-400 hover:underline shrink-0 cursor-pointer"
+                >
+                  Alterar origem
+                </button>
+              </div>
+
+              <div className="space-y-1 font-bold text-xs">
+                <div className="flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <span>Distância de {formattedDistanceComma} km</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {transportMode === 'motorcycle' ? (
+                    <Bike className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  ) : transportMode === 'transit' ? (
+                    <Bus className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  ) : transportMode === 'rideshare' ? (
+                    <Smartphone className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  ) : (
+                    <Car className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  )}
+                  <span>
+                    Trajeto de {formattedEtaHoursAndMinutes} ({TRANSPORT_MODE_META[transportMode].shortLabel})
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <span>
+                    Horário Máx. de saída <strong className="text-emerald-400">{maxDepartureTimeFormatted}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Ações Inteligentes por Modal Selecionado (Maps Baldeações, Maps/Waze ou Uber/99) */}
+              <div className="pt-1 space-y-1.5">
+                {transportMode === 'transit' && (
+                  <a
+                    href={transportLinks.googleMapsTransitUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                  >
+                    <Bus className="w-3.5 h-3.5 text-white shrink-0" />
+                    <span className="text-white">Ver Linhas e Baldeações no Google Maps</span>
+                    <ExternalLink className="w-3 h-3 text-white shrink-0" />
+                  </a>
+                )}
+
+                {(transportMode === 'car' || transportMode === 'motorcycle') && (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <a
+                      href={transportLinks.googleMapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="py-2 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-white shrink-0" />
+                      <span className="text-white">
+                        Maps ({transportMode === 'motorcycle' ? 'Moto' : 'Carro'})
+                      </span>
+                      <ExternalLink className="w-3 h-3 text-white shrink-0" />
+                    </a>
+
+                    <a
+                      href={transportLinks.wazeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`py-2 px-2.5 rounded-[4px] font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                        isDark
+                          ? 'bg-slate-800 hover:bg-slate-700 text-white'
+                          : 'bg-slate-200 hover:bg-slate-300 text-slate-900'
+                      }`}
+                    >
+                      <Navigation className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <span>Abrir no Waze</span>
+                      <ExternalLink className="w-3 h-3 text-emerald-500 shrink-0" />
+                    </a>
+                  </div>
+                )}
+
+                {transportMode === 'rideshare' && (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <a
+                      href={transportLinks.uberUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="py-2 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                    >
+                      <Smartphone className="w-3.5 h-3.5 text-white shrink-0" />
+                      <span className="text-white">Chamar Uber</span>
+                      <ExternalLink className="w-3 h-3 text-white shrink-0" />
+                    </a>
+
+                    <a
+                      href={transportLinks.app99Url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`py-2 px-2.5 rounded-[4px] font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                        isDark
+                          ? 'bg-slate-800 hover:bg-slate-700 text-amber-400'
+                          : 'bg-amber-100 hover:bg-amber-200 text-amber-900'
+                      }`}
+                    >
+                      <Car className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      <span>Chamar 99</span>
+                      <ExternalLink className="w-3 h-3 text-amber-500 shrink-0" />
+                    </a>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className={`flex justify-between items-center pt-2.5 border-t ${
@@ -2149,6 +2478,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       <>
         {bookingContent}
         {beneficiaryModalNode}
+        {originModalNode}
         {summaryModalNode}
         <SalonClientAuthModal
           isOpen={isAuthModalOpen}
@@ -2171,6 +2501,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         {bookingContent}
       </div>
       {beneficiaryModalNode}
+      {originModalNode}
       {summaryModalNode}
       <SalonClientAuthModal
         isOpen={isAuthModalOpen}

@@ -15,6 +15,91 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-23] — Logística Multi-Modal (Carro, Moto, Transporte Público, Uber/99) com Margem de Folga Anti-Atraso, Reposicionamento de "Horário Máx. de Saída" para Pós-Escolha de Horário e Deep Links Universais (`bookingSlots.ts`, `SalonBookingModal.tsx`, `SalonProfileView.tsx`)
+- **Tipo:** `[Feat / Refactor / GIS & Smart Mobility Deep Links]`
+- **Motivo / Solicitação:** Remover a linha `Horário Máx. de saída` do modal prévio de origem (pois depende do horário escolhido) e exibi-la após a seleção/confirmação do horário; adicionar escolha do meio de transporte (`Carro`, `Moto`, `Transporte Público`, `Uber / 99`) com cálculo calibrado estilo Google Maps + margem de folga para nunca subestimar o trajeto; e integrar abertura direta de rotas e apps (Google Maps Transporte Público com baldeações, Google Maps/Waze para Moto e Carro, e Uber/99 já com o endereço e coordenadas do estabelecimento preenchidos).
+- **Arquivos Impactados:**
+  - `src/utils/bookingSlots.ts`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Reposicionamento de `Horário Máx. de saída XXHXX` (`SalonBookingModal.tsx`, `SalonProfileView.tsx`):** Removida a `div:nth-of-type(3)` do modal prévio de CEP (`originModalNode`), mantendo nele apenas `Distância de xx,x km` e `Trajeto de X horas e xx minutos`. O `Horário Máx. de saída XXHXX` agora é exibido imediatamente após a seleção do horário no `Resumo do Agendamento` (`summaryModalNode`) e no comprovante final (`confirmedBookingData`).
+  2. **Calibragem Realista Google Maps + Margem de Segurança por Modal (`bookingSlots.ts`):** Criada a função `computeCalibratedEtaForMode` para `car` (+6 min de folga urbana), `motorcycle` (corredor urbano + 4 min de folga), `transit` (velocidade de transporte público + 12 min de caminhada/espera/baldeação) e `rideshare` (trajeto urbano + 10 min de espera de motorista + folga), impedindo subestimações frente ao Google Maps.
+  3. **Deep Links Universais Mágicos (`buildTransportDeepLinks`):**
+     - **Transporte Público (`transit`):** Abre o Google Maps direto em modo `travelmode=transit` exibindo linhas de ônibus/metrô/trem e baldeações exatas.
+     - **Moto (`motorcycle`) e Carro (`car`):** Abre o Google Maps (`travelmode=two-wheeler` ou `driving`) ou o **Waze** (`navigate=yes`) com a rota carregada.
+     - **Aplicativo (`rideshare`):** Abre o **Uber** (`m.uber.com/ul/?action=setPickup...`) ou **99** já com coordenadas e endereço do salão preenchidos no destino.
+
+### [2026-10-23] — Migração do Comparador de Endereço/ETA do Calendário para Modal Simples de Origem ("Saindo de Casa" vs "Outro Local") Antes da Escolha do Horário (`SalonBookingModal.tsx`, `bookingSlots.ts`)
+- **Tipo:** `[Feat / Refactor / UI-UX / Predictive ETA Modal]`
+- **Motivo / Solicitação:** Remover a ferramenta de comparador de endereço/ETA de dentro do calendário/grade de horários e transformá-la em um modal simples exibido imediatamente antes da escolha do horário (ao selecionar a data para avançar aos horários), formatando o retorno do CEP em 4 linhas sintéticas (`Endereço-Bairro-Cidade-UF` com abreviação de logradouros, `Distância de xx,x km`, `Trajeto de X horas e xx minutos` e `Horário Máx. de saída XXHXX`).
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `src/utils/bookingSlots.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção do Comparador Inline (`SalonBookingModal.tsx`):** Removido o bloco `BLOCO 2: COMPARADOR DE ENDEREÇO EM TEMPO REAL` de dentro da visão de profissionais/horários (`currentStep === 'professionals_and_time'`), deixando a agenda limpa.
+  2. **Modal Simples de Origem Antes da Escolha do Horário (`isOriginModalOpen`):** Após escolher o serviço ("Para Você ou Dependente") e selecionar a **Data** no calendário, abre-se imediatamente antes da escolha do horário a pergunta objetiva **"De onde você vai sair?"**:
+     - **Saindo de Casa:** Utiliza automaticamente o endereço/CEP residencial salvo do cliente para calcular a distância e o ETA em background e filtrar os horários disponíveis, fechando o modal imediatamente.
+     - **Outro Local:** Exibe o input de CEP (`00000-000`), abrevia prefixos de logradouro (`Av.`, `Pça.`, `Al.`, `Trav.`, `R.`, `Pq.`, `Jd.`, `Vl.`, etc.) no formato `Endereço-Bairro-Cidade-UF` e exibe exatamente `Distância de xx,x km`, `Trajeto de X horas e xx minutos` e `Horário Máx. de saída XXHXX`.
+
+### [2026-10-23] — Reposicionamento do Botão de Beneficiário para o Cabeçalho de Seção, Remoção de Efeito Swap e Garantia de Contraste (`SalonProfileView.tsx`, `SalonBookingModal.tsx`, `sectionHeaderStyle.ts`)
+- **Tipo:** `[Refactor / UI-UX / Focus Mode & Layout Refinement]`
+- **Motivo / Solicitação:** Mover o botão de beneficiário ("Para Você") para o lugar do span "Reserva On-line" no cabeçalho de `#section-vagas` excluindo o span, remover o efeito swap vertical no catálogo de serviços, e garantir que a cor de texto do cabeçalho aplique-se corretamente a textos e crachás.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/utils/sectionHeaderStyle.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Reposicionamento do Beneficiário (`SalonProfileView.tsx`, `SalonBookingModal.tsx`):** O botão de beneficiário ("Para Você" / dependente) foi movido para o subcabeçalho de `#section-vagas`, substituindo integralmente e excluindo o span "Reserva On-line".
+  2. **Remoção do Efeito Swap Vertical (`SalonProfileView.tsx`):** Substituídos o `AnimatePresence` e `motion.div` do catálogo de serviços por um grid estático (`div`), eliminando animações de slide ao mudar de página.
+  3. **Garantia de Contraste de Texto (`sectionHeaderStyle.ts`):** Ajustado `badgeStyle` para herdar `txtCol || iconCol`, garantindo que a cor de texto branca selecionada no painel seja aplicada tanto aos ícones quanto aos textos de crachás.
+
+### [2026-10-23] — Reposicionamento do Botão de Beneficiário e Remoção de Span/Ícone no Header (`SalonBookingModal.tsx`)
+- **Tipo:** `[Refactor / UI-UX / Focus Mode Button Repositioning]`
+- **Motivo / Solicitação:** Mover o botão de beneficiário ("Para Você") para o lugar do span/ícone anterior no lado esquerdo do cabeçalho e excluir o span/ícone vazio.
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Movido o botão `selectedService` (`Para Você`) para o contêiner esquerdo do cabeçalho (ao lado do botão Voltar).
+  2. Removido o contêiner com o ícone de calendário (span/div anterior).
+
+### [2026-10-23] — Remoção de Elementos Destacados via Focus Mode (`SalonBookingModal.tsx`)
+- **Tipo:** `[Refactor / UI-UX / Focus Mode Element Removal]`
+- **Motivo / Solicitação:** Identificar e remover os elementos focados via CSS selectors (título `<h2>` do sub-cabeçalho de agendamento e o botão "Mais" / adicionar serviços na barra de ações do modal).
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Removido o elemento `<h2>` do cabeçalho de passo a passo de agendamento em `SalonBookingModal.tsx`.
+  2. Removido o botão "Mais" (`Adicionar mais serviços`) da barra de ações superior do modal de agendamento.
+
+### [2026-10-23] — Remoção do Efeito Swap Vertical Público e Avanço Automático no Seletor de Data da Agenda (`SalonProfileView.tsx`, `SalonBookingModal.tsx`)
+- **Tipo:** `[Refactor / Fix / UI-UX / Public Navigation & Booking Date Selector]`
+- **Motivo / Solicitação:** Remover o efeito swap vertical (`snap-y snap-mandatory` e micro-swipe vertical) na vitrine pública do estabelecimento e ajustar o seletor de data da agenda para avançar automaticamente para a aba de horários ao clicar em uma data, removendo o botão inferior de confirmar data (`#btn-avancar-horarios`) que ficava oculto atrás da barra de navegação inferior.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção do Efeito Swap Vertical (`SalonProfileView.tsx`):** Eliminados o contêiner de rolagem vertical com `snap-y snap-mandatory`, os listeners de `wheel`/`scroll` e os handlers `handlePublicTouchStart`/`handlePublicTouchEnd`. As seções públicas (`home`, `servicos`, `vagas`, `espaco`) agora alternam diretamente por estado (`activeTab`), sem salto ou captura vertical de toque.
+  2. **Avanço Automático ao Selecionar Data e Remoção do Botão de Confirmar (`SalonBookingModal.tsx`):** Ao tocar em um dia válido no calendário (`currentStep === 'date'`), o seletor define `selectedDateIso` e avança imediatamente para `setCurrentStep('professionals_and_time')` (aba de Horários). Removido o botão `#btn-avancar-horarios` ("Escolher Horário") do rodapé da etapa de data.
+  3. **Proteção de Sobreposição do `BottomNav` (`SalonProfileView.tsx`):** O deslocamento negativo `-mt-[66px]` do rodapé com `navBgStyle` transparente/glass agora é aplicado exclusivamente na tela inicial com slides fullscreen (`activeTab === 'home'`), garantindo que nas abas de Serviços, Agendar e Espaço a barra inferior nunca encubra o conteúdo ou botões de ação.
+
+### [2026-10-23] — Correção da Cor de Texto dos Botões e Espaçamento Responsivo na Barra de Navegação Inferior (`BottomNav.tsx`, `index.css`)
+- **Tipo:** `[Fix / UI-UX / BottomNav Color & Spacing]`
+- **Motivo / Solicitação:** Corrigir problema onde a cor de texto selecionada ("Cor do Texto e Ícones") aplicava-se apenas aos ícones (enquanto os textos permaneciam escuros) e onde as bordas dos botões ficavam coladas sem espaçamento em telas móveis com menor largura CSS (`<= 390px`).
+- **Arquivos Impactados:**
+  - `src/components/BottomNav.tsx`
+  - `src/index.css`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Cor do Texto e Ícones (`BottomNav.tsx` + `index.css`):** As regras `.text-slate-400` e `.text-slate-500` em `src/index.css` possuíam `!important`, sobrescrevendo o `style={{ color: navTextColor }}` do `<span>` nos botões da barra inferior. Removido o `!important` (adicionado `:not([style*="color"])`) em `src/index.css` e removidas as classes `text-slate-*` em `BottomNav.tsx` quando `navTextColor` está definido, além de proteção automática de contraste quando `navBtnActiveBgColor` e `navActiveColor` são ambos brancos (`#ffffff`).
+  2. **Espaçamento Uniforme em Todos os Celulares (`BottomNav.tsx`):** Adicionado `gap-2 sm:gap-3` (`8px` no mobile) com `min-w-0 flex-1` no `<nav id="vagou-bottom-nav">`, garantindo espaçamento consistente entre os botões independentemente da largura de tela do aparelho (ex.: 360px vs 412px).
+
 ### [2026-10-23] — Validação de URL de Avatar, Sincronização de `updateUserProfile` na Tabela `clients` e Blindagem de Estado (`UserDashboard.tsx`, `supabase.ts`, `SalonProfileView.tsx`, `App.tsx`, `ProfileDrawer.tsx`)
 - **Tipo:** `[Fix / Critical / Avatar URL Validation & Supabase Sync]`
 - **Motivo / Solicitação:** Implementar validação de URL antes de salvar o avatar em `UserDashboard`, garantir que `updateUserProfile` atualize `avatar_url` na tabela `clients` e sincronize o estado local `userAvatarUrl`, adicionar monitoramento via `console.log` em `UserDashboard` e impedir que `SalonProfileView`/`App` apaguem o avatar local ao sincronizar com o banco.

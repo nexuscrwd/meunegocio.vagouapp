@@ -44,7 +44,7 @@ export function getSectionHeaderStyleData(adminSettings: Partial<SalonAdminSetti
     titleStyle: txtCol ? { color: txtCol, fontFamily: btnFont } : { fontFamily: btnFont },
     iconStyle: { color: iconCol },
     badgeStyle: {
-      color: iconCol,
+      color: txtCol || iconCol,
       backgroundColor: btnBgCol || `${iconCol}1a`,
       borderColor: btnBorder === 'none' ? 'transparent' : `${iconCol}33`,
       fontFamily: btnFont,
