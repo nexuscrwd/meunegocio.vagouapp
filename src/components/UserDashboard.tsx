@@ -101,9 +101,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             setPhone(formatted);
             localStorage.setItem('vagou_user_phone', formatted);
           }
-          if (dbProfile.avatarUrl) {
-            setAvatarUrl(dbProfile.avatarUrl);
-            localStorage.setItem('vagou_user_avatar', dbProfile.avatarUrl);
+          const localAvatar = localStorage.getItem('vagou_user_avatar') || '';
+          const finalAvatar = localAvatar || dbProfile.avatarUrl;
+          if (finalAvatar) {
+            setAvatarUrl(finalAvatar);
+            localStorage.setItem('vagou_user_avatar', finalAvatar);
           }
 
           try {
@@ -174,22 +176,18 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       alert('Por favor, envie apenas arquivos de imagem.');
       return;
     }
-
-    if (isSupabaseConfigured) {
-      const emailOrId = email || name || 'user';
-      const storageUrl = await uploadAvatarToSupabaseStorage(file, emailOrId);
-      if (storageUrl) {
-        setAvatarUrl(storageUrl);
-        localStorage.setItem('vagou_user_avatar', storageUrl);
-        hapticLight();
-        return;
-      }
-    }
     
     const reader = new FileReader();
     reader.onload = (event) => {
-      if (event.target?.result) {
-        setAvatarUrl(event.target.result as string);
+      const base64 = event.target?.result as string;
+      if (base64) {
+        setAvatarUrl(base64);
+        try {
+          localStorage.setItem('vagou_user_avatar', base64);
+        } catch {}
+        if (onUpdateProfile) {
+          onUpdateProfile(name, base64);
+        }
         hapticLight();
       }
     };

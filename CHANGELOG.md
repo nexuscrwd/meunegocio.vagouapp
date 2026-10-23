@@ -15,6 +15,16 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-23] — Perícia Completa e Correção de Persistência de Avatar no Painel do Cliente (`src/components/UserDashboard.tsx`)
+- **Tipo:** `[Fix / Critical / User Dashboard Avatar Persistence]`
+- **Motivo / Solicitação:** Investigação detalhada após relato do usuário de que a foto carregada no painel do cliente mostrava a prévia mas sumia após salvar devido a tentativas falhas de upload em storage remoto e sobrescrita por sincronização.
+- **Arquivos Impactados:**
+  - `src/components/UserDashboard.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção de Storage Remoto Inexistente:** Substituído o envio falho para o bucket remoto por `FileReader` Base64 síncrono e instantâneo.
+  2. **Prioridade Local no Carregamento:** Ajustado `loadDataFromSupabase` para priorizar o avatar salvo localmente caso o banco retorne registro sem foto.
+
 ### [2026-10-23] — Correção Urgente de Salvamento de Perfil e Avatar (Remoção de Dependência de Storage) (`src/components/ProfileDrawer.tsx`)
 - **Tipo:** `[Fix / Critical / Profile & Avatar Save]`
 - **Motivo / Solicitação:** Resolução definitiva do problema de salvamento onde o avatar desaparecia e o botão "Salvar" do perfil não mantinha a foto devido a falhas em buckets de storage remotos.
