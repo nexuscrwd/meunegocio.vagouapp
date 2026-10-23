@@ -1090,7 +1090,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     ? Number(p.commission_rate)
                     : metaMatch?.commissionRate ?? (p.role === 'admin' ? 100 : 50),
                 specialties: rawSpecs,
-                workSchedule: p.work_schedule || metaMatch?.workSchedule || undefined,
+                workSchedule: p.work_schedule || p.schedule_config || metaMatch?.workSchedule || undefined,
                 isActive: p.is_active !== false && metaMatch?.isActive !== false,
                 rating: 5.0,
               };

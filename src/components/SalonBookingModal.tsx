@@ -8,11 +8,13 @@ import {
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured, fetchClientFamilyMembers, generateUuidV4 } from '../lib/supabase';
 import { syncClientDependentToDatabase } from '../services/mnvSupabaseSync';
-import { ServiceOffer, CatalogServiceItem, UserFamilyDependent } from '../types';
+import { ServiceOffer, CatalogServiceItem, UserFamilyDependent, SalonProfessionalItem } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import {
   getAvailableSlotsForDate,
   fetchBusySlotsDirectly,
+  fetchAvailableProfessionalsForDate,
+  BusySlotRecord,
   resolveAddressDistanceToSalon,
   saveBookingDraft,
   BookingDraftItem,
@@ -25,17 +27,7 @@ import {
 import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
 import { SalonClientAuthModal } from './SalonClientAuthModal';
 
-export type { CatalogServiceItem };
-
-export interface SalonProfessionalItem {
-  id?: string;
-  name: string;
-  role?: string;
-  avatar?: string;
-  avatarUrl?: string;
-  rating?: number;
-  systemRole?: 'admin' | 'member';
-}
+export type { CatalogServiceItem, SalonProfessionalItem };
 
 interface SalonBookingModalProps {
   isOpen?: boolean;
@@ -265,10 +257,11 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     }
   }, [salonCep, salonAddress]);
 
-  // Horários ocupados vindos do banco de dados
-  const [busySlotsFromDb, setBusySlotsFromDb] = useState<
-    Array<{ start_time: string; end_time: string; professional_id?: string; professional_name?: string }>
-  >([]);
+  // Horários ocupados e profissionais disponíveis no dia vindos do banco de dados
+  const [busySlotsFromDb, setBusySlotsFromDb] = useState<BusySlotRecord[]>([]);
+  const [availableProfessionalsForDate, setAvailableProfessionalsForDate] = useState<SalonProfessionalItem[]>(() =>
+    professionals.filter((p) => p.isActive !== false && !String(p.role || '').toLowerCase().includes('recep'))
+  );
   const [isLoadingBusySlots, setIsLoadingBusySlots] = useState(false);
 
   // Relógio em tempo real para manter o cálculo de Hora Atual + ETA + 15 min sempre preciso
@@ -366,24 +359,52 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     loadClientDependentsFromDb();
   }, [isOpen, isBeneficiaryModalOpen]);
 
-  // Consultar horários ocupados no banco sempre que a data ou o salão mudar
+  // Consultar horários ocupados e disponibilidade real dos profissionais no banco sempre que a data ou o salão mudar
   useEffect(() => {
     let active = true;
-    async function loadBusySlots() {
+    async function loadBusySlotsAndAvailablePros() {
       if (!selectedDateIso) return;
       setIsLoadingBusySlots(true);
-      const effectiveSalonId = salonId || localStorage.getItem('vagou_salon_db_id') || '';
+      const effectiveSalonId =
+        salonId ||
+        localStorage.getItem('vagou_salon_db_id') ||
+        localStorage.getItem('vagou_salon_slug') ||
+        '';
       const slots = await fetchBusySlotsDirectly(effectiveSalonId, selectedDateIso);
+      const availablePros = await fetchAvailableProfessionalsForDate(
+        effectiveSalonId,
+        selectedDateIso,
+        professionals,
+        slots
+      );
       if (active) {
         setBusySlotsFromDb(slots);
+        setAvailableProfessionalsForDate(availablePros);
         setIsLoadingBusySlots(false);
       }
     }
-    loadBusySlots();
+    loadBusySlotsAndAvailablePros();
     return () => {
       active = false;
     };
-  }, [salonId, selectedDateIso, isSummaryModalOpen]);
+  }, [salonId, selectedDateIso, isSummaryModalOpen, professionals]);
+
+  // Sincronizar seleção automática quando houver apenas 1 profissional disponível no dia ou se o selecionado estiver de folga/ausente
+  useEffect(() => {
+    if (availableProfessionalsForDate.length === 1) {
+      const singleProName = availableProfessionalsForDate[0].name;
+      if (selectedProfessional !== singleProName) {
+        setSelectedProfessional(singleProName);
+      }
+    } else if (availableProfessionalsForDate.length > 1) {
+      if (
+        selectedProfessional !== 'any' &&
+        !availableProfessionalsForDate.some((p) => p.name === selectedProfessional)
+      ) {
+        setSelectedProfessional('any');
+      }
+    }
+  }, [availableProfessionalsForDate, selectedProfessional]);
 
   // Reagir imediatamente quando o usuário clica em um Serviço na Vitrine (corrige bug do modo inline)
   const prevBookingTriggerRef = useRef<number>(bookingTrigger);
@@ -677,15 +698,16 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     }
   }, [isSelectedDateToday, isManhaPeriodDisabled, isTardePeriodDisabled, selectedDateIso]);
 
-  // Gerar os slots de horário com validação no banco + regra de deslocamento + 15 min
+  // Gerar os slots de horário com validação no banco + escala dos profissionais disponíveis no dia + regra de deslocamento + 15 min
   const generatedSlots = useMemo(() => {
     return getAvailableSlotsForDate(selectedDateIso, selectedProfessional, {
       travelMinutes: etaMinutes,
       prepMinutes: PREP_BUFFER_MINUTES,
       busySlots: busySlotsFromDb,
+      availableProfessionals: availableProfessionalsForDate,
       nowOverride: currentTimeTick,
     });
-  }, [selectedDateIso, selectedProfessional, etaMinutes, busySlotsFromDb, currentTimeTick]);
+  }, [selectedDateIso, selectedProfessional, etaMinutes, busySlotsFromDb, availableProfessionalsForDate, currentTimeTick]);
 
   // Agrupamento de slots por período (Manhã, Tarde, Noite)
   const slotsByPeriod = useMemo(() => {
@@ -712,9 +734,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   const [, selMonth, selDay] = selectedDateIso.split('-');
   const shortDateFormatted = `${selDay}/${selMonth}`;
 
-  const activeProfObj = professionals.find((p) => p.name === selectedProfessional);
-  const resolvedProfessionalName = activeProfObj?.name || (professionals[0]?.name ?? 'Equipe do Salão');
-  const resolvedProfessionalAvatar = activeProfObj?.avatar || professionals[0]?.avatar;
+  const activeProfObj =
+    availableProfessionalsForDate.find((p) => p.name === selectedProfessional) ||
+    professionals.find((p) => p.name === selectedProfessional);
+  const fallbackProfObj = availableProfessionalsForDate[0] || professionals[0];
+  const resolvedProfessionalName = activeProfObj?.name || (fallbackProfObj?.name ?? 'Equipe do Salão');
+  const resolvedProfessionalAvatar =
+    activeProfObj?.avatar || activeProfObj?.avatarUrl || fallbackProfObj?.avatar || fallbackProfObj?.avatarUrl;
 
   // Pré-Salvar Agendamento como Rascunho (Não trava a vaga no banco até a confirmação)
   const handleSaveAsDraft = () => {
@@ -1396,94 +1422,101 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         {/* ============================================================ */}
         {currentStep === 'professionals_and_time' && (
           <div className="space-y-3 animate-in fade-in duration-200">
-            {/* BLOCO 1: SELEÇÃO DE PROFISSIONAIS */}
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    hapticLight();
-                    setSelectedProfessional('any');
-                    setSelectedTimeSlot(null);
-                  }}
-                  className={`min-w-[105px] flex-shrink-0 p-1.5 px-2 rounded-[4px] border text-left flex items-center gap-2 transition cursor-pointer ${
-                    selectedProfessional === 'any'
-                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
-                      : isDark
-                      ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
-                      : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
-                  }`}
-                >
-                  <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center flex-shrink-0 ${
-                    selectedProfessional === 'any'
-                      ? 'bg-white/20 text-white'
-                      : isDark
-                      ? 'bg-emerald-600/30 text-emerald-400'
-                      : 'bg-emerald-100 text-emerald-700'
-                  }`}>
-                    <Sparkles className={`w-3.5 h-3.5 ${selectedProfessional === 'any' ? 'text-white' : ''}`} />
-                  </div>
-                  <span className={`text-[11px] font-bold truncate ${selectedProfessional === 'any' ? 'text-white' : ''}`}>
-                    Qualquer
-                  </span>
-                </button>
+            {/* BLOCO 1: SELEÇÃO DE PROFISSIONAIS (Exibido SOMENTE se houver mais de 1 profissional disponível no banco na data escolhida) */}
+            {availableProfessionalsForDate.length > 1 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      setSelectedProfessional('any');
+                      setSelectedTimeSlot(null);
+                    }}
+                    className={`min-w-[105px] flex-shrink-0 p-1.5 px-2 rounded-[4px] border text-left flex items-center gap-2 transition cursor-pointer ${
+                      selectedProfessional === 'any'
+                        ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                        : isDark
+                        ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center flex-shrink-0 ${
+                      selectedProfessional === 'any'
+                        ? 'bg-white/20 text-white'
+                        : isDark
+                        ? 'bg-emerald-600/30 text-emerald-400'
+                        : 'bg-emerald-100 text-emerald-700'
+                    }`}>
+                      <Sparkles className={`w-3.5 h-3.5 ${selectedProfessional === 'any' ? 'text-white' : ''}`} />
+                    </div>
+                    <span className={`text-[11px] font-bold truncate ${selectedProfessional === 'any' ? 'text-white' : ''}`}>
+                      Qualquer
+                    </span>
+                  </button>
 
-                {professionals.map((prof, idx) => {
-                  const isSelected = selectedProfessional === prof.name;
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => {
-                        hapticLight();
-                        setSelectedProfessional(prof.name);
-                        setSelectedTimeSlot(null);
-                      }}
-                      className={`min-w-[115px] max-w-[135px] flex-shrink-0 p-1.5 px-2 rounded-[4px] border text-left flex items-center gap-2 transition cursor-pointer ${
-                        isSelected
-                          ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
-                          : isDark
-                          ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
-                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
-                      }`}
-                    >
-                      {prof.avatar && !prof.avatar.includes('unsplash.com') && !prof.avatar.startsWith('data:image/svg+xml') ? (
-                        <img
-                          src={prof.avatar}
-                          alt={prof.name}
-                          className="w-6 h-6 rounded-[4px] object-cover flex-shrink-0"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center shrink-0 ${
-                          isSelected ? 'bg-white/20 text-white' : isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'
-                        }`}>
-                          <User className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : ''}`} />
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <h5 className={`text-[11px] font-bold truncate leading-tight ${
-                          isSelected ? 'text-white' : isDark ? 'text-slate-200' : 'text-slate-800'
-                        }`}>
-                          {prof.name}
-                        </h5>
-                        {prof.rating && (
-                          <div className={`flex items-center gap-0.5 text-[9px] leading-tight ${
-                            isSelected ? 'text-white/90' : 'text-amber-400'
+                  {availableProfessionalsForDate.map((prof, idx) => {
+                    const isSelected = selectedProfessional === prof.name;
+                    const profImg = prof.avatar || prof.avatarUrl;
+                    return (
+                      <button
+                        key={prof.id || idx}
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          setSelectedProfessional(prof.name);
+                          setSelectedTimeSlot(null);
+                        }}
+                        className={`min-w-[115px] max-w-[135px] flex-shrink-0 p-1.5 px-2 rounded-[4px] border text-left flex items-center gap-2 transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                            : isDark
+                            ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
+                        }`}
+                      >
+                        {profImg && !profImg.includes('unsplash.com') && !profImg.startsWith('data:image/svg+xml') ? (
+                          <img
+                            src={profImg}
+                            alt={prof.name}
+                            className="w-6 h-6 rounded-[4px] object-cover flex-shrink-0"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center shrink-0 ${
+                            isSelected ? 'bg-white/20 text-white' : isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'
                           }`}>
-                            <Star className="w-2.5 h-2.5 fill-current" />
-                            <span>{prof.rating.toFixed(1)}</span>
+                            <User className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : ''}`} />
                           </div>
                         )}
-                      </div>
-                    </button>
-                  );
-                })}
+                        <div className="min-w-0">
+                          <h5 className={`text-[11px] font-bold truncate leading-tight ${
+                            isSelected ? 'text-white' : isDark ? 'text-slate-200' : 'text-slate-800'
+                          }`}>
+                            {prof.name}
+                          </h5>
+                          {prof.rating && (
+                            <div className={`flex items-center gap-0.5 text-[9px] leading-tight ${
+                              isSelected ? 'text-white/90' : 'text-amber-400'
+                            }`}>
+                              <Star className="w-2.5 h-2.5 fill-current" />
+                              <span>{prof.rating.toFixed(1)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* BLOCO 2: TABELA DE HORÁRIOS CLASSIFICADA POR PERÍODO (Manhã -> Tarde -> Noite -> Todos) */}
-            <div className={`pt-2 border-t space-y-2.5 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+            <div className={`space-y-2.5 ${
+              availableProfessionalsForDate.length > 1
+                ? `pt-2 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`
+                : ''
+            }`}>
               <div className="flex items-center justify-between gap-1.5 flex-wrap">
                 <h4 className={`text-[11px] font-bold font-['Poppins'] flex items-center gap-1 uppercase tracking-wider ${
                   isDark ? 'text-white' : 'text-slate-900'

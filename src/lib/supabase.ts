@@ -853,14 +853,19 @@ export async function fetchSalonProfessionals(salonId: string) {
     const brandingObj = (salonRow && typeof salonRow === 'object' && 'branding' in salonRow) ? (salonRow as any).branding : null;
     const jsonbTeam = brandingObj?.teamMembers;
     if (Array.isArray(jsonbTeam) && jsonbTeam.length > 0) {
-      return jsonbTeam.map((p: any) => ({
-        id: p.id,
-        salon_id: salonId,
-        name: p.name || 'Profissional',
-        role: p.role || 'Profissional',
-        avatar_url: p.avatarUrl || p.avatar || null,
-        is_active: true,
-      }));
+      return jsonbTeam
+        .filter((p: any) => p && p.isActive !== false && p.is_active !== false)
+        .map((p: any) => ({
+          id: p.id,
+          salon_id: salonId,
+          name: p.name || 'Profissional',
+          role: p.role || 'Profissional',
+          avatar_url: p.avatarUrl || p.avatar || null,
+          specialties: Array.isArray(p.specialties) ? p.specialties : ['Geral'],
+          work_schedule: p.workSchedule || p.work_schedule || p.schedule_config || null,
+          schedule_config: p.workSchedule || p.schedule_config || null,
+          is_active: p.isActive !== false && p.is_active !== false,
+        }));
     }
 
     return data || [];
@@ -2861,6 +2866,8 @@ export async function syncAllProfessionalsToDb(salonId: string, professionals: a
         commission_rate: Number(p.commissionRate ?? p.commission_rate ?? (accessLevel === 'admin' ? 100 : 50)),
         product_commission_rate: Number(p.productCommissionRate ?? p.product_commission_rate ?? 10),
         specialties: Array.isArray(p.specialties) ? p.specialties : ['Geral'],
+        schedule_config: p.workSchedule || p.schedule_config || null,
+        use_custom_schedule: Boolean(p.workSchedule || p.schedule_config),
         is_active: p.isActive !== false,
         updated_at: new Date().toISOString(),
       };
@@ -2878,6 +2885,7 @@ export async function syncAllProfessionalsToDb(salonId: string, professionals: a
             phone: p.phone || null,
             email: p.email || null,
             specialties: Array.isArray(p.specialties) ? p.specialties : ['Geral'],
+            schedule_config: p.workSchedule || p.schedule_config || null,
             is_active: p.isActive !== false,
             updated_at: new Date().toISOString(),
           },

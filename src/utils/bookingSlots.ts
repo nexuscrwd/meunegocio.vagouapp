@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import type { SalonProfessionalItem } from '../types';
 
 export interface BookingSlotItem {
   time: string;
@@ -64,15 +65,25 @@ export function saveBookingDraft(draft: BookingDraftItem | null): void {
   } catch {}
 }
 
+export interface BusySlotRecord {
+  start_time: string;
+  end_time: string;
+  professional_id?: string;
+  professional_name?: string;
+  status?: string;
+  notes?: string;
+  service_title?: string;
+}
+
 /**
  * Busca horários ocupados no banco de dados (combinando RPC get_busy_slots + leitura direta de public.appointments)
  */
 export async function fetchBusySlotsDirectly(
   salonId: string,
   dateStr: string
-): Promise<Array<{ start_time: string; end_time: string; professional_id?: string; professional_name?: string }>> {
+): Promise<BusySlotRecord[]> {
   if (!dateStr) return [];
-  const results: Array<{ start_time: string; end_time: string; professional_id?: string; professional_name?: string }> = [];
+  const results: BusySlotRecord[] = [];
 
   // 1. Consulta no Supabase (RPC + Tabela public.appointments)
   if (isSupabaseConfigured && supabase && salonId) {
@@ -88,6 +99,7 @@ export async function fetchBusySlotsDirectly(
               start_time: String(row.start_time).slice(0, 5),
               end_time: String(row.end_time || row.start_time).slice(0, 5),
               professional_id: row.professional_id,
+              professional_name: row.professional_name,
             });
           }
         });
@@ -96,7 +108,7 @@ export async function fetchBusySlotsDirectly(
 
     try {
       const { data: aptRows } = await (supabase.from('appointments') as any)
-        .select('start_time, end_time, professional_id, status')
+        .select('start_time, end_time, professional_id, status, notes, service_title, professionals(name)')
         .eq('salon_id', salonId)
         .eq('date_str', dateStr)
         .neq('status', 'CANCELADO')
@@ -106,17 +118,52 @@ export async function fetchBusySlotsDirectly(
         aptRows.forEach((row: any) => {
           if (row?.start_time) {
             const st = String(row.start_time).slice(0, 5);
-            if (!results.some((r) => r.start_time === st)) {
+            const proName = row.professionals?.name || row.professional_name || undefined;
+            if (
+              !results.some(
+                (r) =>
+                  r.start_time === st &&
+                  (r.professional_id === row.professional_id || r.professional_name === proName)
+              )
+            ) {
               results.push({
                 start_time: st,
                 end_time: String(row.end_time || row.start_time).slice(0, 5),
                 professional_id: row.professional_id,
+                professional_name: proName,
+                status: row.status,
+                notes: row.notes,
+                service_title: row.service_title,
               });
             }
           }
         });
       }
-    } catch {}
+    } catch {
+      try {
+        const { data: fallbackRows } = await (supabase.from('appointments') as any)
+          .select('start_time, end_time, professional_id, status, notes, service_title')
+          .eq('salon_id', salonId)
+          .eq('date_str', dateStr)
+          .neq('status', 'CANCELADO')
+          .neq('status', 'cancelado');
+        if (Array.isArray(fallbackRows)) {
+          fallbackRows.forEach((row: any) => {
+            if (row?.start_time) {
+              const st = String(row.start_time).slice(0, 5);
+              results.push({
+                start_time: st,
+                end_time: String(row.end_time || row.start_time).slice(0, 5),
+                professional_id: row.professional_id,
+                status: row.status,
+                notes: row.notes,
+                service_title: row.service_title,
+              });
+            }
+          });
+        }
+      } catch {}
+    }
   }
 
   // 2. Complementa com agendamentos confirmados localmente na sessão para resposta imediata
@@ -135,11 +182,15 @@ export async function fetchBusySlotsDirectly(
             (typeof apt?.dateTime === 'string' && apt.dateTime.includes(shortFormatted));
           if (matchesDate && apt?.time) {
             const st = String(apt.time).slice(0, 5);
-            if (!results.some((r) => r.start_time === st)) {
+            const proName = apt.professional || apt.professionalName;
+            if (!results.some((r) => r.start_time === st && (!proName || r.professional_name === proName))) {
               results.push({
                 start_time: st,
                 end_time: st,
-                professional_name: apt.professional || apt.professionalName,
+                professional_name: proName,
+                status: apt.status,
+                notes: apt.blockReason || apt.notes,
+                service_title: apt.serviceTitle || apt.service,
               });
             }
           }
@@ -149,6 +200,266 @@ export async function fetchBusySlotsDirectly(
   }
 
   return results;
+}
+
+const WEEKDAY_KEYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'] as const;
+
+export function getWeekdayKeyFromIsoDate(dateStr?: string): string {
+  if (!dateStr) return 'seg';
+  const parts = String(dateStr).split('-').map(Number);
+  if (parts.length === 3 && !parts.some(Number.isNaN)) {
+    const dt = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0);
+    return WEEKDAY_KEYS[dt.getDay()] || 'seg';
+  }
+  return 'seg';
+}
+
+/**
+ *Verifica se um profissional específico possui escala ativa e não está de folga/ausente na data selecionada
+ */
+function isProfessionalAvailableOnDay(
+  prof: any,
+  dayKey: string,
+  dateStr: string,
+  professionalSchedulesMap?: Record<string, any[]>,
+  dayAppointments?: BusySlotRecord[]
+): boolean {
+  if (!prof) return false;
+
+  // 1. Flag explícita de ativo/inativo (férias, desligado ou ausente no cadastro)
+  if (prof.isActive === false || prof.is_active === false) {
+    return false;
+  }
+
+  // 2. Verificar status explícito de ausência/folga no objeto de escala
+  const scheduleObj = prof.workSchedule || prof.work_schedule || prof.schedule_config || null;
+  if (scheduleObj && typeof scheduleObj === 'object') {
+    const statusStr = String(scheduleObj.status || '').toLowerCase();
+    if (statusStr === 'folga' || statusStr === 'ausente' || statusStr === 'absent' || statusStr === 'ferias') {
+      return false;
+    }
+
+    // Lista de datas de ausência / folga pontual (YYYY-MM-DD)
+    const daysOffList: string[] = Array.isArray(scheduleObj.daysOff)
+      ? scheduleObj.daysOff
+      : Array.isArray(scheduleObj.absences)
+      ? scheduleObj.absences
+      : Array.isArray(scheduleObj.folgas)
+      ? scheduleObj.folgas
+      : [];
+    if (dateStr && daysOffList.includes(dateStr)) {
+      return false;
+    }
+
+    // Escala semanal de dias de trabalho (ex: ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'])
+    if (Array.isArray(scheduleObj.days) && scheduleObj.days.length > 0) {
+      const normalizedDays = scheduleObj.days.map((d: string) =>
+        String(d || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .slice(0, 3)
+      );
+      if (!normalizedDays.includes(dayKey)) {
+        return false;
+      }
+    }
+  }
+
+  // 3. Verificar grade individualizada em salons.operating_hours.professionalSchedules
+  if (professionalSchedulesMap && typeof professionalSchedulesMap === 'object') {
+    const profScheduleDays =
+      (prof.id && professionalSchedulesMap[prof.id]) ||
+      (prof.name && professionalSchedulesMap[prof.name]);
+    if (Array.isArray(profScheduleDays) && profScheduleDays.length > 0) {
+      const dayEntry = profScheduleDays.find((d: any) => d?.dayKey === dayKey);
+      if (dayEntry && dayEntry.isOpen === false) {
+        return false;
+      }
+    }
+  }
+
+  // 4. Verificar bloqueio de dia inteiro / folga / ausência lançada na agenda (public.appointments) na data escolhida
+  if (Array.isArray(dayAppointments) && dayAppointments.length > 0) {
+    const profNameNorm = String(prof.name || '').trim().toLowerCase();
+    const profIdNorm = String(prof.id || '').trim();
+
+    const profApts = dayAppointments.filter((apt) => {
+      const matchId = profIdNorm && apt.professional_id && String(apt.professional_id).trim() === profIdNorm;
+      const matchName =
+        profNameNorm &&
+        apt.professional_name &&
+        String(apt.professional_name).trim().toLowerCase() === profNameNorm;
+      return Boolean(matchId || matchName);
+    });
+
+    const hasFullDayAbsenceRecord = profApts.some((apt) => {
+      const st = String(apt.status || '').toUpperCase();
+      const notesAndTitle = `${apt.service_title || ''} ${apt.notes || ''}`.toLowerCase();
+      if (st === 'FOLGA' || st === 'AUSENTE' || st === 'FERIAS') return true;
+      if (
+        st.includes('BLOQUE') &&
+        (notesAndTitle.includes('folga') ||
+          notesAndTitle.includes('ausente') ||
+          notesAndTitle.includes('férias') ||
+          notesAndTitle.includes('ferias') ||
+          notesAndTitle.includes('dia inteiro') ||
+          notesAndTitle.includes('dia todo'))
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (hasFullDayAbsenceRecord) {
+      return false;
+    }
+
+    // Se todos os slots comerciais (>= 22 horários) daquele profissional estão ocupados/bloqueados no dia
+    const uniqueBlockedTimes = new Set(profApts.map((a) => a.start_time));
+    if (uniqueBlockedTimes.size >= 22) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Consulta em tempo real o banco de dados (Supabase: public.professionals, public.salons e public.appointments)
+ * e a escala local da equipe para retornar SOMENTE os profissionais efetivamente disponíveis no dia selecionado.
+ */
+export async function fetchAvailableProfessionalsForDate(
+  salonId: string,
+  dateStr: string,
+  baseProfessionals: SalonProfessionalItem[],
+  preloadedBusySlots?: BusySlotRecord[]
+): Promise<SalonProfessionalItem[]> {
+  const dayKey = getWeekdayKeyFromIsoDate(dateStr);
+
+  // Hidrata escalas locais salvas no TeamManager (se houver)
+  let localTeamMembers: any[] = [];
+  if (typeof window !== 'undefined') {
+    try {
+      const rawTeam =
+        localStorage.getItem('vagou_salon_team_members') ||
+        localStorage.getItem('vagou_team_members') ||
+        localStorage.getItem('vagou_custom_professionals');
+      if (rawTeam) {
+        const parsed = JSON.parse(rawTeam);
+        if (Array.isArray(parsed)) localTeamMembers = parsed;
+      }
+    } catch {}
+  }
+
+  let dbPros: any[] = [];
+  let dbTeamMeta: any[] = [];
+  let professionalSchedulesMap: Record<string, any[]> | undefined;
+
+  if (isSupabaseConfigured && supabase && salonId) {
+    try {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonId);
+      let resolvedSalonUuid = isUuid ? salonId : '';
+
+      const { data: salonRow } = await (supabase.from('salons') as any)
+        .select('id, branding, operating_hours')
+        .match(isUuid ? { id: salonId } : { slug: salonId })
+        .maybeSingle();
+
+      if (salonRow?.id) {
+        resolvedSalonUuid = salonRow.id;
+      }
+      if (Array.isArray(salonRow?.branding?.teamMembers)) {
+        dbTeamMeta = salonRow.branding.teamMembers;
+      }
+      const opHours =
+        salonRow?.operating_hours ||
+        salonRow?.branding?.operatingSchedule ||
+        salonRow?.branding?.operatingHoursJson;
+      if (opHours?.professionalSchedules && typeof opHours.professionalSchedules === 'object') {
+        professionalSchedulesMap = opHours.professionalSchedules;
+      }
+
+      if (resolvedSalonUuid) {
+        const { data: pRows } = await (supabase.from('professionals') as any)
+          .select('*')
+          .eq('salon_id', resolvedSalonUuid)
+          .order('created_at', { ascending: true });
+        if (Array.isArray(pRows) && pRows.length > 0) {
+          dbPros = pRows;
+        }
+      }
+    } catch {}
+  }
+
+  const busySlotsForDay =
+    preloadedBusySlots !== undefined
+      ? preloadedBusySlots
+      : salonId && dateStr
+      ? await fetchBusySlotsDirectly(salonId, dateStr)
+      : [];
+
+  // Consolidar lista base (priorizando dados frescos do banco quando disponíveis)
+  const sourceList: SalonProfessionalItem[] =
+    dbPros.length > 0
+      ? dbPros.map((p: any) => {
+          const metaMatch =
+            dbTeamMeta.find((m: any) => (m.id && m.id === p.id) || (m.name && m.name === p.name)) ||
+            localTeamMembers.find((m: any) => (m.id && m.id === p.id) || (m.name && m.name === p.name)) ||
+            baseProfessionals.find((m) => (m.id && m.id === p.id) || (m.name && m.name === p.name));
+
+          return {
+            id: p.id,
+            name: p.name || metaMatch?.name || 'Profissional',
+            role:
+              p.role === 'admin'
+                ? 'Dono / Gerente'
+                : p.role === 'receptionist'
+                ? 'Recepcionista'
+                : p.role || metaMatch?.role || 'Profissional',
+            systemRole: p.role === 'admin' || metaMatch?.systemRole === 'admin' ? 'admin' : 'member',
+            avatar: p.avatar_url || metaMatch?.avatar || metaMatch?.avatarUrl || '',
+            avatarUrl: p.avatar_url || metaMatch?.avatarUrl || metaMatch?.avatar || '',
+            rating: metaMatch?.rating || 5.0,
+            specialties: Array.isArray(p.specialties) ? p.specialties : metaMatch?.specialties || ['Geral'],
+            workSchedule:
+              p.work_schedule ||
+              p.schedule_config ||
+              metaMatch?.workSchedule ||
+              metaMatch?.schedule_config ||
+              undefined,
+            isActive: p.is_active !== false && metaMatch?.isActive !== false && metaMatch?.is_active !== false,
+          };
+        })
+      : baseProfessionals.map((bp) => {
+          const metaMatch =
+            dbTeamMeta.find((m: any) => (m.id && m.id === bp.id) || (m.name && m.name === bp.name)) ||
+            localTeamMembers.find((m: any) => (m.id && m.id === bp.id) || (m.name && m.name === bp.name));
+          return {
+            ...bp,
+            workSchedule:
+              bp.workSchedule ||
+              metaMatch?.workSchedule ||
+              metaMatch?.work_schedule ||
+              metaMatch?.schedule_config ||
+              undefined,
+            isActive: bp.isActive !== false && metaMatch?.isActive !== false && metaMatch?.is_active !== false,
+          };
+        });
+
+  // Filtrar recepcionistas caso haja outros profissionais de atendimento na equipe
+  const nonReceptionistList = sourceList.filter((p) => {
+    const r = String(p.role || '').toLowerCase();
+    return !r.includes('recep');
+  });
+  const candidatePros = nonReceptionistList.length > 0 ? nonReceptionistList : sourceList;
+
+  // Filtrar quem está ativo e disponível na data selecionada (sem folga/ausência)
+  const availableOnDate = candidatePros.filter((prof) =>
+    isProfessionalAvailableOnDay(prof, dayKey, dateStr, professionalSchedulesMap, busySlotsForDay)
+  );
+
+  return availableOnDate;
 }
 
 /**
@@ -660,17 +971,18 @@ export interface SlotGenerationOptions {
   travelMinutes?: number;
   prepMinutes?: number;
   busySlots?: Array<{ start_time: string; end_time?: string; professional_id?: string; professional_name?: string }>;
+  availableProfessionals?: SalonProfessionalItem[];
   nowOverride?: Date;
 }
 
 /**
  * Gera os horários do dia classificados por período (manhã, tarde, noite),
- * aplicando bloqueio de banco de dados (busySlots) e a regra preditiva:
+ * aplicando bloqueio de banco de dados (busySlots), escala dos profissionais disponíveis no dia e a regra preditiva:
  * Disponível apenas se Horário >= Hora Atual + Tempo de Deslocamento + 15 min (preparação)
  */
 export function getAvailableSlotsForDate(
   dateStr?: string,
-  _serviceOrProId?: string,
+  selectedProNameOrId?: string,
   options?: SlotGenerationOptions
 ): BookingSlotItem[] {
   const baseSlots: Array<{ time: string; period: 'manha' | 'tarde' | 'noite' }> = [
@@ -711,16 +1023,82 @@ export function getAvailableSlotsForDate(
   const prepMinutes = Math.max(0, options?.prepMinutes ?? 15);
   const minAllowedMinutesForToday = nowMinutes + travelMinutes + prepMinutes;
 
-  const busySet = new Set(
-    (options?.busySlots || []).map((b) => String(b.start_time).slice(0, 5))
-  );
+  const rawBusyList = options?.busySlots || [];
+  const availablePros = options?.availableProfessionals;
+
+  // Se a lista de profissionais disponíveis no dia foi explicitamente resolvida como vazia, bloqueia os slots
+  if (Array.isArray(availablePros) && availablePros.length === 0) {
+    return baseSlots.map((slot) => ({
+      ...slot,
+      available: false,
+      reason: 'busy',
+    }));
+  }
+
+  const targetPro =
+    selectedProNameOrId && selectedProNameOrId !== 'any' && Array.isArray(availablePros)
+      ? availablePros.find(
+          (p) =>
+            p.id === selectedProNameOrId ||
+            p.name.trim().toLowerCase() === selectedProNameOrId.trim().toLowerCase()
+        )
+      : Array.isArray(availablePros) && availablePros.length === 1
+      ? availablePros[0]
+      : undefined;
+
+  const isSlotBusyForPro = (slotTime: string, slotMin: number, pro?: SalonProfessionalItem): boolean => {
+    if (pro?.workSchedule?.startTime && pro?.workSchedule?.endTime) {
+      const [sh, sm] = pro.workSchedule.startTime.split(':').map(Number);
+      const [eh, em] = pro.workSchedule.endTime.split(':').map(Number);
+      if (!Number.isNaN(sh) && !Number.isNaN(eh)) {
+        const startMin = sh * 60 + (sm || 0);
+        const endMin = eh * 60 + (em || 0);
+        if (slotMin < startMin || slotMin >= endMin) {
+          return true;
+        }
+      }
+    }
+
+    const proId = pro?.id ? String(pro.id).trim() : '';
+    const proName = pro?.name ? pro.name.trim().toLowerCase() : '';
+
+    return rawBusyList.some((b) => {
+      if (String(b.start_time).slice(0, 5) !== slotTime) return false;
+      // Bloqueio global (sem profissional específico atrelado)
+      if (!b.professional_id && !b.professional_name) return true;
+      if (!pro) {
+        if (selectedProNameOrId && selectedProNameOrId !== 'any') {
+          const selNorm = selectedProNameOrId.trim().toLowerCase();
+          return (
+            b.professional_id === selectedProNameOrId ||
+            (b.professional_name && b.professional_name.trim().toLowerCase() === selNorm) ||
+            false
+          );
+        }
+        return true;
+      }
+      if (proId && b.professional_id && String(b.professional_id).trim() === proId) return true;
+      if (proName && b.professional_name && b.professional_name.trim().toLowerCase() === proName) return true;
+      return false;
+    });
+  };
 
   return baseSlots.map((slot) => {
     const [h, m] = slot.time.split(':').map(Number);
     const slotMinutes = h * 60 + m;
 
-    // 1. Verifica ocupação no banco de dados
-    if (busySet.has(slot.time)) {
+    // 1. Verifica ocupação no banco de dados e turno de atendimento do(s) profissional(is) disponível(is)
+    let isBusy = false;
+    if (targetPro) {
+      isBusy = isSlotBusyForPro(slot.time, slotMinutes, targetPro);
+    } else if (Array.isArray(availablePros) && availablePros.length > 1 && (!selectedProNameOrId || selectedProNameOrId === 'any')) {
+      // No modo "Qualquer", o horário só fica indisponível se TODOS os profissionais disponíveis no dia estiverem ocupados naquele horário
+      isBusy = availablePros.every((pro) => isSlotBusyForPro(slot.time, slotMinutes, pro));
+    } else {
+      isBusy = isSlotBusyForPro(slot.time, slotMinutes, undefined);
+    }
+
+    if (isBusy) {
       return {
         ...slot,
         available: false,

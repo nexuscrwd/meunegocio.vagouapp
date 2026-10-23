@@ -15,6 +15,20 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-23] — Ocultação Automática do Seletor para 1 Profissional e Consulta Prévia de Disponibilidade/Folga no Banco de Dados (`bookingSlots.ts`, `SalonBookingModal.tsx`, `supabase.ts`, `SalonProfileView.tsx`)
+- **Tipo:** `[Feat / Refactor / Database Availability & Conditional UI]`
+- **Motivo / Solicitação:** Ocultar a ferramenta de seleção de profissionais quando o estabelecimento possuir apenas 1 profissional (ou apenas 1 profissional disponível no dia escolhido), e consultar previamente o banco de dados (Supabase: `public.professionals`, `public.salons` e `public.appointments`) para filtrar profissionais ausentes, inativos ou de folga na data selecionada, evitando propor um profissional que não poderá atender o cliente.
+- **Arquivos Impactados:**
+  - `src/utils/bookingSlots.ts`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/lib/supabase.ts`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Consulta de Disponibilidade no Banco por Data (`fetchAvailableProfessionalsForDate` em `bookingSlots.ts`):** Antes de propor profissionais na etapa `professionals_and_time`, o app consulta `public.professionals` (`is_active`, `schedule_config` / `work_schedule`), `public.salons` (`branding.teamMembers`, `operating_hours.professionalSchedules`) e `public.appointments` (bloqueios de dia inteiro, `FOLGA`, `AUSENTE`, `FERIAS`), cruzando com o dia da semana (`dom` a `sab`) da data selecionada (`selectedDateIso`).
+  2. **Ocultação Automática para 1 Profissional (`SalonBookingModal.tsx`):** A barra de seleção de profissionais (`BLOCO 1: SELEÇÃO DE PROFISSIONAIS`) só é renderizada quando `availableProfessionalsForDate.length > 1`. Se o salão for de 1 único profissional ou se de 3 profissionais 2 estiverem ausentes/de folga no dia (restando apenas 1 disponível), o seletor é ocultado automaticamente e o único profissional disponível é selecionado de forma transparente.
+  3. **Filtro de Horários Ocupados e Turno por Profissional (`getAvailableSlotsForDate`):** Os slots disponíveis respeitam o turno (`startTime` / `endTime`) e as ocupações individuais dos profissionais disponíveis no dia.
+
 ### [2026-10-23] — Logística Multi-Modal (Carro, Moto, Transporte Público, Uber/99) com Margem de Folga Anti-Atraso, Reposicionamento de "Horário Máx. de Saída" para Pós-Escolha de Horário e Deep Links Universais (`bookingSlots.ts`, `SalonBookingModal.tsx`, `SalonProfileView.tsx`)
 - **Tipo:** `[Feat / Refactor / GIS & Smart Mobility Deep Links]`
 - **Motivo / Solicitação:** Remover a linha `Horário Máx. de saída` do modal prévio de origem (pois depende do horário escolhido) e exibi-la após a seleção/confirmação do horário; adicionar escolha do meio de transporte (`Carro`, `Moto`, `Transporte Público`, `Uber / 99`) com cálculo calibrado estilo Google Maps + margem de folga para nunca subestimar o trajeto; e integrar abertura direta de rotas e apps (Google Maps Transporte Público com baldeações, Google Maps/Waze para Moto e Carro, e Uber/99 já com o endereço e coordenadas do estabelecimento preenchidos).
