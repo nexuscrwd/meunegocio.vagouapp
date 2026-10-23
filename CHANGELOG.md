@@ -15,6 +15,15 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-23] — Correção Urgente de Salvamento de Perfil e Avatar (Remoção de Dependência de Storage) (`src/components/ProfileDrawer.tsx`)
+- **Tipo:** `[Fix / Critical / Profile & Avatar Save]`
+- **Motivo / Solicitação:** Resolução definitiva do problema de salvamento onde o avatar desaparecia e o botão "Salvar" do perfil não mantinha a foto devido a falhas em buckets de storage remotos.
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Upload Direto Base64 (FileReader):** Substituída a tentativa falha de upload em bucket remoto por conversão FileReader instantânea e confiável, salvando direto no `localStorage` (`vagou_user_avatar`) e priorizando o avatar local nas sincronizações.
+
 ### [2026-10-23] — Correção de Persistência e Sincronização do Avatar do Usuário (`src/components/ProfileDrawer.tsx`)
 - **Tipo:** `[Fix / Database / User Avatar Persistence]`
 - **Motivo / Solicitação:** Investigação e correção do problema onde a foto de perfil (avatar) selecionada pelo usuário desaparecia (não era persistida no banco Supabase e era sobrescrita por sincronizações vazias).

@@ -453,42 +453,18 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    let finalAvatar = '';
-    if (isSupabaseConfigured) {
-      const emailOrId = profile.email || profile.name || 'user';
-      const storageUrl = await uploadAvatarToSupabaseStorage(file, emailOrId);
-      if (storageUrl) {
-        finalAvatar = storageUrl;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      if (base64) {
+        setProfile(prev => ({ ...prev, avatarUrl: base64 }));
+        try {
+          localStorage.setItem('vagou_user_avatar', base64);
+        } catch {}
+        onUpdateUserAvatar?.(base64);
       }
-    }
-
-    if (!finalAvatar) {
-      const base64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (event) => resolve(event.target?.result as string || '');
-        reader.readAsDataURL(file);
-      });
-      finalAvatar = base64;
-    }
-
-    if (finalAvatar) {
-      setProfile(prev => ({ ...prev, avatarUrl: finalAvatar }));
-      try {
-        localStorage.setItem('vagou_user_avatar', finalAvatar);
-      } catch {}
-      onUpdateUserAvatar?.(finalAvatar);
-
-      try {
-        await updateUserProfileInDb({
-          name: profile.name,
-          email: profile.email,
-          phone: profile.phone,
-          avatarUrl: finalAvatar,
-        });
-      } catch (err) {
-        console.warn('Erro ao persistir avatar no Supabase:', err);
-      }
-    }
+    };
+    reader.readAsDataURL(file);
   };
 
   // Estado dos Agendamentos
