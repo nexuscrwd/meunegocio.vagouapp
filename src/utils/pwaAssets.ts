@@ -17,8 +17,9 @@ let activeBlobManifestUrl: string | null = null;
 export function updateDynamicPwaAssets(
   name?: string,
   iconUrl?: string,
-  themeColor: string = '#151A1E',
-  slogan?: string
+  themeColor?: string,
+  slogan?: string,
+  isDarkTheme?: boolean
 ) {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
@@ -27,6 +28,13 @@ export function updateDynamicPwaAssets(
     const finalShortName = finalName.length > 14 ? finalName.slice(0, 14).trim() : finalName;
     const finalIcon = iconUrl || '';
     const finalSlogan = (slogan || '').trim();
+
+    const effectiveIsDark = isDarkTheme !== undefined
+      ? isDarkTheme
+      : (typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') : false);
+
+    const resolvedBgColor = effectiveIsDark ? '#151A1E' : '#FFFFFF';
+    const effectiveThemeColor = themeColor || (effectiveIsDark ? '#151A1E' : '#20C933');
 
     // 1. Atualizar Título da Página (Apenas Nome e Slogan)
     document.title = finalSlogan ? `${finalName} — ${finalSlogan}` : finalName;
@@ -38,7 +46,12 @@ export function updateDynamicPwaAssets(
 
     const themeColorMeta = document.querySelector('meta[name="theme-color"]');
     if (themeColorMeta) {
-      themeColorMeta.setAttribute('content', themeColor);
+      themeColorMeta.setAttribute('content', effectiveThemeColor);
+    }
+
+    const appleStatusMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (appleStatusMeta) {
+      appleStatusMeta.setAttribute('content', effectiveIsDark ? 'black-translucent' : 'default');
     }
 
     // Atualizar Meta Description e OpenGraph (apenas Nome do App e Slogan)
@@ -79,8 +92,8 @@ export function updateDynamicPwaAssets(
       display: 'standalone',
       display_override: ['standalone', 'minimal-ui', 'window-controls-overlay'],
       orientation: 'portrait-primary',
-      background_color: '#151A1E',
-      theme_color: themeColor,
+      background_color: resolvedBgColor,
+      theme_color: effectiveThemeColor,
       prefer_related_applications: false,
       categories: ['lifestyle', 'beauty', 'shopping', 'utilities'],
       icons: [
@@ -134,12 +147,17 @@ export function initializeStoredPwaAssets() {
   try {
     const savedSettings = localStorage.getItem('vagou_salon_admin_settings');
     const storedIcon = localStorage.getItem('vagou_salon_icon') || localStorage.getItem('vagou_salon_logo_dark');
-    const storedColor = localStorage.getItem('vagou_accent_color') || '#10b981';
+    const storedColor = localStorage.getItem('vagou_accent_color') || '#20C933';
 
     let name = 'Meu Estabelecimento';
     let icon = storedIcon || '';
     let color = storedColor;
     let slogan = '';
+    let isDarkTheme: boolean | undefined = undefined;
+
+    const userPref = localStorage.getItem('vagou_user_theme_preference');
+    if (userPref === 'dark') isDarkTheme = true;
+    else if (userPref === 'light') isDarkTheme = false;
 
     if (savedSettings) {
       try {
@@ -150,11 +168,15 @@ export function initializeStoredPwaAssets() {
         }
         if (parsed.accentColor) color = parsed.accentColor;
         if (parsed.slogan) slogan = parsed.slogan;
+        if (isDarkTheme === undefined) {
+          if (parsed.defaultTheme === 'dark') isDarkTheme = true;
+          else if (parsed.defaultTheme === 'light') isDarkTheme = false;
+        }
       } catch {}
     }
 
-    updateDynamicPwaAssets(name, icon, color, slogan);
-  } catch (e) {
+    updateDynamicPwaAssets(name, icon, color, slogan, isDarkTheme);
+  } catch {
     // ignore
   }
 }

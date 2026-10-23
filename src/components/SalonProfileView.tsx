@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   ArrowLeft, Heart, Zap, 
   Calendar,
@@ -716,12 +716,18 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     return defaults;
   });
 
-  // Sincroniza tema padrão / permanente do estabelecimento
+  // Sincroniza tema padrão / permanente do estabelecimento sem criar loop de dependência com o tema do usuário
+  const initialThemeSyncDoneRef = useRef(false);
   useEffect(() => {
-    if (adminSettings.defaultTheme && adminSettings.defaultTheme !== theme) {
-      setTheme(adminSettings.defaultTheme);
+    if (adminSettings.defaultTheme) {
+      const explicitUserPref = localStorage.getItem('vagou_user_theme_preference');
+      // Se não há preferência manual do usuário, aplica o tema padrão do salão na inicialização
+      if (!explicitUserPref && !initialThemeSyncDoneRef.current) {
+        setTheme(adminSettings.defaultTheme);
+        initialThemeSyncDoneRef.current = true;
+      }
     }
-  }, [adminSettings.defaultTheme, theme, setTheme]);
+  }, [adminSettings.defaultTheme, setTheme]);
 
   // Cor de destaque / tema ativa e prioritária do estabelecimento
   const effectiveAccentColor = adminSettings.accentColor || accentColor || '#20C933';
@@ -994,7 +1000,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           updatedSettings.brandFont = resolvedBrandFont;
 
           if (salonRecord.default_theme || salonRecord.branding?.defaultTheme) {
-            updatedSettings.defaultTheme = salonRecord.default_theme || salonRecord.branding?.defaultTheme;
+            const remoteTheme = (salonRecord.default_theme || salonRecord.branding?.defaultTheme) as 'dark' | 'light';
+            updatedSettings.defaultTheme = remoteTheme;
+            const explicitUserChoice = localStorage.getItem('vagou_user_theme_preference');
+            if (!explicitUserChoice) {
+              setTheme(remoteTheme);
+              initialThemeSyncDoneRef.current = true;
+            }
           }
           if (salonRecord.show_slogan !== undefined || salonRecord.branding?.showSlogan !== undefined) {
             updatedSettings.showSlogan = salonRecord.show_slogan !== undefined ? salonRecord.show_slogan : salonRecord.branding?.showSlogan;
@@ -1358,6 +1370,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   };
 
   const handleUpdateSettings = async (newSettings: Partial<SalonAdminSettings>) => {
+    if (newSettings.defaultTheme) {
+      setTheme(newSettings.defaultTheme);
+      try {
+        localStorage.setItem('vagou_user_theme_preference', newSettings.defaultTheme);
+        localStorage.setItem('vagou_theme', newSettings.defaultTheme);
+      } catch {}
+    }
     if (newSettings.accentColor) {
       setAccentColorContext(newSettings.accentColor);
       try {
@@ -1374,10 +1393,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           localStorage.setItem('vagou_accent_color_timestamp', Date.now().toString());
         }
         const effectiveName = merged.pwaName || merged.salonName || salonName;
+        const effectiveIsDark = (merged.defaultTheme || theme) === 'dark';
         updateDynamicPwaAssets(
           effectiveName, 
           merged.salonIcon || merged.salonLogoDark || merged.salonLogo,
-          merged.accentColor
+          merged.accentColor,
+          merged.slogan,
+          effectiveIsDark
         );
       } catch {
         // ignore

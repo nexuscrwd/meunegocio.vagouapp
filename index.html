@@ -16,11 +16,15 @@
       (function() {
         try {
           var userSelectedTheme = localStorage.getItem('vagou_user_theme_preference');
-          if (userSelectedTheme === 'dark') {
+          var salonSettings = null;
+          try {
+            salonSettings = JSON.parse(localStorage.getItem('vagou_salon_admin_settings') || '{}');
+          } catch(e) {}
+          var effectiveTheme = userSelectedTheme || (salonSettings && salonSettings.defaultTheme) || 'light';
+          if (effectiveTheme === 'dark') {
             document.documentElement.classList.add('dark');
           } else {
             document.documentElement.classList.remove('dark');
-            try { localStorage.removeItem('vagou_theme'); } catch(e) {}
           }
 
           var savedColor = localStorage.getItem('vagou_accent_color');

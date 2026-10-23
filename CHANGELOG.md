@@ -15,6 +15,23 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-23] — Correção Definitiva da Ativação do Modo Claro no PWA Instalado e Eliminação do Loop de Tema em `SalonProfileView.tsx`
+- **Tipo:** `[Fix / PWA & Theme Architecture / UI & Mobile Experience]`
+- **Motivo / Solicitação:** Usuário reportou que o app instalado (PWA) só abria no modo escuro e não ativava o modo claro, mesmo após rodar a migração no Supabase sem erros.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `src/context/ThemeContext.tsx`
+  - `src/utils/pwaAssets.ts`
+  - `src/index.css`
+  - `index.html`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Causa Raiz Identificada & Extirpada (Loop de Reversão de Tema):** No `SalonProfileView.tsx`, o efeito de sincronização possuía `theme` em sua lista de dependências (`[adminSettings.defaultTheme, theme, setTheme]`). Toda vez que o usuário ou gestor clicava para ativar o modo claro, `theme` mudava para `'light'`, disparando imediatamente o efeito. Como `adminSettings.defaultTheme` ainda continha `'dark'`, a condição `adminSettings.defaultTheme !== theme` era avaliada como verdadeira e forçava `setTheme('dark')` em 0ms, regravando `'dark'` no localStorage e anulando o clique no modo claro.
+  2. **Ref-Guarded Theme Synchronization:** Substituído o efeito reativo por uma referência de guarda `initialThemeSyncDoneRef`, removendo `theme` das dependências. Agora a sincronização do salão só é aplicada na inicialização se o usuário ainda não tiver preferência explícita, sem jamais anular a alternância manual.
+  3. **Sincronização Ativa em `handleUpdateSettings`:** Ao alterar o tema em `LayoutCardView`, `handleUpdateSettings` agora chama `setTheme(newSettings.defaultTheme)` e persiste imediatamente `vagou_user_theme_preference`, sincronizando com o Supabase e com os ativos PWA.
+  4. **PWA Manifest & Splash Screen Dinâmicos:** Em `src/utils/pwaAssets.ts`, adicionado parâmetro `isDarkTheme`. No modo claro, o manifesto agora injeta `background_color: '#FFFFFF'`, `theme_color` claro e `apple-mobile-web-app-status-bar-style: 'default'`, eliminando a tela preta nativa do PWA instalado ao abrir em modo claro.
+  5. **Estilização de Base no CSS & Script Inline do HTML:** Adicionadas regras no `src/index.css` para `body` (`#F8FAFC` no modo claro e `#0B0F17` no modo escuro) e atualizado o script de pré-hidratação no `index.html` para ler `defaultTheme` das configurações do salão sem travar em modo escuro.
+
 ### [2026-10-23] — Perícia e Blindagem da Persistência de Cores/Estilos no Banco Supabase, Migração SQL Oficial, Galeria Curada de Imagens de Serviços, Limpeza do Compartilhamento (Sem "Momy Nail") e Hardening de CRUDs
 - **Tipo:** `[Fix / Feat / Database Schema & Persistence Architecture / PWA & UX]`
 - **Motivo / Solicitação:**

@@ -143,7 +143,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (explicitChoice === 'dark' || explicitChoice === 'light') {
         return explicitChoice;
       }
-      // Limpeza de cache legado para garantir tema claro como padrão absoluto
+      const settingsStr = localStorage.getItem('vagou_salon_admin_settings');
+      if (settingsStr) {
+        const parsed = JSON.parse(settingsStr);
+        if (parsed && (parsed.defaultTheme === 'dark' || parsed.defaultTheme === 'light')) {
+          return parsed.defaultTheme;
+        }
+      }
       localStorage.removeItem('vagou_theme');
     } catch {}
     return 'light';
