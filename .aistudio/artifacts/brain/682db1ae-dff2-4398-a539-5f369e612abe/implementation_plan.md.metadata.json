@@ -1,6 +1,6 @@
 {
-  "summary":  "Plano de implementação revisado e sincronizado com o Boletim bol-020 do admvapp: persistência preditiva em public.appointments (distance_km, eta_minutes, prep_buffer_minutes = 15, transport_mode, selected_route_summary), Conta Família inline (is_dependent, dependent_id, dependent_name), rascunho local vagou_booking_draft_v1 com banner flutuante + item na Minha Agenda, e conformidade 100% lucide-react e contraste text-white sobre verde sólido.",
-  "updatedAt":  "2026-10-22T22:23:40.964215171Z",
+  "summary":  "Plano revisado com auditoria completa do código SQL (novas colunas e tabela salon_ui_settings para cores de cabeçalho, seções, barra nav e estilos), Galeria Temática Curada para serviços sem imagem no editor e no card, limpeza do compartilhamento para exibir apenas Nome do App e Slogan, e blindagem de todos os CRUDs no Supabase e PWA.",
+  "updatedAt":  "2026-10-23T14:40:33.159493690Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

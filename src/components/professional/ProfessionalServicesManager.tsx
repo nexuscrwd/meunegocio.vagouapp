@@ -9,8 +9,9 @@ import { useTheme } from '../../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
 import { CatalogServiceItem } from '../../types';
 import { ServicePublicAdPreview } from './ServicePublicAdPreview';
-import { generateUuidV4, syncAllServicesToDb } from '../../lib/supabase';
+import { generateUuidV4, syncAllServicesToDb, uploadSalonMediaToStorage } from '../../lib/supabase';
 import { syncSalonMediaToDatabase, fetchSalonMediaFromDatabase, syncSalonServiceToDatabase } from '../../services/mnvSupabaseSync';
+import { SERVICE_GALLERY_PRESETS, getGalleryPresetsForCategory } from '../../utils/serviceGalleryPresets';
 
 interface ProfessionalServicesManagerProps {
   services: CatalogServiceItem[];
@@ -31,7 +32,14 @@ export interface SavedMediaItem {
 
 const DEFAULT_CATEGORIES = ['Cabelo', 'Barba', 'Combos', 'Estética', 'Tratamentos', 'Rosto', 'Unhas'];
 
-const INITIAL_SAVED_IMAGES: SavedMediaItem[] = [];
+const INITIAL_SAVED_IMAGES: SavedMediaItem[] = SERVICE_GALLERY_PRESETS.map((p, idx) => ({
+  id: p.id,
+  type: 'image',
+  url: p.url,
+  category: p.category,
+  title: p.title,
+  createdAt: 1700000000000 + idx * 1000,
+}));
 
 const INITIAL_SAVED_VIDEOS: SavedMediaItem[] = [];
 
@@ -145,6 +153,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
   const [formHours, setFormHours] = useState<string>('00');
   const [formMinutes, setFormMinutes] = useState<string>('40');
   const [formDescription, setFormDescription] = useState<string>('');
+  const [formPhotoCover, setFormPhotoCover] = useState<string>('');
   const minutesInputRef = useRef<HTMLInputElement | null>(null);
 
   // -------------------------------------------------------------
@@ -333,6 +342,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     setFormHours('00');
     setFormMinutes('40');
     setFormDescription('');
+    setFormPhotoCover('');
     setIsCreatingCategoryInline(false);
     setNewCategoryName('');
     setIsModalOpen(true);
@@ -349,6 +359,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     setFormHours(parsedDur.hours);
     setFormMinutes(parsedDur.minutes);
     setFormDescription(srv.description || '');
+    setFormPhotoCover(srv.photos?.[0] || srv.image || '');
     setIsCreatingCategoryInline(false);
     setNewCategoryName('');
     setIsModalOpen(true);
@@ -365,9 +376,18 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     const salonId = localStorage.getItem('vagou_salon_db_id') || localStorage.getItem('vagou_salon_slug') || '';
 
     if (editingServiceId) {
-      // Editar serviço existente preservando mídias já cadastradas
+      // Editar serviço existente preservando mídias já cadastradas ou atualizando capa
       const updated = services.map((s) => {
         if (s.id === editingServiceId) {
+          const existingPhotos = Array.isArray(s.photos) && s.photos.length > 0 ? s.photos : [];
+          let finalPhotos = existingPhotos;
+          if (formPhotoCover) {
+            if (!existingPhotos.includes(formPhotoCover)) {
+              finalPhotos = [formPhotoCover, ...existingPhotos].slice(0, 5);
+            } else if (existingPhotos[0] !== formPhotoCover) {
+              finalPhotos = [formPhotoCover, ...existingPhotos.filter((p) => p !== formPhotoCover)].slice(0, 5);
+            }
+          }
           return {
             ...s,
             title: formTitle.trim(),
@@ -375,6 +395,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
             duration: calculatedDuration,
             category: formCategory,
             description: formDescription.trim(),
+            image: formPhotoCover || s.image || finalPhotos[0],
+            photos: finalPhotos,
           };
         }
         return s;
@@ -409,7 +431,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         duration: calculatedDuration,
         category: formCategory,
         description: formDescription.trim(),
-        photos: [],
+        image: formPhotoCover || undefined,
+        photos: formPhotoCover ? [formPhotoCover] : [],
         displayMode: 'static',
         aspectRatio: 'aspect-square',
       };
@@ -425,8 +448,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
           price: newService.price,
           durationMinutes: parseInt(newService.duration?.replace(/\D/g, '') || '40') || 40,
           description: newService.description,
-          photos: [],
-          slides: [],
+          photos: newService.photos,
+          slides: newService.photos,
           isActive: true,
         }).catch((err) => console.warn('Aviso: Sincronização individual do novo serviço:', err));
         syncAllServicesToDb(salonId, updated).catch((err) => console.warn('Aviso: Sincronização global do catálogo:', err));
@@ -521,13 +544,66 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
   };
 
   // Processar arquivo de foto/vídeo capturado na hora ou enviado do aparelho
-  const processAndSaveMediaFile = (
+  const processAndSaveMediaFile = async (
     file: File,
     type: 'image' | 'video',
     targetMode: 'static' | 'slideshow' | 'video'
   ) => {
     const currentCat = mediaModalService?.category || formCategory || 'Cabelo';
     const currentTitle = mediaModalService?.title || formTitle || 'Serviço';
+    const salonId = localStorage.getItem('vagou_salon_db_id') || '';
+
+    // Tentativa prioritária: Upload direto no bucket do Supabase Storage
+    try {
+      const uploadedUrl = await uploadSalonMediaToStorage(file, 'salon-media', 'services');
+      if (uploadedUrl && !uploadedUrl.startsWith('data:')) {
+        const newMedia: SavedMediaItem = {
+          id: generateUuidV4(),
+          type,
+          url: uploadedUrl,
+          category: currentCat,
+          title: `${currentTitle.trim()} (${currentCat})`,
+          createdAt: Date.now(),
+          duration: type === 'video' ? 5 : undefined,
+        };
+
+        setSavedMediaList((prev) => {
+          const updated = [newMedia, ...prev];
+          try {
+            localStorage.setItem('vagou_saved_media_library_v3', JSON.stringify(updated.slice(0, 50)));
+            localStorage.setItem('vagou_salon_media', JSON.stringify(updated.slice(0, 50)));
+          } catch {}
+          return updated;
+        });
+
+        if (salonId) {
+          syncSalonMediaToDatabase(salonId, {
+            id: newMedia.id,
+            title: newMedia.title,
+            url: newMedia.url,
+            type,
+            media_group: type === 'video' ? 'videos' : 'fotos',
+            category: 'servicos',
+          });
+        }
+
+        if (type === 'video' || targetMode === 'video') {
+          setMediaVideoUrl(uploadedUrl);
+          setMediaDisplayMode('video');
+        } else if (targetMode === 'static') {
+          setMediaPhotos([uploadedUrl]);
+          setFormPhotoCover(uploadedUrl);
+        } else {
+          setMediaPhotos((prev) => [...prev.slice(0, 4), uploadedUrl]);
+        }
+
+        hapticSuccess();
+        showToast('Mídia enviada para o Storage com sucesso!');
+        return;
+      }
+    } catch {
+      // Fallback para compressão local em canvas
+    }
 
     if (type === 'image') {
       if (!file.type.startsWith('image/')) {
@@ -590,6 +666,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
 
           if (targetMode === 'static') {
             setMediaPhotos([finalUrl]);
+            setFormPhotoCover(finalUrl);
             hapticSuccess();
             showToast(`Foto salva e definida para o serviço!`);
           } else {
@@ -1296,35 +1373,81 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 />
               </div>
 
-              {/* 6. MÍDIA DO SERVIÇO (FOTOS / SLIDE / VÍDEO) */}
-              {editingServiceId ? (
-                (() => {
-                  const currentService = services.find((s) => s.id === editingServiceId);
-                  const srvMode = currentService?.displayMode || (currentService?.mediaType === 'video' ? 'video' : 'static');
-                  const photoCount = currentService?.photos?.length || (currentService?.image ? 1 : 0);
-                  const isVideoMode = srvMode === 'video' && !!currentService?.videoUrl;
-                  const isSlideshowMode = srvMode === 'slideshow' && photoCount > 0;
-                  const hasMedia = Boolean(isVideoMode || photoCount > 0);
+              {/* 6. MÍDIA DO SERVIÇO & GALERIA PRONTA */}
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>6. Mídia / Galeria do Serviço</span>
+                  </label>
+                  <span className="text-[9.5px] font-bold text-emerald-400">
+                    {formPhotoCover ? 'Foto Selecionada' : 'Escolha Rápida'}
+                  </span>
+                </div>
 
-                  return (
-                    <div className="space-y-1.5 pt-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                          <Camera className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>6. Mídia do Serviço</span>
-                        </label>
-                        {hasMedia && (
-                          <span className="text-[9.5px] font-bold text-emerald-400">
-                            {isVideoMode ? 'Vídeo 5s' : isSlideshowMode ? `Slide (${photoCount})` : 'Foto Única'}
-                          </span>
-                        )}
-                      </div>
+                {/* Galeria de Fotos Prontas para a Categoria (1 Toque) */}
+                <div className={`p-2.5 rounded border space-y-2 ${
+                  isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10.5px] font-bold flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Fotos Prontas: {formCategory}</span>
+                    </span>
+                    <span className="text-[9px] text-slate-400">1 toque para definir</span>
+                  </div>
 
-                      <div className={`p-3 rounded border flex items-center justify-between gap-3 ${
-                        isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
+                  {/* Carrossel horizontal de presets */}
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                    {getGalleryPresetsForCategory(formCategory).map((preset) => {
+                      const isSelected = formPhotoCover === preset.url;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => {
+                            hapticLight();
+                            setFormPhotoCover(isSelected ? '' : preset.url);
+                          }}
+                          className={`relative w-16 h-16 rounded overflow-hidden shrink-0 border-2 transition active:scale-95 cursor-pointer group ${
+                            isSelected ? 'border-emerald-500 ring-2 ring-emerald-500/30' : 'border-slate-700/60 hover:border-slate-500'
+                          }`}
+                          title={preset.title}
+                        >
+                          <img
+                            src={preset.url}
+                            alt={preset.title}
+                            className="w-full h-full object-cover transition group-hover:scale-105"
+                            loading="lazy"
+                          />
+                          {isSelected && (
+                            <div className="absolute inset-0 bg-emerald-500/40 flex items-center justify-center">
+                              <Check className="w-4 h-4 text-white stroke-[3] drop-shadow" />
+                            </div>
+                          )}
+                          <div className="absolute bottom-0 inset-x-0 bg-black/75 px-1 py-0.5 text-[7.5px] text-white truncate text-center font-medium">
+                            {preset.title.split(' ')[0]}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Bloco 2: Mídia Personalizada / Gerenciador Completo */}
+                {editingServiceId ? (
+                  (() => {
+                    const currentService = services.find((s) => s.id === editingServiceId);
+                    const srvMode = currentService?.displayMode || (currentService?.mediaType === 'video' ? 'video' : 'static');
+                    const photoCount = currentService?.photos?.length || (currentService?.image || formPhotoCover ? 1 : 0);
+                    const isVideoMode = srvMode === 'video' && !!currentService?.videoUrl;
+                    const activeThumb = formPhotoCover || currentService?.image || currentService?.photos?.[0];
+
+                    return (
+                      <div className={`p-2.5 rounded border flex items-center justify-between gap-3 ${
+                        isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
                       }`}>
-                        {/* Miniatura atual ou placeholder */}
-                        <div className="w-12 h-12 rounded overflow-hidden relative shrink-0 bg-slate-950 border border-slate-800 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded overflow-hidden relative shrink-0 bg-slate-950 border border-slate-800 flex items-center justify-center">
                           {isVideoMode ? (
                             <video
                               src={currentService?.videoUrl}
@@ -1334,26 +1457,23 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                               playsInline
                               className="w-full h-full object-cover"
                             />
-                          ) : photoCount > 0 ? (
+                          ) : activeThumb ? (
                             <img
-                              src={currentService?.image || (currentService?.photos && currentService?.photos[0])}
+                              src={activeThumb}
                               alt={currentService?.title}
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <div className="flex flex-col items-center justify-center text-slate-500">
-                              <ImageIcon className="w-4 h-4 text-slate-500" />
-                            </div>
+                            <ImageIcon className="w-4 h-4 text-slate-500" />
                           )}
                         </div>
 
-                        {/* Texto descritivo e Botão de Gerenciar Mídia */}
                         <div className="min-w-0 flex-1">
                           <p className={`text-[11px] font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                            {hasMedia ? 'Mídia configurada' : 'Nenhuma mídia adicionada'}
+                            {activeThumb ? 'Capa definida' : 'Sem foto definida'}
                           </p>
                           <p className={`text-[9.5px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Foto única, slide de fotos ou vídeo 5s
+                            {formPhotoCover ? 'Foto selecionada da galeria' : 'Adicione foto, slide ou vídeo'}
                           </p>
                         </div>
 
@@ -1364,26 +1484,34 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                               handleOpenMediaManager(currentService);
                             }
                           }}
-                          className="px-3 py-2 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10.5px] cursor-pointer shrink-0 flex items-center gap-1.5 shadow-sm active:scale-98"
+                          className="px-2.5 py-1.5 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10px] cursor-pointer shrink-0 flex items-center gap-1 shadow-sm active:scale-98"
                         >
                           <Camera className="w-3.5 h-3.5 text-white" />
-                          <span>{hasMedia ? 'Alterar' : 'Adicionar'}</span>
+                          <span>Mídia Pro</span>
                         </button>
                       </div>
-                    </div>
-                  );
-                })()
-              ) : (
-                /* Para Novo Serviço: Dica explicativa limpa */
-                <div className={`p-2.5 rounded border text-[10px] flex items-center gap-2 ${
-                  isDark ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'
-                }`}>
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span>
-                    Após cadastrar o serviço, você poderá adicionar fotos ou vídeo a qualquer momento.
-                  </span>
-                </div>
-              )}
+                    );
+                  })()
+                ) : (
+                  <div className={`p-2 rounded border text-[9.5px] flex items-center justify-between gap-2 ${
+                    isDark ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'
+                  }`}>
+                    <span className="flex items-center gap-1.5 truncate">
+                      <Sparkles className="w-3 h-3 text-emerald-400 shrink-0" />
+                      <span>{formPhotoCover ? 'Capa selecionada com sucesso!' : 'Toque em uma foto pronta acima para ilustrar o serviço.'}</span>
+                    </span>
+                    {formPhotoCover && (
+                      <button
+                        type="button"
+                        onClick={() => setFormPhotoCover('')}
+                        className="text-rose-400 hover:underline shrink-0 text-[9px] font-bold cursor-pointer"
+                      >
+                        Limpar
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Botões de Ação Fixos no Rodapé */}
               <div className={`pt-2 sticky bottom-0 z-20 flex items-center gap-2 ${
@@ -1619,6 +1747,58 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                     <span className="text-[10px] text-white whitespace-nowrap">Capturar</span>
                   </button>
                 </div>
+
+                {/* 2.5. Sugestões de Fotos Prontas para a Categoria */}
+                {mediaDisplayMode !== 'video' && (
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-emerald-400" />
+                        <span>Fotos Prontas ({mediaModalService.category})</span>
+                      </span>
+                      <span className="text-[9px] text-slate-500">1 toque para selecionar</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                      {getGalleryPresetsForCategory(mediaModalService.category).map((preset) => {
+                        const isSelected = mediaPhotos.includes(preset.url);
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => {
+                              hapticLight();
+                              if (mediaDisplayMode === 'static') {
+                                setMediaPhotos([preset.url]);
+                              } else {
+                                if (isSelected) {
+                                  setMediaPhotos((prev) => prev.filter((p) => p !== preset.url));
+                                } else {
+                                  if (mediaPhotos.length >= 5) {
+                                    showToast('Limite de 5 fotos atingido.');
+                                  } else {
+                                    setMediaPhotos((prev) => [...prev, preset.url]);
+                                  }
+                                }
+                              }
+                            }}
+                            className={`relative w-14 h-14 rounded overflow-hidden shrink-0 border-2 transition active:scale-95 cursor-pointer group ${
+                              isSelected ? 'border-emerald-500 ring-2 ring-emerald-500/30' : 'border-slate-800 hover:border-slate-600'
+                            }`}
+                            title={preset.title}
+                          >
+                            <img src={preset.url} alt={preset.title} className="w-full h-full object-cover transition group-hover:scale-105" loading="lazy" />
+                            {isSelected && (
+                              <div className="absolute inset-0 bg-emerald-500/40 flex items-center justify-center">
+                                <Check className="w-3.5 h-3.5 text-white stroke-[3] drop-shadow" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 3. VISUALIZAÇÃO E GESTÃO DAS MÍDIAS ATIVAS */}

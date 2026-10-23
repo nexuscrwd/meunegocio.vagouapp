@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Meu negocio - VAPP</title>
-    <meta name="description" content="App ladocliente dos estabelecimento Vagou app" />
+    <title>Meu Negócio — Vagou</title>
+    <meta name="description" content="Meu Negócio — Plataforma de Gestão e Vitrine Oficial Vagou" />
     
     <!-- PWA Primary Meta Tags -->
     <meta name="theme-color" content="#20C933" id="meta-theme-color" />
@@ -75,10 +75,17 @@
           var s = JSON.parse(localStorage.getItem('vagou_salon_admin_settings') || '{}');
           var icon = localStorage.getItem('vagou_salon_icon') || s.salonIcon || s.salonLogoDark;
           var name = s.pwaName || s.salonName;
+          var slogan = s.slogan || '';
           if (name) {
-            document.title = name + ' — Vagou';
+            document.title = slogan ? name + ' — ' + slogan : name;
             var metaTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
-            if (metaTitle) metaTitle.setAttribute('content', name.slice(0, 12));
+            if (metaTitle) metaTitle.setAttribute('content', name.slice(0, 14));
+            var descEl = document.querySelector('meta[name="description"]');
+            if (descEl) descEl.setAttribute('content', slogan || name);
+            var ogT = document.querySelector('meta[property="og:title"]');
+            if (ogT) ogT.setAttribute('content', name);
+            var ogD = document.querySelector('meta[property="og:description"]');
+            if (ogD) ogD.setAttribute('content', slogan || name);
           }
           if (icon) {
             var appleTouchIcons = document.querySelectorAll('link[rel="apple-touch-icon"]');
@@ -104,8 +111,8 @@
     <link rel="apple-touch-icon" href="/icon-512.png" />
     
     <!-- Open Graph -->
-    <meta property="og:title" content="Meu negocio - VAPP" />
-    <meta property="og:description" content="App ladocliente dos estabelecimento Vagou app" />
+    <meta property="og:title" content="Meu Negócio — Vagou" />
+    <meta property="og:description" content="Meu Negócio — Plataforma de Gestão e Vitrine Oficial Vagou" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="/icon.svg" />
   </head>

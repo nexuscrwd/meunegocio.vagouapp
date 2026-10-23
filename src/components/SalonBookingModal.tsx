@@ -37,7 +37,10 @@ interface SalonBookingModalProps {
   salonName: string;
   salonAddress?: string;
   salonCep?: string;
+  salonSlug?: string;
   salonLogo?: string;
+  salonLogoLight?: string;
+  salonLogoDark?: string;
   salonCoords?: { lat: number; lng: number };
   primaryColor?: string;
   services: CatalogServiceItem[];
@@ -100,7 +103,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   salonName,
   salonAddress = '',
   salonCep = '',
+  salonSlug = '',
   salonLogo,
+  salonLogoLight,
+  salonLogoDark,
   salonCoords = { lat: -23.5621, lng: -46.4795 },
   primaryColor = '#00a033',
   services,
@@ -175,11 +181,15 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   // Step state: 'service' -> 'date' -> 'professionals_and_time' (Resumo abre em modal independente)
   const [currentStep, setCurrentStep] = useState<Step>(() => {
     if (initialTimeSlot) return 'professionals_and_time';
-    if (initialService) return skipDateStep ? 'professionals_and_time' : 'date';
     return 'service';
   });
 
-  // Modal Inline "Para Você ou Dependente?" (abre após escolha do serviço e antes da data)
+  // Modal "Deseja realizar o agendamento?" exibido logo ao clicar no serviço desejado
+  const [isConfirmScheduleIntentModalOpen, setIsConfirmScheduleIntentModalOpen] = useState(false);
+  const [pendingServiceForIntent, setPendingServiceForIntent] = useState<CatalogServiceItem | null>(null);
+  const pendingAuthActionRef = useRef<'start_booking' | 'confirm_final'>('start_booking');
+
+  // Modal Inline "Para Você ou Dependente?" (abre após confirmação/login e antes da data)
   const [isBeneficiaryModalOpen, setIsBeneficiaryModalOpen] = useState(false);
   const [hasChosenBeneficiary, setHasChosenBeneficiary] = useState(false);
 
@@ -406,6 +416,78 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     }
   }, [availableProfessionalsForDate, selectedProfessional]);
 
+  // Verificação unificada de autenticação do cliente (Sessão Local Vagou / admvapp + Supabase Auth)
+  const checkIsClientAuthenticated = async (): Promise<boolean> => {
+    try {
+      const rawClientSession = localStorage.getItem('vagou_client_session');
+      if (rawClientSession) {
+        const parsed = JSON.parse(rawClientSession);
+        if (parsed && (parsed.id || parsed.clientId || parsed.email || parsed.username)) {
+          return true;
+        }
+      }
+      const localUserId = (localStorage.getItem('vagou_auth_user_id') || '').trim();
+      const localEmail = (
+        localStorage.getItem('vagou_user_email') ||
+        localStorage.getItem('vagou_active_partner') ||
+        ''
+      ).trim();
+      if (localUserId || localEmail) {
+        return true;
+      }
+    } catch {}
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) return true;
+      } catch {}
+    }
+
+    return false;
+  };
+
+  // Avança para as etapas do agendamento após o cliente confirmar "Sim" no modal e estar autenticado
+  const proceedWithConfirmedServiceBooking = (srv: CatalogServiceItem) => {
+    setSelectedServices([srv]);
+    setIsAddingExtraServices(false);
+    if (initialDateIso) setSelectedDateIso(initialDateIso);
+    if (initialTimeSlot) {
+      setSelectedTimeSlot(initialTimeSlot);
+      setCurrentStep('professionals_and_time');
+      setIsSummaryModalOpen(true);
+    } else {
+      setSelectedTimeSlot(null);
+      setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
+      setIsBeneficiaryModalOpen(true);
+    }
+  };
+
+  // Quando o cliente clica em um serviço (na vitrine ou na lista), abre primeiro o modal "Deseja realizar o agendamento?"
+  const promptScheduleServiceIntent = (srv: CatalogServiceItem) => {
+    hapticMedium();
+    setPendingServiceForIntent(srv);
+    setIsConfirmScheduleIntentModalOpen(true);
+  };
+
+  // Ao clicar em "Sim" no modal "Deseja realizar o agendamento?": verifica login ou abre o formulário White-Label do estabelecimento
+  const handleConfirmScheduleIntent = async () => {
+    const targetSrv = pendingServiceForIntent || initialService || selectedService;
+    setIsConfirmScheduleIntentModalOpen(false);
+    if (!targetSrv) return;
+
+    const isLogged = await checkIsClientAuthenticated();
+    if (!isLogged) {
+      hapticMedium();
+      pendingAuthActionRef.current = 'start_booking';
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    hapticLight();
+    proceedWithConfirmedServiceBooking(targetSrv);
+  };
+
   // Reagir imediatamente quando o usuário clica em um Serviço na Vitrine (corrige bug do modo inline)
   const prevBookingTriggerRef = useRef<number>(bookingTrigger);
   const prevInitialServiceIdRef = useRef<string | undefined>(initialService?.id);
@@ -427,10 +509,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           setCurrentStep('professionals_and_time');
           setIsSummaryModalOpen(true);
         } else {
-          // Pula a etapa redundante de seleção de serviço, avança direto para Data e abre o modal "Para Você ou Dependente?"
-          setSelectedTimeSlot(null);
-          setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
-          setIsBeneficiaryModalOpen(true);
+          // Abre imediatamente o modal "Deseja realizar o agendamento?" para o serviço clicado
+          setPendingServiceForIntent(initialService);
+          setIsConfirmScheduleIntentModalOpen(true);
         }
       }
     }
@@ -467,8 +548,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       if (initialDateIso) setSelectedDateIso(initialDateIso);
       if (initialService) {
         setSelectedServices([initialService]);
-        setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
-        setIsBeneficiaryModalOpen(true);
+        setPendingServiceForIntent(initialService);
+        setIsConfirmScheduleIntentModalOpen(true);
       } else {
         setSelectedServices([]);
         setCurrentStep('service');
@@ -787,7 +868,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   };
 
   // Confirmar Agendamento Final no Banco de Dados (com campos preditivos BOL-020)
-  const handleConfirmFinal = async () => {
+  const handleConfirmFinal = async (bypassAuthCheck = false) => {
     setBookingErrorMessage('');
     if (!selectedService || !selectedTimeSlot) return;
 
@@ -796,19 +877,31 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       return;
     }
 
-    const cleanPhone = clientPhoneInput.trim() || localStorage.getItem('vagou_user_phone') || '';
-    if (!cleanPhone) {
-      setBookingErrorMessage('Informe um telefone WhatsApp de contato.');
-      return;
-    }
-
-    if (isSupabaseConfigured && supabase) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+    if (!bypassAuthCheck) {
+      const isLogged = await checkIsClientAuthenticated();
+      if (!isLogged) {
         hapticMedium();
+        pendingAuthActionRef.current = 'confirm_final';
         setIsAuthModalOpen(true);
         return;
       }
+    }
+
+    const cleanPhone =
+      clientPhoneInput.trim() ||
+      localStorage.getItem('vagou_user_phone') ||
+      (() => {
+        try {
+          const raw = localStorage.getItem('vagou_client_session');
+          return raw ? JSON.parse(raw)?.phone || '' : '';
+        } catch {
+          return '';
+        }
+      })() ||
+      '';
+    if (!cleanPhone) {
+      setBookingErrorMessage('Informe um telefone WhatsApp de contato.');
+      return;
     }
 
     setIsSubmittingBooking(true);
@@ -1229,12 +1322,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                               if (isAddingExtraServices) {
                                 toggleServiceSelection(srv);
                               } else {
-                                hapticMedium();
-                                setSelectedServices([srv]);
-                                setCurrentStep('date');
-                                if (!hasChosenBeneficiary) {
-                                  setIsBeneficiaryModalOpen(true);
-                                }
+                                promptScheduleServiceIntent(srv);
                               }
                             }}
                             className={`w-full p-2.5 rounded-[4px] transition-all flex items-center justify-between gap-3 text-left cursor-pointer border ${
@@ -1651,18 +1739,20 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   // MODAL COMPACTO 1: "PARA VOCÊ OU DEPENDENTE?" (Logo após escolha do serviço)
   // ============================================================================
   const beneficiaryModalNode = isBeneficiaryModalOpen && selectedService && (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
       <div
-        className={`w-full max-w-md border rounded-[4px] p-4 shadow-2xl space-y-3.5 transition-colors ${
+        className={`w-full max-w-md my-auto border rounded-[4px] p-4 sm:p-5 shadow-2xl space-y-4 transition-colors ${
           isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
         }`}
       >
-        <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
-          <div className="min-w-0">
-            <h3 className="text-sm font-extrabold font-['Poppins']">Para quem é o agendamento?</h3>
-            <p className="text-[11px] text-emerald-400 font-semibold truncate flex items-center gap-1 mt-0.5">
-              <Scissors className="w-3 h-3 text-emerald-500 shrink-0" />
-              <span className="truncate">{selectedService.title}</span>
+        <div className="flex items-start justify-between gap-3 pb-2.5 border-b border-slate-800/60">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-extrabold font-['Poppins'] leading-snug">
+              Para quem é o agendamento?
+            </h3>
+            <p className="text-[11px] text-emerald-400 font-semibold flex items-start gap-1.5 mt-1 leading-snug">
+              <Scissors className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+              <span className="break-words">{selectedService.title}</span>
             </p>
           </div>
           <button
@@ -1671,7 +1761,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               setHasChosenBeneficiary(true);
               setIsBeneficiaryModalOpen(false);
             }}
-            className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer ${
+            className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
               isDark ? 'bg-slate-900 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -1679,8 +1769,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           </button>
         </div>
 
-        {/* Botões Principais: Para Você vs Para Dependente */}
-        <div className="grid grid-cols-2 gap-2">
+        {/* Botões Principais em Colunas: Para Você vs Para Dependente */}
+        <div className="grid grid-cols-2 gap-2.5">
           <button
             type="button"
             onClick={() => {
@@ -1698,7 +1788,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 setCurrentStep('date');
               }
             }}
-            className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 transition cursor-pointer ${
+            className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
               !isDependentBooking
                 ? 'bg-emerald-500 border-emerald-500 text-white'
                 : isDark
@@ -1706,8 +1796,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
             }`}
           >
-            <User className={`w-5 h-5 ${!isDependentBooking ? 'text-white' : 'text-emerald-500'}`} />
-            <span className={!isDependentBooking ? 'text-white' : ''}>Para Você</span>
+            <User className={`w-5 h-5 shrink-0 ${!isDependentBooking ? 'text-white' : 'text-emerald-500'}`} />
+            <span className={`leading-tight ${!isDependentBooking ? 'text-white' : ''}`}>Para Você</span>
           </button>
 
           <button
@@ -1716,7 +1806,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               hapticLight();
               setIsDependentBooking(true);
             }}
-            className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 transition cursor-pointer ${
+            className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
               isDependentBooking
                 ? 'bg-emerald-500 border-emerald-500 text-white'
                 : isDark
@@ -1724,8 +1814,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
             }`}
           >
-            <Users className={`w-5 h-5 ${isDependentBooking ? 'text-white' : 'text-emerald-500'}`} />
-            <span className={isDependentBooking ? 'text-white' : ''}>Para Dependente</span>
+            <Users className={`w-5 h-5 shrink-0 ${isDependentBooking ? 'text-white' : 'text-emerald-500'}`} />
+            <span className={`leading-tight ${isDependentBooking ? 'text-white' : ''}`}>Para Dependente</span>
           </button>
         </div>
 
@@ -1768,7 +1858,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                             setCurrentStep('date');
                           }
                         }}
-                        className={`w-full p-2.5 rounded-[4px] border text-left flex items-center justify-between transition cursor-pointer ${
+                        className={`w-full p-2.5 rounded-[4px] border text-left flex items-center justify-between gap-2 transition cursor-pointer ${
                           isSelectedDep
                             ? 'bg-emerald-500 border-emerald-500 text-white font-bold'
                             : isDark
@@ -1776,13 +1866,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                             : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
                         }`}
                       >
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
                           <User className={`w-4 h-4 shrink-0 ${isSelectedDep ? 'text-white' : 'text-emerald-500'}`} />
-                          <span className={`text-xs font-bold truncate ${isSelectedDep ? 'text-white' : ''}`}>
+                          <span className={`text-xs font-bold break-words ${isSelectedDep ? 'text-white' : ''}`}>
                             {dep.full_name}
                           </span>
                         </div>
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[4px] ${
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[4px] shrink-0 ${
                           isSelectedDep
                             ? 'bg-white/20 text-white'
                             : isDark
@@ -1806,9 +1896,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   hapticLight();
                   setIsCreatingDependentInline(true);
                 }}
-                className="w-full py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                className="w-full py-2.5 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
               >
-                <Plus className="w-4 h-4 text-white" />
+                <Plus className="w-4 h-4 text-white shrink-0" />
                 <span className="text-white">Cadastrar Dependente</span>
               </button>
             ) : (
@@ -1874,7 +1964,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   disabled={isSavingInlineDependent || !newDepFullName.trim()}
                   className="w-full py-2.5 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
-                  <Check className="w-4 h-4 text-white" />
+                  <Check className="w-4 h-4 text-white shrink-0" />
                   <span className="text-white">
                     {isSavingInlineDependent ? 'Salvando...' : 'Salvar e Avançar para Data'}
                   </span>
@@ -1936,16 +2026,17 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   }> = [
     { key: 'car', label: 'Carro', Icon: Car },
     { key: 'motorcycle', label: 'Moto', Icon: Bike },
-    { key: 'transit', label: 'Transp. Público', Icon: Bus },
+    { key: 'transit', label: 'Transporte Público', Icon: Bus },
     { key: 'rideshare', label: 'Uber / 99', Icon: Smartphone },
   ];
 
+  // Botões empilhados em linhas e colunas (2x2) para exibir 100% das legendas sem cortes
   const renderTransportSelectorGrid = () => (
-    <div className="space-y-1.5">
-      <span className={`text-[10px] font-bold uppercase tracking-wider block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+    <div className="space-y-2">
+      <span className={`text-[11px] font-bold uppercase tracking-wider block leading-snug ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
         Como você vai se deslocar? (com margem de folga)
       </span>
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-2 gap-2">
         {transportModeOptions.map((opt) => {
           const isSelectedMode = transportMode === opt.key;
           const ModeIcon = opt.Icon;
@@ -1962,16 +2053,16 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     : addressQuery;
                 runRouteCalculation(activeOrigin, salonDestQuery, opt.key);
               }}
-              className={`py-2 px-1 rounded-[4px] border font-bold text-[10px] flex flex-col items-center justify-center gap-1 transition cursor-pointer whitespace-nowrap ${
+              className={`py-2.5 px-3 rounded-[4px] border font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer text-center ${
                 isSelectedMode
                   ? 'bg-emerald-500 border-emerald-500 text-white'
                   : isDark
-                  ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-emerald-500/50'
-                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500/50'
+                  ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-emerald-500/50'
+                  : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
               }`}
             >
               <ModeIcon className={`w-4 h-4 shrink-0 ${isSelectedMode ? 'text-white' : 'text-emerald-500'}`} />
-              <span className={`truncate max-w-full ${isSelectedMode ? 'text-white' : ''}`}>{opt.label}</span>
+              <span className={`leading-tight ${isSelectedMode ? 'text-white' : ''}`}>{opt.label}</span>
             </button>
           );
         })}
@@ -1980,14 +2071,14 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   );
 
   const originModalNode = isOriginModalOpen && selectedService && (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
       <div
-        className={`w-full max-w-md border rounded-[4px] p-4 shadow-2xl space-y-3.5 transition-colors ${
+        className={`w-full max-w-md my-auto border rounded-[4px] p-4 sm:p-5 shadow-2xl space-y-4 transition-colors ${
           isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
         }`}
       >
-        <div className={`flex items-center justify-between pb-2 border-b ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
-          <div className="flex items-center gap-2 min-w-0">
+        <div className={`flex items-start justify-between gap-3 pb-2.5 border-b ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
+          <div className="flex items-start gap-2.5 min-w-0 flex-1">
             {originModalMode === 'custom_cep' ? (
               <button
                 type="button"
@@ -1995,7 +2086,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   hapticLight();
                   setOriginModalMode('choice');
                 }}
-                className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
+                className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 mt-0.5 ${
                   isDark ? 'bg-slate-900 text-slate-300 hover:text-white' : 'bg-slate-100 text-slate-700 hover:text-slate-900'
                 }`}
                 title="Voltar"
@@ -2003,16 +2094,16 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 <ArrowLeft className="w-4 h-4 text-emerald-500" />
               </button>
             ) : (
-              <Navigation className="w-4 h-4 text-emerald-500 shrink-0" />
+              <Navigation className="w-4 h-4 text-emerald-500 shrink-0 mt-1" />
             )}
-            <div className="min-w-0">
-              <h3 className="text-sm font-extrabold font-['Poppins'] truncate">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-extrabold font-['Poppins'] leading-snug">
                 {originModalMode === 'choice' ? 'De onde você vai sair?' : 'Saindo de Outro Local'}
               </h3>
-              <p className={`text-[11px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <p className={`text-[11px] leading-snug mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 {originModalMode === 'choice'
-                  ? 'Ajustamos os horários conforme seu deslocamento'
-                  : 'Informe o CEP para calcularmos seu tempo de chegada'}
+                  ? 'Ajustamos os horários conforme seu deslocamento.'
+                  : 'Informe o CEP para calcularmos seu tempo de chegada.'}
               </p>
             </div>
           </div>
@@ -2028,12 +2119,15 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           </button>
         </div>
 
-        {/* Seletor de Meio de Transporte (Carro, Moto, Transporte Público, App Uber/99) */}
+        {/* Seletor de Meio de Transporte em Linhas e Colunas 2x2 */}
         {renderTransportSelectorGrid()}
 
         {originModalMode === 'choice' ? (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-2">
+            <span className={`text-[11px] font-bold uppercase tracking-wider block leading-snug ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              Local de partida
+            </span>
+            <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => {
@@ -2048,7 +2142,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   runRouteCalculation(savedHomeOrigin, salonDestQuery, transportMode);
                   setIsOriginModalOpen(false);
                 }}
-                className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 transition cursor-pointer ${
+                className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
                   originType === 'home'
                     ? 'bg-emerald-500 border-emerald-500 text-white'
                     : isDark
@@ -2056,8 +2150,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
                 }`}
               >
-                <Home className={`w-5 h-5 ${originType === 'home' ? 'text-white' : 'text-emerald-500'}`} />
-                <span className={originType === 'home' ? 'text-white' : ''}>Saindo de Casa</span>
+                <Home className={`w-5 h-5 shrink-0 ${originType === 'home' ? 'text-white' : 'text-emerald-500'}`} />
+                <span className={`leading-tight ${originType === 'home' ? 'text-white' : ''}`}>Saindo de Casa</span>
               </button>
 
               <button
@@ -2067,7 +2161,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   setOriginType('other');
                   setOriginModalMode('custom_cep');
                 }}
-                className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 transition cursor-pointer ${
+                className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
                   originType === 'other'
                     ? 'bg-emerald-500 border-emerald-500 text-white'
                     : isDark
@@ -2075,8 +2169,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
                 }`}
               >
-                <MapPin className={`w-5 h-5 ${originType === 'other' ? 'text-white' : 'text-emerald-500'}`} />
-                <span className={originType === 'other' ? 'text-white' : ''}>Outro Local</span>
+                <MapPin className={`w-5 h-5 shrink-0 ${originType === 'other' ? 'text-white' : 'text-emerald-500'}`} />
+                <span className={`leading-tight ${originType === 'other' ? 'text-white' : ''}`}>Outro Local</span>
               </button>
             </div>
           </div>
@@ -2103,7 +2197,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     }
                   }}
                   placeholder="00000-000"
-                  className={`w-full pl-8 pr-3 py-2 text-xs rounded-[4px] border outline-hidden transition-colors ${
+                  className={`w-full pl-8 pr-3 py-2.5 text-xs rounded-[4px] border outline-hidden transition-colors ${
                     isDark
                       ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500'
                       : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-600'
@@ -2114,18 +2208,18 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               <button
                 type="submit"
                 disabled={isCalculatingRoute || customCepInput.replace(/\D/g, '').length < 8}
-                className="py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                className="py-2.5 px-3.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0"
               >
                 {isCalculatingRoute ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white shrink-0" />
                 ) : (
-                  <Search className="w-3.5 h-3.5 text-white" />
+                  <Search className="w-3.5 h-3.5 text-white shrink-0" />
                 )}
                 <span className="text-white">Calcular</span>
               </button>
             </form>
 
-            <p className={`text-xs leading-relaxed font-bold ${
+            <p className={`text-xs leading-relaxed font-bold break-words ${
               hasCalculatedCustomCep && !isCalculatingRoute
                 ? isDark ? 'text-emerald-400' : 'text-emerald-700'
                 : isDark ? 'text-slate-400' : 'text-slate-500'
@@ -2138,7 +2232,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             </p>
 
             {hasCalculatedCustomCep && !isCalculatingRoute && (
-              <div className={`p-3 rounded-[4px] space-y-1 text-xs font-bold ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'}`}>
+              <div className={`p-3 rounded-[4px] space-y-1.5 text-xs font-bold ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'}`}>
                 <div className="flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                   <span>Distância de {formattedDistanceComma} km</span>
@@ -2166,9 +2260,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   hapticMedium();
                   setIsOriginModalOpen(false);
                 }}
-                className="w-full py-2.5 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                className="w-full py-3 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
               >
-                <Check className="w-4 h-4 text-white" />
+                <Check className="w-4 h-4 text-white shrink-0" />
                 <span className="text-white">Ver Horários Disponíveis</span>
               </button>
             </div>
@@ -2182,24 +2276,24 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   // MODAL INDEPENDENTE 2: RESUMO DO AGENDAMENTO + HORÁRIO MÁX DE SAÍDA + ROTAS / APPS
   // ============================================================================
   const summaryModalNode = isSummaryModalOpen && selectedService && selectedTimeSlot && (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
       <div
-        className={`w-full max-w-md border rounded-[4px] overflow-hidden shadow-2xl flex flex-col max-h-[92vh] transition-colors ${
+        className={`w-full max-w-md my-auto border rounded-[4px] overflow-hidden shadow-2xl flex flex-col max-h-[90vh] transition-colors ${
           isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
         }`}
       >
         {/* Cabeçalho do Modal Independente de Resumo */}
-        <div className={`px-4 py-3 border-b flex items-center justify-between ${
+        <div className={`px-4 py-3 border-b flex items-center justify-between gap-2 ${
           isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
         }`}>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-            <h3 className="text-sm font-extrabold font-['Poppins']">Resumo do Agendamento</h3>
+            <h3 className="text-sm font-extrabold font-['Poppins'] leading-snug">Resumo do Agendamento</h3>
           </div>
           <button
             type="button"
             onClick={() => setIsSummaryModalOpen(false)}
-            className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer ${
+            className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
               isDark ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-slate-200 text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -2210,15 +2304,15 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         {/* Corpo do Resumo */}
         <div className="p-4 space-y-3 overflow-y-auto no-scrollbar text-xs">
           <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-1.5 text-slate-400">
+            <div className="flex justify-between items-start gap-2">
+              <span className="flex items-center gap-1.5 text-slate-400 shrink-0">
                 <Scissors className="w-3.5 h-3.5 text-emerald-500" /> Serviço:
               </span>
-              <span className="font-bold text-right">{selectedService.title}</span>
+              <span className="font-bold text-right break-words">{selectedService.title}</span>
             </div>
 
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-1.5 text-slate-400">
+            <div className="flex justify-between items-start gap-2">
+              <span className="flex items-center gap-1.5 text-slate-400 shrink-0">
                 {isDependentBooking ? (
                   <Users className="w-3.5 h-3.5 text-emerald-500" />
                 ) : (
@@ -2232,41 +2326,41 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   setIsSummaryModalOpen(false);
                   setIsBeneficiaryModalOpen(true);
                 }}
-                className="font-bold text-emerald-400 hover:underline cursor-pointer"
+                className="font-bold text-emerald-400 hover:underline cursor-pointer text-right break-words"
               >
                 {isDependentBooking && dependentName ? `${dependentName} (Dependente)` : 'Para Você (Titular)'}
               </button>
             </div>
 
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-1.5 text-slate-400">
+            <div className="flex justify-between items-start gap-2">
+              <span className="flex items-center gap-1.5 text-slate-400 shrink-0">
                 <Building2 className="w-3.5 h-3.5 text-emerald-500" /> Estabelecimento:
               </span>
-              <span className="font-bold text-right">{salonName}</span>
+              <span className="font-bold text-right break-words">{salonName}</span>
             </div>
 
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-1.5 text-slate-400">
+            <div className="flex justify-between items-start gap-2">
+              <span className="flex items-center gap-1.5 text-slate-400 shrink-0">
                 <User className="w-3.5 h-3.5 text-emerald-500" /> Profissional:
               </span>
-              <span className="font-bold text-right">
+              <span className="font-bold text-right break-words">
                 {selectedProfessional === 'any' ? resolvedProfessionalName : selectedProfessional}
               </span>
             </div>
 
-            <div className="flex justify-between items-center">
-              <span className="flex items-center gap-1.5 text-slate-400">
+            <div className="flex justify-between items-center gap-2">
+              <span className="flex items-center gap-1.5 text-slate-400 shrink-0">
                 <Calendar className="w-3.5 h-3.5 text-emerald-500" /> Data e Horário:
               </span>
-              <span className="font-extrabold text-emerald-400">
+              <span className="font-extrabold text-emerald-400 text-right">
                 {shortDateFormatted} às {selectedTimeSlot}
               </span>
             </div>
 
             {/* BLOCO DE LOGÍSTICA PÓS-ESCOLHA DO HORÁRIO: Horário Máx. de Saída + Rotas/Apps */}
             <div className={`p-3 rounded-[4px] space-y-2.5 mt-2 ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'}`}>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-extrabold text-emerald-400 truncate">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[11px] font-extrabold text-emerald-400 leading-snug break-words flex-1">
                   {resolvedAddressLabel}
                 </span>
                 <button
@@ -2316,21 +2410,21 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     href={transportLinks.googleMapsTransitUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                    className="w-full py-2.5 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center"
                   >
                     <Bus className="w-3.5 h-3.5 text-white shrink-0" />
-                    <span className="text-white">Ver Linhas e Baldeações no Google Maps</span>
+                    <span className="text-white">Ver Linhas e Baldeações no Maps</span>
                     <ExternalLink className="w-3 h-3 text-white shrink-0" />
                   </a>
                 )}
 
                 {(transportMode === 'car' || transportMode === 'motorcycle') && (
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className="grid grid-cols-2 gap-2">
                     <a
                       href={transportLinks.googleMapsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="py-2 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                      className="py-2.5 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center"
                     >
                       <MapPin className="w-3.5 h-3.5 text-white shrink-0" />
                       <span className="text-white">
@@ -2343,7 +2437,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                       href={transportLinks.wazeUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`py-2 px-2.5 rounded-[4px] font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                      className={`py-2.5 px-2.5 rounded-[4px] font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center ${
                         isDark
                           ? 'bg-slate-800 hover:bg-slate-700 text-white'
                           : 'bg-slate-200 hover:bg-slate-300 text-slate-900'
@@ -2357,12 +2451,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 )}
 
                 {transportMode === 'rideshare' && (
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className="grid grid-cols-2 gap-2">
                     <a
                       href={transportLinks.uberUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="py-2 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                      className="py-2.5 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center"
                     >
                       <Smartphone className="w-3.5 h-3.5 text-white shrink-0" />
                       <span className="text-white">Chamar Uber</span>
@@ -2373,7 +2467,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                       href={transportLinks.app99Url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`py-2 px-2.5 rounded-[4px] font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                      className={`py-2.5 px-2.5 rounded-[4px] font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center ${
                         isDark
                           ? 'bg-slate-800 hover:bg-slate-700 text-amber-400'
                           : 'bg-amber-100 hover:bg-amber-200 text-amber-900'
@@ -2442,22 +2536,22 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             id="btn-confirmar-agendamento-final"
             type="button"
             disabled={isSubmittingBooking}
-            onClick={handleConfirmFinal}
-            className={`w-full py-2.5 px-4 font-black text-xs uppercase tracking-wider rounded-[4px] transition flex items-center justify-center gap-2 font-['Poppins'] ${
+            onClick={() => handleConfirmFinal(false)}
+            className={`w-full py-3 px-4 font-black text-xs uppercase tracking-wider rounded-[4px] transition flex items-center justify-center gap-2 font-['Poppins'] ${
               isSubmittingBooking
                 ? 'bg-slate-700 text-slate-400 cursor-wait'
                 : 'bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer active:scale-98'
             }`}
           >
-            <CheckCircle2 className="w-4 h-4 text-white" />
+            <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
             <span className="text-white">{isSubmittingBooking ? 'Confirmando...' : 'Confirmar Agendamento'}</span>
           </button>
 
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
               onClick={handleSaveAsDraft}
-              className={`py-2 px-2 rounded-[4px] border text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer ${
+              className={`py-2.5 px-2 rounded-[4px] border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
                 isDark
                   ? 'bg-slate-900 hover:bg-slate-800 border-amber-500/40 text-amber-400'
                   : 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-800'
@@ -2474,7 +2568,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 hapticLight();
                 setIsSummaryModalOpen(false);
               }}
-              className={`py-2 px-2 rounded-[4px] border text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer ${
+              className={`py-2.5 px-2 rounded-[4px] border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
                 isDark
                   ? 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-300'
                   : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-700'
@@ -2491,7 +2585,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 setIsSummaryModalOpen(false);
                 setSelectedTimeSlot(null);
               }}
-              className={`py-2 px-2 rounded-[4px] border text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer ${
+              className={`py-2.5 px-2 rounded-[4px] border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
                 isDark
                   ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400'
                   : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700'
@@ -2506,47 +2600,165 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     </div>
   );
 
+  // Modal Inicial: "Deseja realizar o agendamento?" (Exibido logo ao clicar no serviço desejado)
+  const resolvedBrandLogo = (
+    salonLogo ||
+    (isDark ? salonLogoDark : salonLogoLight) ||
+    salonLogoDark ||
+    salonLogoLight ||
+    ''
+  ).trim();
+
+  const confirmScheduleIntentModalNode =
+    isConfirmScheduleIntentModalOpen && pendingServiceForIntent && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200"
+        onClick={() => setIsConfirmScheduleIntentModalOpen(false)}
+      >
+        <div
+          className={`w-full max-w-md my-auto rounded-[4px] border p-5 shadow-2xl space-y-4 font-['Poppins'] ${
+            isDark
+              ? 'bg-[#090D16] border-slate-800 text-white'
+              : 'bg-white border-slate-200 text-slate-900'
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2.5 min-w-0 flex-1">
+              {resolvedBrandLogo ? (
+                <img
+                  src={resolvedBrandLogo}
+                  alt={salonName}
+                  className="h-8 w-auto max-w-[96px] object-contain shrink-0 mt-0.5"
+                />
+              ) : (
+                <div
+                  style={{ backgroundColor: primaryColor || '#20C933' }}
+                  className="w-8 h-8 rounded-[4px] flex items-center justify-center shrink-0 text-white mt-0.5"
+                >
+                  <Calendar className="w-4 h-4 text-white" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-extrabold leading-snug">
+                  Deseja realizar o agendamento?
+                </h3>
+                <p className={`text-[11px] leading-snug mt-0.5 break-words ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  {salonName}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsConfirmScheduleIntentModalOpen(false)}
+              className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
+                isDark
+                  ? 'bg-slate-800 text-slate-300 hover:text-white'
+                  : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+              }`}
+              aria-label="Fechar"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div
+            className={`p-3 rounded-[4px] flex items-center justify-between gap-3 ${
+              isDark ? 'bg-slate-900 text-slate-100' : 'bg-slate-100 text-slate-900'
+            }`}
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold leading-snug break-words">{pendingServiceForIntent.title}</p>
+              <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-medium mt-1">
+                <Clock className="w-3 h-3 text-emerald-500 shrink-0" />
+                <span>{pendingServiceForIntent.duration}</span>
+              </span>
+            </div>
+            <span className="text-sm font-black text-emerald-500 shrink-0">
+              R$ {pendingServiceForIntent.price.toFixed(0)}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                hapticLight();
+                setIsConfirmScheduleIntentModalOpen(false);
+              }}
+              className={`py-3 px-3 rounded-[4px] font-bold text-xs transition cursor-pointer text-center ${
+                isDark
+                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                  : 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+              }`}
+            >
+              Agora não
+            </button>
+
+            <button
+              type="button"
+              onClick={handleConfirmScheduleIntent}
+              style={{ backgroundColor: primaryColor || '#20C933' }}
+              className="py-3 px-3 rounded-[4px] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition hover:brightness-110 cursor-pointer text-center"
+            >
+              <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
+              <span className="text-white">Sim, agendar</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+
+  const authModalNode = (
+    <SalonClientAuthModal
+      isOpen={isAuthModalOpen}
+      onClose={() => setIsAuthModalOpen(false)}
+      salonName={salonName}
+      salonSlug={salonSlug}
+      salonLogo={salonLogo}
+      salonLogoLight={salonLogoLight}
+      salonLogoDark={salonLogoDark}
+      primaryColor={primaryColor}
+      onAuthenticated={(user) => {
+        setIsAuthModalOpen(false);
+        if (user?.phone && !clientPhoneInput.trim()) {
+          setClientPhoneInput(user.phone);
+        }
+        if (pendingAuthActionRef.current === 'confirm_final') {
+          handleConfirmFinal(true);
+        } else {
+          const targetSrv = pendingServiceForIntent || initialService || selectedService;
+          if (targetSrv) {
+            proceedWithConfirmedServiceBooking(targetSrv);
+          }
+        }
+      }}
+    />
+  );
+
   if (inline) {
     return (
       <>
         {bookingContent}
+        {confirmScheduleIntentModalNode}
         {beneficiaryModalNode}
         {originModalNode}
         {summaryModalNode}
-        <SalonClientAuthModal
-          isOpen={isAuthModalOpen}
-          onClose={() => setIsAuthModalOpen(false)}
-          salonName={salonName}
-          salonLogo={salonLogo}
-          primaryColor={primaryColor}
-          onAuthenticated={() => {
-            setIsAuthModalOpen(false);
-            handleConfirmFinal();
-          }}
-        />
+        {authModalNode}
       </>
     );
   }
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
         {bookingContent}
       </div>
+      {confirmScheduleIntentModalNode}
       {beneficiaryModalNode}
       {originModalNode}
       {summaryModalNode}
-      <SalonClientAuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        salonName={salonName}
-        salonLogo={salonLogo}
-        primaryColor={primaryColor}
-        onAuthenticated={() => {
-          setIsAuthModalOpen(false);
-          handleConfirmFinal();
-        }}
-      />
+      {authModalNode}
     </>
   );
 };

@@ -3,14 +3,13 @@
  * Injeta dinamicamente o Web App Manifest e Favicons com base no logo/ícone do salão
  */
 
-import { DEFAULT_ROTA99_ICON } from './defaultSalonAssets';
-
 export interface PwaCustomAssets {
   name: string;
   shortName: string;
   iconUrl?: string;
   themeColor?: string;
   backgroundColor?: string;
+  slogan?: string;
 }
 
 let activeBlobManifestUrl: string | null = null;
@@ -18,17 +17,19 @@ let activeBlobManifestUrl: string | null = null;
 export function updateDynamicPwaAssets(
   name?: string,
   iconUrl?: string,
-  themeColor: string = '#151A1E'
+  themeColor: string = '#151A1E',
+  slogan?: string
 ) {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
   try {
     const finalName = name || 'Meu Estabelecimento';
-    const finalShortName = finalName.length > 12 ? finalName.slice(0, 12).trim() : finalName;
+    const finalShortName = finalName.length > 14 ? finalName.slice(0, 14).trim() : finalName;
     const finalIcon = iconUrl || '';
+    const finalSlogan = (slogan || '').trim();
 
-    // 1. Atualizar Título da Página e Tags Apple Mobile
-    document.title = `${finalName} — Vagou`;
+    // 1. Atualizar Título da Página (Apenas Nome e Slogan)
+    document.title = finalSlogan ? `${finalName} — ${finalSlogan}` : finalName;
     
     const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
     if (appleTitleMeta) {
@@ -38,6 +39,23 @@ export function updateDynamicPwaAssets(
     const themeColorMeta = document.querySelector('meta[name="theme-color"]');
     if (themeColorMeta) {
       themeColorMeta.setAttribute('content', themeColor);
+    }
+
+    // Atualizar Meta Description e OpenGraph (apenas Nome do App e Slogan)
+    const shareDesc = finalSlogan || finalName;
+    const descMeta = document.querySelector('meta[name="description"]');
+    if (descMeta) {
+      descMeta.setAttribute('content', shareDesc);
+    }
+
+    const ogTitle = document.querySelector('meta[property="og:title"]');
+    if (ogTitle) {
+      ogTitle.setAttribute('content', finalName);
+    }
+
+    const ogDesc = document.querySelector('meta[property="og:description"]');
+    if (ogDesc) {
+      ogDesc.setAttribute('content', shareDesc);
     }
 
     // 2. Atualizar Favicons e Apple Touch Icons Dinamicamente
@@ -53,9 +71,9 @@ export function updateDynamicPwaAssets(
     const isSvg = finalIcon.includes('image/svg+xml') || finalIcon.endsWith('.svg');
     const dynamicManifest = {
       id: '/',
-      name: `${finalName} — Vagou`,
+      name: finalSlogan ? `${finalName} — ${finalSlogan}` : finalName,
       short_name: finalShortName,
-      description: `Aplicativo oficial do estabelecimento ${finalName}. Catálogo de serviços, agendamentos e atendimento.`,
+      description: shareDesc,
       start_url: '/?source=pwa',
       scope: '/',
       display: 'standalone',
@@ -121,6 +139,7 @@ export function initializeStoredPwaAssets() {
     let name = 'Meu Estabelecimento';
     let icon = storedIcon || '';
     let color = storedColor;
+    let slogan = '';
 
     if (savedSettings) {
       try {
@@ -130,11 +149,13 @@ export function initializeStoredPwaAssets() {
           icon = parsed.salonIcon || parsed.salonLogoDark || parsed.salonLogo;
         }
         if (parsed.accentColor) color = parsed.accentColor;
+        if (parsed.slogan) slogan = parsed.slogan;
       } catch {}
     }
 
-    updateDynamicPwaAssets(name, icon, color);
+    updateDynamicPwaAssets(name, icon, color, slogan);
   } catch (e) {
     // ignore
   }
 }
+

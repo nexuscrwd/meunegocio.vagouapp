@@ -2274,10 +2274,31 @@ export async function ensureSalonRow(params: {
       if (byEmail) return byEmail;
     }
 
-    // 5. Se ainda não encontrado, tenta encontrar o primeiro salão ativo do banco como fallback
-    const { data: firstActive } = await (client.from('salons') as any).select('*').eq('is_active', true).order('created_at', { ascending: true }).limit(1).maybeSingle();
-    if (firstActive && (!targetSlug || targetSlug === 'meu-estabelecimento')) {
-      return firstActive;
+    // 4.1 Checa pelo nome do estabelecimento (se fornecido)
+    const searchName = params.tradeName || params.name;
+    if (searchName && searchName !== 'Meu Estabelecimento') {
+      const { data: byName } = await (client.from('salons') as any)
+        .select('*')
+        .ilike('trade_name', `%${searchName.trim()}%`)
+        .maybeSingle();
+      if (byName) return byName;
+    }
+
+    // 4.2 Checa por salão salvo em cache local no navegador
+    if (typeof window !== 'undefined') {
+      const cachedId = localStorage.getItem('vagou_salon_db_id');
+      if (cachedId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cachedId)) {
+        const { data: byCachedId } = await (client.from('salons') as any).select('*').eq('id', cachedId).maybeSingle();
+        if (byCachedId) return byCachedId;
+      }
+    }
+
+    // 5. Se ainda não encontrado e o usuário não especificou um nome próprio, usa o primeiro salão ativo como fallback
+    if (!searchName || searchName === 'Meu Estabelecimento') {
+      const { data: firstActive } = await (client.from('salons') as any).select('*').eq('is_active', true).order('created_at', { ascending: true }).limit(1).maybeSingle();
+      if (firstActive) {
+        return firstActive;
+      }
     }
 
     // 6. Caso não exista, cria e persiste um novo registro de salão
@@ -2516,6 +2537,40 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
 
     if (settings.bio !== undefined) payload.bio = settings.bio;
 
+    // Colunas de Layout, Cores de Seção e Barra de Navegação Inferior
+    if (settings.defaultTheme !== undefined) payload.default_theme = settings.defaultTheme;
+    if (settings.pwaName !== undefined) payload.pwa_name = settings.pwaName;
+    if (settings.showSlogan !== undefined) payload.show_slogan = settings.showSlogan;
+    if (settings.logoTextFallback !== undefined) payload.logo_text_fallback = settings.logoTextFallback;
+    if (settings.logoTextColor !== undefined) payload.logo_text_color = settings.logoTextColor;
+    if (settings.showHeroSlides !== undefined) payload.show_hero_slides = settings.showHeroSlides;
+    if (settings.welcomeStyle !== undefined) payload.welcome_style = settings.welcomeStyle;
+
+    if (settings.sectionHeaderBgColor !== undefined) payload.section_header_bg_color = settings.sectionHeaderBgColor;
+    if (settings.sectionHeaderTextColor !== undefined) payload.section_header_text_color = settings.sectionHeaderTextColor;
+    if (settings.sectionHeaderIconColor !== undefined) payload.section_header_icon_color = settings.sectionHeaderIconColor;
+    if (settings.sectionHeaderBgStyle !== undefined) payload.section_header_bg_style = settings.sectionHeaderBgStyle;
+    if (settings.sectionHeaderBorder !== undefined) payload.section_header_border = settings.sectionHeaderBorder;
+    if (settings.sectionHeaderBtnBgColor !== undefined) payload.section_header_btn_bg_color = settings.sectionHeaderBtnBgColor;
+    if (settings.sectionHeaderBtnActiveBgColor !== undefined) payload.section_header_btn_active_bg_color = settings.sectionHeaderBtnActiveBgColor;
+    if (settings.sectionHeaderBtnBorder !== undefined) payload.section_header_btn_border = settings.sectionHeaderBtnBorder;
+    if (settings.sectionHeaderBtnShadow !== undefined) payload.section_header_btn_shadow = settings.sectionHeaderBtnShadow;
+    if (settings.sectionHeaderBtnBlur !== undefined) payload.section_header_btn_blur = settings.sectionHeaderBtnBlur;
+    if (settings.sectionHeaderBtnFont !== undefined) payload.section_header_btn_font = settings.sectionHeaderBtnFont;
+
+    if (settings.navStyle !== undefined) payload.nav_style = settings.navStyle;
+    if (settings.navShape !== undefined) payload.nav_shape = settings.navShape;
+    if (settings.navBorder !== undefined) payload.nav_border = settings.navBorder;
+    if (settings.navBgStyle !== undefined) payload.nav_bg_style = settings.navBgStyle;
+    if (settings.navBgColor !== undefined) payload.nav_bg_color = settings.navBgColor;
+    if (settings.navBtnBgColor !== undefined) payload.nav_btn_bg_color = settings.navBtnBgColor;
+    if (settings.navBtnActiveBgColor !== undefined) payload.nav_btn_active_bg_color = settings.navBtnActiveBgColor;
+    if (settings.navActiveColor !== undefined) payload.nav_active_color = settings.navActiveColor;
+    if (settings.navTextColor !== undefined) payload.nav_text_color = settings.navTextColor;
+    if (settings.navBtnShadow !== undefined) payload.nav_btn_shadow = settings.navBtnShadow;
+    if (settings.navBtnBlur !== undefined) payload.nav_btn_blur = settings.navBtnBlur;
+    if (settings.navBtnFont !== undefined) payload.nav_btn_font = settings.navBtnFont;
+
     const resolvedIcon =
       settings.salonIcon !== undefined
         ? (settings.salonIcon || settings.salonLogo || '')
@@ -2531,13 +2586,45 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       ...(payload.facade_photo_url !== undefined ? { facadePhotoUrl: payload.facade_photo_url } : {}),
       ...(payload.interior_photo_url !== undefined ? { interiorPhotoUrl: payload.interior_photo_url } : {}),
       pwaName: settings.pwaName || settings.salonName || existingBranding.pwaName || existingRow?.trade_name,
-      themeMode: 'dark',
+      defaultTheme: settings.defaultTheme || existingBranding.defaultTheme || 'dark',
+      themeMode: settings.defaultTheme || existingBranding.defaultTheme || 'dark',
+      showSlogan: settings.showSlogan !== undefined ? settings.showSlogan : (existingBranding.showSlogan !== false),
+      logoTextFallback: settings.logoTextFallback !== undefined ? settings.logoTextFallback : (existingBranding.logoTextFallback || ''),
+      logoTextColor: settings.logoTextColor !== undefined ? settings.logoTextColor : (existingBranding.logoTextColor || settings.accentColor || '#20C933'),
+      showHeroSlides: settings.showHeroSlides !== undefined ? settings.showHeroSlides : (existingBranding.showHeroSlides !== false),
       faviconUrl: resolvedIcon,
       salonIcon: resolvedIcon,
       slogan: settings.slogan !== undefined ? (settings.slogan || '') : (existingBranding.slogan || ''),
       brandFont: settings.brandFont || existingBranding.brandFont || 'Poppins',
-      navStyle: settings.navStyle || existingBranding.navStyle || 'minimal',
       welcomeStyle: settings.welcomeStyle || existingBranding.welcomeStyle || 'atmospheric',
+
+      // Barra de Títulos das Seções (Section Header)
+      sectionHeaderBgColor: settings.sectionHeaderBgColor !== undefined ? settings.sectionHeaderBgColor : existingBranding.sectionHeaderBgColor,
+      sectionHeaderTextColor: settings.sectionHeaderTextColor !== undefined ? settings.sectionHeaderTextColor : existingBranding.sectionHeaderTextColor,
+      sectionHeaderIconColor: settings.sectionHeaderIconColor !== undefined ? settings.sectionHeaderIconColor : existingBranding.sectionHeaderIconColor,
+      sectionHeaderBgStyle: settings.sectionHeaderBgStyle || existingBranding.sectionHeaderBgStyle || 'glass',
+      sectionHeaderBorder: settings.sectionHeaderBorder || existingBranding.sectionHeaderBorder || 'bordered',
+      sectionHeaderBtnBgColor: settings.sectionHeaderBtnBgColor !== undefined ? settings.sectionHeaderBtnBgColor : existingBranding.sectionHeaderBtnBgColor,
+      sectionHeaderBtnActiveBgColor: settings.sectionHeaderBtnActiveBgColor !== undefined ? settings.sectionHeaderBtnActiveBgColor : existingBranding.sectionHeaderBtnActiveBgColor,
+      sectionHeaderBtnBorder: settings.sectionHeaderBtnBorder !== undefined ? settings.sectionHeaderBtnBorder : existingBranding.sectionHeaderBtnBorder,
+      sectionHeaderBtnShadow: settings.sectionHeaderBtnShadow !== undefined ? settings.sectionHeaderBtnShadow : existingBranding.sectionHeaderBtnShadow,
+      sectionHeaderBtnBlur: settings.sectionHeaderBtnBlur !== undefined ? settings.sectionHeaderBtnBlur : existingBranding.sectionHeaderBtnBlur,
+      sectionHeaderBtnFont: settings.sectionHeaderBtnFont !== undefined ? settings.sectionHeaderBtnFont : existingBranding.sectionHeaderBtnFont,
+
+      // Barra de Navegação Inferior (BottomNav)
+      navStyle: settings.navStyle || existingBranding.navStyle || 'minimal',
+      navShape: settings.navShape || existingBranding.navShape || 'square',
+      navBorder: settings.navBorder || existingBranding.navBorder || 'bordered',
+      navBgStyle: settings.navBgStyle || existingBranding.navBgStyle || 'glass',
+      navBgColor: settings.navBgColor !== undefined ? settings.navBgColor : existingBranding.navBgColor,
+      navBtnBgColor: settings.navBtnBgColor !== undefined ? settings.navBtnBgColor : existingBranding.navBtnBgColor,
+      navBtnActiveBgColor: settings.navBtnActiveBgColor !== undefined ? settings.navBtnActiveBgColor : existingBranding.navBtnActiveBgColor,
+      navActiveColor: settings.navActiveColor || settings.accentColor || existingBranding.navActiveColor || existingBranding.primaryColor || '#20C933',
+      navTextColor: settings.navTextColor !== undefined ? settings.navTextColor : existingBranding.navTextColor,
+      navBtnShadow: settings.navBtnShadow !== undefined ? settings.navBtnShadow : existingBranding.navBtnShadow,
+      navBtnBlur: settings.navBtnBlur !== undefined ? settings.navBtnBlur : existingBranding.navBtnBlur,
+      navBtnFont: settings.navBtnFont !== undefined ? settings.navBtnFont : existingBranding.navBtnFont,
+
       ...(rawOwnerCpf !== undefined ? { ownerCpf: String(rawOwnerCpf).trim() } : {}),
       ...(payload.pix_key !== undefined ? { pixKey: payload.pix_key } : {}),
       ...(payload.pix_keys !== undefined ? { pixKeys: payload.pix_keys } : {}),
@@ -2568,23 +2655,24 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       .select()
       .maybeSingle();
 
-    // Fallback resiliente caso alguma coluna física ainda não exista no banco remoto
+    // Fallback resiliente caso alguma coluna física ainda não exista no banco remoto (preserva branding)
     if (error && (error.message?.includes('column') || error.code === '42703' || error.code === 'PGRST204')) {
-      const fallbackPayload = { ...payload };
-      delete fallbackPayload.favicon_url;
-      delete fallbackPayload.slogan;
-      delete fallbackPayload.brand_font;
-      delete fallbackPayload.owner_cpf;
-      delete fallbackPayload.pix_key;
-      delete fallbackPayload.pix_keys;
-      delete fallbackPayload.phone_landline;
-      delete fallbackPayload.operating_hours;
-      delete fallbackPayload.street_number;
-      delete fallbackPayload.complement;
-      delete fallbackPayload.cep;
-      delete fallbackPayload.theme_preset_id;
-      delete fallbackPayload.facade_photo_url;
-      delete fallbackPayload.interior_photo_url;
+      const fallbackPayload: Record<string, any> = {
+        trade_name: payload.trade_name,
+        legal_name: payload.legal_name,
+        phone_whatsapp: payload.phone_whatsapp,
+        address: payload.address,
+        neighborhood: payload.neighborhood,
+        city: payload.city,
+        state: payload.state,
+        primary_color: payload.primary_color,
+        secondary_color: payload.secondary_color,
+        logo_url: payload.logo_url,
+        logo_light_url: payload.logo_light_url,
+        logo_dark_url: payload.logo_dark_url,
+        branding: payload.branding,
+        updated_at: new Date().toISOString(),
+      };
       const retry = await (supabaseAdmin.from('salons') as any)
         .update(fallbackPayload)
         .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug })
@@ -2594,14 +2682,56 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       error = retry.error;
     }
 
-    if (error) {
-      console.warn('Erro ao atualizar configurações do salão no Supabase:', error.message);
-      return { success: false, error: error.message };
-    }
-
     const resolvedSalonUuid = data?.id || (isUuid ? salonIdOrSlug : null);
 
-    // Sincronizar logotipo e fotos do espaço em public.salon_media_items (se aplicável)
+    // Espelhar na tabela dedicada public.salon_ui_settings para persistência estruturada
+    if (resolvedSalonUuid) {
+      try {
+        await (supabaseAdmin.from('salon_ui_settings' as any) as any).upsert({
+          salon_id: resolvedSalonUuid,
+          default_theme: settings.defaultTheme || 'dark',
+          primary_color: settings.accentColor || settings.primaryColor || '#20C933',
+          secondary_color: settings.secondaryColor || '#0F172A',
+          brand_font: settings.brandFont || 'Poppins',
+          pwa_name: settings.pwaName || settings.salonName || null,
+          slogan: settings.slogan || null,
+          show_slogan: settings.showSlogan !== false,
+          logo_text_fallback: settings.logoTextFallback || null,
+          logo_text_color: settings.logoTextColor || null,
+          show_hero_slides: settings.showHeroSlides !== false,
+          welcome_style: settings.welcomeStyle || 'atmospheric',
+          section_header_bg_color: settings.sectionHeaderBgColor || null,
+          section_header_text_color: settings.sectionHeaderTextColor || null,
+          section_header_icon_color: settings.sectionHeaderIconColor || null,
+          section_header_bg_style: settings.sectionHeaderBgStyle || 'glass',
+          section_header_border: settings.sectionHeaderBorder || 'bordered',
+          section_header_btn_bg_color: settings.sectionHeaderBtnBgColor || null,
+          section_header_btn_active_bg_color: settings.sectionHeaderBtnActiveBgColor || null,
+          section_header_btn_border: settings.sectionHeaderBtnBorder || null,
+          section_header_btn_shadow: settings.sectionHeaderBtnShadow || null,
+          section_header_btn_blur: settings.sectionHeaderBtnBlur || null,
+          section_header_btn_font: settings.sectionHeaderBtnFont || null,
+          nav_style: settings.navStyle || 'minimal',
+          nav_shape: settings.navShape || 'square',
+          nav_border: settings.navBorder || 'bordered',
+          nav_bg_style: settings.navBgStyle || 'glass',
+          nav_bg_color: settings.navBgColor || null,
+          nav_btn_bg_color: settings.navBtnBgColor || null,
+          nav_btn_active_bg_color: settings.navBtnActiveBgColor || null,
+          nav_active_color: settings.navActiveColor || settings.accentColor || '#20C933',
+          nav_text_color: settings.navTextColor || null,
+          nav_btn_shadow: settings.navBtnShadow || null,
+          nav_btn_blur: settings.navBtnBlur || null,
+          nav_btn_font: settings.navBtnFont || null,
+          branding_snapshot: payload.branding,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'salon_id' });
+      } catch (uiSyncErr) {
+        console.warn('Aviso: Sincronização salon_ui_settings (não bloqueante):', uiSyncErr);
+      }
+    }
+
+    // Sincronizar logotipo e fotos do espaço em public.salon_media_items
     if (resolvedSalonUuid) {
       try {
         if (payload.logo_url) {
@@ -2647,6 +2777,7 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       } catch {}
     }
 
+    // Auto-healing se nenhuma linha foi afetada devido ao RLS
     if (!data) {
       try {
         const { data: upsertData, error: upsertErr } = await (supabaseAdmin.from('salons') as any)
@@ -2662,19 +2793,86 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
         }
       } catch {}
 
-      console.warn('Aviso Supabase: Nenhuma linha do salão foi atualizada no banco remoto (RLS). Dados salvos com sucesso no dispositivo.');
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
       return {
-        success: true,
-        data: { ...payload },
-        warning: 'Salvo com sucesso no dispositivo.',
+        success: false,
+        error: 'O banco recusou a gravação por permissão (RLS). Apenas o proprietário do estabelecimento pode salvar estas alterações.',
       };
     }
 
     return { success: true, data };
   } catch (err: any) {
     console.error('Falha ao atualizar salão no Supabase:', err);
-    return { success: true, data: { ...settings }, warning: 'Salvo com sucesso no dispositivo.' };
+    return { success: false, error: err.message || 'Erro inesperado ao salvar no Supabase' };
   }
+}
+
+/**
+ * Upload universal de mídia para Supabase Storage com fallback comprimido automático
+ */
+export async function uploadSalonMediaToStorage(
+  file: File,
+  bucket = 'salon-media',
+  pathPrefix = 'media'
+): Promise<string> {
+  const ext = file.name?.split('.').pop() || 'jpg';
+  const fileName = `${pathPrefix}/${generateUuidV4()}.${ext}`;
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const client = getDbClient() || supabase;
+      const { data, error } = await client.storage
+        .from(bucket)
+        .upload(fileName, file, { cacheControl: '3600', upsert: true });
+
+      if (!error && data?.path) {
+        const { data: publicUrlData } = client.storage
+          .from(bucket)
+          .getPublicUrl(data.path);
+        if (publicUrlData?.publicUrl) {
+          return publicUrlData.publicUrl;
+        }
+      }
+    } catch (storageErr) {
+      console.warn('Aviso: Falha ao subir imagem no Storage, aplicando fallback comprimido:', storageErr);
+    }
+  }
+
+  // Fallback: compressão no canvas e retorno de data URI otimizada
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const rawUrl = e.target?.result as string;
+      if (!rawUrl || !file.type.startsWith('image/')) {
+        resolve(rawUrl || '');
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1200;
+        if (img.width > maxDim || img.height > maxDim) {
+          const canvas = document.createElement('canvas');
+          const scale = Math.min(maxDim / img.width, maxDim / img.height);
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+            return;
+          }
+        }
+        resolve(rawUrl);
+      };
+      img.onerror = () => resolve(rawUrl);
+      img.src = rawUrl;
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
 }
 
 /**
@@ -3064,5 +3262,3 @@ export async function uploadAvatarToSupabaseStorage(file: File, userIdOrEmail: s
     return null;
   }
 }
-
-

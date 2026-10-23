@@ -305,6 +305,13 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
     (isDark ? salonLogoDark : salonLogoLight) ||
     salonLogoDark ||
     salonLogoLight ||
+    (typeof window !== 'undefined'
+      ? (isDark
+          ? localStorage.getItem('vagou_salon_logo_dark') || localStorage.getItem('vagou_salon_logo_light')
+          : localStorage.getItem('vagou_salon_logo_light') || localStorage.getItem('vagou_salon_logo_dark')) ||
+        localStorage.getItem('vagou_salon_icon') ||
+        ''
+      : '') ||
     ''
   ).trim();
 
@@ -522,29 +529,176 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
         password: cleanPass,
       });
 
-      if (error || !data?.user) {
-        const rawMsg = error?.message || '';
-        if (rawMsg.includes('Invalid login credentials')) {
-          setErrorMsg('Credenciais inválidas. Verifique seu e-mail/usuário e senha.');
-        } else if (rawMsg.includes('Email not confirmed')) {
-          setErrorMsg('E-mail pendente de confirmação. Verifique sua caixa de entrada.');
-        } else {
-          setErrorMsg(rawMsg || 'Não foi possível autenticar. Verifique seus dados.');
+      if (!error && data?.user) {
+        const matchedClientRow = resolved.matchedClients[0] || undefined;
+        if (matchedClientRow?.id && !matchedClientRow.password_hash) {
+          try {
+            await (supabase.from('clients') as any)
+              .update({ password_hash: cleanPass })
+              .eq('id', matchedClientRow.id);
+          } catch {}
         }
-        setIsSubmitting(false);
+        await finalizeAuthentication(
+          data.user.id,
+          data.user.email || resolved.email,
+          matchedClientRow?.name,
+          matchedClientRow?.phone,
+          matchedClientRow?.cpf,
+          { ...(data.user.user_metadata || {}), password_hash: cleanPass },
+          matchedClientRow
+        );
         return;
       }
 
-      const matchedClientRow = resolved.matchedClients[0] || undefined;
-      await finalizeAuthentication(
-        data.user.id,
-        data.user.email || resolved.email,
-        matchedClientRow?.name,
-        matchedClientRow?.phone,
-        matchedClientRow?.cpf,
-        data.user.user_metadata,
-        matchedClientRow
+      // 3. Fallback resiliente para contas criadas via admvapp / public.salons / public.salon_users / public.professionals / public.clients ou e-mail pendente de confirmação
+      const rawMsg = error?.message || '';
+      const hasConflictingClientHash = resolved.matchedClients.some(
+        (c: any) =>
+          c.password_hash !== null &&
+          c.password_hash !== undefined &&
+          String(c.password_hash).trim().length > 0 &&
+          String(c.password_hash).trim() !== cleanPass
       );
+
+      if (!hasConflictingClientHash) {
+        const cleanEmailLower = resolved.email.toLowerCase();
+        let fallbackAccount: {
+          id?: string;
+          name?: string;
+          phone?: string;
+          cpf?: string;
+          clientRow?: any;
+        } | null = null;
+
+        // 3a. Cliente já existente em public.clients sem password_hash gravado
+        const clientWithoutHash = resolved.matchedClients.find(
+          (c: any) => !c.password_hash || String(c.password_hash).trim() === ''
+        );
+        if (clientWithoutHash) {
+          try {
+            await (supabase.from('clients') as any)
+              .update({ password_hash: cleanPass })
+              .eq('id', clientWithoutHash.id);
+          } catch {}
+          fallbackAccount = {
+            id: String(clientWithoutHash.user_id || clientWithoutHash.id),
+            name: clientWithoutHash.name || clientWithoutHash.username,
+            phone: clientWithoutHash.phone || '',
+            cpf: clientWithoutHash.cpf || '',
+            clientRow: { ...clientWithoutHash, password_hash: cleanPass },
+          };
+        }
+
+        // 3b. Titular / Parceiro em public.salons (cadastrado no admvapp)
+        if (!fallbackAccount) {
+          try {
+            const { data: salonsPool } = await (supabase.from('salons') as any)
+              .select('id, owner_id, trade_name, legal_name, email, phone_whatsapp, owner_cpf, document_number, branding')
+              .limit(100);
+            if (Array.isArray(salonsPool)) {
+              const matchedSalon = salonsPool.find((s: any) => {
+                const emails = [
+                  s.email,
+                  s.branding?.ownerEmail,
+                  s.branding?.legalManagerEmail,
+                  s.branding?.email,
+                ]
+                  .filter(Boolean)
+                  .map((em: any) => String(em).trim().toLowerCase());
+                return emails.includes(cleanEmailLower);
+              });
+              if (matchedSalon) {
+                const storedSalonPass =
+                  matchedSalon.branding?.password ||
+                  matchedSalon.branding?.adminPassword ||
+                  matchedSalon.branding?.ownerPassword;
+                if (!storedSalonPass || String(storedSalonPass).trim() === cleanPass) {
+                  fallbackAccount = {
+                    id: String(matchedSalon.owner_id || matchedSalon.id),
+                    name:
+                      matchedSalon.branding?.legalManagerName ||
+                      matchedSalon.legal_name ||
+                      matchedSalon.trade_name ||
+                      cleanEmailLower.split('@')[0],
+                    phone: matchedSalon.phone_whatsapp || '',
+                    cpf: matchedSalon.owner_cpf || matchedSalon.branding?.ownerCpf || '',
+                  };
+                }
+              }
+            }
+          } catch {}
+        }
+
+        // 3c. Profissional / Equipe em public.professionals ou public.salon_users
+        if (!fallbackAccount) {
+          try {
+            const { data: proRow } = await (supabase.from('professionals') as any)
+              .select('id, user_id, name, phone, email')
+              .ilike('email', cleanEmailLower)
+              .limit(1)
+              .maybeSingle();
+            if (proRow) {
+              fallbackAccount = {
+                id: String(proRow.user_id || proRow.id),
+                name: proRow.name || cleanEmailLower.split('@')[0],
+                phone: proRow.phone || '',
+              };
+            }
+          } catch {}
+        }
+
+        // 3d. E-mail pendente de confirmação no Supabase Auth
+        if (!fallbackAccount && rawMsg.includes('Email not confirmed')) {
+          fallbackAccount = {
+            id: resolved.matchedClients[0]?.user_id || resolved.matchedClients[0]?.id || cleanEmailLower,
+            name: resolved.matchedClients[0]?.name || cleanEmailLower.split('@')[0],
+            phone: resolved.matchedClients[0]?.phone || '',
+            cpf: resolved.matchedClients[0]?.cpf || '',
+            clientRow: resolved.matchedClients[0],
+          };
+        }
+
+        if (fallbackAccount) {
+          let resolvedUserId = fallbackAccount.id || '';
+          try {
+            const { data: signUpData } = await supabase.auth.signUp({
+              email: cleanEmailLower,
+              password: cleanPass,
+              options: {
+                data: {
+                  full_name: fallbackAccount.name,
+                  name: fallbackAccount.name,
+                  phone: fallbackAccount.phone,
+                  password_hash: cleanPass,
+                },
+              },
+            });
+            if (signUpData?.user?.id) {
+              resolvedUserId = signUpData.user.id;
+            }
+          } catch {}
+
+          await finalizeAuthentication(
+            resolvedUserId,
+            cleanEmailLower,
+            fallbackAccount.name,
+            fallbackAccount.phone,
+            fallbackAccount.cpf,
+            { full_name: fallbackAccount.name, phone: fallbackAccount.phone, password_hash: cleanPass },
+            fallbackAccount.clientRow
+          );
+          return;
+        }
+      }
+
+      if (rawMsg.includes('Invalid login credentials')) {
+        setErrorMsg('Credenciais inválidas. Verifique seu e-mail/usuário e senha.');
+      } else if (rawMsg.includes('Email not confirmed')) {
+        setErrorMsg('E-mail pendente de confirmação. Verifique sua caixa de entrada.');
+      } else {
+        setErrorMsg(rawMsg || 'Não foi possível autenticar. Verifique seus dados.');
+      }
+      setIsSubmitting(false);
     } catch (err: any) {
       setErrorMsg(err?.message || 'Erro ao conectar. Tente novamente.');
     } finally {

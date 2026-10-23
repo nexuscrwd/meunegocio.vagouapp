@@ -81,6 +81,8 @@ export interface SalonProfileViewProps {
   onBackToAuth?: () => void;
 }
 
+import { getDefaultThematicCoverForCategory } from '../utils/serviceGalleryPresets';
+
 // Catálogo inicial de serviços padrão (vazio por padrão, integrado ao Supabase)
 const INITIAL_CATALOG_SERVICES: CatalogServiceItem[] = [];
 
@@ -159,15 +161,22 @@ const ServiceCardMedia: React.FC<{ service: CatalogServiceItem }> = ({ service }
     );
   }
 
-  // Placeholder estilizado (Ombro e Rosto / Ícone de Linha) quando não há foto
+  // Capa Temática Curada da Categoria (Alta Qualidade) quando o serviço não tiver foto própria
+  const thematicCover = getDefaultThematicCoverForCategory(service.category, service.title);
   return (
-    <div className="w-full h-full bg-slate-900 border border-slate-800 flex flex-col items-center justify-center p-3 text-center">
-      <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mb-1">
-        <User className="w-5 h-5 stroke-[1.75]" />
+    <div className="w-full h-full relative overflow-hidden bg-slate-950 group/cover">
+      <img
+        src={thematicCover}
+        alt={service.title}
+        className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover/cover:scale-110 opacity-90"
+        referrerPolicy="no-referrer"
+        loading="lazy"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+      <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-xs text-[8.5px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1 border border-emerald-500/30">
+        <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
+        <span>{service.category || 'Serviço'}</span>
       </div>
-      <span className="text-[10px] font-bold text-slate-400 truncate w-full px-1">
-        {service.title}
-      </span>
     </div>
   );
 };
@@ -361,12 +370,20 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       try {
         const activePartner = localStorage.getItem('vagou_active_partner');
         const userEmail = localStorage.getItem('vagou_user_email');
+        const authUserId = localStorage.getItem('vagou_auth_user_id');
+        const clientSession = localStorage.getItem('vagou_client_session');
         const storedName = localStorage.getItem('vagou_user_name');
-        
-        const logged = (activeRole !== 'guest' && activeRole !== 'loading') || isSalonLoggedIn || !!activePartner || !!userEmail || 
+
+        const logged =
+          (activeRole !== 'guest' && activeRole !== 'loading') ||
+          isSalonLoggedIn ||
+          !!activePartner ||
+          !!userEmail ||
+          !!authUserId ||
+          !!clientSession ||
           (!!storedName && storedName.trim() !== '' && storedName !== 'Usuário' && storedName !== 'Visitante') ||
           (!!userName && userName.trim() !== '' && userName !== 'Usuário' && userName !== 'Visitante');
-        
+
         setIsUserLoggedInState(logged);
       } catch {
         setIsUserLoggedInState(false);
@@ -375,7 +392,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
     checkLoginState();
     window.addEventListener('storage', checkLoginState);
-    return () => window.removeEventListener('storage', checkLoginState);
+    window.addEventListener('vagou:auth-updated', checkLoginState);
+    return () => {
+      window.removeEventListener('storage', checkLoginState);
+      window.removeEventListener('vagou:auth-updated', checkLoginState);
+    };
   }, [userName, isSalonLoggedIn, currentPersona, activeRole]);
 
   // Modo de visualização quando logado: 'ger' (Gerenciamento) ou 'pub' (Público / Visão do Cliente)
@@ -480,94 +501,127 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
   // Configurações do Salão editáveis pelo gestor (Zero FOUC em subdomínios *.vagouapp.com)
   const [adminSettings, setAdminSettings] = useState<SalonAdminSettings>(() => {
+    // Leitura prévia resiliente do cache local para mesclagem sem perda de dados
+    let localSaved: Partial<SalonAdminSettings> = {};
+    try {
+      const savedStr = localStorage.getItem('vagou_salon_admin_settings');
+      if (savedStr) localSaved = JSON.parse(savedStr);
+    } catch {}
+
     if (initialSalonData) {
       const resolvedIcon =
         initialSalonData.favicon_url ||
         initialSalonData.branding?.salonIcon ||
         initialSalonData.branding?.faviconUrl ||
         initialSalonData.logo_url ||
+        localSaved.salonIcon ||
         '';
       const resolvedLogoDark =
         initialSalonData.logo_dark_url ||
         initialSalonData.logo_url ||
+        localSaved.salonLogoDark ||
         resolvedIcon;
       const resolvedLogoLight =
         initialSalonData.logo_light_url ||
         initialSalonData.logo_url ||
+        localSaved.salonLogoLight ||
         resolvedIcon;
-      const resolvedName = initialSalonData.trade_name || salonName || '';
-      const resolvedColor = initialSalonData.primary_color || initialSalonData.branding?.primaryColor || '#20C933';
+      const resolvedName = initialSalonData.trade_name || salonName || localSaved.salonName || '';
+      const resolvedColor = initialSalonData.primary_color || initialSalonData.branding?.primaryColor || localSaved.accentColor || '#20C933';
 
       const rawInitialDoc = (initialSalonData.document_number || '').replace(/\D/g, '');
       const isInitialCnpj14 = rawInitialDoc.length === 14;
       const resolvedOwnerCpf =
         initialSalonData.owner_cpf ||
         initialSalonData.branding?.ownerCpf ||
+        localSaved.ownerCpf ||
         (rawInitialDoc.length === 11 ? initialSalonData.document_number : '') ||
         '';
       const resolvedPixKeys = Array.isArray(initialSalonData.pix_keys)
         ? initialSalonData.pix_keys
-        : (Array.isArray(initialSalonData.branding?.pixKeys) ? initialSalonData.branding.pixKeys : []);
+        : (Array.isArray(initialSalonData.branding?.pixKeys) ? initialSalonData.branding.pixKeys : (localSaved.pixKeys || []));
       const resolvedPixKey =
         initialSalonData.pix_key ||
         initialSalonData.branding?.pixKey ||
+        localSaved.pixKey ||
         resolvedPixKeys.find((k: any) => k?.isPrimary)?.key ||
         resolvedPixKeys[0]?.key ||
         '';
 
       return {
         salonName: resolvedName,
-        salonSlug: initialSalonData.slug || activeSubdomain || '',
-        category: initialSalonData.category || initialSalonData.branding?.category || 'barbearia',
-        email: initialSalonData.email || initialSalonData.branding?.email || '',
-        phoneLandline: initialSalonData.phone_landline || initialSalonData.branding?.phoneLandline || '',
-        razaoSocial: isInitialCnpj14 ? (initialSalonData.legal_name || '') : '',
-        cnpj: isInitialCnpj14 ? (initialSalonData.document_number || '') : '',
+        salonSlug: initialSalonData.slug || activeSubdomain || localSaved.salonSlug || '',
+        category: initialSalonData.category || initialSalonData.branding?.category || localSaved.category || 'barbearia',
+        email: initialSalonData.email || initialSalonData.branding?.email || localSaved.email || '',
+        phoneLandline: initialSalonData.phone_landline || initialSalonData.branding?.phoneLandline || localSaved.phoneLandline || '',
+        razaoSocial: isInitialCnpj14 ? (initialSalonData.legal_name || '') : (localSaved.razaoSocial || ''),
+        cnpj: isInitialCnpj14 ? (initialSalonData.document_number || '') : (localSaved.cnpj || ''),
         ownerCpf: resolvedOwnerCpf,
         legalManagerCpf: resolvedOwnerCpf,
         pixKey: resolvedPixKey,
         pixKeys: resolvedPixKeys,
-        salonPhone: initialSalonData.phone_whatsapp || '',
-        salonAddress: initialSalonData.address || '',
-        numero: initialSalonData.street_number || '',
-        complemento: initialSalonData.complement || '',
-        bairro: initialSalonData.neighborhood || '',
-        cidade: initialSalonData.city || '',
-        uf: initialSalonData.state || '',
-        cep: initialSalonData.cep || '',
-        openingHours: initialSalonData.opening_hours_text || initialSalonData.branding?.openingHours || 'Seg a Sáb: 09:00 às 20:00',
-        operatingSchedule: initialSalonData.operating_hours || initialSalonData.branding?.operatingSchedule || initialSalonData.branding?.operatingHoursJson || undefined,
-        operatingHoursJson: initialSalonData.operating_hours || initialSalonData.branding?.operatingHours || undefined,
-        spacePhotos: initialSalonData.space_photos || initialSalonData.branding?.spacePhotos || undefined,
-        spaceDescription: initialSalonData.space_description || initialSalonData.branding?.spaceDescription || undefined,
-        amenities: initialSalonData.amenities || initialSalonData.branding?.amenities || undefined,
+        salonPhone: initialSalonData.phone_whatsapp || localSaved.salonPhone || '',
+        salonAddress: initialSalonData.address || localSaved.salonAddress || '',
+        numero: initialSalonData.street_number || localSaved.numero || '',
+        complemento: initialSalonData.complement || localSaved.complemento || '',
+        bairro: initialSalonData.neighborhood || localSaved.bairro || '',
+        cidade: initialSalonData.city || localSaved.cidade || '',
+        uf: initialSalonData.state || localSaved.uf || '',
+        cep: initialSalonData.cep || localSaved.cep || '',
+        openingHours: initialSalonData.opening_hours_text || initialSalonData.branding?.openingHours || localSaved.openingHours || 'Seg a Sáb: 09:00 às 20:00',
+        operatingSchedule: initialSalonData.operating_hours || initialSalonData.branding?.operatingSchedule || initialSalonData.branding?.operatingHoursJson || localSaved.operatingSchedule,
+        operatingHoursJson: initialSalonData.operating_hours || initialSalonData.branding?.operatingHours || localSaved.operatingHoursJson,
+        spacePhotos: initialSalonData.space_photos || initialSalonData.branding?.spacePhotos || localSaved.spacePhotos,
+        spaceDescription: initialSalonData.space_description || initialSalonData.branding?.spaceDescription || localSaved.spaceDescription,
+        amenities: initialSalonData.amenities || initialSalonData.branding?.amenities || localSaved.amenities,
         isOpenNow: true,
         accentColor: resolvedColor,
         salonLogoDark: resolvedLogoDark,
         salonLogoLight: resolvedLogoLight,
         salonLogo: initialSalonData.logo_url || resolvedLogoDark,
         salonIcon: resolvedIcon,
-        pwaName: initialSalonData.branding?.pwaName || resolvedName,
-        slogan: initialSalonData.slogan || initialSalonData.branding?.slogan || '',
-        brandFont: initialSalonData.brand_font || initialSalonData.branding?.brandFont || 'Poppins',
-        defaultTheme: initialSalonData.branding?.defaultTheme || undefined,
-        showSlogan: initialSalonData.branding?.showSlogan !== false,
-        logoTextFallback: initialSalonData.branding?.logoTextFallback || '',
-        logoTextColor: initialSalonData.branding?.logoTextColor || resolvedColor,
-        showHeroSlides: initialSalonData.branding?.showHeroSlides !== false,
-        navStyle: initialSalonData.branding?.navStyle || 'minimal',
-        navShape: initialSalonData.branding?.navShape || 'square',
-        navBorder: initialSalonData.branding?.navBorder || 'bordered',
-        navBgStyle: initialSalonData.branding?.navBgStyle || 'glass',
-        navBgColor: initialSalonData.branding?.navBgColor || undefined,
-        navActiveColor: initialSalonData.branding?.navActiveColor || resolvedColor,
-        navTextColor: initialSalonData.branding?.navTextColor || undefined,
-        welcomeStyle: initialSalonData.branding?.welcomeStyle || 'atmospheric',
-        bio: initialSalonData.bio || initialSalonData.branding?.bio || '',
-        websiteUrl: initialSalonData.branding?.websiteUrl || '',
-        instagramUrl: initialSalonData.branding?.instagramUrl || '',
-        facebookUrl: initialSalonData.branding?.facebookUrl || '',
-        mapsUrl: initialSalonData.branding?.mapsUrl || '',
+        pwaName: initialSalonData.branding?.pwaName || localSaved.pwaName || resolvedName,
+        slogan: initialSalonData.slogan || initialSalonData.branding?.slogan || localSaved.slogan || '',
+        brandFont: initialSalonData.brand_font || initialSalonData.branding?.brandFont || localSaved.brandFont || 'Poppins',
+        defaultTheme: initialSalonData.default_theme || initialSalonData.branding?.defaultTheme || localSaved.defaultTheme,
+        showSlogan: initialSalonData.show_slogan !== undefined ? initialSalonData.show_slogan : (initialSalonData.branding?.showSlogan !== undefined ? initialSalonData.branding?.showSlogan : (localSaved.showSlogan !== false)),
+        logoTextFallback: initialSalonData.logo_text_fallback || initialSalonData.branding?.logoTextFallback || localSaved.logoTextFallback || '',
+        logoTextColor: initialSalonData.logo_text_color || initialSalonData.branding?.logoTextColor || localSaved.logoTextColor || resolvedColor,
+        showHeroSlides: initialSalonData.show_hero_slides !== undefined ? initialSalonData.show_hero_slides : (initialSalonData.branding?.showHeroSlides !== undefined ? initialSalonData.branding?.showHeroSlides : (localSaved.showHeroSlides !== false)),
+        
+        // Barra de Títulos das Seções (Section Header)
+        sectionHeaderBgColor: initialSalonData.section_header_bg_color || initialSalonData.branding?.sectionHeaderBgColor || localSaved.sectionHeaderBgColor || undefined,
+        sectionHeaderTextColor: initialSalonData.section_header_text_color || initialSalonData.branding?.sectionHeaderTextColor || localSaved.sectionHeaderTextColor || undefined,
+        sectionHeaderIconColor: initialSalonData.section_header_icon_color || initialSalonData.branding?.sectionHeaderIconColor || localSaved.sectionHeaderIconColor || resolvedColor,
+        sectionHeaderBgStyle: initialSalonData.section_header_bg_style || initialSalonData.branding?.sectionHeaderBgStyle || localSaved.sectionHeaderBgStyle || 'glass',
+        sectionHeaderBorder: initialSalonData.section_header_border || initialSalonData.branding?.sectionHeaderBorder || localSaved.sectionHeaderBorder || 'bordered',
+        sectionHeaderBtnBgColor: initialSalonData.section_header_btn_bg_color || initialSalonData.branding?.sectionHeaderBtnBgColor || localSaved.sectionHeaderBtnBgColor || undefined,
+        sectionHeaderBtnActiveBgColor: initialSalonData.section_header_btn_active_bg_color || initialSalonData.branding?.sectionHeaderBtnActiveBgColor || localSaved.sectionHeaderBtnActiveBgColor || undefined,
+        sectionHeaderBtnBorder: initialSalonData.section_header_btn_border || initialSalonData.branding?.sectionHeaderBtnBorder || localSaved.sectionHeaderBtnBorder || undefined,
+        sectionHeaderBtnShadow: initialSalonData.section_header_btn_shadow || initialSalonData.branding?.sectionHeaderBtnShadow || localSaved.sectionHeaderBtnShadow || undefined,
+        sectionHeaderBtnBlur: initialSalonData.section_header_btn_blur || initialSalonData.branding?.sectionHeaderBtnBlur || localSaved.sectionHeaderBtnBlur || undefined,
+        sectionHeaderBtnFont: initialSalonData.section_header_btn_font || initialSalonData.branding?.sectionHeaderBtnFont || localSaved.sectionHeaderBtnFont || undefined,
+
+        // Barra de Navegação Inferior (BottomNav)
+        navStyle: initialSalonData.nav_style || initialSalonData.branding?.navStyle || localSaved.navStyle || 'minimal',
+        navShape: initialSalonData.nav_shape || initialSalonData.branding?.navShape || localSaved.navShape || 'square',
+        navBorder: initialSalonData.nav_border || initialSalonData.branding?.navBorder || localSaved.navBorder || 'bordered',
+        navBgStyle: initialSalonData.nav_bg_style || initialSalonData.branding?.navBgStyle || localSaved.navBgStyle || 'glass',
+        navBgColor: initialSalonData.nav_bg_color || initialSalonData.branding?.navBgColor || localSaved.navBgColor || undefined,
+        navBtnBgColor: initialSalonData.nav_btn_bg_color || initialSalonData.branding?.navBtnBgColor || localSaved.navBtnBgColor || undefined,
+        navBtnActiveBgColor: initialSalonData.nav_btn_active_bg_color || initialSalonData.branding?.navBtnActiveBgColor || localSaved.navBtnActiveBgColor || undefined,
+        navActiveColor: initialSalonData.nav_active_color || initialSalonData.branding?.navActiveColor || localSaved.navActiveColor || resolvedColor,
+        navTextColor: initialSalonData.nav_text_color || initialSalonData.branding?.navTextColor || localSaved.navTextColor || undefined,
+        navBtnShadow: initialSalonData.nav_btn_shadow || initialSalonData.branding?.navBtnShadow || localSaved.navBtnShadow || undefined,
+        navBtnBlur: initialSalonData.nav_btn_blur || initialSalonData.branding?.navBtnBlur || localSaved.navBtnBlur || undefined,
+        navBtnFont: initialSalonData.nav_btn_font || initialSalonData.branding?.navBtnFont || localSaved.navBtnFont || undefined,
+
+        welcomeStyle: initialSalonData.welcome_style || initialSalonData.branding?.welcomeStyle || localSaved.welcomeStyle || 'atmospheric',
+        bio: initialSalonData.bio || initialSalonData.branding?.bio || localSaved.bio || '',
+        websiteUrl: initialSalonData.website_url || initialSalonData.branding?.websiteUrl || localSaved.websiteUrl || '',
+        instagramUrl: initialSalonData.instagram_url || initialSalonData.branding?.instagramUrl || localSaved.instagramUrl || '',
+        facebookUrl: initialSalonData.facebook_url || initialSalonData.branding?.facebookUrl || localSaved.facebookUrl || '',
+        mapsUrl: initialSalonData.maps_url || initialSalonData.branding?.mapsUrl || localSaved.mapsUrl || '',
       };
     }
 
@@ -672,11 +726,12 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   // Cor de destaque / tema ativa e prioritária do estabelecimento
   const effectiveAccentColor = adminSettings.accentColor || accentColor || '#20C933';
 
-  // Compartilhamento via Web Share API com fallback para Área de Transferência
+  // Compartilhamento via Web Share API com fallback para Área de Transferência (Apenas Nome do App e Slogan)
   const handleShare = useCallback(async () => {
     hapticLight();
-    const shareTitle = adminSettings.salonName || salonName;
-    const shareText = `Confira os serviços e horários disponíveis em ${shareTitle} no Vagou!`;
+    const shareTitle = (adminSettings.pwaName || adminSettings.salonName || salonName || 'Meu Estabelecimento').trim();
+    const finalSlogan = (adminSettings.slogan || '').trim();
+    const shareText = finalSlogan ? `${shareTitle} — ${finalSlogan}` : shareTitle;
     const shareUrl = window.location.href;
 
     if (navigator.share) {
@@ -705,7 +760,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         setTimeout(() => setIsCopied(false), 2000);
       } catch {}
     }
-  }, [adminSettings.salonName, salonName]);
+  }, [adminSettings.pwaName, adminSettings.salonName, adminSettings.slogan, salonName]);
 
   const effectiveSalonCacheSlug = (
     activeSubdomain ||
@@ -938,11 +993,96 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           const resolvedBrandFont = salonRecord.brand_font || salonRecord.branding?.brandFont || 'Poppins';
           updatedSettings.brandFont = resolvedBrandFont;
 
-          if (salonRecord.branding?.navStyle) {
-            updatedSettings.navStyle = salonRecord.branding.navStyle;
+          if (salonRecord.default_theme || salonRecord.branding?.defaultTheme) {
+            updatedSettings.defaultTheme = salonRecord.default_theme || salonRecord.branding?.defaultTheme;
           }
-          if (salonRecord.branding?.welcomeStyle) {
-            updatedSettings.welcomeStyle = salonRecord.branding.welcomeStyle;
+          if (salonRecord.show_slogan !== undefined || salonRecord.branding?.showSlogan !== undefined) {
+            updatedSettings.showSlogan = salonRecord.show_slogan !== undefined ? salonRecord.show_slogan : salonRecord.branding?.showSlogan;
+          }
+          if (salonRecord.logo_text_fallback || salonRecord.branding?.logoTextFallback) {
+            updatedSettings.logoTextFallback = salonRecord.logo_text_fallback || salonRecord.branding?.logoTextFallback;
+          }
+          if (salonRecord.logo_text_color || salonRecord.branding?.logoTextColor) {
+            updatedSettings.logoTextColor = salonRecord.logo_text_color || salonRecord.branding?.logoTextColor;
+          }
+          if (salonRecord.show_hero_slides !== undefined || salonRecord.branding?.showHeroSlides !== undefined) {
+            updatedSettings.showHeroSlides = salonRecord.show_hero_slides !== undefined ? salonRecord.show_hero_slides : salonRecord.branding?.showHeroSlides;
+          }
+
+          // Barra de Títulos das Seções (Section Header)
+          if (salonRecord.section_header_bg_color || salonRecord.branding?.sectionHeaderBgColor) {
+            updatedSettings.sectionHeaderBgColor = salonRecord.section_header_bg_color || salonRecord.branding?.sectionHeaderBgColor;
+          }
+          if (salonRecord.section_header_text_color || salonRecord.branding?.sectionHeaderTextColor) {
+            updatedSettings.sectionHeaderTextColor = salonRecord.section_header_text_color || salonRecord.branding?.sectionHeaderTextColor;
+          }
+          if (salonRecord.section_header_icon_color || salonRecord.branding?.sectionHeaderIconColor) {
+            updatedSettings.sectionHeaderIconColor = salonRecord.section_header_icon_color || salonRecord.branding?.sectionHeaderIconColor;
+          }
+          if (salonRecord.section_header_bg_style || salonRecord.branding?.sectionHeaderBgStyle) {
+            updatedSettings.sectionHeaderBgStyle = salonRecord.section_header_bg_style || salonRecord.branding?.sectionHeaderBgStyle;
+          }
+          if (salonRecord.section_header_border || salonRecord.branding?.sectionHeaderBorder) {
+            updatedSettings.sectionHeaderBorder = salonRecord.section_header_border || salonRecord.branding?.sectionHeaderBorder;
+          }
+          if (salonRecord.section_header_btn_bg_color || salonRecord.branding?.sectionHeaderBtnBgColor) {
+            updatedSettings.sectionHeaderBtnBgColor = salonRecord.section_header_btn_bg_color || salonRecord.branding?.sectionHeaderBtnBgColor;
+          }
+          if (salonRecord.section_header_btn_active_bg_color || salonRecord.branding?.sectionHeaderBtnActiveBgColor) {
+            updatedSettings.sectionHeaderBtnActiveBgColor = salonRecord.section_header_btn_active_bg_color || salonRecord.branding?.sectionHeaderBtnActiveBgColor;
+          }
+          if (salonRecord.section_header_btn_border || salonRecord.branding?.sectionHeaderBtnBorder) {
+            updatedSettings.sectionHeaderBtnBorder = salonRecord.section_header_btn_border || salonRecord.branding?.sectionHeaderBtnBorder;
+          }
+          if (salonRecord.section_header_btn_shadow || salonRecord.branding?.sectionHeaderBtnShadow) {
+            updatedSettings.sectionHeaderBtnShadow = salonRecord.section_header_btn_shadow || salonRecord.branding?.sectionHeaderBtnShadow;
+          }
+          if (salonRecord.section_header_btn_blur || salonRecord.branding?.sectionHeaderBtnBlur) {
+            updatedSettings.sectionHeaderBtnBlur = salonRecord.section_header_btn_blur || salonRecord.branding?.sectionHeaderBtnBlur;
+          }
+          if (salonRecord.section_header_btn_font || salonRecord.branding?.sectionHeaderBtnFont) {
+            updatedSettings.sectionHeaderBtnFont = salonRecord.section_header_btn_font || salonRecord.branding?.sectionHeaderBtnFont;
+          }
+
+          // Barra de Navegação Inferior (BottomNav)
+          if (salonRecord.nav_style || salonRecord.branding?.navStyle) {
+            updatedSettings.navStyle = salonRecord.nav_style || salonRecord.branding?.navStyle;
+          }
+          if (salonRecord.nav_shape || salonRecord.branding?.navShape) {
+            updatedSettings.navShape = salonRecord.nav_shape || salonRecord.branding?.navShape;
+          }
+          if (salonRecord.nav_border || salonRecord.branding?.navBorder) {
+            updatedSettings.navBorder = salonRecord.nav_border || salonRecord.branding?.navBorder;
+          }
+          if (salonRecord.nav_bg_style || salonRecord.branding?.navBgStyle) {
+            updatedSettings.navBgStyle = salonRecord.nav_bg_style || salonRecord.branding?.navBgStyle;
+          }
+          if (salonRecord.nav_bg_color || salonRecord.branding?.navBgColor) {
+            updatedSettings.navBgColor = salonRecord.nav_bg_color || salonRecord.branding?.navBgColor;
+          }
+          if (salonRecord.nav_btn_bg_color || salonRecord.branding?.navBtnBgColor) {
+            updatedSettings.navBtnBgColor = salonRecord.nav_btn_bg_color || salonRecord.branding?.navBtnBgColor;
+          }
+          if (salonRecord.nav_btn_active_bg_color || salonRecord.branding?.navBtnActiveBgColor) {
+            updatedSettings.navBtnActiveBgColor = salonRecord.nav_btn_active_bg_color || salonRecord.branding?.navBtnActiveBgColor;
+          }
+          if (salonRecord.nav_active_color || salonRecord.branding?.navActiveColor) {
+            updatedSettings.navActiveColor = salonRecord.nav_active_color || salonRecord.branding?.navActiveColor;
+          }
+          if (salonRecord.nav_text_color || salonRecord.branding?.navTextColor) {
+            updatedSettings.navTextColor = salonRecord.nav_text_color || salonRecord.branding?.navTextColor;
+          }
+          if (salonRecord.nav_btn_shadow || salonRecord.branding?.navBtnShadow) {
+            updatedSettings.navBtnShadow = salonRecord.nav_btn_shadow || salonRecord.branding?.navBtnShadow;
+          }
+          if (salonRecord.nav_btn_blur || salonRecord.branding?.navBtnBlur) {
+            updatedSettings.navBtnBlur = salonRecord.nav_btn_blur || salonRecord.branding?.navBtnBlur;
+          }
+          if (salonRecord.nav_btn_font || salonRecord.branding?.navBtnFont) {
+            updatedSettings.navBtnFont = salonRecord.nav_btn_font || salonRecord.branding?.navBtnFont;
+          }
+          if (salonRecord.welcome_style || salonRecord.branding?.welcomeStyle) {
+            updatedSettings.welcomeStyle = salonRecord.welcome_style || salonRecord.branding?.welcomeStyle;
           }
 
           if (salonRecord.bio || salonRecord.branding?.bio) {
@@ -990,6 +1130,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             try {
               localStorage.setItem('vagou_salon_admin_settings', JSON.stringify(next));
             } catch {}
+            updateDynamicPwaAssets(next.pwaName || next.salonName, next.salonIcon, next.accentColor, next.slogan);
             return next;
           });
 
@@ -1594,12 +1735,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const catalogServices: CatalogServiceItem[] = filteredCatalogServices;
 
   const handleOpenBooking = (srv?: CatalogServiceItem, directToTimeGrid = false, timeSlot?: string, dateIso?: string) => {
-    if (activeRole === 'loading') return;
-    if (activeRole === 'guest') {
-      if (srv) setBookingService(srv);
-      setIsClientAuthModalOpen(true);
-      return;
-    }
     setResumeDraftTarget(null);
     setBookingService(srv || catalogServices[0]);
     setBookingTrigger((prev) => prev + 1);
@@ -1681,23 +1816,57 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
       if (isSupabaseConfigured && supabase) {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
+        const storedClientId = localStorage.getItem('vagou_client_id');
+        const storedEmail = (localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '').trim();
+        const storedPhone = (localStorage.getItem('vagou_user_phone') || bookingData.clientPhone || '').trim();
+        const storedName = (localStorage.getItem('vagou_user_name') || currentUserName || 'Cliente').trim();
+
+        if (!session?.user && !storedClientId && !storedEmail) {
           setIsClientAuthModalOpen(true);
           return { success: false, error: 'Faça login para concluir o agendamento.' };
         }
 
         // Garante linha do cliente em public.clients
         let clientRow: any = null;
-        const { data: existingClient } = await (supabase.from('clients') as any)
-          .select('id, name, phone')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
+        if (session?.user?.id) {
+          const { data: existingClient } = await (supabase.from('clients') as any)
+            .select('id, name, phone')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
 
-        if (existingClient) {
-          clientRow = existingClient;
-        } else {
-          const ensured = await ensureClientRow(session.user.id, session.user.email, session.user.user_metadata);
-          clientRow = ensured.client;
+          if (existingClient) {
+            clientRow = existingClient;
+          } else {
+            const ensured = await ensureClientRow(session.user.id, session.user.email, session.user.user_metadata);
+            clientRow = ensured.client;
+          }
+        } else if (storedClientId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storedClientId)) {
+          const { data: existingClient } = await (supabase.from('clients') as any)
+            .select('id, name, phone')
+            .eq('id', storedClientId)
+            .maybeSingle();
+          if (existingClient) clientRow = existingClient;
+        } else if (storedEmail) {
+          const { data: existingClient } = await (supabase.from('clients') as any)
+            .select('id, name, phone')
+            .ilike('email', storedEmail)
+            .maybeSingle();
+          if (existingClient) clientRow = existingClient;
+        }
+
+        if (!clientRow?.id) {
+          const { data: newClient } = await (supabase.from('clients') as any)
+            .insert({
+              name: storedName || 'Cliente',
+              email: storedEmail || null,
+              phone: storedPhone || null,
+            })
+            .select('id, name, phone')
+            .maybeSingle();
+          if (newClient) {
+            clientRow = newClient;
+            try { localStorage.setItem('vagou_client_id', newClient.id); } catch {}
+          }
         }
 
         if (!clientRow?.id) {
@@ -1706,8 +1875,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
         const finalClientName = bookingData.isDependentBooking && bookingData.dependentName
           ? bookingData.dependentName
-          : (clientRow.name || currentUserName || 'Cliente');
-        const finalPhone = (bookingData.clientPhone || clientRow.phone || localStorage.getItem('vagou_user_phone') || '').trim();
+          : (clientRow.name || storedName || currentUserName || 'Cliente');
+        const finalPhone = (bookingData.clientPhone || clientRow.phone || storedPhone || '').trim();
 
         if (!finalPhone) {
           return { success: false, error: 'Informe um telefone de contato.' };
@@ -1721,10 +1890,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         const endM = endMinutes % 60;
         const endTimeStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`;
 
-        // Localiza salon_id do banco
-        let targetSalonId = salonInfo.id;
+        // Localiza salon_id do banco com fallback resiliente
+        let targetSalonId = currentSalonDbId || initialSalonData?.id || localStorage.getItem('vagou_salon_db_id');
         if (!targetSalonId || targetSalonId === 'temp') {
-          const activeSlug = localStorage.getItem('vagou_salon_slug') || '';
+          const activeSlug = activeSubdomain || localStorage.getItem('vagou_salon_slug') || adminSettings.salonSlug || '';
           if (activeSlug) {
             const { data: foundSalon } = await (supabase.from('salons') as any)
               .select('id')
@@ -2639,6 +2808,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   inline={true}
                   salonId={currentSalonDbId || salonInfo.id}
                   salonName={salonInfo.name}
+                  salonSlug={adminSettings.salonSlug || activeSubdomain || ''}
                   salonAddress={salonInfo.address}
                   salonCep={adminSettings.cep || initialSalonData?.cep || ''}
                   salonCoords={
@@ -2646,7 +2816,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                       ? { lat: Number(initialSalonData.latitude), lng: Number(initialSalonData.longitude) }
                       : undefined
                   }
-                  salonLogo={adminSettings.salonLogo || adminSettings.salonLogoDark || adminSettings.salonLogoLight}
+                  salonLogo={activeLogo || adminSettings.salonLogo || adminSettings.salonLogoDark || adminSettings.salonLogoLight || adminSettings.salonIcon}
+                  salonLogoLight={adminSettings.salonLogoLight || ''}
+                  salonLogoDark={adminSettings.salonLogoDark || ''}
                   primaryColor={adminSettings.accentColor || '#00a033'}
                   services={catalogServices}
                   professionals={professionalsList}

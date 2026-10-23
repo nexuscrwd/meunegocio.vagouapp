@@ -15,6 +15,55 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-23] — Perícia e Blindagem da Persistência de Cores/Estilos no Banco Supabase, Migração SQL Oficial, Galeria Curada de Imagens de Serviços, Limpeza do Compartilhamento (Sem "Momy Nail") e Hardening de CRUDs
+- **Tipo:** `[Fix / Feat / Database Schema & Persistence Architecture / PWA & UX]`
+- **Motivo / Solicitação:**
+  1. Realizar perícia completa da causa de cores, fontes e estilos de layout (cabeçalho, barra de seções sticky, rodapé) não persistirem no banco Supabase após salvar e desaparecerem em navegadores e no PWA.
+  2. Gerar a migração e o código SQL oficial atualizado criando colunas físicas (`section_header_*`, `nav_*`) e tabela dedicada `public.salon_ui_settings` vinculada por chave estrangeira `salon_id`.
+  3. Resolver a falta de fotos no catálogo de serviços fornecendo uma galeria de fotos prontas curadas por categoria com seleção em 1 toque (Unhas, Cabelo, Barba, Sobrancelhas/Cílios, Estética, Tratamentos, Combos) e capa temática automática.
+  4. Limpar o compartilhamento para conter estritamente o Nome do App e o Slogan, eliminando o fallback indevido `"Momy nail"`.
+  5. Blindar todos os fluxos de CRUD (estilos, dados do salão, espaço, feriados, serviços, equipe, dependentes, agendamento) com fallback sincronizado e uploads no Supabase Storage.
+- **Arquivos Impactados:**
+  - `supabase/migrations/20261023_salon_styles_and_crud_full.sql` (Novo)
+  - `supabase/schema.sql`
+  - `src/utils/serviceGalleryPresets.ts` (Novo)
+  - `src/utils/pwaAssets.ts`
+  - `index.html`
+  - `src/lib/supabase.ts`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/ProfessionalServicesManager.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Causa Raiz Identificada & Solucionada:** A persistência falhava por dois motivos: (a) `updateSalonSettingsInDb` omitia as chaves `sectionHeader*` e `nav*` da serialização em `payload.branding`, e (b) o Supabase rejeitava a atualização por ausência de colunas físicas na tabela `salons` remota somada à falta de hidratação de propriedades de layout na montagem do `adminSettings` em `SalonProfileView.tsx`.
+  2. **Migração SQL Oficial (`20261023_salon_styles_and_crud_full.sql` + `schema.sql`):** Adicionadas colunas físicas (`section_header_bg_color`, `section_header_text_color`, `section_header_icon_color`, `section_header_bg_style`, `section_header_border`, `nav_style`, `nav_shape`, `nav_border`, `nav_bg_style`, `nav_bg_color`, `nav_btn_bg_color`, `nav_btn_active_bg_color`, `nav_active_color`, `nav_text_color`, `welcome_style`, etc.) e criada a tabela relacional `public.salon_ui_settings` com RLS e políticas completas.
+  3. **Galeria Curada de Serviços (`serviceGalleryPresets.ts` + `ProfessionalServicesManager.tsx`):** Serviços sem foto agora possuem sugestões de imagens profissionais de alta qualidade por categoria no modal de edição/criação com seleção em 1 toque, além de capa temática automática em `ServiceCardMedia`.
+  4. **Compartilhamento Limpo & Eliminação do "Momy Nail":** O texto de compartilhamento em `handleShare` e `pwaAssets.ts` compartilha exclusivamente `Nome do Salão — Slogan` (ou apenas o Nome se não houver slogan). O fallback `ensureSalonRow` foi protegido para jamais carregar salões aleatórios do banco quando o slug for genérico.
+  5. **Blindagem dos CRUDs e Storage:** Sincronização em cascata (colunas individuais + `branding` JSON + `salon_ui_settings` + `localStorage`), tratamento real de erros de RLS sem falsos-positivos e suporte a Supabase Storage com fallback local otimizado via canvas.
+
+### [2026-10-23] — Centralização de Modais na Tela, Grade 2x2 de Botões (Linhas e Colunas) e Remoção de Textos/Legendas Cortados (`SalonBookingModal.tsx`)
+- **Tipo:** `[Fix / UI & Mobile Responsiveness]`
+- **Motivo / Solicitação:** Ajustar todos os modais de agendamento para ocuparem o centro da tela (`items-center justify-center p-4`), empilhar os botões em linhas e colunas (`grid-cols-2 gap-2`) para acomodar perfeitamente as legendas (ex: `"Transporte Público"` sem cortar como `"Transp. Pú..."`), e remover qualquer `truncate` que ocultasse legendas, subtítulos ou nomes nos modais.
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Modais Centralizados na Tela (`SalonBookingModal.tsx`):** Substituído o alinhamento inferior (`items-end sm:items-center p-0 sm:p-4`) por `flex items-center justify-center p-4 overflow-y-auto` com `my-auto rounded-3xl` em `beneficiaryModalNode`, `originModalNode`, `summaryModalNode` e `confirmScheduleIntentModalNode`, garantindo que todos fiquem centralizados na tela do celular.
+  2. **Botões Empilhados em Linhas e Colunas (`grid-cols-2`):** O seletor de meio de transporte (`renderTransportSelectorGrid`) passou de `grid-cols-4` (onde `"Transporte Público"` ficava espremido) para uma grade 2x2 (`grid-cols-2 gap-2`), permitindo exibir o rótulo completo `"Transporte Público"` com ícone e texto perfeitamente legíveis.
+  3. **Zero Texto ou Legenda Oculta:** Removida a classe `truncate` dos subtítulos (`"Ajustamos os horários conforme seu deslocamento."` e `"Informe o CEP para calcularmos seu tempo de chegada."`), títulos dos modais, nomes de serviços, dependentes e endereços, aplicando `leading-snug break-words` para leitura integral.
+
+### [2026-10-23] — Correção do Loop de Autenticação, Navegação Livre e Modal Inicial "Deseja realizar o agendamento?" com Login White-Label do Estabelecimento (`SalonBookingModal.tsx`, `SalonClientAuthModal.tsx`, `SalonProfileView.tsx`)
+- **Tipo:** `[Fix / Feat / Auth Flow & Upfront Booking Confirmation]`
+- **Motivo / Solicitação:** Corrigir o problema em que o usuário já autenticado (ou após autenticar-se ao final do fluxo) era solicitado a fazer login novamente ao confirmar o agendamento; permitir navegação livre pelo app e catálogo de serviços sem exigir login prévio; e exibir imediatamente ao clicar para agendar um serviço o modal **"Deseja realizar o agendamento?"**, solicitando o login (formulário original `admvapp` configurado com a marca, logo e cores do estabelecimento) caso o cliente confirme ("Sim, agendar") e ainda não esteja logado.
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Fim do Loop de Autenticação (`checkIsClientAuthenticated` em `SalonBookingModal.tsx`):** A confirmação final (`handleConfirmFinal`) antes verificava exclusivamente `supabase.auth.getSession()`, ignorando sessões autenticadas via `public.clients` (`password_hash`), `public.salons` ou `localStorage` (`vagou_client_session`, `vagou_auth_user_id`, `vagou_user_email`, `vagou_active_partner`), o que reabria o modal de login mesmo após autenticar. Agora `checkIsClientAuthenticated()` valida de forma unificada a sessão local e o Supabase Auth, além de suportar `bypassAuthCheck` pós-login imediato.
+  2. **Resiliência de Autenticação Multi-Tabela (`SalonClientAuthModal.tsx`):** Aprimorado `handleLoginSubmit` para autenticar contas cadastradas em `public.clients`, `Supabase Auth`, `public.salons` (titulares vindos do `admvapp`), `public.professionals` e e-mails com confirmação pendente, sincronizando `password_hash` automaticamente.
+  3. **Navegação Livre + Modal "Deseja realizar o agendamento?" (`SalonBookingModal.tsx`, `SalonProfileView.tsx`):** O usuário navega livremente por todo o app e pelos serviços sem bloqueio. Ao clicar em qualquer serviço para agendar, abre-se o modal **"Deseja realizar o agendamento?"** com a identidade visual do estabelecimento. Ao clicar em **"Sim, agendar"**, caso não esteja logado, abre-se imediatamente o formulário `SalonClientAuthModal` configurado com o logo e cor primária do salão e, após autenticar, avança direto para as etapas de agendamento ("Para Você ou Dependente?" ➔ Data ➔ Origem/CEP ➔ Horário).
+
 ### [2026-10-23] — Ocultação Automática do Seletor para 1 Profissional e Consulta Prévia de Disponibilidade/Folga no Banco de Dados (`bookingSlots.ts`, `SalonBookingModal.tsx`, `supabase.ts`, `SalonProfileView.tsx`)
 - **Tipo:** `[Feat / Refactor / Database Availability & Conditional UI]`
 - **Motivo / Solicitação:** Ocultar a ferramenta de seleção de profissionais quando o estabelecimento possuir apenas 1 profissional (ou apenas 1 profissional disponível no dia escolhido), e consultar previamente o banco de dados (Supabase: `public.professionals`, `public.salons` e `public.appointments`) para filtrar profissionais ausentes, inativos ou de folga na data selecionada, evitando propor um profissional que não poderá atender o cliente.
