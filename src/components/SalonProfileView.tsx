@@ -45,6 +45,7 @@ import {
   syncAllServicesToDb,
   syncAllProfessionalsToDb,
   fetchUserProfileFromDb,
+  isValidAvatarUrlString,
   checkUserSalonMembership,
   ensureClientRow,
   mapDbAppointmentToBookingAppointment,
@@ -191,9 +192,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const [currentUserAvatarUrl, setCurrentUserAvatarUrl] = useState<string>(() => {
     try {
       const saved = localStorage.getItem('vagou_user_avatar');
-      if (saved && !saved.includes('unsplash.com') && !saved.startsWith('data:image/svg+xml')) return saved;
+      if (isValidAvatarUrlString(saved)) return saved.trim();
     } catch {}
-    return userAvatarUrl || '';
+    return isValidAvatarUrlString(userAvatarUrl) ? userAvatarUrl!.trim() : '';
   });
   const [isCopied, setIsCopied] = useState<boolean>(false);
 
@@ -202,40 +203,82 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   }, [userName]);
 
   React.useEffect(() => {
-    if (userAvatarUrl !== undefined) {
-      const cleanAvatar = userAvatarUrl && !userAvatarUrl.includes('unsplash.com') ? userAvatarUrl : '';
-      setCurrentUserAvatarUrl(cleanAvatar);
+    if (isValidAvatarUrlString(userAvatarUrl)) {
+      setCurrentUserAvatarUrl(userAvatarUrl.trim());
+    } else {
+      try {
+        const saved = localStorage.getItem('vagou_user_avatar');
+        if (isValidAvatarUrlString(saved)) {
+          setCurrentUserAvatarUrl(saved.trim());
+        }
+      } catch {}
     }
   }, [userAvatarUrl]);
 
-  // Sincronizar Avatar do Usuário com o Supabase (Tríade Sync)
+  // Sincronizar Avatar do Usuário com o Supabase (Tríade Sync) sem jamais apagar o avatar local válido
   React.useEffect(() => {
     let isMounted = true;
+
+    const handleLocalProfileUpdated = (e: Event) => {
+      const customEvt = e as CustomEvent<{ name?: string; avatarUrl?: string }>;
+      if (customEvt?.detail) {
+        if (customEvt.detail.name) {
+          setCurrentUserName(customEvt.detail.name);
+        }
+        if (isValidAvatarUrlString(customEvt.detail.avatarUrl)) {
+          setCurrentUserAvatarUrl(customEvt.detail.avatarUrl.trim());
+          return;
+        }
+      }
+      try {
+        const savedAvatar = localStorage.getItem('vagou_user_avatar');
+        if (isValidAvatarUrlString(savedAvatar)) {
+          setCurrentUserAvatarUrl(savedAvatar.trim());
+        }
+        const savedName = localStorage.getItem('vagou_user_name');
+        if (savedName) {
+          setCurrentUserName(savedName);
+        }
+      } catch {}
+    };
+
     async function syncAvatar() {
+      // Primeiro garante que qualquer avatar válido já salvo no localStorage apareça imediatamente
+      try {
+        const savedLocal = localStorage.getItem('vagou_user_avatar');
+        if (isMounted && isValidAvatarUrlString(savedLocal)) {
+          setCurrentUserAvatarUrl(savedLocal.trim());
+        }
+      } catch {}
+
       if (!isSupabaseConfigured || !supabase) return;
 
       try {
         const savedEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
         const savedName = localStorage.getItem('vagou_user_name') || currentUserName || '';
+        const savedCpf = localStorage.getItem('vagou_user_cpf') || '';
 
-        if (!savedEmail && !savedName) return;
+        if (!savedEmail && !savedName && !savedCpf) return;
 
-        // 1. fetchUserProfileFromDb (Auth, Professionals, Salons, Clients)
-        const profile = await fetchUserProfileFromDb({ email: savedEmail, name: savedName });
-        if (isMounted) {
-          if (profile?.avatarUrl && !profile.avatarUrl.includes('unsplash.com') && !profile.avatarUrl.startsWith('data:image/svg+xml')) {
-            setCurrentUserAvatarUrl(profile.avatarUrl);
-            localStorage.setItem('vagou_user_avatar', profile.avatarUrl);
-            if (profile.name && profile.name !== 'Profissional' && profile.name !== 'Usuário') {
-              setCurrentUserName(profile.name);
-              localStorage.setItem('vagou_user_name', profile.name);
-            }
-            if (profile.email) {
-              localStorage.setItem('vagou_user_email', profile.email);
-            }
-          } else {
-            setCurrentUserAvatarUrl('');
-            localStorage.removeItem('vagou_user_avatar');
+        // 1. fetchUserProfileFromDb (Clients, Professionals, Auth, Profiles)
+        const profile = await fetchUserProfileFromDb({ email: savedEmail, name: savedName, cpf: savedCpf });
+        if (isMounted && profile) {
+          if (profile.name && profile.name !== 'Profissional' && profile.name !== 'Usuário') {
+            setCurrentUserName(profile.name);
+            localStorage.setItem('vagou_user_name', profile.name);
+          }
+          if (profile.email) {
+            localStorage.setItem('vagou_user_email', profile.email);
+          }
+          const localAvatar = localStorage.getItem('vagou_user_avatar');
+          const resolvedAvatar = isValidAvatarUrlString(profile.avatarUrl)
+            ? profile.avatarUrl.trim()
+            : isValidAvatarUrlString(localAvatar)
+              ? localAvatar.trim()
+              : '';
+          if (resolvedAvatar) {
+            setCurrentUserAvatarUrl(resolvedAvatar);
+            localStorage.setItem('vagou_user_avatar', resolvedAvatar);
           }
         }
       } catch (err) {
@@ -244,10 +287,14 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
 
     syncAvatar();
-    window.addEventListener('storage', syncAvatar);
+    window.addEventListener('storage', handleLocalProfileUpdated);
+    window.addEventListener('vagou:profile-updated', handleLocalProfileUpdated);
+    window.addEventListener('vagou:auth-updated', syncAvatar);
     return () => {
       isMounted = false;
-      window.removeEventListener('storage', syncAvatar);
+      window.removeEventListener('storage', handleLocalProfileUpdated);
+      window.removeEventListener('vagou:profile-updated', handleLocalProfileUpdated);
+      window.removeEventListener('vagou:auth-updated', syncAvatar);
     };
   }, [currentUserName]);
 

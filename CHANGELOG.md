@@ -15,6 +15,21 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-23] — Validação de URL de Avatar, Sincronização de `updateUserProfile` na Tabela `clients` e Blindagem de Estado (`UserDashboard.tsx`, `supabase.ts`, `SalonProfileView.tsx`, `App.tsx`, `ProfileDrawer.tsx`)
+- **Tipo:** `[Fix / Critical / Avatar URL Validation & Supabase Sync]`
+- **Motivo / Solicitação:** Implementar validação de URL antes de salvar o avatar em `UserDashboard`, garantir que `updateUserProfile` atualize `avatar_url` na tabela `clients` e sincronize o estado local `userAvatarUrl`, adicionar monitoramento via `console.log` em `UserDashboard` e impedir que `SalonProfileView`/`App` apaguem o avatar local ao sincronizar com o banco.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `src/components/UserDashboard.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/App.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Validação de URL (`isValidAvatarUrlString`):** Criada validação em `src/lib/supabase.ts` e aplicada em `UserDashboard.tsx` para garantir que apenas strings válidas (`http://`, `https://` ou `data:image/...`) sejam salvas no Supabase e no `localStorage`, barrando objetos vazios, `undefined`, `null` ou placeholders do Unsplash.
+  2. **Leitura e Escrita Unificada (`fetchUserProfileFromDb` / `updateUserProfile`):** Corrigido `fetchUserProfileFromDb` para priorizar a tabela `clients` (buscando por `id`, `cpf`, `email` e `name` e selecionando o registro com `avatar_url` válido) sem retornar antecipadamente com `avatarUrl: ''` quando a tabela `profiles` não possui foto. Exportado `updateUserProfile` atualizando todas as linhas correspondentes em `clients`, `professionals` e `profiles`.
+  3. **Blindagem Anti-Apagamento (`SalonProfileView.tsx` e `App.tsx`):** Removidos os blocos `else` que executavam `localStorage.removeItem('vagou_user_avatar')` e zeravam o avatar no cabeçalho ao receber evento `storage`. Adicionado evento customizado `vagou:profile-updated` e logs de diagnóstico em `UserDashboard.tsx`.
+
 ### [2026-10-23] — Perícia Completa e Correção de Persistência de Avatar no Painel do Cliente (`src/components/UserDashboard.tsx`)
 - **Tipo:** `[Fix / Critical / User Dashboard Avatar Persistence]`
 - **Motivo / Solicitação:** Investigação detalhada após relato do usuário de que a foto carregada no painel do cliente mostrava a prévia mas sumia após salvar devido a tentativas falhas de upload em storage remoto e sobrescrita por sincronização.

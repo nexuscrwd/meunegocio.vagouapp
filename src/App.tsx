@@ -12,6 +12,7 @@ import {
   supabase, 
   isSupabaseConfigured, 
   fetchUserProfileFromDb, 
+  isValidAvatarUrlString,
   ensureClientRow,
   fetchUserAppointments,
   mapDbAppointmentToBookingAppointment,
@@ -111,7 +112,7 @@ export const App: React.FC = () => {
         localStorage.removeItem('vagou_user_avatar');
         return '';
       }
-      if (saved && saved.trim() !== '') return saved;
+      if (isValidAvatarUrlString(saved)) return saved.trim();
     } catch {}
     return '';
   });
@@ -143,10 +144,8 @@ export const App: React.FC = () => {
       if (savedAvatar && (savedAvatar.includes('unsplash.com') || savedAvatar.includes('images.unsplash'))) {
         localStorage.removeItem('vagou_user_avatar');
         setUserAvatarUrl('');
-      } else if (savedAvatar) {
-        setUserAvatarUrl(savedAvatar);
-      } else {
-        setUserAvatarUrl('');
+      } else if (isValidAvatarUrlString(savedAvatar)) {
+        setUserAvatarUrl(savedAvatar.trim());
       }
     } catch {
       setAppointments([]);
@@ -290,17 +289,18 @@ export const App: React.FC = () => {
     loadAppointments();
     initializeStoredPwaAssets();
     
-    // Sincronizar perfil do usuário com o Supabase em segundo plano (Tríade Sync)
+    // Sincronizar perfil do usuário com o Supabase em segundo plano (Tríade Sync) sem apagar avatar local válido
     const syncUserFromSupabase = async () => {
       if (!isSupabaseConfigured || !supabase) return;
       try {
         const savedEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
         const savedName = localStorage.getItem('vagou_user_name') || '';
+        const savedCpf = localStorage.getItem('vagou_user_cpf') || '';
 
-        if (!savedEmail && !savedName) return;
+        if (!savedEmail && !savedName && !savedCpf) return;
 
-        // 1. fetchUserProfileFromDb (Auth, Profiles, Professionals, Clients)
-        const profile = await fetchUserProfileFromDb({ email: savedEmail, name: savedName });
+        // 1. fetchUserProfileFromDb (Clients, Professionals, Auth, Profiles)
+        const profile = await fetchUserProfileFromDb({ email: savedEmail, name: savedName, cpf: savedCpf });
         if (profile) {
           if (profile.name && profile.name.trim() !== '' && profile.name !== 'Profissional' && profile.name !== 'Usuário') {
             setUserName(profile.name);
@@ -309,18 +309,39 @@ export const App: React.FC = () => {
           if (profile.email) {
             localStorage.setItem('vagou_user_email', profile.email);
           }
-          if (profile.avatarUrl && !profile.avatarUrl.includes('unsplash.com') && !profile.avatarUrl.startsWith('data:image/svg+xml')) {
-            setUserAvatarUrl(profile.avatarUrl);
-            localStorage.setItem('vagou_user_avatar', profile.avatarUrl);
-          } else {
-            setUserAvatarUrl('');
-            localStorage.removeItem('vagou_user_avatar');
+          const localAvatar = localStorage.getItem('vagou_user_avatar');
+          const resolvedAvatar = isValidAvatarUrlString(profile.avatarUrl)
+            ? profile.avatarUrl.trim()
+            : isValidAvatarUrlString(localAvatar)
+              ? localAvatar.trim()
+              : '';
+          if (resolvedAvatar) {
+            setUserAvatarUrl(resolvedAvatar);
+            localStorage.setItem('vagou_user_avatar', resolvedAvatar);
           }
-        } else {
-          setUserAvatarUrl('');
-          localStorage.removeItem('vagou_user_avatar');
         }
       } catch {}
+    };
+
+    const handleProfileUpdatedEvent = (e: Event) => {
+      const customEvt = e as CustomEvent<{ name?: string; avatarUrl?: string }>;
+      if (customEvt?.detail) {
+        if (customEvt.detail.name) {
+          setUserName(customEvt.detail.name);
+        }
+        if (isValidAvatarUrlString(customEvt.detail.avatarUrl)) {
+          setUserAvatarUrl(customEvt.detail.avatarUrl.trim());
+          return;
+        }
+      }
+      const savedAvatar = localStorage.getItem('vagou_user_avatar');
+      if (isValidAvatarUrlString(savedAvatar)) {
+        setUserAvatarUrl(savedAvatar.trim());
+      }
+      const savedName = localStorage.getItem('vagou_user_name');
+      if (savedName) {
+        setUserName(savedName);
+      }
     };
 
     syncUserFromSupabase();
@@ -332,6 +353,8 @@ export const App: React.FC = () => {
 
     // Recarregar agendamentos quando a aba ou janela ganha foco para manter dados sincronizados
     window.addEventListener('focus', loadAppointments);
+    window.addEventListener('vagou:profile-updated', handleProfileUpdatedEvent);
+    window.addEventListener('storage', handleProfileUpdatedEvent);
 
     // Inscrição em tempo real para escutar atualizações de agendamento na nuvem Supabase
     let unsubscribeRealtime = () => {};
@@ -368,6 +391,8 @@ export const App: React.FC = () => {
 
     return () => {
       window.removeEventListener('focus', loadAppointments);
+      window.removeEventListener('vagou:profile-updated', handleProfileUpdatedEvent);
+      window.removeEventListener('storage', handleProfileUpdatedEvent);
       unsubscribeRealtime();
       clearInterval(interval);
     };
@@ -395,12 +420,19 @@ export const App: React.FC = () => {
           if (uMeta?.cpf) {
             localStorage.setItem('vagou_user_cpf', String(uMeta.cpf).replace(/\D/g, ''));
           }
+          const savedAvatar = localStorage.getItem('vagou_user_avatar');
+          if (isValidAvatarUrlString(savedAvatar)) {
+            setUserAvatarUrl(savedAvatar.trim());
+          }
         } else {
-          // Se não há token no domínio local, verifica se há login SSO ativo vindo do iframe admvapp
+          // Se não há token no domínio local, verifica se há login SSO ou perfil local ativo
           const ssoEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner');
           const ssoName = localStorage.getItem('vagou_user_name');
-          if (ssoEmail) {
+          const ssoCpf = localStorage.getItem('vagou_user_cpf');
+          const ssoAvatar = localStorage.getItem('vagou_user_avatar');
+          if (ssoEmail || ssoName || ssoCpf || isValidAvatarUrlString(ssoAvatar)) {
             if (ssoName) setUserName(ssoName);
+            if (isValidAvatarUrlString(ssoAvatar)) setUserAvatarUrl(ssoAvatar.trim());
           } else {
             setUserName('');
             setUserAvatarUrl('');
@@ -849,8 +881,15 @@ export const App: React.FC = () => {
             <UserDashboard
               onBack={() => setViewMode('salon')}
               onUpdateProfile={(newName, newAvatar) => {
-                setUserName(newName);
-                setUserAvatarUrl(newAvatar);
+                if (newName) setUserName(newName);
+                if (isValidAvatarUrlString(newAvatar)) {
+                  setUserAvatarUrl(newAvatar.trim());
+                  try {
+                    localStorage.setItem('vagou_user_avatar', newAvatar.trim());
+                  } catch {}
+                } else if (newAvatar === '') {
+                  setUserAvatarUrl('');
+                }
               }}
             />
           )}

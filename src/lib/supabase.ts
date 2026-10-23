@@ -1742,127 +1742,234 @@ export async function emancipateFamilyMemberToUser(memberId: string, newUserId: 
 }
 
 /**
+ * Valida se o valor do avatar é uma URL ou DataURI de imagem válida
+ * (Evita objetos vazios, 'undefined', 'null', placeholders do Unsplash ou SVGs genéricos)
+ */
+export function isValidAvatarUrlString(val: unknown): val is string {
+  if (typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  if (
+    !trimmed ||
+    trimmed === 'undefined' ||
+    trimmed === 'null' ||
+    trimmed === '[object Object]' ||
+    trimmed === '{}' ||
+    trimmed.includes('unsplash.com') ||
+    trimmed.includes('images.unsplash') ||
+    trimmed.startsWith('data:image/svg+xml')
+  ) {
+    return false;
+  }
+  return (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('data:image/') ||
+    trimmed.startsWith('blob:') ||
+    trimmed.startsWith('/')
+  );
+}
+
+/**
  * Consulta e identifica dados de perfil do usuário diretamente no banco Supabase
  * Suporta profissionais, salões, clientes e histórico de agendamentos com fallback automático para foto gravada
  */
-export async function fetchUserProfileFromDb(identifier?: { email?: string; name?: string }) {
+export async function fetchUserProfileFromDb(identifier?: {
+  email?: string;
+  name?: string;
+  cpf?: string;
+  clientId?: string;
+  userId?: string;
+}) {
   if (!supabase || !isSupabaseConfigured) return null;
-  const term = (identifier?.email || identifier?.name || '').trim();
+
+  const client = getDbClient() || supabase;
+  const rawEmail = (
+    identifier?.email ||
+    (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') : '') ||
+    ''
+  ).trim();
+  const rawName = (
+    identifier?.name ||
+    (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_name') : '') ||
+    ''
+  ).trim();
+  const rawCpf = (
+    identifier?.cpf ||
+    (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_cpf') : '') ||
+    ''
+  ).replace(/\D/g, '');
+  const rawClientId = (
+    identifier?.clientId ||
+    (typeof window !== 'undefined' ? localStorage.getItem('vagou_client_id') : '') ||
+    ''
+  ).trim();
+  const rawUserId = (
+    identifier?.userId ||
+    (typeof window !== 'undefined' ? localStorage.getItem('vagou_auth_user_id') : '') ||
+    ''
+  ).trim();
+
+  const term = rawEmail || rawName;
+  const isGenericName = !rawName || rawName === 'Profissional' || rawName === 'Usuário' || rawName === 'Visitante' || rawName === 'Cliente';
+  const isRealEmailTerm = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail);
+
+  let resolvedId = rawClientId || rawUserId || '';
+  let resolvedName = !isGenericName ? rawName : '';
+  let resolvedEmail = isRealEmailTerm ? rawEmail : '';
+  let resolvedPhone = '';
+  let resolvedAddress = '';
+  let resolvedRole: 'client' | 'professional' = 'client';
+
+  let clientAvatar = '';
+  let proAvatar = '';
+  let profileAvatar = '';
+  let authMetaAvatar = '';
 
   try {
-    // 0. Procurar no usuário autenticado ativo no Supabase Auth
+    // 1. Procurar na tabela clients (Fonte Soberana de Clientes e Fotos no Painel Admin / App)
+    try {
+      let matchedClients: any[] = [];
+
+      if (rawClientId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawClientId)) {
+        const { data } = await (client.from('clients') as any).select('*').eq('id', rawClientId).limit(5);
+        if (data?.length) matchedClients.push(...data);
+      }
+
+      if (rawCpf && rawCpf.length >= 11) {
+        const { data } = await (client.from('clients') as any).select('*').eq('cpf', rawCpf).limit(5);
+        if (data?.length) matchedClients.push(...data);
+      }
+
+      if (isRealEmailTerm) {
+        const { data } = await (client.from('clients') as any).select('*').ilike('email', rawEmail).limit(10);
+        if (data?.length) matchedClients.push(...data);
+      }
+
+      if (!isGenericName) {
+        const { data: byName } = await (client.from('clients') as any).select('*').ilike('name', rawName).limit(10);
+        if (byName?.length) matchedClients.push(...byName);
+
+        const { data: byUsername } = await (client.from('clients') as any).select('*').ilike('username', rawName).limit(10);
+        if (byUsername?.length) matchedClients.push(...byUsername);
+      }
+
+      if (matchedClients.length > 0) {
+        // Prioriza o registro que possui avatar_url válido
+        const bestClient =
+          matchedClients.find((c) => isValidAvatarUrlString(c?.avatar_url)) ||
+          matchedClients[0];
+
+        if (bestClient) {
+          resolvedId = bestClient.id || resolvedId;
+          resolvedName = bestClient.name || bestClient.username || resolvedName;
+          resolvedEmail = bestClient.email || resolvedEmail;
+          resolvedPhone = bestClient.phone || resolvedPhone;
+          resolvedAddress = bestClient.default_address || resolvedAddress;
+          if (isValidAvatarUrlString(bestClient.avatar_url)) {
+            clientAvatar = bestClient.avatar_url.trim();
+          }
+        }
+      }
+    } catch {}
+
+    // 2. Procurar em professionals
+    try {
+      let matchedPros: any[] = [];
+      if (isRealEmailTerm) {
+        const { data } = await (client.from('professionals') as any).select('*').ilike('email', rawEmail).limit(5);
+        if (data?.length) matchedPros.push(...data);
+      }
+      if (!isGenericName) {
+        const { data } = await (client.from('professionals') as any).select('*').ilike('name', rawName).limit(5);
+        if (data?.length) matchedPros.push(...data);
+      }
+      if (matchedPros.length > 0) {
+        const bestPro =
+          matchedPros.find((p) => isValidAvatarUrlString(p?.avatar_url)) ||
+          matchedPros[0];
+        if (bestPro) {
+          resolvedRole = 'professional';
+          resolvedId = resolvedId || bestPro.id;
+          resolvedName = resolvedName || bestPro.name;
+          resolvedEmail = resolvedEmail || bestPro.email || '';
+          resolvedPhone = resolvedPhone || bestPro.phone || '';
+          if (isValidAvatarUrlString(bestPro.avatar_url)) {
+            proAvatar = bestPro.avatar_url.trim();
+          }
+        }
+      }
+    } catch {}
+
+    // 3. Procurar no usuário autenticado ativo no Supabase Auth e tabela profiles
     try {
       const { data: authUserResp } = await supabase.auth.getUser();
       const authUser = authUserResp?.user;
       if (authUser) {
-        const metaAvatar = authUser.user_metadata?.avatar_url || authUser.user_metadata?.avatar || '';
-        const metaName = authUser.user_metadata?.full_name || authUser.user_metadata?.name;
+        const metaAv = authUser.user_metadata?.avatar_url || authUser.user_metadata?.avatar || '';
+        if (isValidAvatarUrlString(metaAv)) {
+          authMetaAvatar = metaAv.trim();
+        }
+        const metaName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || '';
+        resolvedId = resolvedId || authUser.id;
+        resolvedName = resolvedName || metaName || authUser.email?.split('@')[0] || '';
+        resolvedEmail = resolvedEmail || authUser.email || '';
+        resolvedPhone = resolvedPhone || authUser.user_metadata?.phone || '';
 
-        // Também busca na tabela profiles para o usuário autenticado
-        const { data: profile } = await (supabase.from('profiles') as any)
+        const { data: prof } = await (client.from('profiles') as any)
           .select('*')
           .eq('id', authUser.id)
           .maybeSingle();
 
-        const avatar = profile?.avatar_url || (metaAvatar && !metaAvatar.includes('unsplash.com') ? metaAvatar : '');
-        const name = profile?.full_name || profile?.name || metaName || authUser.email?.split('@')[0] || 'Usuário';
-
-        return {
-          type: (authUser.user_metadata?.role === 'pro' ? 'professional' : 'client') as any,
-          id: authUser.id,
-          name: name,
-          email: authUser.email || '',
-          phone: profile?.phone_whatsapp || profile?.phone || authUser.user_metadata?.phone || '',
-          avatarUrl: avatar || '',
-        };
+        if (prof) {
+          resolvedName = resolvedName || prof.full_name || prof.name || '';
+          resolvedPhone = resolvedPhone || prof.phone_whatsapp || prof.phone || '';
+          if (isValidAvatarUrlString(prof.avatar_url)) {
+            profileAvatar = prof.avatar_url.trim();
+          }
+        }
       }
     } catch {}
 
-    const isGenericTerm = !term || term === 'Profissional' || term === 'Usuário' || term === 'Visitante' || term === 'Cliente';
-    const isRealEmailTerm = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(term);
-
-    // 1. Procurar em perfis (profiles) por correspondência exata de e-mail ou nome
-    if (!isGenericTerm) {
-      let query = supabase.from('profiles').select('*');
-      if (isRealEmailTerm) {
-        query = query.ilike('email', term);
-      } else {
-        query = query.ilike('full_name', term);
-      }
-      const { data: profiles } = await (query as any).limit(1);
-      if (profiles && profiles.length > 0) {
-        const prof = profiles[0];
-        return {
-          type: 'client' as const,
-          id: prof.id,
-          name: prof.full_name || prof.name || term,
-          email: prof.email || (isRealEmailTerm ? term : ''),
-          phone: prof.phone_whatsapp || prof.phone || '',
-          avatarUrl: prof.avatar_url || '',
-        };
-      }
-    }
-
-    // 2. Procurar em profissionais por correspondência exata
-    if (!isGenericTerm) {
-      let query = supabase.from('professionals').select('*');
-      if (isRealEmailTerm) {
-        query = query.ilike('email', term);
-      } else {
-        query = query.ilike('name', term);
-      }
-      const { data: pros } = await (query as any).limit(1);
-      if (pros && pros.length > 0) {
-        const p = pros[0];
-        return {
-          type: 'professional' as const,
-          id: p.id,
-          name: p.name || term,
-          email: p.email || (isRealEmailTerm ? term : ''),
-          phone: p.phone || '',
-          avatarUrl: p.avatar_url || '',
-          salonId: p.salon_id,
-        };
-      }
-    }
-
-    // 3. Procurar em clientes por correspondência exata (email, username ou name)
-    if (!isGenericTerm) {
-      let matchedClient: any = null;
-      if (isRealEmailTerm) {
-        const { data: byEmail } = await (supabase.from('clients') as any)
-          .select('*')
-          .ilike('email', term)
-          .limit(1);
-        matchedClient = byEmail?.[0];
-      } else {
-        const { data: byUser } = await (supabase.from('clients') as any)
-          .select('*')
-          .ilike('username', term)
-          .limit(1);
-        matchedClient = byUser?.[0];
-
-        if (!matchedClient) {
-          const { data: byName } = await (supabase.from('clients') as any)
-            .select('*')
-            .ilike('name', term)
-            .limit(1);
-          matchedClient = byName?.[0];
+    // 4. Procurar em profiles por email ou nome caso ainda não tenha avatar
+    if (!clientAvatar && !proAvatar && !profileAvatar && term) {
+      try {
+        let query = client.from('profiles').select('*');
+        if (isRealEmailTerm) {
+          query = query.ilike('email', rawEmail);
+        } else if (!isGenericName) {
+          query = query.ilike('full_name', rawName);
         }
-      }
-
-      if (matchedClient) {
-        return {
-          type: 'client' as const,
-          id: matchedClient.id,
-          name: matchedClient.name || matchedClient.username || term,
-          email: matchedClient.email || (isRealEmailTerm ? term : ''),
-          phone: matchedClient.phone || '',
-          avatarUrl: matchedClient.avatar_url || '',
-        };
-      }
+        const { data: profiles } = await (query as any).limit(5);
+        if (profiles && profiles.length > 0) {
+          const bestProf =
+            profiles.find((p: any) => isValidAvatarUrlString(p?.avatar_url)) ||
+            profiles[0];
+          if (bestProf) {
+            resolvedId = resolvedId || bestProf.id;
+            resolvedName = resolvedName || bestProf.full_name || bestProf.name || '';
+            resolvedEmail = resolvedEmail || bestProf.email || '';
+            resolvedPhone = resolvedPhone || bestProf.phone_whatsapp || bestProf.phone || '';
+            if (isValidAvatarUrlString(bestProf.avatar_url)) {
+              profileAvatar = bestProf.avatar_url.trim();
+            }
+          }
+        }
+      } catch {}
     }
 
+    const finalAvatar = clientAvatar || proAvatar || profileAvatar || authMetaAvatar || '';
+
+    if (resolvedId || resolvedName || resolvedEmail || finalAvatar) {
+      return {
+        type: resolvedRole,
+        id: resolvedId,
+        name: resolvedName || term || 'Usuário',
+        email: resolvedEmail,
+        phone: resolvedPhone,
+        address: resolvedAddress,
+        avatarUrl: finalAvatar,
+      };
+    }
   } catch (err) {
     console.warn('Erro ao consultar perfil no Supabase:', err);
   }
@@ -1882,19 +1989,21 @@ export function resolveTriadeAvatar(params: {
   isBusinessContext?: boolean; // true apenas em cards institucionais do salão
 }): string {
   // 1. Prioridade absoluta: Foto real da pessoa física (aceita qualquer URL válida ou Base64)
-  const personalPhoto =
-    params.professionalAvatar ||
-    params.clientAvatar ||
-    params.authMetadataAvatar ||
-    '';
+  const candidates = [
+    params.clientAvatar,
+    params.professionalAvatar,
+    params.authMetadataAvatar,
+  ];
 
-  if (personalPhoto && personalPhoto.trim() !== '') {
-    return personalPhoto;
+  for (const candidate of candidates) {
+    if (isValidAvatarUrlString(candidate)) {
+      return candidate.trim();
+    }
   }
 
   // 2. Se e somente se o contexto for institucional do salão (ex: logo do espaço)
-  if (params.isBusinessContext && params.salonLogo) {
-    return params.salonLogo;
+  if (params.isBusinessContext && isValidAvatarUrlString(params.salonLogo)) {
+    return params.salonLogo.trim();
   }
 
   // 3. Fallback neutro: Retorna string vazia para renderizar o ícone oficial User da lucide-react
@@ -1906,35 +2015,38 @@ export function resolveTriadeAvatar(params: {
  * Boletim Técnico: bol-008-mobile-avatar-sync-storage-resolution
  */
 export async function getUniversalUserAvatar(userEmail: string, authMetadataAvatar?: string): Promise<string | null> {
-  if (authMetadataAvatar && !authMetadataAvatar.includes('unsplash.com')) {
-    return authMetadataAvatar;
+  if (isValidAvatarUrlString(authMetadataAvatar)) {
+    return authMetadataAvatar.trim();
   }
 
   if (!supabase || !isSupabaseConfigured || !userEmail) {
-    return authMetadataAvatar || null;
+    return null;
   }
 
   try {
     const cleanEmail = userEmail.trim().toLowerCase();
+    const client = getDbClient() || supabase;
 
     // 1. Busca na tabela clients
-    const { data: client } = await (supabase.from('clients') as any)
+    const { data: clientRows } = await (client.from('clients') as any)
       .select('avatar_url')
       .ilike('email', `%${cleanEmail}%`)
-      .maybeSingle();
+      .limit(10);
 
-    if (client?.avatar_url && !client.avatar_url.includes('unsplash.com')) {
-      return client.avatar_url;
+    const validClientRow = clientRows?.find((r: any) => isValidAvatarUrlString(r?.avatar_url));
+    if (validClientRow?.avatar_url) {
+      return validClientRow.avatar_url.trim();
     }
 
     // 2. Fallback inteligente: se não achou em clients, busca em professionals
-    const { data: prof } = await (supabase.from('professionals') as any)
+    const { data: profRows } = await (client.from('professionals') as any)
       .select('avatar_url')
       .ilike('email', `%${cleanEmail}%`)
-      .maybeSingle();
+      .limit(10);
 
-    if (prof?.avatar_url && !prof.avatar_url.includes('unsplash.com')) {
-      return prof.avatar_url;
+    const validProfRow = profRows?.find((r: any) => isValidAvatarUrlString(r?.avatar_url));
+    if (validProfRow?.avatar_url) {
+      return validProfRow.avatar_url.trim();
     }
   } catch (err) {
     console.warn('Erro em getUniversalUserAvatar:', err);
@@ -1945,7 +2057,7 @@ export async function getUniversalUserAvatar(userEmail: string, authMetadataAvat
 
 /**
  * Atualiza ou sincroniza dados de perfil do usuário diretamente no banco Supabase
- * Atualiza tabela relacional (clients/professionals) e espelha em auth.users.user_metadata
+ * Atualiza tabela relacional (clients/professionals/profiles) e espelha em auth.users.user_metadata
  */
 export async function updateUserProfileInDb(profile: {
   name: string;
@@ -1954,84 +2066,166 @@ export async function updateUserProfileInDb(profile: {
   cpf?: string;
   address?: string;
   avatarUrl?: string;
+  clientId?: string;
+  userId?: string;
   type?: 'client' | 'pro' | 'admin';
 }) {
   if (!supabase || !isSupabaseConfigured) {
-    return { success: true, localOnly: true };
+    return { success: true, localOnly: true, avatarUrl: isValidAvatarUrlString(profile.avatarUrl) ? profile.avatarUrl.trim() : '' };
   }
 
   try {
-    const cleanEmail = profile.email.trim().toLowerCase();
-    const cleanName = profile.name.trim();
-    const cleanPhone = profile.phone?.trim() || '';
-    const cleanCpf = profile.cpf?.trim() || '';
-    const cleanAvatar = profile.avatarUrl || '';
+    const cleanEmail = (profile.email || '').trim().toLowerCase();
+    const cleanName = (profile.name || '').trim();
+    const cleanPhone = (profile.phone || '').trim();
+    const cleanCpf = (
+      profile.cpf ||
+      (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_cpf') : '') ||
+      ''
+    ).replace(/\D/g, '');
+    const storedClientId =
+      profile.clientId ||
+      (typeof window !== 'undefined' ? localStorage.getItem('vagou_client_id') || '' : '');
+    const storedUserId =
+      profile.userId ||
+      (typeof window !== 'undefined' ? localStorage.getItem('vagou_auth_user_id') || '' : '');
 
-    // 1. Espelhar metadados globais no auth.users (Fonte da Verdade Global da Tríade)
+    // Validação estrita da string de avatar antes de persistir no Supabase
+    const hasValidAvatar = isValidAvatarUrlString(profile.avatarUrl);
+    const cleanAvatar = hasValidAvatar ? profile.avatarUrl!.trim() : '';
+
+    // 1. Espelhar metadados globais no auth.users (apenas se avatar for URL curta para não estourar limite JWT)
     try {
+      const isShortUrl = cleanAvatar.startsWith('http://') || cleanAvatar.startsWith('https://');
       await supabase.auth.updateUser({
         data: {
-          full_name: cleanName,
-          phone: cleanPhone,
+          ...(cleanName ? { full_name: cleanName } : {}),
+          ...(cleanPhone ? { phone: cleanPhone } : {}),
           ...(cleanCpf ? { cpf: cleanCpf } : {}),
-          avatar_url: cleanAvatar || undefined,
+          ...(isShortUrl ? { avatar_url: cleanAvatar } : {}),
         },
       });
     } catch (authErr) {
       console.warn('Aviso: Não foi possível atualizar auth.users.user_metadata:', authErr);
     }
 
-    const client = getDbClient();
+    const client = getDbClient() || supabase;
 
     // 2. Atualizar tabela professionals (Unificada para Single Source of Truth)
-    if (cleanEmail) {
-      await (client.from('professionals') as any)
-        .update({
-          name: cleanName,
-          phone: cleanPhone,
-          avatar_url: cleanAvatar || null,
-          updated_at: new Date().toISOString(),
-        })
-        .ilike('email', `%${cleanEmail}%`);
-    }
+    if (cleanEmail || cleanName) {
+      const proUpdatePayload: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (cleanName) proUpdatePayload.name = cleanName;
+      if (cleanPhone) proUpdatePayload.phone = cleanPhone;
+      if (hasValidAvatar) proUpdatePayload.avatar_url = cleanAvatar;
 
-    // 3. Atualizar ou inserir na tabela clients (Unificada para Single Source of Truth, incluindo clients.cpf)
-    if (cleanEmail) {
-      const { data: existingClient } = await (client.from('clients') as any)
-        .select('id')
-        .ilike('email', `%${cleanEmail}%`)
-        .maybeSingle();
-
-      if (existingClient?.id) {
-        await (client.from('clients') as any)
-          .update({
-            name: cleanName,
-            phone: cleanPhone,
-            ...(cleanCpf ? { cpf: cleanCpf } : {}),
-            avatar_url: cleanAvatar || null,
-            default_address: profile.address || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', existingClient.id);
-      } else {
-        await (client.from('clients') as any)
-          .insert({
-            name: cleanName,
-            email: cleanEmail,
-            phone: cleanPhone,
-            ...(cleanCpf ? { cpf: cleanCpf } : {}),
-            avatar_url: cleanAvatar || null,
-            default_address: profile.address || null,
-          });
+      if (cleanEmail) {
+        await (client.from('professionals') as any)
+          .update(proUpdatePayload)
+          .ilike('email', cleanEmail);
+      } else if (cleanName && cleanName !== 'Usuário' && cleanName !== 'Profissional') {
+        await (client.from('professionals') as any)
+          .update(proUpdatePayload)
+          .ilike('name', cleanName);
       }
     }
 
-    return { success: true };
+    // 3. Atualizar tabela profiles (caso exista registro espelhado)
+    try {
+      const profileUpdatePayload: Record<string, any> = {};
+      if (cleanName) profileUpdatePayload.full_name = cleanName;
+      if (cleanPhone) profileUpdatePayload.phone_whatsapp = cleanPhone;
+      if (hasValidAvatar) profileUpdatePayload.avatar_url = cleanAvatar;
+
+      if (Object.keys(profileUpdatePayload).length > 0) {
+        if (storedUserId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storedUserId)) {
+          await (client.from('profiles') as any).update(profileUpdatePayload).eq('id', storedUserId);
+        }
+        if (cleanEmail) {
+          await (client.from('profiles') as any).update(profileUpdatePayload).ilike('email', cleanEmail);
+        }
+      }
+    } catch {}
+
+    // 4. Atualizar ou inserir na tabela clients (Garantindo que avatar_url seja gravado em todos os identificadores do cliente)
+    const matchedClientIds = new Set<string>();
+
+    if (storedClientId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storedClientId)) {
+      const { data } = await (client.from('clients') as any).select('id').eq('id', storedClientId).limit(5);
+      data?.forEach((r: any) => r?.id && matchedClientIds.add(String(r.id)));
+    }
+
+    if (cleanCpf && cleanCpf.length >= 11) {
+      const { data } = await (client.from('clients') as any).select('id').eq('cpf', cleanCpf).limit(10);
+      data?.forEach((r: any) => r?.id && matchedClientIds.add(String(r.id)));
+    }
+
+    if (cleanEmail) {
+      const { data } = await (client.from('clients') as any).select('id').ilike('email', cleanEmail).limit(10);
+      data?.forEach((r: any) => r?.id && matchedClientIds.add(String(r.id)));
+    }
+
+    if (matchedClientIds.size === 0 && cleanName && cleanName !== 'Usuário' && cleanName !== 'Cliente') {
+      const { data } = await (client.from('clients') as any).select('id').ilike('name', cleanName).limit(10);
+      data?.forEach((r: any) => r?.id && matchedClientIds.add(String(r.id)));
+    }
+
+    const clientUpdatePayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (cleanName) clientUpdatePayload.name = cleanName;
+    if (cleanEmail) clientUpdatePayload.email = cleanEmail;
+    if (cleanPhone) clientUpdatePayload.phone = cleanPhone;
+    if (cleanCpf) clientUpdatePayload.cpf = cleanCpf;
+    if (profile.address !== undefined) clientUpdatePayload.default_address = profile.address || null;
+    if (hasValidAvatar) clientUpdatePayload.avatar_url = cleanAvatar;
+
+    if (matchedClientIds.size > 0) {
+      const idsArray = Array.from(matchedClientIds);
+      const { error: updateErr } = await (client.from('clients') as any)
+        .update(clientUpdatePayload)
+        .in('id', idsArray);
+
+      if (updateErr) {
+        console.warn('Aviso ao atualizar clients por IDs:', updateErr);
+      }
+      if (typeof window !== 'undefined' && idsArray[0]) {
+        try {
+          localStorage.setItem('vagou_client_id', idsArray[0]);
+        } catch {}
+      }
+    } else if (cleanEmail || cleanName || cleanCpf) {
+      const { data: insertedClient, error: insertErr } = await (client.from('clients') as any)
+        .insert({
+          name: cleanName || 'Cliente',
+          email: cleanEmail || null,
+          phone: cleanPhone || null,
+          ...(cleanCpf ? { cpf: cleanCpf } : {}),
+          avatar_url: hasValidAvatar ? cleanAvatar : null,
+          default_address: profile.address || null,
+        })
+        .select('id')
+        .maybeSingle();
+
+      if (insertErr) {
+        console.warn('Aviso ao inserir novo cliente em clients:', insertErr);
+      } else if (insertedClient?.id && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('vagou_client_id', String(insertedClient.id));
+        } catch {}
+      }
+    }
+
+    return { success: true, avatarUrl: cleanAvatar };
   } catch (err: any) {
     console.error('Erro ao salvar perfil unificado no Supabase:', err);
     return { success: false, error: err.message };
   }
 }
+
+export const updateUserProfile = updateUserProfileInDb;
+
 
 /**
  * Assegura que um registro de salão exista no Supabase com UUID válido e pronto para CRUD

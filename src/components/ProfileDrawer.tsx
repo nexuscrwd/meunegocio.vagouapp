@@ -12,7 +12,8 @@ import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../utils/haptics';
 import { DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
 import { BookingAppointment, UserProfile, UserPersona, ClientSwapGovernance, SwapTargetQueueItem, UserFamilyDependent } from '../types';
-import { fetchUserProfileFromDb, updateUserProfileInDb, resolveTriadeAvatar, uploadAvatarToSupabaseStorage, isSupabaseConfigured, supabase, getDbClient, generateUuidV4, fetchClientFamilyMembers } from '../lib/supabase';
+import { fetchUserProfileFromDb, updateUserProfileInDb, resolveTriadeAvatar, uploadAvatarToSupabaseStorage, isValidAvatarUrlString, isSupabaseConfigured, supabase, getDbClient, generateUuidV4, fetchClientFamilyMembers } from '../lib/supabase';
+import { compressImageFile } from '../utils/imageCompressor';
 import { syncClientDependentToDatabase, refreshClientDependentsCount } from '../services/mnvSupabaseSync';
 import { LiveRouteDepartureModal, LiveTrackingDrawerModal } from './live-tracking/LiveTrackingModal';
 import { getSavedBookingDraft, saveBookingDraft, BookingDraftItem } from '../utils/bookingSlots';
@@ -238,18 +239,21 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     async function syncDrawerFromDb() {
       const currentName = localStorage.getItem('vagou_user_name') || userName || '';
       const currentEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
-      if (!currentName && !currentEmail) return;
+      const currentCpf = localStorage.getItem('vagou_user_cpf') || '';
+      if (!currentName && !currentEmail && !currentCpf) return;
 
       const dbProfile = await fetchUserProfileFromDb({
         name: currentName,
-        email: currentEmail
+        email: currentEmail,
+        cpf: currentCpf,
       });
 
       if (isMounted) {
         const localAvatar = localStorage.getItem('vagou_user_avatar') || '';
+        const validLocalAvatar = isValidAvatarUrlString(localAvatar) ? localAvatar.trim() : '';
         if (dbProfile) {
-          const dbAvatar = dbProfile.avatarUrl && !dbProfile.avatarUrl.includes('unsplash.com') && !dbProfile.avatarUrl.startsWith('data:image/svg+xml') ? dbProfile.avatarUrl : '';
-          const finalAvatar = dbAvatar || localAvatar;
+          const validDbAvatar = isValidAvatarUrlString(dbProfile.avatarUrl) ? dbProfile.avatarUrl.trim() : '';
+          const finalAvatar = validDbAvatar || validLocalAvatar;
           setProfile(prev => ({
             ...prev,
             name: dbProfile.name || prev.name,
@@ -264,15 +268,13 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
             localStorage.setItem('vagou_user_avatar', finalAvatar);
             onUpdateUserAvatar?.(finalAvatar);
           }
-        } else {
+        } else if (validLocalAvatar) {
           setProfile(prev => ({
             ...prev,
-            avatarUrl: localAvatar,
+            avatarUrl: validLocalAvatar,
           }));
-          if (localAvatar) {
-            localStorage.setItem('vagou_user_avatar', localAvatar);
-            onUpdateUserAvatar?.(localAvatar);
-          }
+          localStorage.setItem('vagou_user_avatar', validLocalAvatar);
+          onUpdateUserAvatar?.(validLocalAvatar);
         }
       }
     }
@@ -451,20 +453,44 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
   const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !file.type.startsWith('image/')) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      if (base64) {
-        setProfile(prev => ({ ...prev, avatarUrl: base64 }));
-        try {
-          localStorage.setItem('vagou_user_avatar', base64);
-        } catch {}
-        onUpdateUserAvatar?.(base64);
+    try {
+      let resolvedAvatar = '';
+      if (isSupabaseConfigured) {
+        const identifier = profile.email || localStorage.getItem('vagou_client_id') || profile.name || 'user';
+        const uploadedUrl = await uploadAvatarToSupabaseStorage(file, identifier);
+        if (isValidAvatarUrlString(uploadedUrl)) {
+          resolvedAvatar = uploadedUrl.trim();
+        }
       }
-    };
-    reader.readAsDataURL(file);
+
+      if (!resolvedAvatar) {
+        const compressed = await compressImageFile(file, {
+          maxWidth: 320,
+          maxHeight: 320,
+          quality: 0.85,
+        });
+        if (isValidAvatarUrlString(compressed)) {
+          resolvedAvatar = compressed.trim();
+        }
+      }
+
+      if (isValidAvatarUrlString(resolvedAvatar)) {
+        setProfile(prev => ({ ...prev, avatarUrl: resolvedAvatar }));
+        try {
+          localStorage.setItem('vagou_user_avatar', resolvedAvatar);
+        } catch {}
+        onUpdateUserAvatar?.(resolvedAvatar);
+        window.dispatchEvent(
+          new CustomEvent('vagou:profile-updated', {
+            detail: { name: profile.name, avatarUrl: resolvedAvatar },
+          })
+        );
+      }
+    } catch (err) {
+      console.error('[ProfileDrawer] Erro ao processar foto:', err);
+    }
   };
 
   // Estado dos Agendamentos
@@ -937,12 +963,19 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     hapticSuccess();
     setIsSavingProfile(true);
 
+    const storedFallback = localStorage.getItem('vagou_user_avatar') || '';
+    const validAvatar = isValidAvatarUrlString(profile.avatarUrl)
+      ? profile.avatarUrl.trim()
+      : isValidAvatarUrlString(storedFallback)
+        ? storedFallback.trim()
+        : '';
+
     try {
-      localStorage.setItem('vagou_user_profile', JSON.stringify(profile));
+      localStorage.setItem('vagou_user_profile', JSON.stringify({ ...profile, avatarUrl: validAvatar }));
       if (profile.name) localStorage.setItem('vagou_user_name', profile.name);
       if (profile.email) localStorage.setItem('vagou_user_email', profile.email);
       if (profile.phone) localStorage.setItem('vagou_user_phone', profile.phone);
-      if (profile.avatarUrl) localStorage.setItem('vagou_user_avatar', profile.avatarUrl);
+      if (validAvatar) localStorage.setItem('vagou_user_avatar', validAvatar);
     } catch {
       // ignore
     }
@@ -952,7 +985,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     }
 
     if (onUpdateUserAvatar) {
-      onUpdateUserAvatar(profile.avatarUrl || '');
+      onUpdateUserAvatar(validAvatar);
     }
 
     // Sincronização direta com o Supabase (relacional + auth.users.user_metadata)
@@ -960,8 +993,9 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
       name: profile.name,
       email: profile.email,
       phone: profile.phone,
+      cpf: localStorage.getItem('vagou_user_cpf') || undefined,
       address: profile.address,
-      avatarUrl: profile.avatarUrl,
+      avatarUrl: validAvatar,
       type: currentPersona === 'profissional' ? 'pro' : currentPersona === 'admin' ? 'admin' : 'client',
     });
 
@@ -969,6 +1003,11 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     setIsEditing(false);
     setSavedSuccessToast(true);
     try {
+      window.dispatchEvent(
+        new CustomEvent('vagou:profile-updated', {
+          detail: { name: profile.name, avatarUrl: validAvatar },
+        })
+      );
       window.dispatchEvent(new Event('storage'));
     } catch {}
     setTimeout(() => {

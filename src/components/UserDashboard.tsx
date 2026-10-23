@@ -7,17 +7,22 @@ import {
   Phone, 
   Camera, 
   Check, 
-  Sparkles, 
   Heart, 
   Calendar,
   Upload,
   Database as DatabaseIcon,
-  RefreshCw,
-  Image as ImageIcon
+  RefreshCw
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess } from '../utils/haptics';
-import { fetchUserProfileFromDb, updateUserProfileInDb, isSupabaseConfigured, uploadAvatarToSupabaseStorage } from '../lib/supabase';
+import { compressImageFile } from '../utils/imageCompressor';
+import { 
+  fetchUserProfileFromDb, 
+  updateUserProfile, 
+  isSupabaseConfigured, 
+  uploadAvatarToSupabaseStorage,
+  isValidAvatarUrlString
+} from '../lib/supabase';
 
 interface UserDashboardProps {
   onBack: () => void;
@@ -35,14 +40,26 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     return localStorage.getItem('vagou_user_name') || 'Usuário';
   });
   
-  const [avatarUrl, setAvatarUrl] = useState(() => {
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string>(() => {
     const saved = localStorage.getItem('vagou_user_avatar');
     if (saved && (saved.includes('unsplash.com') || saved.includes('images.unsplash'))) {
       localStorage.removeItem('vagou_user_avatar');
       return '';
     }
-    return saved || '';
+    return isValidAvatarUrlString(saved) ? saved.trim() : '';
   });
+
+  // Alias compatível com referências de template
+  const avatarUrl = userAvatarUrl;
+  const setAvatarUrl = setUserAvatarUrl;
+
+  // Monitoramento de mudanças em userAvatarUrl para diagnóstico de estado e persistência
+  useEffect(() => {
+    console.log(
+      '[UserDashboard] Estado userAvatarUrl alterado:',
+      userAvatarUrl ? `${userAvatarUrl.slice(0, 80)}... (len=${userAvatarUrl.length})` : '(vazio)'
+    );
+  }, [userAvatarUrl]);
 
   const [email, setEmail] = useState(() => {
     const fromProfile = (() => {
@@ -69,7 +86,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [isSavedSuccessfully, setIsSavedSuccessfully] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isSyncingDb, setIsSyncingDb] = useState(false);
-  const [isSavingDb, setIsSavingDb] = useState(false);
+  const [, setIsSavingDb] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -79,12 +96,14 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     async function loadDataFromSupabase() {
       const currentName = localStorage.getItem('vagou_user_name') || '';
       const currentEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
+      const currentCpf = localStorage.getItem('vagou_user_cpf') || '';
 
       setIsSyncingDb(true);
       try {
         const dbProfile = await fetchUserProfileFromDb({
           name: currentName,
-          email: currentEmail
+          email: currentEmail,
+          cpf: currentCpf,
         });
 
         if (isMounted && dbProfile) {
@@ -102,10 +121,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             localStorage.setItem('vagou_user_phone', formatted);
           }
           const localAvatar = localStorage.getItem('vagou_user_avatar') || '';
-          const finalAvatar = localAvatar || dbProfile.avatarUrl;
+          const validDbAvatar = isValidAvatarUrlString(dbProfile.avatarUrl) ? dbProfile.avatarUrl.trim() : '';
+          const validLocalAvatar = isValidAvatarUrlString(localAvatar) ? localAvatar.trim() : '';
+          const finalAvatar = validDbAvatar || validLocalAvatar;
+
           if (finalAvatar) {
-            setAvatarUrl(finalAvatar);
+            setUserAvatarUrl(finalAvatar);
             localStorage.setItem('vagou_user_avatar', finalAvatar);
+            if (onUpdateProfile) {
+              onUpdateProfile(dbProfile.name || currentName || 'Usuário', finalAvatar);
+            }
           }
 
           try {
@@ -115,6 +140,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               name: dbProfile.name || currentName,
               email: dbProfile.email || currentEmail,
               phone: dbProfile.phone || existing.phone || '',
+              avatarUrl: finalAvatar || existing.avatarUrl || '',
             }));
           } catch {}
         }
@@ -173,25 +199,51 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   const processFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
-      alert('Por favor, envie apenas arquivos de imagem.');
       return;
     }
-    
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      if (base64) {
-        setAvatarUrl(base64);
+
+    try {
+      let resolvedAvatar = '';
+
+      // 1. Tenta enviar para o Supabase Storage (retorna URL pública leve)
+      if (isSupabaseConfigured) {
+        const identifier = email || localStorage.getItem('vagou_client_id') || name || 'user';
+        const uploadedUrl = await uploadAvatarToSupabaseStorage(file, identifier);
+        if (isValidAvatarUrlString(uploadedUrl)) {
+          resolvedAvatar = uploadedUrl.trim();
+        }
+      }
+
+      // 2. Fallback: comprimir a imagem em DataURI leve (320x320 JPEG/PNG) para caber no LocalStorage e no banco
+      if (!resolvedAvatar) {
+        const compressed = await compressImageFile(file, {
+          maxWidth: 320,
+          maxHeight: 320,
+          quality: 0.85,
+        });
+        if (isValidAvatarUrlString(compressed)) {
+          resolvedAvatar = compressed.trim();
+        }
+      }
+
+      if (isValidAvatarUrlString(resolvedAvatar)) {
+        setUserAvatarUrl(resolvedAvatar);
         try {
-          localStorage.setItem('vagou_user_avatar', base64);
+          localStorage.setItem('vagou_user_avatar', resolvedAvatar);
         } catch {}
         if (onUpdateProfile) {
-          onUpdateProfile(name, base64);
+          onUpdateProfile(name, resolvedAvatar);
         }
+        window.dispatchEvent(
+          new CustomEvent('vagou:profile-updated', {
+            detail: { name, avatarUrl: resolvedAvatar },
+          })
+        );
         hapticLight();
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('[UserDashboard] Erro ao processar imagem de avatar:', err);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -215,10 +267,29 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSavingDb(true);
+
+    const storedAvatarFallback = localStorage.getItem('vagou_user_avatar') || '';
+    // Validação estrita de URL/DataURI antes de salvar no Supabase e LocalStorage
+    const validatedAvatarUrl = isValidAvatarUrlString(userAvatarUrl)
+      ? userAvatarUrl.trim()
+      : isValidAvatarUrlString(storedAvatarFallback)
+        ? storedAvatarFallback.trim()
+        : '';
+
+    console.log(
+      '[UserDashboard] Antes de salvar - userAvatarUrl:',
+      userAvatarUrl ? `${userAvatarUrl.slice(0, 80)}...` : '(vazio)',
+      '| validatedAvatarUrl:',
+      validatedAvatarUrl ? `${validatedAvatarUrl.slice(0, 80)}...` : '(vazio)'
+    );
     
     try {
       localStorage.setItem('vagou_user_name', name.trim());
-      localStorage.setItem('vagou_user_avatar', avatarUrl);
+      if (validatedAvatarUrl) {
+        localStorage.setItem('vagou_user_avatar', validatedAvatarUrl);
+      } else {
+        localStorage.removeItem('vagou_user_avatar');
+      }
       localStorage.setItem('vagou_user_email', email.trim());
       localStorage.setItem('vagou_user_phone', phone.trim());
 
@@ -226,25 +297,49 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
+        avatarUrl: validatedAvatarUrl,
       };
       localStorage.setItem('vagou_user_profile', JSON.stringify(updatedProfile));
 
-      // Sincronizar em tempo real com o banco de dados Supabase
-      await updateUserProfileInDb({
+      // Sincronizar em tempo real com a tabela 'clients' (e 'professionals'/'profiles') no Supabase via updateUserProfile
+      const dbResult = await updateUserProfile({
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
-        avatarUrl: avatarUrl
+        cpf: localStorage.getItem('vagou_user_cpf') || undefined,
+        avatarUrl: validatedAvatarUrl,
       });
+
+      const finalSyncedAvatar = isValidAvatarUrlString(dbResult?.avatarUrl)
+        ? dbResult.avatarUrl.trim()
+        : validatedAvatarUrl;
+
+      // Garante sincronização do estado local userAvatarUrl após escrita bem-sucedida
+      setUserAvatarUrl(finalSyncedAvatar);
+      if (finalSyncedAvatar) {
+        localStorage.setItem('vagou_user_avatar', finalSyncedAvatar);
+      }
+
+      console.log(
+        '[UserDashboard] Depois de salvar - userAvatarUrl sincronizado:',
+        finalSyncedAvatar ? `${finalSyncedAvatar.slice(0, 80)}...` : '(vazio)',
+        '| Resposta updateUserProfile:',
+        dbResult
+      );
       
       // Chamar callback global para propagar atualizações no resto do App
       if (onUpdateProfile) {
-        onUpdateProfile(name.trim(), avatarUrl);
+        onUpdateProfile(name.trim(), finalSyncedAvatar);
       }
       
       hapticSuccess();
       setIsSavedSuccessfully(true);
       try {
+        window.dispatchEvent(
+          new CustomEvent('vagou:profile-updated', {
+            detail: { name: name.trim(), avatarUrl: finalSyncedAvatar },
+          })
+        );
         window.dispatchEvent(new Event('storage'));
       } catch {}
       setTimeout(() => {
