@@ -15,6 +15,16 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-23] — Correção de Persistência e Sincronização do Avatar do Usuário (`src/components/ProfileDrawer.tsx`)
+- **Tipo:** `[Fix / Database / User Avatar Persistence]`
+- **Motivo / Solicitação:** Investigação e correção do problema onde a foto de perfil (avatar) selecionada pelo usuário desaparecia (não era persistida no banco Supabase e era sobrescrita por sincronizações vazias).
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Persistência Imediata:** Adicionada chamada a `updateUserProfileInDb` logo após a seleção/upload da foto de perfil.
+  2. **Fallback Local Robusto:** Ajustado o mecanismo de sincronização para preservar o avatar local caso o banco retorne um registro sem foto.
+
 ### [2026-10-23] — Padronização de Sugestão de Cores Baseadas no Tema Principal em Todas as Ferramentas (`src/utils/colorPresets.ts`, `VisualIdentityCardView.tsx`, `ProfessionalSpaceManager.tsx`, `LayoutCardView.tsx`, `UnifiedButtonEditor.tsx`)
 - **Tipo:** `[Feat / UI-UX / Theme-Based Color Palettes]`
 - **Motivo / Solicitação:** Solicitação do usuário para que as ferramentas de cores do app ofereçam no máximo 5 cores baseadas na cor do tema selecionado (Transparente, Branco, Preto e mais 2 tons baseados no tema).

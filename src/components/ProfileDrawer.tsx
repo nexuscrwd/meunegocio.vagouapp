@@ -246,32 +246,33 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
       });
 
       if (isMounted) {
+        const localAvatar = localStorage.getItem('vagou_user_avatar') || '';
         if (dbProfile) {
-          const validAvatar = dbProfile.avatarUrl && !dbProfile.avatarUrl.includes('unsplash.com') && !dbProfile.avatarUrl.startsWith('data:image/svg+xml') ? dbProfile.avatarUrl : '';
+          const dbAvatar = dbProfile.avatarUrl && !dbProfile.avatarUrl.includes('unsplash.com') && !dbProfile.avatarUrl.startsWith('data:image/svg+xml') ? dbProfile.avatarUrl : '';
+          const finalAvatar = dbAvatar || localAvatar;
           setProfile(prev => ({
             ...prev,
             name: dbProfile.name || prev.name,
             email: dbProfile.email || prev.email,
             phone: dbProfile.phone || prev.phone,
-            avatarUrl: validAvatar,
+            avatarUrl: finalAvatar,
           }));
           if (dbProfile.name) localStorage.setItem('vagou_user_name', dbProfile.name);
           if (dbProfile.email) localStorage.setItem('vagou_user_email', dbProfile.email);
           if (dbProfile.phone) localStorage.setItem('vagou_user_phone', dbProfile.phone);
-          if (validAvatar) {
-            localStorage.setItem('vagou_user_avatar', validAvatar);
-            onUpdateUserAvatar?.(validAvatar);
-          } else {
-            localStorage.removeItem('vagou_user_avatar');
-            onUpdateUserAvatar?.('');
+          if (finalAvatar) {
+            localStorage.setItem('vagou_user_avatar', finalAvatar);
+            onUpdateUserAvatar?.(finalAvatar);
           }
         } else {
           setProfile(prev => ({
             ...prev,
-            avatarUrl: '',
+            avatarUrl: localAvatar,
           }));
-          localStorage.removeItem('vagou_user_avatar');
-          onUpdateUserAvatar?.('');
+          if (localAvatar) {
+            localStorage.setItem('vagou_user_avatar', localAvatar);
+            onUpdateUserAvatar?.(localAvatar);
+          }
         }
       }
     }
@@ -452,31 +453,42 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    let finalAvatar = '';
     if (isSupabaseConfigured) {
       const emailOrId = profile.email || profile.name || 'user';
       const storageUrl = await uploadAvatarToSupabaseStorage(file, emailOrId);
       if (storageUrl) {
-        setProfile(prev => ({ ...prev, avatarUrl: storageUrl }));
-        try {
-          localStorage.setItem('vagou_user_avatar', storageUrl);
-        } catch {}
-        onUpdateUserAvatar?.(storageUrl);
-        return;
+        finalAvatar = storageUrl;
       }
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      if (base64) {
-        setProfile(prev => ({ ...prev, avatarUrl: base64 }));
-        try {
-          localStorage.setItem('vagou_user_avatar', base64);
-        } catch {}
-        onUpdateUserAvatar?.(base64);
+    if (!finalAvatar) {
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target?.result as string || '');
+        reader.readAsDataURL(file);
+      });
+      finalAvatar = base64;
+    }
+
+    if (finalAvatar) {
+      setProfile(prev => ({ ...prev, avatarUrl: finalAvatar }));
+      try {
+        localStorage.setItem('vagou_user_avatar', finalAvatar);
+      } catch {}
+      onUpdateUserAvatar?.(finalAvatar);
+
+      try {
+        await updateUserProfileInDb({
+          name: profile.name,
+          email: profile.email,
+          phone: profile.phone,
+          avatarUrl: finalAvatar,
+        });
+      } catch (err) {
+        console.warn('Erro ao persistir avatar no Supabase:', err);
       }
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   // Estado dos Agendamentos
