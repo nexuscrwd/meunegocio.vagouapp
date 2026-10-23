@@ -1,0 +1,1447 @@
+import React, { useState } from 'react';
+import { 
+  ArrowLeft, LayoutGrid, Check, Smartphone, 
+  Layers, Sun, Moon, Type, Palette, Sliders,
+  Home, Scissors, Calendar, MapPin, Eye, EyeOff,
+  Circle, Square, ChevronRight, Sparkles
+} from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
+import { SalonAdminSettings } from '../../types';
+import { hapticLight, hapticSuccess } from '../../utils/haptics';
+
+export interface LayoutCardViewProps {
+  adminSettings: SalonAdminSettings;
+  onUpdateSettings: (settings: Partial<SalonAdminSettings>) => Promise<any> | void;
+  onBack: () => void;
+}
+
+type LayoutSectionKey = 'theme' | 'header' | 'hero' | 'bottom_nav' | 'welcome';
+
+const COLOR_PRESETS = [
+  { name: 'Esmeralda', hex: '#10b981' },
+  { name: 'Branco', hex: '#ffffff' },
+  { name: 'Dourado', hex: '#f59e0b' },
+  { name: 'Ciano', hex: '#06b6d4' },
+  { name: 'Violeta', hex: '#8b5cf6' },
+  { name: 'Rosa', hex: '#f43f5e' },
+  { name: 'Azul', hex: '#3b82f6' },
+  { name: 'Platina', hex: '#94a3b8' },
+];
+
+const BG_COLOR_PRESETS = [
+  { name: 'Dark Slate', hex: '#020617' },
+  { name: 'Preto Puro', hex: '#000000' },
+  { name: 'Noite Profunda', hex: '#0f172a' },
+  { name: 'Grafite', hex: '#1e293b' },
+  { name: 'Esmeralda Noturno', hex: '#064e3b' },
+  { name: 'Azul Petróleo', hex: '#0c4a6e' },
+  { name: 'Branco Puro', hex: '#ffffff' },
+  { name: 'Off-White', hex: '#f8fafc' },
+];
+
+const TEXT_COLOR_PRESETS = [
+  { name: 'Platina Padrão', hex: '#94a3b8' },
+  { name: 'Branco Puro', hex: '#ffffff' },
+  { name: 'Ardósia', hex: '#64748b' },
+  { name: 'Gelo', hex: '#cbd5e1' },
+  { name: 'Esmeralda', hex: '#10b981' },
+  { name: 'Dourado', hex: '#f59e0b' },
+  { name: 'Ciano Céu', hex: '#38bdf8' },
+];
+
+export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
+  adminSettings,
+  onUpdateSettings,
+  onBack,
+}) => {
+  const { isDark, setTheme } = useTheme();
+
+  // Seção ativa independente: null = tela de cards de opções; key = seção específica aberta
+  const [activeSection, setActiveSection] = useState<LayoutSectionKey | null>(null);
+
+  // 1. Tema Permanente (Dark / Light)
+  const [defaultTheme, setDefaultTheme] = useState<'dark' | 'light'>(
+    adminSettings.defaultTheme || (isDark ? 'dark' : 'light')
+  );
+
+  // 2. Slogan do cabeçalho
+  const [showSlogan, setShowSlogan] = useState<boolean>(
+    adminSettings.showSlogan !== false
+  );
+
+  // 3. Logo texto provisório e cor da fonte
+  const [logoTextFallback, setLogoTextFallback] = useState<string>(
+    adminSettings.logoTextFallback ?? ''
+  );
+  const [logoTextColor, setLogoTextColor] = useState<string>(
+    adminSettings.logoTextColor || '#10b981'
+  );
+
+  // 4. Slide da página principal
+  const [showHeroSlides, setShowHeroSlides] = useState<boolean>(
+    adminSettings.showHeroSlides !== false
+  );
+
+  // 5. Barra de navegação inferior (Rodapé)
+  const [navStyle, setNavStyle] = useState<'minimal' | 'solid' | 'boxed'>(
+    adminSettings.navStyle || 'minimal'
+  );
+  const [navShape, setNavShape] = useState<'square' | 'circle'>(
+    adminSettings.navShape || 'square'
+  );
+  const [navBorder, setNavBorder] = useState<'bordered' | 'none'>(
+    adminSettings.navBorder || 'bordered'
+  );
+  const [navBgStyle, setNavBgStyle] = useState<'solid' | 'glass' | 'transparent'>(
+    adminSettings.navBgStyle || 'glass'
+  );
+  const [navBgColor, setNavBgColor] = useState<string>(
+    adminSettings.navBgColor || (isDark ? '#020617' : '#ffffff')
+  );
+  const [navActiveColor, setNavActiveColor] = useState<string>(
+    adminSettings.navActiveColor || '#10b981'
+  );
+  const [navTextColor, setNavTextColor] = useState<string>(
+    adminSettings.navTextColor || (isDark ? '#94a3b8' : '#64748b')
+  );
+
+  // 6. Faixa de boas-vindas
+  const [welcomeStyle, setWelcomeStyle] = useState<'atmospheric' | 'glass'>(
+    adminSettings.welcomeStyle || 'atmospheric'
+  );
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedSuccess, setSavedSuccess] = useState(false);
+
+  const autoSyncSettings = (updates: Partial<SalonAdminSettings>) => {
+    try {
+      onUpdateSettings(updates);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleToggleTheme = (theme: 'dark' | 'light') => {
+    hapticLight();
+    setDefaultTheme(theme);
+    setTheme(theme);
+    autoSyncSettings({ defaultTheme: theme });
+    try {
+      localStorage.setItem('vagou_user_theme_preference', theme);
+    } catch {}
+  };
+
+  const handleSave = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSaving(true);
+    hapticSuccess();
+
+    try {
+      await onUpdateSettings({
+        defaultTheme,
+        showSlogan,
+        logoTextFallback: logoTextFallback.trim(),
+        logoTextColor,
+        showHeroSlides,
+        navStyle,
+        navShape,
+        navBorder,
+        navBgStyle,
+        navBgColor,
+        navActiveColor,
+        navTextColor,
+        welcomeStyle,
+      });
+
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 2400);
+    } catch {
+      // ignore
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Título e Ícone da barra de navegação superior conforme a tela ativa
+  const getHeaderInfo = () => {
+    switch (activeSection) {
+      case 'theme':
+        return { title: 'Tema do Layout', icon: Sliders };
+      case 'header':
+        return { title: 'Cabeçalho & Identificação', icon: Type };
+      case 'hero':
+        return { title: 'Slide da Página Inicial', icon: Layers };
+      case 'bottom_nav':
+        return { title: 'Barra de Navegação Inferior', icon: Smartphone };
+      case 'welcome':
+        return { title: 'Faixa de Boas-Vindas', icon: Sparkles };
+      default:
+        return { title: 'Layout & Navegação', icon: LayoutGrid };
+    }
+  };
+
+  const headerInfo = getHeaderInfo();
+  const HeaderIcon = headerInfo.icon;
+
+  return (
+    <div className={`w-full h-full flex flex-col justify-between overflow-y-auto no-scrollbar ${
+      isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
+    }`}>
+      {/* Barra de Topo Fixa com Ação de Voltar Inteligente */}
+      <div className={`px-3 py-2.5 border-b shrink-0 flex items-center justify-between gap-2 sticky top-0 z-30 ${
+        isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-xs'
+      }`}>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              hapticLight();
+              if (activeSection !== null) {
+                setActiveSection(null);
+              } else {
+                onBack();
+              }
+            }}
+            className={`p-1.5 rounded-[4px] transition cursor-pointer active:scale-95 ${
+              isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
+            }`}
+            title={activeSection ? "Voltar para opções de layout" : "Voltar para Preferências"}
+            aria-label={activeSection ? "Voltar para opções de layout" : "Voltar para Preferências"}
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <div className="flex items-center gap-1.5">
+            <HeaderIcon className="w-4 h-4 text-emerald-500 shrink-0" />
+            <h2 className="text-xs sm:text-sm font-bold font-['Poppins']">
+              {headerInfo.title}
+            </h2>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {savedSuccess && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-emerald-500 px-2 py-0.5 rounded-[4px] shadow-xs animate-in fade-in">
+              <Check className="w-3 h-3 text-white" />
+              Salvo
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="px-3 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold font-['Poppins'] transition active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-xs whitespace-nowrap"
+          >
+            <Check className="w-3.5 h-3.5 text-white" />
+            <span className="text-white">Salvar</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Conteúdo Principal: Modo Hub (Cards de Opções) ou Modo Seção Independente */}
+      <div className="p-3.5 flex-1 pb-24">
+        {activeSection === null ? (
+          /* ========================================================
+             VISÃO 1: HUB DE CARDS DE OPÇÕES DE LAYOUT & NAVEGAÇÃO
+             ======================================================== */
+          <div className="space-y-3">
+            <div className="pb-1">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-['Poppins']">
+                Selecione uma categoria de personalização:
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2.5">
+              {/* CARD 1: TEMA DO LAYOUT */}
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setActiveSection('theme');
+                }}
+                className={`w-full p-3.5 rounded-[4px] border text-left transition active:scale-[0.99] cursor-pointer flex items-center justify-between gap-3 ${
+                  isDark 
+                    ? 'bg-slate-900/80 border-slate-800 hover:border-emerald-500/50' 
+                    : 'bg-white border-slate-200 hover:border-emerald-500/50 shadow-xs'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-9 h-9 rounded-[4px] flex items-center justify-center shrink-0 ${
+                    isDark ? 'bg-slate-800 text-emerald-400' : 'bg-emerald-50 text-emerald-600'
+                  }`}>
+                    <Sliders className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs sm:text-sm font-bold font-['Poppins'] truncate">
+                        Tema do Layout
+                      </span>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-[4px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+                        {defaultTheme === 'dark' ? 'Escuro' : 'Claro'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                      Aparência permanente (claro ou escuro) da vitrine do seu negócio
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              {/* CARD 2: CABEÇALHO & IDENTIFICAÇÃO */}
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setActiveSection('header');
+                }}
+                className={`w-full p-3.5 rounded-[4px] border text-left transition active:scale-[0.99] cursor-pointer flex items-center justify-between gap-3 ${
+                  isDark 
+                    ? 'bg-slate-900/80 border-slate-800 hover:border-emerald-500/50' 
+                    : 'bg-white border-slate-200 hover:border-emerald-500/50 shadow-xs'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-9 h-9 rounded-[4px] flex items-center justify-center shrink-0 ${
+                    isDark ? 'bg-slate-800 text-emerald-400' : 'bg-emerald-50 text-emerald-600'
+                  }`}>
+                    <Type className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs sm:text-sm font-bold font-['Poppins'] truncate">
+                        Cabeçalho & Identificação
+                      </span>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-[4px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+                        {showSlogan ? 'Slogan Ativo' : 'Slogan Oculto'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                      Slogan comercial, texto provisório e cor da fonte na falta de logo
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              {/* CARD 3: SLIDE DA PÁGINA INICIAL */}
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setActiveSection('hero');
+                }}
+                className={`w-full p-3.5 rounded-[4px] border text-left transition active:scale-[0.99] cursor-pointer flex items-center justify-between gap-3 ${
+                  isDark 
+                    ? 'bg-slate-900/80 border-slate-800 hover:border-emerald-500/50' 
+                    : 'bg-white border-slate-200 hover:border-emerald-500/50 shadow-xs'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-9 h-9 rounded-[4px] flex items-center justify-center shrink-0 ${
+                    isDark ? 'bg-slate-800 text-emerald-400' : 'bg-emerald-50 text-emerald-600'
+                  }`}>
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs sm:text-sm font-bold font-['Poppins'] truncate">
+                        Slide da Página Inicial
+                      </span>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-[4px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+                        {showHeroSlides ? 'Slide Ativo' : 'Painel Direto'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                      Carrossel de banners publicitários ou apresentação direta da vitrine
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              {/* CARD 4: BARRA DE NAVEGAÇÃO INFERIOR */}
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setActiveSection('bottom_nav');
+                }}
+                className={`w-full p-3.5 rounded-[4px] border text-left transition active:scale-[0.99] cursor-pointer flex items-center justify-between gap-3 ${
+                  isDark 
+                    ? 'bg-slate-900/80 border-slate-800 hover:border-emerald-500/50' 
+                    : 'bg-white border-slate-200 hover:border-emerald-500/50 shadow-xs'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-9 h-9 rounded-[4px] flex items-center justify-center shrink-0 ${
+                    isDark ? 'bg-slate-800 text-emerald-400' : 'bg-emerald-50 text-emerald-600'
+                  }`}>
+                    <Smartphone className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs sm:text-sm font-bold font-['Poppins'] truncate">
+                        Barra de Navegação Inferior
+                      </span>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-[4px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+                        {navBgStyle === 'solid' ? 'Sólido' : navBgStyle === 'glass' ? 'Vidro Jateado' : 'Alpha 100%'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                      Fundo, cor de destaque, cor dos textos/ícones e botão boleado com/sem borda
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+
+              {/* CARD 5: FAIXA DE BOAS-VINDAS */}
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setActiveSection('welcome');
+                }}
+                className={`w-full p-3.5 rounded-[4px] border text-left transition active:scale-[0.99] cursor-pointer flex items-center justify-between gap-3 ${
+                  isDark 
+                    ? 'bg-slate-900/80 border-slate-800 hover:border-emerald-500/50' 
+                    : 'bg-white border-slate-200 hover:border-emerald-500/50 shadow-xs'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-9 h-9 rounded-[4px] flex items-center justify-center shrink-0 ${
+                    isDark ? 'bg-slate-800 text-emerald-400' : 'bg-emerald-50 text-emerald-600'
+                  }`}>
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs sm:text-sm font-bold font-['Poppins'] truncate">
+                        Faixa de Boas-Vindas
+                      </span>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-[4px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+                        {welcomeStyle === 'atmospheric' ? 'Degradê' : 'Cristal'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                      Estilo da faixa de apresentação no topo da página principal
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* ========================================================
+             VISÃO 2: SEÇÕES INDEPENDENTES DEDICADAS
+             ======================================================== */
+          <div className="space-y-4">
+            {/* SUB-SEÇÃO 1: TEMA DO LAYOUT */}
+            {activeSection === 'theme' && (
+              <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
+                isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+              }`}>
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+                  <div className="flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-emerald-400" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                      Tema do Layout Permanente
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-400">
+                    {defaultTheme === 'dark' ? 'Tema Escuro' : 'Tema Claro'}
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Define a aparência inicial e permanente da vitrine do seu negócio para todos os clientes.
+                </p>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleTheme('dark')}
+                    className={`p-3 rounded-[4px] border text-left transition cursor-pointer flex items-center justify-between gap-2 ${
+                      defaultTheme === 'dark'
+                        ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                        : isDark
+                          ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-emerald-500/40'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500/40'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Moon className={`w-4 h-4 ${defaultTheme === 'dark' ? 'text-white' : 'text-slate-400'}`} />
+                      <div>
+                        <span className={`text-xs font-bold block ${defaultTheme === 'dark' ? 'text-white' : ''}`}>
+                          Escuro
+                        </span>
+                        <span className={`text-[9px] ${defaultTheme === 'dark' ? 'text-white/80' : 'text-slate-400'}`}>
+                          Dark Slate
+                        </span>
+                      </div>
+                    </div>
+                    {defaultTheme === 'dark' && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleToggleTheme('light')}
+                    className={`p-3 rounded-[4px] border text-left transition cursor-pointer flex items-center justify-between gap-2 ${
+                      defaultTheme === 'light'
+                        ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                        : isDark
+                          ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-emerald-500/40'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500/40'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Sun className={`w-4 h-4 ${defaultTheme === 'light' ? 'text-white' : 'text-amber-500'}`} />
+                      <div>
+                        <span className={`text-xs font-bold block ${defaultTheme === 'light' ? 'text-white' : ''}`}>
+                          Claro
+                        </span>
+                        <span className={`text-[9px] ${defaultTheme === 'light' ? 'text-white/80' : 'text-slate-400'}`}>
+                          Clean White
+                        </span>
+                      </div>
+                    </div>
+                    {defaultTheme === 'light' && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* SUB-SEÇÃO 2: CABEÇALHO & IDENTIFICAÇÃO */}
+            {activeSection === 'header' && (
+              <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
+                isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+              }`}>
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+                  <div className="flex items-center gap-2">
+                    <Type className="w-4 h-4 text-emerald-400" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                      Cabeçalho & Identificação
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-400">
+                    {showSlogan ? 'Slogan Ativo' : 'Slogan Oculto'}
+                  </span>
+                </div>
+
+                {/* Toggle Slogan */}
+                <div className="flex items-center justify-between gap-3 p-2.5 rounded-[4px] border border-slate-800/60 bg-slate-950/30">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-bold block">
+                      Exibir Slogan no Cabeçalho
+                    </span>
+                    <span className="text-[10px] text-slate-400 block">
+                      Mostra ou oculta a frase de assinatura abaixo do nome do salão
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      const next = !showSlogan;
+                      setShowSlogan(next);
+                      autoSyncSettings({ showSlogan: next });
+                    }}
+                    className={`h-7 px-3 rounded-[4px] text-[10px] font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                      showSlogan
+                        ? 'bg-emerald-500 text-white'
+                        : isDark
+                          ? 'bg-slate-800 text-slate-400'
+                          : 'bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {showSlogan ? (
+                      <>
+                        <Eye className="w-3 h-3 text-white" />
+                        <span className="text-white">Exibir</span>
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="w-3 h-3" />
+                        <span>Ocultar</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Input de Texto Provisório na Falta de Logo */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold">
+                      Texto Provisório (Na ausência de logotipo)
+                    </label>
+                    <span className="text-[10px] text-slate-400">
+                      Substitui a imagem se não houver arquivo
+                    </span>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={logoTextFallback}
+                    onChange={(e) => {
+                      setLogoTextFallback(e.target.value);
+                      autoSyncSettings({ logoTextFallback: e.target.value.trim() });
+                    }}
+                    placeholder={adminSettings.salonName || 'Nome do Estabelecimento'}
+                    maxLength={40}
+                    className={`w-full px-3 py-2 text-xs rounded-[4px] border transition focus:outline-hidden ${
+                      isDark
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                        : 'bg-white border-slate-200 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                </div>
+
+                {/* Seletor de Cor da Fonte Provisória */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold flex items-center gap-1.5">
+                      <Palette className="w-3.5 h-3.5 text-emerald-400" />
+                      Cor da Fonte do Texto Provisório
+                    </label>
+                    <span className="text-[10px] font-mono font-bold" style={{ color: logoTextColor }}>
+                      {logoTextColor}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {COLOR_PRESETS.map((color) => (
+                      <button
+                        key={color.hex}
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          setLogoTextColor(color.hex);
+                          autoSyncSettings({ logoTextColor: color.hex });
+                        }}
+                        className={`w-7 h-7 rounded-[4px] border transition cursor-pointer relative flex items-center justify-center ${
+                          logoTextColor.toLowerCase() === color.hex.toLowerCase()
+                            ? 'border-white scale-110 shadow-xs'
+                            : 'border-slate-700/60 hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: color.hex }}
+                        title={color.name}
+                      >
+                        {logoTextColor.toLowerCase() === color.hex.toLowerCase() && (
+                          <Check className={`w-3.5 h-3.5 ${color.hex === '#ffffff' ? 'text-slate-900' : 'text-white'}`} />
+                        )}
+                      </button>
+                    ))}
+
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <input
+                        type="color"
+                        value={logoTextColor}
+                        onChange={(e) => {
+                          setLogoTextColor(e.target.value);
+                          autoSyncSettings({ logoTextColor: e.target.value });
+                        }}
+                        className="w-7 h-7 rounded-[4px] border border-slate-700 cursor-pointer bg-transparent"
+                        title="Seletor de cor personalizada"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Prévia do Cabeçalho em Tempo Real */}
+                <div className="pt-2 border-t border-slate-800/60 space-y-1.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Prévia do Cabeçalho em Tempo Real
+                  </span>
+
+                  <div className={`p-3 rounded-[4px] border flex items-center justify-between ${
+                    isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+                  }`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div
+                        className="w-8 h-8 rounded-[4px] flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-xs"
+                        style={{ backgroundColor: navActiveColor || '#10b981' }}
+                      >
+                        {(logoTextFallback || adminSettings.salonName || 'VG').slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="flex flex-col justify-center min-w-0">
+                        <span
+                          className="text-xs sm:text-sm font-extrabold tracking-tight truncate leading-tight"
+                          style={{ color: logoTextColor }}
+                        >
+                          {logoTextFallback || adminSettings.salonName || 'Nome do Estabelecimento'}
+                        </span>
+                        {showSlogan && (
+                          <span className="text-[9px] font-medium text-slate-400 truncate leading-none mt-0.5">
+                            {adminSettings.slogan || 'Sua assinatura ou slogan comercial'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-[4px] bg-emerald-500 text-white shrink-0">
+                      Aberto
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SUB-SEÇÃO 3: SLIDE DA PÁGINA INICIAL */}
+            {activeSection === 'hero' && (
+              <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
+                isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+              }`}>
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-emerald-400" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                      Slide da Página Inicial
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-400">
+                    {showHeroSlides ? 'Slide Ativo' : 'Painel Direto'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 p-2.5 rounded-[4px] border border-slate-800/60 bg-slate-950/30">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-bold block">
+                      Carrossel de Slides Fotográficos
+                    </span>
+                    <span className="text-[10px] text-slate-400 block">
+                      Oculte caso ainda não tenha banners prontos ou prefira apresentação direta
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      const next = !showHeroSlides;
+                      setShowHeroSlides(next);
+                      autoSyncSettings({ showHeroSlides: next });
+                    }}
+                    className={`h-7 px-3 rounded-[4px] text-[10px] font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                      showHeroSlides
+                        ? 'bg-emerald-500 text-white'
+                        : isDark
+                          ? 'bg-slate-800 text-slate-400'
+                          : 'bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {showHeroSlides ? (
+                      <>
+                        <Eye className="w-3 h-3 text-white" />
+                        <span className="text-white">Exibir</span>
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="w-3 h-3" />
+                        <span>Ocultar</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Prévia do Modo de Exibição da Página Inicial */}
+                <div className="pt-2 border-t border-slate-800/60 space-y-1.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Prévia do Modo Escolhido
+                  </span>
+
+                  <div className={`p-3 rounded-[4px] border ${
+                    isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+                  }`}>
+                    {showHeroSlides ? (
+                      <div className="flex items-center gap-3">
+                        <div className="w-16 h-12 rounded-[4px] bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 overflow-hidden relative">
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 to-transparent" />
+                          <span className="text-[9px] font-bold text-emerald-400 z-10">Slide</span>
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold block text-emerald-400">
+                            Carrossel Publicitário Ativo
+                          </span>
+                          <span className="text-[10px] text-slate-400 block">
+                            Transição suave com banners de serviços, agendamento e fotos
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="w-16 h-12 rounded-[4px] bg-slate-800 border border-slate-700 flex flex-col items-center justify-center shrink-0">
+                          <span className="text-[9px] font-bold text-white">Vitrine</span>
+                          <span className="text-[8px] text-slate-400">Direta</span>
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold block text-white">
+                            Painel Direto (Sem Banners)
+                          </span>
+                          <span className="text-[10px] text-slate-400 block">
+                            Apresentação direta com dados do negócio e atalhos de agendamento
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SUB-SEÇÃO 4: BARRA DE NAVEGAÇÃO INFERIOR */}
+            {activeSection === 'bottom_nav' && (
+              <div className={`p-3.5 rounded-[4px] border space-y-4 ${
+                isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+              }`}>
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="w-4 h-4 text-emerald-400" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                      Barra de Navegação Inferior (Rodapé)
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-400">
+                    {navBgStyle === 'solid' ? 'Sólido' : navBgStyle === 'glass' ? 'Vidro Jateado' : 'Alpha 100%'} • {navShape === 'circle' ? 'Circular' : 'Quadrado'}
+                  </span>
+                </div>
+
+                {/* 4.1 Fundo da Barra: Sólido, Alpha-Vidro Jateado, Alpha 100% */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold">
+                      Efeito do Fundo
+                    </label>
+                    <span className="text-[10px] text-slate-400">
+                      Opacidade e textura
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'solid' as const, label: 'Sólido', desc: 'Opaco com preenchimento total' },
+                      { id: 'glass' as const, label: 'Alpha-Vidro Jateado', desc: 'Translúcido com desfoque' },
+                      { id: 'transparent' as const, label: 'Alpha 100%', desc: 'Totalmente transparente' },
+                    ].map((bgOpt) => {
+                      const isSelected = navBgStyle === bgOpt.id;
+                      return (
+                        <button
+                          key={bgOpt.id}
+                          type="button"
+                          onClick={() => {
+                            hapticLight();
+                            setNavBgStyle(bgOpt.id);
+                            autoSyncSettings({ navBgStyle: bgOpt.id });
+                          }}
+                          className={`p-2.5 rounded-[4px] border text-left transition cursor-pointer flex flex-col justify-between gap-1 ${
+                            isSelected
+                              ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                              : isDark
+                                ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-emerald-500/40'
+                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500/40'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span className={`text-[11px] font-bold truncate ${isSelected ? 'text-white' : ''}`}>
+                              {bgOpt.label}
+                            </span>
+                            {isSelected && <Check className="w-3 h-3 text-white shrink-0" />}
+                          </div>
+                          <span className={`text-[9px] leading-tight ${isSelected ? 'text-white/90' : 'text-slate-400'}`}>
+                            {bgOpt.desc}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 4.2 Cor do Fundo da Barra */}
+                {navBgStyle !== 'transparent' && (
+                  <div className="space-y-2 pt-1 border-t border-slate-800/40">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold flex items-center gap-1.5">
+                        <Palette className="w-3.5 h-3.5 text-emerald-400" />
+                        Cor do Fundo da Barra
+                      </label>
+                      <span className="text-[10px] font-mono font-bold" style={{ color: navBgColor }}>
+                        {navBgColor}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {BG_COLOR_PRESETS.map((color) => (
+                        <button
+                          key={color.hex}
+                          type="button"
+                          onClick={() => {
+                            hapticLight();
+                            setNavBgColor(color.hex);
+                            autoSyncSettings({ navBgColor: color.hex });
+                          }}
+                          className={`w-7 h-7 rounded-[4px] border transition cursor-pointer relative flex items-center justify-center ${
+                            navBgColor.toLowerCase() === color.hex.toLowerCase()
+                              ? 'border-emerald-400 scale-110 shadow-xs'
+                              : 'border-slate-700/60 hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: color.hex }}
+                          title={color.name}
+                        >
+                          {navBgColor.toLowerCase() === color.hex.toLowerCase() && (
+                            <Check className={`w-3.5 h-3.5 ${color.hex === '#ffffff' || color.hex === '#f8fafc' ? 'text-slate-900' : 'text-white'}`} />
+                          )}
+                        </button>
+                      ))}
+
+                      <div className="flex items-center gap-1.5 ml-auto">
+                        <input
+                          type="color"
+                          value={navBgColor}
+                          onChange={(e) => {
+                            setNavBgColor(e.target.value);
+                            autoSyncSettings({ navBgColor: e.target.value });
+                          }}
+                          className="w-7 h-7 rounded-[4px] border border-slate-700 cursor-pointer bg-transparent"
+                          title="Cor personalizada de fundo"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4.3 Cor de Destaque (Item Ativo) */}
+                <div className="space-y-2 pt-1 border-t border-slate-800/40">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold flex items-center gap-1.5">
+                      <Palette className="w-3.5 h-3.5 text-emerald-400" />
+                      Cor de Destaque (Item Ativo)
+                    </label>
+                    <span className="text-[10px] font-mono font-bold" style={{ color: navActiveColor }}>
+                      {navActiveColor}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {COLOR_PRESETS.map((color) => (
+                      <button
+                        key={color.hex}
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          setNavActiveColor(color.hex);
+                          autoSyncSettings({ navActiveColor: color.hex });
+                        }}
+                        className={`w-7 h-7 rounded-[4px] border transition cursor-pointer relative flex items-center justify-center ${
+                          navActiveColor.toLowerCase() === color.hex.toLowerCase()
+                            ? 'border-white scale-110 shadow-xs'
+                            : 'border-slate-700/60 hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: color.hex }}
+                        title={color.name}
+                      >
+                        {navActiveColor.toLowerCase() === color.hex.toLowerCase() && (
+                          <Check className={`w-3.5 h-3.5 ${color.hex === '#ffffff' ? 'text-slate-900' : 'text-white'}`} />
+                        )}
+                      </button>
+                    ))}
+
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <input
+                        type="color"
+                        value={navActiveColor}
+                        onChange={(e) => {
+                          setNavActiveColor(e.target.value);
+                          autoSyncSettings({ navActiveColor: e.target.value });
+                        }}
+                        className="w-7 h-7 rounded-[4px] border border-slate-700 cursor-pointer bg-transparent"
+                        title="Cor personalizada de destaque"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4.4 Cor do Texto & Ícones (Padrão / Inativos) */}
+                <div className="space-y-2 pt-1 border-t border-slate-800/40">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold flex items-center gap-1.5">
+                      <Palette className="w-3.5 h-3.5 text-emerald-400" />
+                      Cor do Texto e Ícones (Padrão)
+                    </label>
+                    <span className="text-[10px] font-mono font-bold" style={{ color: navTextColor }}>
+                      {navTextColor}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {TEXT_COLOR_PRESETS.map((color) => (
+                      <button
+                        key={color.hex}
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          setNavTextColor(color.hex);
+                          autoSyncSettings({ navTextColor: color.hex });
+                        }}
+                        className={`w-7 h-7 rounded-[4px] border transition cursor-pointer relative flex items-center justify-center ${
+                          navTextColor.toLowerCase() === color.hex.toLowerCase()
+                            ? 'border-emerald-400 scale-110 shadow-xs'
+                            : 'border-slate-700/60 hover:scale-105'
+                        }`}
+                        style={{ backgroundColor: color.hex }}
+                        title={color.name}
+                      >
+                        {navTextColor.toLowerCase() === color.hex.toLowerCase() && (
+                          <Check className={`w-3.5 h-3.5 ${color.hex === '#ffffff' || color.hex === '#cbd5e1' ? 'text-slate-900' : 'text-white'}`} />
+                        )}
+                      </button>
+                    ))}
+
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <input
+                        type="color"
+                        value={navTextColor}
+                        onChange={(e) => {
+                          setNavTextColor(e.target.value);
+                          autoSyncSettings({ navTextColor: e.target.value });
+                        }}
+                        className="w-7 h-7 rounded-[4px] border border-slate-700 cursor-pointer bg-transparent"
+                        title="Cor personalizada do texto e ícones"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4.5 Formato dos Botões: Quadrado vs Boleado Circular */}
+                <div className="space-y-1.5 pt-1 border-t border-slate-800/40">
+                  <label className="text-xs font-bold">
+                    Formato dos Botões
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setNavShape('square');
+                        autoSyncSettings({ navShape: 'square' });
+                      }}
+                      className={`p-2.5 rounded-[4px] border text-left transition cursor-pointer flex items-center justify-between gap-2 ${
+                        navShape === 'square'
+                          ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                          : isDark
+                            ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-emerald-500/40'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Square className={`w-4 h-4 ${navShape === 'square' ? 'text-white' : 'text-slate-400'}`} />
+                        <div>
+                          <span className={`text-xs font-bold block ${navShape === 'square' ? 'text-white' : ''}`}>
+                            Quadrado
+                          </span>
+                          <span className={`text-[9px] ${navShape === 'square' ? 'text-white/80' : 'text-slate-400'}`}>
+                            Raio 4px
+                          </span>
+                        </div>
+                      </div>
+                      {navShape === 'square' && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setNavShape('circle');
+                        autoSyncSettings({ navShape: 'circle' });
+                      }}
+                      className={`p-2.5 rounded-[4px] border text-left transition cursor-pointer flex items-center justify-between gap-2 ${
+                        navShape === 'circle'
+                          ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                          : isDark
+                          ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-emerald-500/40'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Circle className={`w-4 h-4 ${navShape === 'circle' ? 'text-white' : 'text-slate-400'}`} />
+                        <div>
+                          <span className={`text-xs font-bold block ${navShape === 'circle' ? 'text-white' : ''}`}>
+                            Boleado Circular
+                          </span>
+                          <span className={`text-[9px] ${navShape === 'circle' ? 'text-white/80' : 'text-slate-400'}`}>
+                            Arredondado Total
+                          </span>
+                        </div>
+                      </div>
+                      {navShape === 'circle' && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4.6 Botão Boleado Borda / Sem Borda */}
+                <div className="space-y-1.5 pt-1 border-t border-slate-800/40">
+                  <label className="text-xs font-bold">
+                    Borda do Botão
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setNavBorder('bordered');
+                        autoSyncSettings({ navBorder: 'bordered' });
+                      }}
+                      className={`p-2.5 rounded-[4px] border text-left transition cursor-pointer flex items-center justify-between gap-2 ${
+                        navBorder === 'bordered'
+                          ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                          : isDark
+                            ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-emerald-500/40'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500/40'
+                      }`}
+                    >
+                      <div>
+                        <span className={`text-xs font-bold block ${navBorder === 'bordered' ? 'text-white' : ''}`}>
+                          Com Borda
+                        </span>
+                        <span className={`text-[9px] ${navBorder === 'bordered' ? 'text-white/80' : 'text-slate-400'}`}>
+                          Contorno visível nítido
+                        </span>
+                      </div>
+                      {navBorder === 'bordered' && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setNavBorder('none');
+                        autoSyncSettings({ navBorder: 'none' });
+                      }}
+                      className={`p-2.5 rounded-[4px] border text-left transition cursor-pointer flex items-center justify-between gap-2 ${
+                        navBorder === 'none'
+                          ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                          : isDark
+                            ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-emerald-500/40'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500/40'
+                      }`}
+                    >
+                      <div>
+                        <span className={`text-xs font-bold block ${navBorder === 'none' ? 'text-white' : ''}`}>
+                          Sem Borda
+                        </span>
+                        <span className={`text-[9px] ${navBorder === 'none' ? 'text-white/80' : 'text-slate-400'}`}>
+                          Layout liso e contínuo
+                        </span>
+                      </div>
+                      {navBorder === 'none' && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4.7 Estilo de Destaque */}
+                <div className="space-y-1.5 pt-1 border-t border-slate-800/40">
+                  <label className="text-xs font-bold">
+                    Estilo de Destaque
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {[
+                      { 
+                        id: 'minimal' as const, 
+                        label: 'Minimalista', 
+                        desc: 'Traço limpo sob o ícone ativo' 
+                      },
+                      { 
+                        id: 'solid' as const, 
+                        label: 'Destaque Sólido', 
+                        desc: 'Preenchimento vibrante na cor ativa' 
+                      },
+                      { 
+                        id: 'boxed' as const, 
+                        label: 'Emoldurado', 
+                        desc: 'Ícone contornado em caixa geométrica' 
+                      },
+                    ].map((opt) => {
+                      const isSelected = navStyle === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => {
+                            hapticLight();
+                            setNavStyle(opt.id);
+                            autoSyncSettings({ navStyle: opt.id });
+                          }}
+                          className={`p-2.5 rounded-[4px] border text-left transition cursor-pointer flex flex-col justify-between gap-1 ${
+                            isSelected
+                              ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                              : isDark
+                                ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-emerald-500/40'
+                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500/40'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span className={`text-xs font-bold truncate ${isSelected ? 'text-white' : ''}`}>
+                              {opt.label}
+                            </span>
+                            {isSelected && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                          </div>
+                          <span className={`text-[9px] leading-tight ${isSelected ? 'text-white/90' : 'text-slate-400'}`}>
+                            {opt.desc}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 4.8 Prévia ao vivo da Barra de Rodapé Selecionada (Traços & Cores Reais) */}
+                <div className="pt-2 border-t border-slate-800/60 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      Prévia do Rodapé em Tempo Real
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-[4px] ${
+                      navBgStyle === 'transparent'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        : navBgStyle === 'glass'
+                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                          : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    }`}>
+                      {navBgStyle === 'transparent' ? 'Alpha 100% (Transparente)' : navBgStyle === 'glass' ? 'Alpha-Vidro Jateado (Blur)' : 'Sólido'}
+                    </span>
+                  </div>
+
+                  {/* Cenário de Teste com Conteúdo e Gradiente Passando por Trás */}
+                  <div className="relative rounded-[4px] overflow-hidden border border-slate-800 bg-slate-950 flex flex-col justify-end min-h-[145px] shadow-inner">
+                    {/* Elementos Simulados da Página (ficam no fundo) */}
+                    <div className="absolute inset-0 p-3 flex flex-col justify-start gap-2 bg-gradient-to-br from-slate-900 via-indigo-950/40 to-slate-950 select-none pointer-events-none">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-[4px] bg-emerald-500 flex items-center justify-center text-white text-[10px] font-bold shadow-xs">
+                            V
+                          </div>
+                          <div>
+                            <span className="text-[11px] font-bold text-white block leading-tight">Corte Degradê & Barba Vip</span>
+                            <span className="text-[9px] text-emerald-400 font-mono font-bold leading-none">R$ 65,00 • 50 min</span>
+                          </div>
+                        </div>
+                        <span className="text-[9px] bg-emerald-500 text-white font-bold px-1.5 py-0.5 rounded-[4px]">
+                          Vaga Hoje
+                        </span>
+                      </div>
+
+                      {/* Faixa vibrante colorida para comprovação visual imediata do vidro / transparência */}
+                      <div className="w-full h-8 rounded-[4px] bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-500 p-2 flex items-center justify-between opacity-90 shadow-sm mt-1">
+                        <span className="text-[10px] font-extrabold text-white uppercase tracking-wider">
+                          Promoção Especial de Inauguração
+                        </span>
+                        <span className="text-[9px] font-mono font-black text-slate-950 bg-white/90 px-1.5 py-0.5 rounded-[4px]">
+                          -20% OFF
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Barra de Rodapé Simulada (Sobreposta por cima do cenário) */}
+                    <div 
+                      style={{
+                        backgroundColor: navBgStyle === 'transparent'
+                          ? 'transparent'
+                          : navBgStyle === 'glass'
+                            ? `color-mix(in srgb, ${navBgColor} 45%, transparent)`
+                            : navBgColor,
+                        borderColor: navBgStyle === 'transparent'
+                          ? 'transparent'
+                          : navBgStyle === 'glass'
+                            ? `color-mix(in srgb, ${navBgColor} 25%, transparent)`
+                            : `color-mix(in srgb, ${navBgColor} 40%, #334155)`,
+                        backdropFilter: navBgStyle === 'glass' ? 'blur(16px) saturate(160%)' : 'none',
+                        WebkitBackdropFilter: navBgStyle === 'glass' ? 'blur(16px) saturate(160%)' : 'none',
+                      }}
+                      className={`relative z-10 w-full p-2.5 flex items-center justify-around transition-all ${
+                        navBgStyle === 'glass'
+                          ? 'backdrop-blur-md backdrop-saturate-150 border-t'
+                          : navBgStyle === 'solid'
+                            ? 'border-t'
+                            : 'border-t-0'
+                      }`}
+                    >
+                      {/* Item Início (Inativo) */}
+                      <div className="flex flex-col items-center gap-1 opacity-70">
+                        <Home className="w-5 h-5 stroke-[2]" style={{ color: navTextColor }} />
+                        <span className="text-[9px] font-bold font-['Poppins']" style={{ color: navTextColor }}>
+                          Início
+                        </span>
+                      </div>
+
+                      {/* Item Ativo conforme navStyle, navShape e navBorder */}
+                      {navStyle === 'minimal' && (
+                        <div className={`flex flex-col items-center gap-1 relative py-0.5 px-2 ${
+                          navBorder === 'bordered'
+                            ? navShape === 'circle' ? 'rounded-full border border-white/20' : 'rounded-[4px] border border-white/20'
+                            : ''
+                        }`}>
+                          <span
+                            className="absolute -top-1 w-6 h-[2px] rounded-full"
+                            style={{ backgroundColor: navActiveColor }}
+                          />
+                          <Scissors className="w-5 h-5 stroke-[2.2]" style={{ color: navActiveColor }} />
+                          <span className="text-[9px] font-bold font-['Poppins']" style={{ color: navActiveColor }}>
+                            Serviços
+                          </span>
+                        </div>
+                      )}
+
+                      {navStyle === 'solid' && (
+                        <div
+                          className={`px-3 py-1.5 text-white flex flex-col items-center shadow-xs transition-all ${
+                            navShape === 'circle' ? 'rounded-full' : 'rounded-[4px]'
+                          } ${
+                            navBorder === 'bordered' ? 'border border-white/40' : 'border-0'
+                          }`}
+                          style={{ backgroundColor: navActiveColor }}
+                        >
+                          <Scissors className="w-4.5 h-4.5 stroke-[2.2] text-white" />
+                          <span className="text-[9px] font-bold text-white font-['Poppins']">Serviços</span>
+                        </div>
+                      )}
+
+                      {navStyle === 'boxed' && (
+                        <div className="flex flex-col items-center gap-1">
+                          <div
+                            className={`w-8 h-8 flex items-center justify-center shadow-xs transition-all ${
+                              navShape === 'circle' ? 'rounded-full' : 'rounded-[4px]'
+                            } ${
+                              navBorder === 'bordered' ? 'border' : 'border-0'
+                            }`}
+                            style={{
+                              borderColor: navBorder === 'bordered' ? navActiveColor : 'transparent',
+                              backgroundColor: `${navActiveColor}24`,
+                            }}
+                          >
+                            <Scissors className="w-4 h-4 stroke-[2.2]" style={{ color: navActiveColor }} />
+                          </div>
+                          <span className="text-[9px] font-bold font-['Poppins']" style={{ color: navActiveColor }}>
+                            Serviços
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Item Agenda (Inativo) */}
+                      <div className="flex flex-col items-center gap-1 opacity-70">
+                        <Calendar className="w-5 h-5 stroke-[2]" style={{ color: navTextColor }} />
+                        <span className="text-[9px] font-bold font-['Poppins']" style={{ color: navTextColor }}>
+                          Agenda
+                        </span>
+                      </div>
+
+                      {/* Item Espaço (Inativo) */}
+                      <div className="flex flex-col items-center gap-1 opacity-70">
+                        <MapPin className="w-5 h-5 stroke-[2]" style={{ color: navTextColor }} />
+                        <span className="text-[9px] font-bold font-['Poppins']" style={{ color: navTextColor }}>
+                          Espaço
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SUB-SEÇÃO 5: FAIXA DE BOAS-VINDAS */}
+            {activeSection === 'welcome' && (
+              <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
+                isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+              }`}>
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-emerald-400" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                      Faixa de Boas-Vindas (Topo da Vitrine)
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-400">
+                    {welcomeStyle === 'atmospheric' ? 'Degradê do Tema' : 'Cristal / Translúcido'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {[
+                    { 
+                      id: 'atmospheric' as const, 
+                      label: 'Degradê do Tema', 
+                      desc: 'Fusão atmosférica com a cor de destaque, proporcionando imersão visual' 
+                    },
+                    { 
+                      id: 'glass' as const, 
+                      label: 'Cristal / Translúcido', 
+                      desc: 'Superfície de alto contraste com acabamento elegante e limpo' 
+                    },
+                  ].map((opt) => {
+                    const isSelected = welcomeStyle === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          setWelcomeStyle(opt.id);
+                        }}
+                        className={`p-3 rounded-[4px] border text-left transition cursor-pointer flex flex-col justify-between gap-1.5 ${
+                          isSelected
+                            ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                            : isDark
+                              ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-emerald-500/40'
+                              : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500/40'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span className={`text-xs font-bold truncate ${isSelected ? 'text-white' : ''}`}>
+                            {opt.label}
+                          </span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                        </div>
+                        <span className={`text-[10px] leading-tight ${isSelected ? 'text-white/90' : 'text-slate-400'}`}>
+                          {opt.desc}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Prévia da Faixa de Boas-Vindas */}
+                <div className="pt-2 border-t border-slate-800/60 space-y-1.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Prévia da Faixa
+                  </span>
+
+                  <div className={`p-3 rounded-[4px] border relative overflow-hidden flex items-center justify-between ${
+                    welcomeStyle === 'atmospheric'
+                      ? isDark
+                        ? 'bg-gradient-to-r from-emerald-950/80 via-slate-900 to-slate-950 border-emerald-500/30 text-white'
+                        : 'bg-gradient-to-r from-emerald-100 via-white to-slate-50 border-emerald-300 text-slate-900'
+                      : isDark
+                        ? 'bg-slate-900/90 backdrop-blur-md border-slate-800 text-white'
+                        : 'bg-white/90 backdrop-blur-md border-slate-200 text-slate-900 shadow-xs'
+                  }`}>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block font-['Poppins']">
+                        Boas-vindas
+                      </span>
+                      <span className="text-xs font-bold">
+                        {adminSettings.salonName || 'Meu Estabelecimento'}
+                      </span>
+                    </div>
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-[4px] bg-emerald-500 text-white">
+                      Aberto Agora
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};

@@ -5,8 +5,8 @@ import { hapticLight } from '../utils/haptics';
 import { UserPersona } from '../types';
 
 export interface SalonNavContext {
-  activeTab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades';
-  onSelectTab: (tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades') => void;
+  activeTab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual';
+  onSelectTab: (tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual') => void;
   ServicesIcon?: React.ComponentType<{ className?: string }>;
   SpaceIcon?: React.ComponentType<{ className?: string }>;
   spaceTabLabel?: string;
@@ -17,12 +17,18 @@ export interface SalonNavContext {
   isOwnerOrManager?: boolean;
   isProfessionalStaff?: boolean;
   navStyle?: 'minimal' | 'solid' | 'boxed';
+  navShape?: 'square' | 'circle';
+  navBorder?: 'bordered' | 'none';
+  navBgStyle?: 'solid' | 'glass' | 'transparent';
+  navBgColor?: string;
+  navActiveColor?: string;
+  navTextColor?: string;
 }
 
 interface BottomNavProps {
   salonContext?: SalonNavContext | null;
-  activeTab?: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades';
-  onSelectTab?: (tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades') => void;
+  activeTab?: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual';
+  onSelectTab?: (tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual') => void;
   ServicesIcon?: React.ComponentType<{ className?: string }>;
   SpaceIcon?: React.ComponentType<{ className?: string }>;
   spaceTabLabel?: string;
@@ -33,6 +39,12 @@ interface BottomNavProps {
   isOwnerOrManager?: boolean;
   isProfessionalStaff?: boolean;
   navStyle?: 'minimal' | 'solid' | 'boxed';
+  navShape?: 'square' | 'circle';
+  navBorder?: 'bordered' | 'none';
+  navBgStyle?: 'solid' | 'glass' | 'transparent';
+  navBgColor?: string;
+  navActiveColor?: string;
+  navTextColor?: string;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
@@ -48,6 +60,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   isOwnerOrManager: propIsOwnerOrManager,
   isProfessionalStaff: propIsProfessionalStaff,
   navStyle: propNavStyle,
+  navShape: propNavShape,
+  navBorder: propNavBorder,
+  navBgStyle: propNavBgStyle,
+  navBgColor: propNavBgColor,
+  navActiveColor: propNavActiveColor,
+  navTextColor: propNavTextColor,
 }) => {
   const { isDark } = useTheme();
 
@@ -61,13 +79,19 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const ServicesIconComponent = propServicesIcon || salonContext?.ServicesIcon || Scissors;
   const SpaceIconComponent = propSpaceIcon || salonContext?.SpaceIcon || Store;
   const navStyle = propNavStyle || salonContext?.navStyle || 'minimal';
+  const navShape = propNavShape || salonContext?.navShape || 'square';
+  const navBorder = propNavBorder || salonContext?.navBorder || 'bordered';
+  const navBgStyle = propNavBgStyle || salonContext?.navBgStyle || 'glass';
+  const navBgColor = propNavBgColor || salonContext?.navBgColor;
+  const navActiveColor = propNavActiveColor || salonContext?.navActiveColor || '#10b981';
+  const navTextColor = propNavTextColor || salonContext?.navTextColor;
 
   if (!onSelectTab) {
     return null;
   }
 
   let establishmentTabs: Array<{
-    id: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades';
+    id: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout';
     label: string;
     icon: React.ComponentType<{ className?: string }>;
   }> = [];
@@ -93,14 +117,69 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     ];
   }
 
+  // Estilização dinâmica do contêiner da barra conforme navBgStyle e navBgColor
+  const navContainerStyle = React.useMemo(() => {
+    if (navBgStyle === 'transparent') {
+      return { 
+        backgroundColor: 'transparent', 
+        borderColor: 'transparent',
+        boxShadow: 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+      };
+    }
+    if (navBgColor) {
+      if (navBgStyle === 'glass') {
+        const hex = navBgColor.startsWith('#') ? navBgColor : '#0f172a';
+        return {
+          backgroundColor: `color-mix(in srgb, ${hex} 45%, transparent)`,
+          borderColor: `color-mix(in srgb, ${hex} 25%, transparent)`,
+          backdropFilter: 'blur(16px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(16px) saturate(160%)',
+        };
+      }
+      return {
+        backgroundColor: navBgColor,
+        borderColor: `color-mix(in srgb, ${navBgColor} 45%, #334155)`,
+      };
+    }
+    if (navBgStyle === 'glass') {
+      return {
+        backdropFilter: 'blur(16px) saturate(160%)',
+        WebkitBackdropFilter: 'blur(16px) saturate(160%)',
+      };
+    }
+    return undefined;
+  }, [navBgStyle, navBgColor]);
+
+  const navContainerClasses = React.useMemo(() => {
+    if (navBgStyle === 'transparent') {
+      return 'bg-transparent border-t-0 shadow-none backdrop-blur-none';
+    }
+    if (navBgStyle === 'solid') {
+      return `backdrop-blur-none border-t ${
+        navBgColor
+          ? ''
+          : isDark
+            ? 'bg-slate-950 border-slate-800 shadow-[0_-4px_20px_rgba(0,0,0,0.45)]'
+            : 'bg-white border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] text-slate-800'
+      }`;
+    }
+    // Default: 'glass' (alpha-vidro jateado translúcido real)
+    return `backdrop-blur-md backdrop-saturate-150 border-t ${
+      navBgColor
+        ? ''
+        : isDark
+          ? 'bg-slate-900/50 border-white/10 shadow-[0_-4px_20px_rgba(0,0,0,0.3)]'
+          : 'bg-white/60 border-slate-200/60 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] text-slate-800'
+    }`;
+  }, [navBgStyle, navBgColor, isDark]);
+
   return (
     <nav 
       id="vagou-bottom-nav"
-      className={`shrink-0 w-full h-[66px] ${
-        isDark
-          ? 'bg-slate-900/95 border-emerald-500/25 shadow-[0_-4px_20px_rgba(0,0,0,0.45)]'
-          : 'bg-white/95 border-emerald-500/25 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] text-slate-800'
-      } backdrop-blur-md border-t px-2.5 sm:px-6 flex items-center justify-around z-30 transition-colors pb-[env(safe-area-inset-bottom,0px)] select-none`}
+      style={navContainerStyle}
+      className={`shrink-0 w-full h-[66px] px-2.5 sm:px-6 flex items-center justify-around z-30 transition-colors pb-[env(safe-area-inset-bottom,0px)] select-none ${navContainerClasses}`}
     >
       {establishmentTabs.map((tab) => {
         const Icon = tab.icon;
@@ -115,18 +194,35 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 hapticLight();
                 onSelectTab(tab.id);
               }}
-              className={`flex flex-col items-center justify-center gap-1 h-[50px] px-2 sm:px-3.5 rounded-[4px] transition-all active:scale-95 cursor-pointer flex-1 max-w-[96px] ${
+              style={isActive ? { backgroundColor: navActiveColor } : undefined}
+              className={`flex flex-col items-center justify-center gap-1 h-[50px] px-2 sm:px-3.5 transition-all active:scale-95 cursor-pointer flex-1 max-w-[96px] ${
+                navShape === 'circle' ? 'rounded-full' : 'rounded-[4px]'
+              } ${
+                navBorder === 'bordered'
+                  ? isActive
+                    ? 'border border-white/35 shadow-sm'
+                    : isDark
+                      ? 'border border-slate-800/80'
+                      : 'border border-slate-200'
+                  : 'border-0'
+              } ${
                 isActive
-                  ? 'bg-emerald-500 text-white shadow-sm'
+                  ? 'text-white shadow-sm'
                   : isDark
                     ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
                     : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80'
               }`}
             >
-              <Icon className={`w-5 h-5 stroke-[2.2] ${isActive ? 'text-white' : ''}`} />
-              <span className={`text-[10px] tracking-wide font-['Poppins'] font-bold truncate max-w-[72px] leading-none ${
-                isActive ? 'text-white' : isDark ? 'text-slate-400' : 'text-slate-500'
-              }`}>
+              <Icon 
+                className={`w-5 h-5 stroke-[2.2] ${isActive ? 'text-white' : ''}`}
+                style={!isActive && navTextColor ? { color: navTextColor } : undefined}
+              />
+              <span 
+                style={!isActive && navTextColor ? { color: navTextColor } : undefined}
+                className={`text-[10px] tracking-wide font-['Poppins'] font-bold truncate max-w-[72px] leading-none ${
+                  isActive ? 'text-white' : isDark ? 'text-slate-400' : 'text-slate-500'
+                }`}
+              >
                 {tab.label}
               </span>
             </button>
@@ -144,20 +240,38 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               }}
               className="flex flex-col items-center justify-center gap-1 py-1 px-1.5 sm:px-3 transition active:scale-95 cursor-pointer group flex-1 max-w-[100px]"
             >
-              <div className={`w-[34px] h-[34px] rounded-[4px] flex items-center justify-center transition-all ${
-                isActive
-                  ? 'bg-emerald-500 border border-emerald-400 text-white scale-105 shadow-xs'
-                  : isDark
-                    ? 'text-slate-400 hover:text-slate-200 border border-slate-800 bg-slate-950/70 hover:border-emerald-500/40'
-                    : 'text-slate-500 hover:text-slate-800 border border-slate-200 bg-slate-50 hover:border-emerald-500/40'
-              }`}>
-                <Icon className={`w-4.5 h-4.5 stroke-[2.2] ${isActive ? 'text-white' : ''}`} />
+              <div 
+                style={isActive ? { 
+                  borderColor: navBorder === 'bordered' ? navActiveColor : 'transparent', 
+                  backgroundColor: navActiveColor 
+                } : !isActive && navTextColor && navBorder === 'bordered' ? {
+                  borderColor: `${navTextColor}40`
+                } : undefined}
+                className={`w-[34px] h-[34px] flex items-center justify-center transition-all ${
+                  navShape === 'circle' ? 'rounded-full' : 'rounded-[4px]'
+                } ${
+                  navBorder === 'bordered' ? 'border' : 'border-0'
+                } ${
+                  isActive
+                    ? 'text-white scale-105 shadow-xs'
+                    : isDark
+                      ? 'text-slate-400 hover:text-slate-200 border-slate-800 bg-slate-950/70 hover:border-emerald-500/40'
+                      : 'text-slate-500 hover:text-slate-800 border-slate-200 bg-slate-50 hover:border-emerald-500/40'
+                }`}
+              >
+                <Icon 
+                  className={`w-4.5 h-4.5 stroke-[2.2] ${isActive ? 'text-white' : ''}`}
+                  style={!isActive && navTextColor ? { color: navTextColor } : undefined}
+                />
               </div>
-              <span className={`text-[10px] tracking-wide font-['Poppins'] font-bold truncate max-w-[68px] transition-colors ${
-                isActive
-                  ? isDark ? 'text-emerald-400' : 'text-emerald-600 font-extrabold'
-                  : isDark ? 'text-slate-400' : 'text-slate-500'
-              }`}>
+              <span 
+                style={isActive ? { color: navActiveColor } : navTextColor ? { color: navTextColor } : undefined}
+                className={`text-[10px] tracking-wide font-['Poppins'] font-bold truncate max-w-[68px] transition-colors ${
+                  isActive
+                    ? ''
+                    : isDark ? 'text-slate-400' : 'text-slate-500'
+                }`}
+              >
                 {tab.label}
               </span>
             </button>
@@ -173,23 +287,29 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               hapticLight();
               onSelectTab(tab.id);
             }}
-            className="relative h-full flex flex-col items-center justify-center gap-1 px-2 sm:px-3.5 transition-all active:scale-95 cursor-pointer group flex-1 max-w-[100px]"
+            className={`relative h-full flex flex-col items-center justify-center gap-1 px-2 sm:px-3.5 transition-all active:scale-95 cursor-pointer group flex-1 max-w-[100px] ${
+              navBorder === 'bordered'
+                ? isActive
+                  ? navShape === 'circle' ? 'rounded-full border border-white/20' : 'rounded-[4px] border border-white/20'
+                  : ''
+                : ''
+            }`}
           >
             {/* Indicador Luminoso Superior na Cor do Tema */}
             <span
+              style={isActive ? { backgroundColor: navActiveColor } : undefined}
               className={`absolute top-0 left-1/2 -translate-x-1/2 h-[3px] rounded-b-[4px] transition-all duration-200 ${
                 isActive
-                  ? 'w-8 bg-emerald-500 opacity-100'
+                  ? 'w-8 opacity-100'
                   : 'w-0 bg-transparent opacity-0'
               }`}
             />
 
             <Icon
+              style={isActive ? { color: navActiveColor } : navTextColor ? { color: navTextColor } : undefined}
               className={`w-5 h-5 transition-transform duration-200 ${
                 isActive
-                  ? isDark
-                    ? 'text-emerald-400 stroke-[2.4] -translate-y-0.5'
-                    : 'text-emerald-600 stroke-[2.4] -translate-y-0.5'
+                  ? 'stroke-[2.4] -translate-y-0.5'
                   : isDark
                     ? 'text-slate-400 group-hover:text-slate-200 stroke-[2]'
                     : 'text-slate-500 group-hover:text-slate-800 stroke-[2]'
@@ -197,11 +317,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             />
 
             <span
+              style={isActive ? { color: isDark ? '#ffffff' : navActiveColor } : navTextColor ? { color: navTextColor } : undefined}
               className={`text-[10px] tracking-wide font-['Poppins'] font-bold truncate max-w-[72px] leading-none transition-colors ${
                 isActive
-                  ? isDark
-                    ? 'text-white'
-                    : 'text-emerald-600 font-extrabold'
+                  ? 'font-extrabold'
                   : isDark
                     ? 'text-slate-400 group-hover:text-slate-300'
                     : 'text-slate-500 group-hover:text-slate-800'

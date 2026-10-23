@@ -1,21 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Building2, MapPin, Clock, UserCheck, 
   Save, Check, Search, Loader2, Sparkles, 
-  ArrowLeft, AlertCircle, QrCode, Plus, Trash2, Star, Printer, FileText,
-  Copy, ExternalLink, Phone, Mail, Tag, X
+  ArrowLeft, AlertCircle, QrCode, Plus, Trash2, Printer, FileText,
+  Copy, ExternalLink, Phone, Mail, Tag, X,
+  Globe, Instagram, Facebook, Users
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
-import { SalonAdminSettings, DayOperatingHours, OperatingSchedule, SalonPixKeyItem, PixKeyType } from '../../types';
+import { 
+  SalonAdminSettings, DayOperatingHours, OperatingSchedule, 
+  SalonProfessionalItem 
+} from '../../types';
 import { hapticSuccess, hapticLight, hapticMedium } from '../../utils/haptics';
-import { SalonPixPrintModal } from './SalonPixPrintModal';
-import { getPixQrCodeUrl } from '../../services/pixGenerator';
 
-export type BusinessDataTabId = 'comercial' | 'fiscal' | 'pix_billing';
+export type BusinessDataTabId = 'comercial' | 'horarios' | 'endereco' | 'contato';
 
 export interface BusinessDataCardViewProps {
   adminSettings: SalonAdminSettings;
-  onUpdateSettings: (settings: Partial<SalonAdminSettings>) => void;
+  onUpdateSettings: (settings: Partial<SalonAdminSettings>) => Promise<any> | void;
+  professionals?: SalonProfessionalItem[];
+  onUpdateProfessionals?: (professionals: SalonProfessionalItem[]) => void;
+  onOpenVisualIdentity?: () => void;
   onBack: () => void;
   initialTab?: BusinessDataTabId;
 }
@@ -73,37 +78,243 @@ export function isValidCNPJ(cnpj: string): boolean {
   return result === parseInt(digits.charAt(1), 10);
 }
 
-const DEFAULT_DAYS: DayOperatingHours[] = [
-  { dayKey: 'seg', dayLabel: 'Seg', isOpen: true, openTime: '09:00', closeTime: '20:00' },
-  { dayKey: 'ter', dayLabel: 'Ter', isOpen: true, openTime: '09:00', closeTime: '20:00' },
-  { dayKey: 'qua', dayLabel: 'Qua', isOpen: true, openTime: '09:00', closeTime: '20:00' },
-  { dayKey: 'qui', dayLabel: 'Qui', isOpen: true, openTime: '09:00', closeTime: '20:00' },
-  { dayKey: 'sex', dayLabel: 'Sex', isOpen: true, openTime: '09:00', closeTime: '20:00' },
-  { dayKey: 'sab', dayLabel: 'Sáb', isOpen: true, openTime: '09:00', closeTime: '18:00' },
-  { dayKey: 'dom', dayLabel: 'Dom', isOpen: false, openTime: '09:00', closeTime: '14:00' },
+const createDefaultDays = (open = '09:00', close = '20:00', withBreak = true): DayOperatingHours[] => [
+  { dayKey: 'seg', dayLabel: 'Seg', isOpen: true, openTime: open, closeTime: close, hasBreak: withBreak, breakStart: '12:00', breakEnd: '13:00' },
+  { dayKey: 'ter', dayLabel: 'Ter', isOpen: true, openTime: open, closeTime: close, hasBreak: withBreak, breakStart: '12:00', breakEnd: '13:00' },
+  { dayKey: 'qua', dayLabel: 'Qua', isOpen: true, openTime: open, closeTime: close, hasBreak: withBreak, breakStart: '12:00', breakEnd: '13:00' },
+  { dayKey: 'qui', dayLabel: 'Qui', isOpen: true, openTime: open, closeTime: close, hasBreak: withBreak, breakStart: '12:00', breakEnd: '13:00' },
+  { dayKey: 'sex', dayLabel: 'Sex', isOpen: true, openTime: open, closeTime: close, hasBreak: withBreak, breakStart: '12:00', breakEnd: '13:00' },
+  { dayKey: 'sab', dayLabel: 'Sáb', isOpen: true, openTime: open, closeTime: '18:00', hasBreak: false, breakStart: '12:00', breakEnd: '13:00' },
+  { dayKey: 'dom', dayLabel: 'Dom', isOpen: false, openTime: '09:00', closeTime: '14:00', hasBreak: false, breakStart: '12:00', breakEnd: '13:00' },
 ];
+
+function timeToMinutes(t: string): number {
+  const [h, m] = (t || '00:00').split(':').map((n) => parseInt(n, 10) || 0);
+  return h * 60 + m;
+}
+
+function minutesToTime(mins: number): string {
+  const clamped = Math.max(0, Math.min(23 * 60 + 59, mins));
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/**
+ * Calcula a união matemática dos horários de todos os profissionais para a aba "Geral".
+ * Exemplo: Se Profissional 1 trabalha das 09:00 às 12:00 e Profissional 2 trabalha das 12:00 às 20:00,
+ * a união resulta em 09:00 às 20:00 contínuo na aba Geral.
+ */
+function computeUnionGeneralSchedule(
+  proIds: string[],
+  schedulesByPro: Record<string, DayOperatingHours[]>,
+  fallbackGeneralDays: DayOperatingHours[]
+): DayOperatingHours[] {
+  if (proIds.length === 0) return fallbackGeneralDays;
+
+  const baseKeys: Array<{ key: DayOperatingHours['dayKey']; label: string }> = [
+    { key: 'seg', label: 'Seg' },
+    { key: 'ter', label: 'Ter' },
+    { key: 'qua', label: 'Qua' },
+    { key: 'qui', label: 'Qui' },
+    { key: 'sex', label: 'Sex' },
+    { key: 'sab', label: 'Sáb' },
+    { key: 'dom', label: 'Dom' },
+  ];
+
+  return baseKeys.map(({ key, label }) => {
+    const intervals: Array<[number, number]> = [];
+
+    for (const pid of proIds) {
+      const proDays = schedulesByPro[pid];
+      if (!Array.isArray(proDays)) continue;
+      const d = proDays.find((item) => item.dayKey === key);
+      if (!d || !d.isOpen) continue;
+
+      const start = timeToMinutes(d.openTime || '09:00');
+      const end = timeToMinutes(d.closeTime || '20:00');
+      if (end <= start) continue;
+
+      if (d.hasBreak && d.breakStart && d.breakEnd) {
+        const bStart = timeToMinutes(d.breakStart);
+        const bEnd = timeToMinutes(d.breakEnd);
+        if (bStart > start && bEnd > bStart && bEnd < end) {
+          intervals.push([start, bStart]);
+          intervals.push([bEnd, end]);
+        } else {
+          intervals.push([start, end]);
+        }
+      } else {
+        intervals.push([start, end]);
+      }
+    }
+
+    if (intervals.length === 0) {
+      return {
+        dayKey: key,
+        dayLabel: label,
+        isOpen: false,
+        openTime: '09:00',
+        closeTime: '18:00',
+        hasBreak: false,
+        breakStart: '12:00',
+        breakEnd: '13:00',
+      };
+    }
+
+    // Ordenar e mesclar intervalos sobrepostos ou adjacentes (ex: [09:00, 12:00] + [12:00, 20:00] => [09:00, 20:00])
+    intervals.sort((a, b) => a[0] - b[0]);
+    const merged: Array<[number, number]> = [intervals[0]];
+    for (let i = 1; i < intervals.length; i++) {
+      const prev = merged[merged.length - 1];
+      const curr = intervals[i];
+      if (curr[0] <= prev[1]) {
+        prev[1] = Math.max(prev[1], curr[1]);
+      } else {
+        merged.push(curr);
+      }
+    }
+
+    const minOpen = merged[0][0];
+    const maxClose = merged[merged.length - 1][1];
+
+    if (merged.length === 1) {
+      return {
+        dayKey: key,
+        dayLabel: label,
+        isOpen: true,
+        openTime: minutesToTime(minOpen),
+        closeTime: minutesToTime(maxClose),
+        hasBreak: false,
+        breakStart: '12:00',
+        breakEnd: '13:00',
+      };
+    }
+
+    return {
+      dayKey: key,
+      dayLabel: label,
+      isOpen: true,
+      openTime: minutesToTime(minOpen),
+      closeTime: minutesToTime(maxClose),
+      hasBreak: true,
+      breakStart: minutesToTime(merged[0][1]),
+      breakEnd: minutesToTime(merged[1][0]),
+    };
+  });
+}
 
 export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
   adminSettings,
   onUpdateSettings,
+  professionals = [],
+  onUpdateProfessionals,
   onBack,
   initialTab = 'comercial',
 }) => {
   const { isDark } = useTheme();
   const [activeSubTab, setActiveSubTab] = useState<BusinessDataTabId>(initialTab);
-  const [isPixPrintModalOpen, setIsPixPrintModalOpen] = useState(false);
   const [isStorefrontQrModalOpen, setIsStorefrontQrModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // 1. Dados do Estabelecimento (Comercial + Separação Fiscal CNPJ)
+  // 1. INFORMAÇÕES COMERCIAIS
   const [salonName, setSalonName] = useState(adminSettings.salonName || '');
   const [category, setCategory] = useState(adminSettings.category || 'Barbearia');
+
+  // 2. LOCALIZAÇÃO & ENDEREÇO + MAPS
+  const [cep, setCep] = useState(adminSettings.cep || '');
+  const [logradouro, setLogradouro] = useState(adminSettings.logradouro || adminSettings.salonAddress || '');
+  const [numero, setNumero] = useState(adminSettings.numero || '');
+  const [complemento, setComplemento] = useState(adminSettings.complemento || '');
+  const [bairro, setBairro] = useState(adminSettings.bairro || '');
+  const [cidade, setCidade] = useState(adminSettings.cidade || '');
+  const [uf, setUf] = useState(adminSettings.uf || '');
+  const mapsUrl = adminSettings.mapsUrl || '';
+  const [isSearchingCep, setIsSearchingCep] = useState(false);
+  const [cepError, setCepError] = useState('');
+
+  // 3. HORÁRIOS DE ATENDIMENTO (Aba "Geral" + Abas por Profissional + 2 Turnos / Pausas de Urgência)
+  const [localProfessionals, setLocalProfessionals] = useState<SalonProfessionalItem[]>(() => {
+    if (Array.isArray(professionals) && professionals.length > 0) {
+      return professionals;
+    }
+    return [
+      {
+        id: 'pro-1',
+        name: adminSettings.salonName || 'Profissional 1',
+        role: 'Titular',
+        systemRole: 'admin',
+      },
+    ];
+  });
+  const [newProNameInput, setNewProNameInput] = useState('');
+  const [isAddingQuickPro, setIsAddingQuickPro] = useState(false);
+
+  const [days, setDays] = useState<DayOperatingHours[]>(() => {
+    if (adminSettings.operatingSchedule?.days && adminSettings.operatingSchedule.days.length > 0) {
+      return adminSettings.operatingSchedule.days.map((d) => ({
+        ...d,
+        hasBreak: d.hasBreak ?? false,
+        breakStart: d.breakStart || '12:00',
+        breakEnd: d.breakEnd || '13:00',
+      }));
+    }
+    return createDefaultDays('09:00', '20:00', true);
+  });
+
+  const [professionalSchedules, setProfessionalSchedules] = useState<Record<string, DayOperatingHours[]>>(() => {
+    const savedMap = adminSettings.operatingSchedule?.professionalSchedules || {};
+    const initialMap: Record<string, DayOperatingHours[]> = { ...savedMap };
+    const proList = Array.isArray(professionals) && professionals.length > 0 ? professionals : localProfessionals;
+
+    proList.forEach((p, idx) => {
+      const pid = p.id || `pro-${idx + 1}`;
+      if (!initialMap[pid]) {
+        if (p.workSchedule?.startTime && p.workSchedule?.endTime) {
+          initialMap[pid] = createDefaultDays(p.workSchedule.startTime, p.workSchedule.endTime, false);
+        } else if (proList.length > 1 && idx === 0) {
+          initialMap[pid] = createDefaultDays('09:00', '12:00', false);
+        } else if (proList.length > 1 && idx === 1) {
+          initialMap[pid] = createDefaultDays('12:00', '20:00', false);
+        } else {
+          initialMap[pid] = createDefaultDays('09:00', '20:00', true);
+        }
+      }
+    });
+    return initialMap;
+  });
+
+  const [activeScheduleTab, setActiveScheduleTab] = useState<'geral' | string>('geral');
+
+  const proIds = useMemo(
+    () => localProfessionals.map((p, idx) => p.id || `pro-${idx + 1}`),
+    [localProfessionals]
+  );
+
+  const hasMultipleProfessionals = localProfessionals.length > 1;
+
+  // Quando há mais de 1 profissional, a aba "Geral" calcula automaticamente a união dos turnos da equipe
+  const computedGeneralDays = useMemo(() => {
+    if (!hasMultipleProfessionals) return days;
+    return computeUnionGeneralSchedule(proIds, professionalSchedules, days);
+  }, [hasMultipleProfessionals, proIds, professionalSchedules, days]);
+
+  const activeDaysList: DayOperatingHours[] =
+    activeScheduleTab === 'geral'
+      ? computedGeneralDays
+      : (professionalSchedules[activeScheduleTab] || createDefaultDays('09:00', '20:00', false));
+
+  // 4. CONTATO (Link Exclusivo & QR Code, WhatsApp, Tel. Fixo, E-mail, Site, Instagram, Facebook)
   const [salonPhone, setSalonPhone] = useState(adminSettings.salonPhone || adminSettings.legalManagerPhone || '');
   const [phoneLandline, setPhoneLandline] = useState(adminSettings.phoneLandline || '');
   const [commercialEmail, setCommercialEmail] = useState(
     adminSettings.email || adminSettings.legalManagerEmail || (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_email') || '' : '')
   );
+  const [websiteUrl, setWebsiteUrl] = useState(adminSettings.websiteUrl || '');
+  const [instagramUrl, setInstagramUrl] = useState(adminSettings.instagramUrl || '');
+  const [facebookUrl, setFacebookUrl] = useState(adminSettings.facebookUrl || '');
 
+  // 5. FISCAL (Autônomo vs CNPJ + BrasilAPI + Responsável Legal CPF)
   const initialCnpjDigits = (adminSettings.cnpj || '').replace(/\D/g, '');
   const [hasCnpj, setHasCnpj] = useState<boolean>(initialCnpjDigits.length === 14);
   const [razaoSocial, setRazaoSocial] = useState(initialCnpjDigits.length === 14 ? (adminSettings.razaoSocial || '') : '');
@@ -112,61 +323,12 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
   const [cnpjFeedback, setCnpjFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
   const [cpfError, setCpfError] = useState('');
 
-  // 2. Localização & CEP
-  const [cep, setCep] = useState(adminSettings.cep || '');
-  const [logradouro, setLogradouro] = useState(adminSettings.logradouro || adminSettings.salonAddress || '');
-  const [numero, setNumero] = useState(adminSettings.numero || '');
-  const [complemento, setComplemento] = useState(adminSettings.complemento || '');
-  const [bairro, setBairro] = useState(adminSettings.bairro || '');
-  const [cidade, setCidade] = useState(adminSettings.cidade || '');
-  const [uf, setUf] = useState(adminSettings.uf || '');
-  const [isSearchingCep, setIsSearchingCep] = useState(false);
-  const [cepError, setCepError] = useState('');
-
-  // 3. Atendimento Inteligente
-  const [schedulePreset, setSchedulePreset] = useState<'salao' | 'comercial' | 'todos' | 'personalizado'>(
-    adminSettings.operatingSchedule?.preset || 'salao'
-  );
-  const [days, setDays] = useState<DayOperatingHours[]>(() => {
-    if (adminSettings.operatingSchedule?.days && adminSettings.operatingSchedule.days.length > 0) {
-      return adminSettings.operatingSchedule.days;
-    }
-    return DEFAULT_DAYS;
-  });
-  const [batchOpenTime, setBatchOpenTime] = useState('09:00');
-  const [batchCloseTime, setBatchCloseTime] = useState('20:00');
-
-  // 4. Responsável Legal / Titular Pessoal (clients.cpf & salons.owner_cpf)
   const [legalManagerName, setLegalManagerName] = useState(adminSettings.legalManagerName || '');
   const [legalManagerCpf, setLegalManagerCpf] = useState(adminSettings.ownerCpf || adminSettings.legalManagerCpf || '');
   const [legalManagerPhone, setLegalManagerPhone] = useState(adminSettings.legalManagerPhone || adminSettings.salonPhone || '');
   const [legalManagerEmail, setLegalManagerEmail] = useState(
     adminSettings.legalManagerEmail || adminSettings.email || (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_email') || '' : '')
   );
-
-  // 5. Múltiplas Chaves PIX (pix_keys JSONB + pix_key Principal)
-  const [pixKeys, setPixKeys] = useState<SalonPixKeyItem[]>(() => {
-    if (Array.isArray(adminSettings.pixKeys) && adminSettings.pixKeys.length > 0) {
-      return adminSettings.pixKeys;
-    }
-    if (adminSettings.pixKey && adminSettings.pixKey.trim()) {
-      return [
-        {
-          id: 'pix_primary_1',
-          type: 'cpf',
-          key: adminSettings.pixKey.trim(),
-          holderName: adminSettings.legalManagerName || adminSettings.salonName || '',
-          isPrimary: true,
-          verified: true,
-        },
-      ];
-    }
-    return [];
-  });
-  const [newPixType, setNewPixType] = useState<PixKeyType>('cpf');
-  const [newPixKey, setNewPixKey] = useState('');
-  const [newPixHolder, setNewPixHolder] = useState('');
-  const [newPixInstitution, setNewPixInstitution] = useState('');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -212,7 +374,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     return raw.replace(/^(\d{5})(\d)/, '$1-$2');
   };
 
-  // Consulta Automática de CNPJ via BrasilAPI (paridade total com admvapp)
+  // Consulta Automática de CNPJ via BrasilAPI
   const searchCnpjBrasilApi = async (cnpjValue: string) => {
     const clean = cnpjValue.replace(/\D/g, '');
     if (clean.length !== 14) return;
@@ -233,33 +395,15 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
         return;
       }
       const data = await res.json();
-      if (data.razao_social) {
-        setRazaoSocial(data.razao_social);
-      }
-      if (data.nome_fantasia && (!salonName || salonName === 'Meu Estabelecimento')) {
-        setSalonName(data.nome_fantasia);
-      }
-      if (data.cep && !cep) {
-        setCep(formatCep(String(data.cep)));
-      }
-      if (data.logradouro && !logradouro) {
-        setLogradouro(data.logradouro);
-      }
-      if (data.numero && !numero) {
-        setNumero(String(data.numero));
-      }
-      if (data.complemento && !complemento) {
-        setComplemento(data.complemento);
-      }
-      if (data.bairro && !bairro) {
-        setBairro(data.bairro);
-      }
-      if (data.municipio && !cidade) {
-        setCidade(data.municipio);
-      }
-      if (data.uf && !uf) {
-        setUf(data.uf);
-      }
+      if (data.razao_social) setRazaoSocial(data.razao_social);
+      if (data.nome_fantasia && (!salonName || salonName === 'Meu Estabelecimento')) setSalonName(data.nome_fantasia);
+      if (data.cep && !cep) setCep(formatCep(String(data.cep)));
+      if (data.logradouro && !logradouro) setLogradouro(data.logradouro);
+      if (data.numero && !numero) setNumero(String(data.numero));
+      if (data.complemento && !complemento) setComplemento(data.complemento);
+      if (data.bairro && !bairro) setBairro(data.bairro);
+      if (data.municipio && !cidade) setCidade(data.municipio);
+      if (data.uf && !uf) setUf(data.uf);
       setCnpjFeedback({ type: 'success', message: 'Dados sincronizados da Receita Federal (BrasilAPI).' });
       hapticSuccess();
     } catch {
@@ -334,121 +478,105 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     }
   };
 
-  // Aplicação dos Presets de Horário
-  const applyPreset = (preset: 'salao' | 'comercial' | 'todos' | 'personalizado') => {
-    hapticLight();
-    setSchedulePreset(preset);
-
-    if (preset === 'salao') {
-      setDays([
-        { dayKey: 'seg', dayLabel: 'Seg', isOpen: true, openTime: '09:00', closeTime: '20:00' },
-        { dayKey: 'ter', dayLabel: 'Ter', isOpen: true, openTime: '09:00', closeTime: '20:00' },
-        { dayKey: 'qua', dayLabel: 'Qua', isOpen: true, openTime: '09:00', closeTime: '20:00' },
-        { dayKey: 'qui', dayLabel: 'Qui', isOpen: true, openTime: '09:00', closeTime: '20:00' },
-        { dayKey: 'sex', dayLabel: 'Sex', isOpen: true, openTime: '09:00', closeTime: '20:00' },
-        { dayKey: 'sab', dayLabel: 'Sáb', isOpen: true, openTime: '09:00', closeTime: '18:00' },
-        { dayKey: 'dom', dayLabel: 'Dom', isOpen: false, openTime: '09:00', closeTime: '14:00' },
-      ]);
-    } else if (preset === 'comercial') {
-      setDays([
-        { dayKey: 'seg', dayLabel: 'Seg', isOpen: true, openTime: '09:00', closeTime: '18:00' },
-        { dayKey: 'ter', dayLabel: 'Ter', isOpen: true, openTime: '09:00', closeTime: '18:00' },
-        { dayKey: 'qua', dayLabel: 'Qua', isOpen: true, openTime: '09:00', closeTime: '18:00' },
-        { dayKey: 'qui', dayLabel: 'Qui', isOpen: true, openTime: '09:00', closeTime: '18:00' },
-        { dayKey: 'sex', dayLabel: 'Sex', isOpen: true, openTime: '09:00', closeTime: '18:00' },
-        { dayKey: 'sab', dayLabel: 'Sáb', isOpen: false, openTime: '09:00', closeTime: '14:00' },
-        { dayKey: 'dom', dayLabel: 'Dom', isOpen: false, openTime: '09:00', closeTime: '14:00' },
-      ]);
-    } else if (preset === 'todos') {
-      setDays((prev) =>
-        prev.map((d) => ({ ...d, isOpen: true, openTime: '09:00', closeTime: '20:00' }))
-      );
+  // Atualização de Dias e Horários (Geral ou por Profissional)
+  const mutateActiveSchedule = (updater: (prev: DayOperatingHours[]) => DayOperatingHours[]) => {
+    if (activeScheduleTab === 'geral') {
+      if (hasMultipleProfessionals) {
+        // Se o salão tem múltiplos profissionais e o usuário clica para abrir/fechar um dia na aba Geral, propaga para a equipe
+        setProfessionalSchedules((prevMap) => {
+          const nextMap: Record<string, DayOperatingHours[]> = {};
+          proIds.forEach((pid) => {
+            const currentProDays = prevMap[pid] || createDefaultDays('09:00', '20:00', false);
+            nextMap[pid] = updater(currentProDays);
+          });
+          return nextMap;
+        });
+      } else {
+        setDays((prev) => {
+          const next = updater(prev);
+          if (proIds[0]) {
+            setProfessionalSchedules((m) => ({ ...m, [proIds[0]]: next }));
+          }
+          return next;
+        });
+      }
+    } else {
+      setProfessionalSchedules((prevMap) => {
+        const currentList = prevMap[activeScheduleTab] || createDefaultDays('09:00', '20:00', false);
+        const updatedList = updater(currentList);
+        const nextMap = { ...prevMap, [activeScheduleTab]: updatedList };
+        if (!hasMultipleProfessionals) {
+          setDays(updatedList);
+        }
+        return nextMap;
+      });
     }
   };
 
-  // Toggle do dia individual
   const toggleDay = (dayKey: string) => {
     hapticLight();
-    setSchedulePreset('personalizado');
-    setDays((prev) =>
+    mutateActiveSchedule((prev) =>
       prev.map((d) => (d.dayKey === dayKey ? { ...d, isOpen: !d.isOpen } : d))
     );
   };
 
-  // Atualização de horário de dia específico
-  const updateDayTime = (dayKey: string, field: 'openTime' | 'closeTime', value: string) => {
-    setDays((prev) =>
+  const updateDayField = (
+    dayKey: string,
+    field: 'openTime' | 'closeTime' | 'hasBreak' | 'breakStart' | 'breakEnd',
+    value: any
+  ) => {
+    mutateActiveSchedule((prev) =>
       prev.map((d) => (d.dayKey === dayKey ? { ...d, [field]: value } : d))
     );
   };
 
-  // Aplicar horário em lote aos dias ativos
-  const handleApplyBatchTimes = () => {
+  const handleAddQuickProfessional = () => {
+    const clean = newProNameInput.trim();
+    if (!clean) return;
     hapticSuccess();
-    setDays((prev) =>
-      prev.map((d) =>
-        d.isOpen ? { ...d, openTime: batchOpenTime, closeTime: batchCloseTime } : d
-      )
-    );
+    const newId = `pro-${Date.now()}`;
+    const newPro: SalonProfessionalItem = {
+      id: newId,
+      name: clean,
+      role: 'Profissional',
+      systemRole: 'member',
+    };
+    const nextPros = [...localProfessionals, newPro];
+    setLocalProfessionals(nextPros);
+    setProfessionalSchedules((prev) => ({
+      ...prev,
+      [newId]: createDefaultDays('12:00', '20:00', false),
+    }));
+    if (onUpdateProfessionals) {
+      onUpdateProfessionals(nextPros);
+    }
+    setNewProNameInput('');
+    setIsAddingQuickPro(false);
+    setActiveScheduleTab(newId);
   };
 
-  // Gerar string descritiva sintética de horários para a vitrine
+  // Gerar string descritiva sintética de horários para a vitrine a partir da aba Geral consolidada
   const generateOpeningHoursSummary = (): string => {
-    const openDays = days.filter((d) => d.isOpen);
+    const effectiveDays = computedGeneralDays;
+    const openDays = effectiveDays.filter((d) => d.isOpen);
     if (openDays.length === 0) return 'Fechado temporariamente';
-    if (openDays.length === 7) return `Seg a Dom • ${batchOpenTime} às ${batchCloseTime}`;
+    const firstOpen = openDays[0];
+    const hoursLabel = firstOpen.hasBreak && firstOpen.breakStart && firstOpen.breakEnd
+      ? `${firstOpen.openTime} às ${firstOpen.breakStart} • ${firstOpen.breakEnd} às ${firstOpen.closeTime}`
+      : `${firstOpen.openTime} às ${firstOpen.closeTime}`;
+
+    if (openDays.length === 7) return `Seg a Dom • ${hoursLabel}`;
     const hasSegToSex = ['seg', 'ter', 'qua', 'qui', 'sex'].every((k) =>
-      days.find((d) => d.dayKey === k)?.isOpen
+      effectiveDays.find((d) => d.dayKey === k)?.isOpen
     );
-    const sab = days.find((d) => d.dayKey === 'sab');
+    const sab = effectiveDays.find((d) => d.dayKey === 'sab');
     if (hasSegToSex && sab?.isOpen) {
-      return `Seg a Sáb • ${days[0].openTime} às ${days[0].closeTime}`;
+      return `Seg a Sáb • ${hoursLabel}`;
     }
     if (hasSegToSex && !sab?.isOpen) {
-      return `Seg a Sex • ${days[0].openTime} às ${days[0].closeTime}`;
+      return `Seg a Sex • ${hoursLabel}`;
     }
-    return `${openDays.map((d) => d.dayLabel).join(', ')} • ${batchOpenTime} às ${batchCloseTime}`;
-  };
-
-  const handleAddPixKey = () => {
-    const cleanKey = newPixKey.trim();
-    if (!cleanKey) return;
-    hapticSuccess();
-    const isFirst = pixKeys.length === 0;
-    const item: SalonPixKeyItem = {
-      id: `pix_${Date.now()}`,
-      type: newPixType,
-      key: cleanKey,
-      holderName: newPixHolder.trim() || legalManagerName.trim() || salonName.trim() || undefined,
-      institution: newPixInstitution.trim() || undefined,
-      isPrimary: isFirst,
-      verified: true,
-    };
-    setPixKeys((prev) => [...prev, item]);
-    setNewPixKey('');
-    setNewPixHolder('');
-    setNewPixInstitution('');
-  };
-
-  const handleSetPrimaryPixKey = (id: string) => {
-    hapticLight();
-    setPixKeys((prev) =>
-      prev.map((item) => ({
-        ...item,
-        isPrimary: item.id === id,
-      }))
-    );
-  };
-
-  const handleRemovePixKey = (id: string) => {
-    hapticMedium();
-    setPixKeys((prev) => {
-      const filtered = prev.filter((item) => item.id !== id);
-      if (filtered.length > 0 && !filtered.some((k) => k.isPrimary)) {
-        filtered[0] = { ...filtered[0], isPrimary: true };
-      }
-      return filtered;
-    });
+    return `${openDays.map((d) => d.dayLabel).join(', ')} • ${hoursLabel}`;
   };
 
   const resolvedSlug =
@@ -477,7 +605,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
 
     const rawCpfDigits = legalManagerCpf.replace(/\D/g, '');
     if (rawCpfDigits.length > 0 && !isValidCPF(rawCpfDigits)) {
-      setActiveSubTab('fiscal');
+      setActiveSubTab('comercial');
       setCpfError('Informe um CPF válido (11 dígitos verificados pela Receita Federal).');
       hapticMedium();
       return;
@@ -485,7 +613,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
 
     const rawCnpjDigits = cnpj.replace(/\D/g, '');
     if (hasCnpj && rawCnpjDigits.length > 0 && !isValidCNPJ(rawCnpjDigits)) {
-      setActiveSubTab('fiscal');
+      setActiveSubTab('comercial');
       setCnpjFeedback({ type: 'error', message: 'CNPJ inválido. Confira os 14 dígitos informados.' });
       hapticMedium();
       return;
@@ -504,17 +632,19 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
       .filter(Boolean)
       .join(', ');
 
+    const finalGeneralDays = computedGeneralDays;
+
     const operatingSchedule: OperatingSchedule = {
-      preset: schedulePreset,
-      days,
-      defaultOpenTime: batchOpenTime,
-      defaultCloseTime: batchCloseTime,
+      preset: 'personalizado',
+      days: finalGeneralDays,
+      defaultOpenTime: finalGeneralDays[0]?.openTime || '09:00',
+      defaultCloseTime: finalGeneralDays[0]?.closeTime || '20:00',
+      professionalSchedules,
     };
 
     const isValidCnpj = hasCnpj && rawCnpjDigits.length === 14;
     const finalCnpj = isValidCnpj ? cnpj.trim() : '';
     const finalRazaoSocial = isValidCnpj ? razaoSocial.trim() : '';
-    const primaryPix = pixKeys.find((k) => k.isPrimary)?.key || pixKeys[0]?.key || '';
     const resolvedEmail = (commercialEmail.trim() || legalManagerEmail.trim()).toLowerCase();
     const resolvedWhatsapp = salonPhone.trim() || legalManagerPhone.trim();
 
@@ -524,11 +654,13 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
       email: resolvedEmail,
       salonPhone: resolvedWhatsapp,
       phoneLandline: phoneLandline.trim(),
+      websiteUrl: websiteUrl.trim(),
+      instagramUrl: instagramUrl.trim(),
+      facebookUrl: facebookUrl.trim(),
+      mapsUrl: mapsUrl.trim(),
       razaoSocial: finalRazaoSocial,
       cnpj: finalCnpj,
       ownerCpf: legalManagerCpf.trim(),
-      pixKey: primaryPix,
-      pixKeys,
       cep: cep.trim(),
       logradouro: logradouro.trim(),
       numero: numero.trim(),
@@ -550,11 +682,16 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     setTimeout(() => setSavedSuccess(false), 2500);
   };
 
+  const showComercial = activeSubTab === 'comercial';
+  const showHorarios = activeSubTab === 'horarios';
+  const showEndereco = activeSubTab === 'endereco';
+  const showContato = activeSubTab === 'contato';
+
   return (
     <div className={`w-full h-full flex flex-col justify-between overflow-y-auto no-scrollbar ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
-      {/* Barra de Topo com Ação de Voltar + Abas Separadas (Comercial | Fiscal | PIX & Placa) */}
+      {/* Barra de Topo Fixa */}
       <div className={`px-3 py-2.5 border-b shrink-0 flex flex-col gap-2 sticky top-0 z-30 ${
         isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-xs'
       }`}>
@@ -566,10 +703,10 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                 hapticLight();
                 onBack();
               }}
-              className={`p-1.5 rounded transition cursor-pointer active:scale-95 ${
+              className={`p-1.5 rounded-[4px] transition cursor-pointer active:scale-95 ${
                 isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
               }`}
-              title="Voltar ao Gerenciamento"
+              title="Voltar"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -582,19 +719,20 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
           </div>
 
           {savedSuccess && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-emerald-500 px-2 py-0.5 rounded shadow-xs animate-in fade-in">
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-emerald-500 px-2 py-0.5 rounded-[4px] shadow-xs animate-in fade-in">
               <Check className="w-3 h-3 text-white" />
               Salvo
             </span>
           )}
         </div>
 
-        {/* Navegação de Abas: Comercial | Fiscal ('fiscal') | Recebimentos PIX ('pix_billing') */}
-        <div className="grid grid-cols-3 gap-1.5">
+        {/* 4 Abas Dedicadas na Nova Ordem: Informações | Atendimento | Endereço | Contato */}
+        <div className="grid grid-cols-2 gap-1.5">
           {[
-            { id: 'comercial' as BusinessDataTabId, label: 'Comercial & Local', icon: Building2 },
-            { id: 'fiscal' as BusinessDataTabId, label: 'Fiscal (CNPJ/CPF)', icon: FileText },
-            { id: 'pix_billing' as BusinessDataTabId, label: 'PIX & Placa', icon: QrCode },
+            { id: 'comercial' as BusinessDataTabId, label: 'Informações', icon: Building2 },
+            { id: 'horarios' as BusinessDataTabId, label: 'Atendimento', icon: Clock },
+            { id: 'endereco' as BusinessDataTabId, label: 'Endereço', icon: MapPin },
+            { id: 'contato' as BusinessDataTabId, label: 'Contato', icon: Phone },
           ].map((tab) => {
             const Icon = tab.icon;
             const isSel = activeSubTab === tab.id;
@@ -606,7 +744,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                   hapticLight();
                   setActiveSubTab(tab.id);
                 }}
-                className={`py-1.5 px-2 rounded text-[11px] font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                className={`py-2 px-2.5 rounded-[4px] text-[11px] font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
                   isSel
                     ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
                     : isDark
@@ -615,7 +753,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                 }`}
               >
                 <Icon className={`w-3.5 h-3.5 shrink-0 ${isSel ? 'text-white' : 'text-emerald-400'}`} />
-                <span className="truncate">{tab.label}</span>
+                <span className={isSel ? 'text-white' : ''}>{tab.label}</span>
               </button>
             );
           })}
@@ -624,72 +762,12 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
 
       {/* Formulário Principal */}
       <form onSubmit={handleSave} className="p-3.5 space-y-4 pb-24 flex-1">
-        
-        {/* ABA 1: COMERCIAL, ENDEREÇO & HORÁRIOS */}
-        {activeSubTab === 'comercial' && (
+        {/* ============================================================== */}
+        {/* 1. INFORMAÇÕES (Identificação Comercial: Nome Fantasia, Categoria + Fiscal: CNPJ/CPF e Titular) */}
+        {/* ============================================================== */}
+        {showComercial && (
           <>
-            {/* BLOCO 0: LINK EXCLUSIVO & PLACA QR CODE DE BALCÃO DA VITRINE (Paridade admvapp) */}
-            <div className={`p-3.5 rounded border space-y-2.5 ${
-              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-            }`}>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <QrCode className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins'] truncate">
-                    Link Exclusivo & QR Code da Vitrine
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    hapticLight();
-                    setIsStorefrontQrModalOpen(true);
-                  }}
-                  className="px-2.5 py-1 rounded bg-[#20C933] hover:bg-[#1bb32d] text-white text-[10px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0"
-                >
-                  <Printer className="w-3 h-3 text-white" />
-                  <span>Imprimir Placa</span>
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between gap-2 pt-1">
-                <a
-                  href={storefrontUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-mono font-bold text-emerald-400 hover:underline truncate flex items-center gap-1.5 min-w-0"
-                >
-                  <span className="truncate">{storefrontUrl}</span>
-                  <ExternalLink className="w-3 h-3 shrink-0" />
-                </a>
-
-                <button
-                  type="button"
-                  onClick={handleCopyStorefrontLink}
-                  className={`px-2.5 py-1 rounded text-[11px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0 ${
-                    copiedLink
-                      ? 'bg-emerald-500 text-white'
-                      : isDark
-                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-                  }`}
-                >
-                  {copiedLink ? (
-                    <>
-                      <Check className="w-3 h-3 text-white" />
-                      <span>Copiado</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3" />
-                      <span>Copiar Link</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <div className={`p-3.5 rounded border space-y-3 ${
+            <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
               isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
             }`}>
               <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
@@ -699,7 +777,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                 </h3>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {/* Nome Fantasia & Categoria */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                     Nome Fantasia <span className="text-rose-400">*</span>
@@ -709,8 +788,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                     required
                     value={salonName}
                     onChange={(e) => setSalonName(e.target.value)}
-                    placeholder="Ex: Studio Bella, Barbearia Silva..."
-                    className={`w-full px-3 py-2 rounded border text-xs font-semibold outline-hidden transition ${
+                    placeholder="Ex: Rota 99 Barbearia"
+                    className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
                       isDark 
                         ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
                         : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
@@ -721,12 +800,12 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                 <div>
                   <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
                     <Tag className="w-3 h-3 text-emerald-400" />
-                    <span>Categoria / Ramo</span>
+                    <span>Categoria</span>
                   </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className={`w-full px-3 py-2 rounded border text-xs font-semibold outline-hidden transition ${
+                    className={`w-full px-3 py-2 rounded-[4px] border text-xs font-semibold outline-hidden transition ${
                       isDark 
                         ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
                         : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
@@ -740,417 +819,16 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                   </select>
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
-                    <Phone className="w-3 h-3 text-emerald-400" />
-                    <span>WhatsApp Comercial</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={salonPhone}
-                    onChange={(e) => setSalonPhone(formatPhone(e.target.value))}
-                    placeholder="(00) 00000-0000"
-                    className={`w-full px-3 py-2 rounded border text-xs font-mono outline-hidden transition ${
-                      isDark 
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
-                    <Phone className="w-3 h-3 text-slate-400" />
-                    <span>Telefone Fixo</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={phoneLandline}
-                    onChange={(e) => setPhoneLandline(formatLandline(e.target.value))}
-                    placeholder="(00) 0000-0000"
-                    className={`w-full px-3 py-2 rounded border text-xs font-mono outline-hidden transition ${
-                      isDark 
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
-                    <Mail className="w-3 h-3 text-emerald-400" />
-                    <span>E-mail Comercial</span>
-                  </label>
-                  <input
-                    type="email"
-                    value={commercialEmail}
-                    onChange={(e) => {
-                      setCommercialEmail(e.target.value);
-                      if (!legalManagerEmail) setLegalManagerEmail(e.target.value);
-                    }}
-                    placeholder="contato@salao.com"
-                    className={`w-full px-3 py-2 rounded border text-xs outline-hidden transition ${
-                      isDark 
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                    }`}
-                  />
-                </div>
-              </div>
             </div>
 
-        {/* SEÇÃO 2: LOCALIZAÇÃO INTELIGENTE (ViaCEP) */}
-        <div className={`p-3.5 rounded border space-y-3 ${
-          isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-        }`}>
-          <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
-            <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-emerald-400" />
-              <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
-                Localização & Endereço
-              </h3>
-            </div>
-            <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-emerald-400" />
-              Busca por CEP
-            </span>
-          </div>
-
-          <div>
-            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-              CEP <span className="text-emerald-400 font-bold">*</span>
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={cep}
-                onChange={handleCepChange}
-                placeholder="00000-000"
-                maxLength={9}
-                className={`w-full pl-3 pr-10 py-2 rounded border text-xs font-mono font-bold outline-hidden transition ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
-              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                {isSearchingCep ? (
-                  <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => searchCepAddress(cep)}
-                    className="text-slate-400 hover:text-emerald-400 transition"
-                    title="Buscar endereço pelo CEP"
-                  >
-                    <Search className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-            {cepError && (
-              <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
-                <AlertCircle className="w-3.5 h-3.5" />
-                {cepError}
-              </p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            <div className="col-span-2">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                Endereço / Logradouro
-              </label>
-              <input
-                type="text"
-                value={logradouro}
-                onChange={(e) => setLogradouro(e.target.value)}
-                placeholder="Ex: Rua Harmonia"
-                className={`w-full px-3 py-2 rounded border text-xs outline-hidden transition ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                Nº <span className="text-emerald-400 font-bold">*</span>
-              </label>
-              <input
-                type="text"
-                value={numero}
-                onChange={(e) => setNumero(e.target.value)}
-                placeholder="123"
-                className={`w-full px-3 py-2 rounded border text-xs font-semibold outline-hidden transition ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <div>
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                Complemento
-              </label>
-              <input
-                type="text"
-                value={complemento}
-                onChange={(e) => setComplemento(e.target.value)}
-                placeholder="Sala 2, Loja B"
-                className={`w-full px-3 py-2 rounded border text-xs outline-hidden transition ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                Bairro
-              </label>
-              <input
-                type="text"
-                value={bairro}
-                onChange={(e) => setBairro(e.target.value)}
-                placeholder="Vila Madalena"
-                className={`w-full px-3 py-2 rounded border text-xs outline-hidden transition ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              <div className="col-span-2">
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Cidade
-                </label>
-                <input
-                  type="text"
-                  value={cidade}
-                  onChange={(e) => setCidade(e.target.value)}
-                  placeholder="São Paulo"
-                  className={`w-full px-2.5 py-2 rounded border text-xs outline-hidden transition ${
-                    isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                  }`}
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  UF
-                </label>
-                <input
-                  type="text"
-                  value={uf}
-                  maxLength={2}
-                  onChange={(e) => setUf(e.target.value.toUpperCase())}
-                  placeholder="SP"
-                  className={`w-full px-1.5 py-2 rounded border text-xs uppercase text-center font-bold outline-hidden transition ${
-                    isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                  }`}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* SEÇÃO 3: ATENDIMENTO & HORÁRIOS INTELIGENTES */}
-        <div className={`p-3.5 rounded border space-y-3 ${
-          isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-        }`}>
-          <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-emerald-400" />
-              <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
-                Horários de Atendimento
-              </h3>
-            </div>
-            <span className="text-[10px] text-slate-400 font-medium">
-              Presets & Ajuste Fino
-            </span>
-          </div>
-
-          {/* Atalhos Rápidos de Presets */}
-          <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-              1. Padrão Rápido
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-              {[
-                { key: 'salao', label: 'Seg a Sáb (Salão)' },
-                { key: 'comercial', label: 'Seg a Sex (Comercial)' },
-                { key: 'todos', label: 'Todos os Dias' },
-                { key: 'personalizado', label: 'Personalizado' },
-              ].map((preset) => {
-                const isSelected = schedulePreset === preset.key;
-                return (
-                  <button
-                    key={preset.key}
-                    type="button"
-                    onClick={() => applyPreset(preset.key as any)}
-                    className={`py-1.5 px-2 rounded text-[11px] font-bold border transition cursor-pointer whitespace-nowrap text-center ${
-                      isSelected
-                        ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
-                        : isDark
-                        ? 'bg-slate-950 border-slate-800 text-slate-300 hover:border-emerald-500/50'
-                        : 'bg-slate-100 border-slate-200 text-slate-700 hover:border-emerald-500/50'
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Seletor de Dias Ativos (Chips) */}
-          <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-              2. Dias de Funcionamento (Toque para ativar/desativar)
-            </label>
-            <div className="grid grid-cols-7 gap-1">
-              {days.map((d) => (
-                <button
-                  key={d.dayKey}
-                  type="button"
-                  onClick={() => toggleDay(d.dayKey)}
-                  className={`py-2 rounded text-xs font-bold border transition cursor-pointer flex flex-col items-center justify-center select-none ${
-                    d.isOpen
-                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
-                      : isDark
-                      ? 'bg-slate-950 border-slate-800/80 text-slate-500 hover:text-slate-300'
-                      : 'bg-slate-100 border-slate-200 text-slate-400 hover:text-slate-600'
-                  }`}
-                >
-                  <span className={d.isOpen ? 'text-white' : ''}>{d.dayLabel}</span>
-                  <span className={`text-[9px] mt-0.5 ${d.isOpen ? 'text-white/90 font-medium' : 'text-slate-600'}`}>
-                    {d.isOpen ? 'Aberto' : 'Off'}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Horários Padrão em Lote */}
-          <div className={`p-2.5 rounded border space-y-2 ${
-            isDark ? 'bg-slate-950/60 border-slate-800/70' : 'bg-slate-50 border-slate-200'
-          }`}>
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-              3. Aplicar Horário Geral em Lote
-            </label>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1 text-xs">
-                <span className="text-[11px] text-slate-400">Das</span>
-                <input
-                  type="time"
-                  value={batchOpenTime}
-                  onChange={(e) => setBatchOpenTime(e.target.value)}
-                  className={`px-2 py-1 rounded border text-xs font-mono font-bold outline-hidden ${
-                    isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
-                  }`}
-                />
-              </div>
-              <div className="flex items-center gap-1 text-xs">
-                <span className="text-[11px] text-slate-400">às</span>
-                <input
-                  type="time"
-                  value={batchCloseTime}
-                  onChange={(e) => setBatchCloseTime(e.target.value)}
-                  className={`px-2 py-1 rounded border text-xs font-mono font-bold outline-hidden ${
-                    isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900'
-                  }`}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={handleApplyBatchTimes}
-                className="px-2.5 py-1.5 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold transition cursor-pointer shadow-xs whitespace-nowrap"
-              >
-                Aplicar aos Dias Ativos
-              </button>
-            </div>
-          </div>
-
-          {/* Ajustes Individuais por Dia */}
-          <div className="space-y-1 pt-1">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-              Ajuste Específico por Dia (Ex: Sábado horário reduzido)
-            </label>
-            <div className="space-y-1 max-h-48 overflow-y-auto no-scrollbar pr-1">
-              {days.map((d) => (
-                <div
-                  key={d.dayKey}
-                  className={`px-2.5 py-1.5 rounded border flex items-center justify-between text-xs transition ${
-                    d.isOpen
-                      ? isDark
-                        ? 'bg-slate-900/60 border-slate-800'
-                        : 'bg-white border-slate-200'
-                      : isDark
-                      ? 'bg-slate-950/40 border-slate-850 opacity-40'
-                      : 'bg-slate-100 border-slate-200 opacity-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold w-9">{d.dayLabel}</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
-                      d.isOpen ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-300'
-                    }`}>
-                      {d.isOpen ? 'Aberto' : 'Fechado'}
-                    </span>
-                  </div>
-
-                  {d.isOpen ? (
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="time"
-                        value={d.openTime}
-                        onChange={(e) => updateDayTime(d.dayKey, 'openTime', e.target.value)}
-                        className={`px-1.5 py-0.5 rounded border text-[11px] font-mono outline-hidden ${
-                          isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                        }`}
-                      />
-                      <span className="text-[10px] text-slate-400">às</span>
-                      <input
-                        type="time"
-                        value={d.closeTime}
-                        onChange={(e) => updateDayTime(d.dayKey, 'closeTime', e.target.value)}
-                        className={`px-1.5 py-0.5 rounded border text-[11px] font-mono outline-hidden ${
-                          isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                        }`}
-                      />
-                    </div>
-                  ) : (
-                    <span className="text-[10px] text-slate-500 italic">Sem atendimento</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-          </>
-        )}
-
-        {/* ABA 2 ('fiscal'): EXCLUSIVO PARA TRIBUTAÇÃO (AUTÔNOMO VS CNPJ / RAZÃO SOCIAL & TITULAR CPF) */}
-        {activeSubTab === 'fiscal' && (
-          <>
-            <div className={`p-3.5 rounded border space-y-3 ${
+            {/* FISCAL • TRIBUTAÇÃO & REGIME (CNPJ / CPF) */}
+            <div className={`p-3.5 rounded-[4px] border space-y-3 ${
               isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
             }`}>
               <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
                 <FileText className="w-4 h-4 text-emerald-400" />
                 <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
-                  Tributação & Regime Fiscal
+                  Fiscal • Tributação & Regime (CNPJ / CPF)
                 </h3>
               </div>
 
@@ -1167,7 +845,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                       setCnpj('');
                       setRazaoSocial('');
                     }}
-                    className={`py-2 px-3 rounded text-xs font-bold border transition cursor-pointer whitespace-nowrap ${
+                    className={`py-2 px-3 rounded-[4px] text-xs font-bold border transition cursor-pointer whitespace-nowrap ${
                       !hasCnpj
                         ? 'bg-emerald-500 border-emerald-500 text-white'
                         : isDark
@@ -1183,7 +861,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                       hapticLight();
                       setHasCnpj(true);
                     }}
-                    className={`py-2 px-3 rounded text-xs font-bold border transition cursor-pointer whitespace-nowrap ${
+                    className={`py-2 px-3 rounded-[4px] text-xs font-bold border transition cursor-pointer whitespace-nowrap ${
                       hasCnpj
                         ? 'bg-emerald-500 border-emerald-500 text-white'
                         : isDark
@@ -1213,7 +891,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                           value={cnpj}
                           onChange={(e) => handleCnpjChange(e.target.value)}
                           placeholder="00.000.000/0000-00"
-                          className={`w-full pl-3 pr-9 py-2 rounded border text-xs font-mono outline-hidden transition ${
+                          className={`w-full pl-3 pr-9 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
                             isDark 
                               ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
                               : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
@@ -1245,7 +923,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                         value={razaoSocial}
                         onChange={(e) => setRazaoSocial(e.target.value)}
                         placeholder="Ex: Empresa de Beleza LTDA"
-                        className={`w-full px-3 py-2 rounded border text-xs outline-hidden transition ${
+                        className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
                           isDark 
                             ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
                             : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
@@ -1274,8 +952,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
               )}
             </div>
 
-            {/* RESPONSÁVEL LEGAL / CPF DO TITULAR */}
-            <div className={`p-3.5 rounded border space-y-3 ${
+            {/* TITULAR & RESPONSÁVEL LEGAL (CPF Pessoal) */}
+            <div className={`p-3.5 rounded-[4px] border space-y-3 ${
               isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
             }`}>
               <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
@@ -1296,7 +974,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                     value={legalManagerName}
                     onChange={(e) => setLegalManagerName(e.target.value)}
                     placeholder="Ex: Anderson Henrique Pires"
-                    className={`w-full px-3 py-2 rounded border text-xs outline-hidden transition ${
+                    className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
                       isDark 
                         ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
                         : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
@@ -1313,7 +991,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                     value={legalManagerCpf}
                     onChange={(e) => handleCpfChange(e.target.value)}
                     placeholder="000.000.000-00"
-                    className={`w-full px-3 py-2 rounded border text-xs font-mono outline-hidden transition ${
+                    className={`w-full px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
                       cpfError
                         ? 'border-rose-500 bg-rose-950/20 text-rose-200'
                         : isDark 
@@ -1339,7 +1017,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                     value={legalManagerPhone}
                     onChange={(e) => setLegalManagerPhone(formatPhone(e.target.value))}
                     placeholder="(00) 00000-0000"
-                    className={`w-full px-3 py-2 rounded border text-xs font-mono outline-hidden transition ${
+                    className={`w-full px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
                       isDark 
                         ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
                         : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
@@ -1357,7 +1035,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                     value={legalManagerEmail}
                     onChange={(e) => setLegalManagerEmail(e.target.value)}
                     placeholder="seu.email@exemplo.com"
-                    className={`w-full px-3 py-2 rounded border text-xs outline-hidden transition ${
+                    className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
                       isDark 
                         ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
                         : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
@@ -1369,233 +1047,640 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
           </>
         )}
 
-        {/* ABA 3 ('pix_billing'): EXCLUSIVO PARA RECEBIMENTOS PIX, QR CODE BACEN E PLAQUINHA DE BALCÃO */}
-        {activeSubTab === 'pix_billing' && (
-          <div className={`p-3.5 rounded border space-y-3.5 ${
-            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-          }`}>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800/60 gap-2">
-              <div className="flex items-center gap-2">
-                <QrCode className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
-                  Chaves PIX & Plaquinha ({pixKeys.length})
-                </h3>
+        {/* ============================================================== */}
+        {/* 2. LOCALIZAÇÃO & ENDEREÇO (CEP, Endereço, Número, Compl., Bairro, Cidade, UF, Maps) */}
+        {/* ============================================================== */}
+        {showEndereco && (
+            <div className={`p-3.5 rounded-[4px] border space-y-3 ${
+              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+            }`}>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-emerald-400" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                    Localização & Endereço
+                  </h3>
+                </div>
+                <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-emerald-400" />
+                  ViaCEP + Maps
+                </span>
               </div>
-              {pixKeys.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    hapticLight();
-                    setIsPixPrintModalOpen(true);
-                  }}
-                  className="px-2.5 py-1 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow-xs"
-                >
-                  <Printer className="w-3.5 h-3.5 text-white" />
-                  <span>Gerar Plaquinha QR</span>
-                </button>
-              )}
-            </div>
 
-            {/* Preview Rápido do QR Code BACEN da Chave Principal */}
-            {pixKeys.length > 0 && (() => {
-              const primaryItem = pixKeys.find((k) => k.isPrimary) || pixKeys[0];
-              const previewQrUrl = getPixQrCodeUrl({
-                pixKey: primaryItem.key,
-                keyType: primaryItem.type,
-                merchantName: primaryItem.holderName || salonName || 'ESTABELECIMENTO',
-                merchantCity: cidade || 'BRASIL',
-              }, 160);
-
-              return (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-2 border-b border-slate-800/60">
-                  <div className="flex items-center gap-3">
-                    {previewQrUrl && (
-                      <div className="p-1.5 rounded bg-white shrink-0">
-                        <img
-                          src={previewQrUrl}
-                          alt="QR Code PIX BACEN"
-                          className="w-16 h-16 object-contain"
-                        />
-                      </div>
-                    )}
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
-                        QR Code Oficial BACEN Ativo
-                      </span>
-                      <p className="text-xs font-mono font-bold">
-                        {primaryItem.type.toUpperCase()}: {primaryItem.key}
-                      </p>
-                      <p className="text-[10px] text-slate-400">
-                        Usado na Plaquinha de Balcão e no Checkout Pós-Serviço
-                      </p>
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="col-span-1">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    CEP <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={cep}
+                      onChange={handleCepChange}
+                      placeholder="00000-000"
+                      className={`w-full pl-2.5 pr-8 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
+                        isDark 
+                          ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                          : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      }`}
+                    />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                      {isSearchingCep ? (
+                        <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+                      ) : (
+                        <Search className="w-3.5 h-3.5 text-slate-500" />
+                      )}
                     </div>
                   </div>
+                </div>
+
+                <div className="col-span-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Endereço <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={logradouro}
+                    onChange={(e) => setLogradouro(e.target.value)}
+                    placeholder="Rua, Avenida, Alameda..."
+                    className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                      isDark 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {cepError && (
+                <p className="text-[11px] text-rose-400 font-medium">{cepError}</p>
+              )}
+
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="col-span-1">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Número <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={numero}
+                    onChange={(e) => setNumero(e.target.value)}
+                    placeholder="123"
+                    className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                      isDark 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Compl.
+                  </label>
+                  <input
+                    type="text"
+                    value={complemento}
+                    onChange={(e) => setComplemento(e.target.value)}
+                    placeholder="Sala 2, Loja B, Galeria..."
+                    className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                      isDark 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-6 gap-2.5">
+                <div className="col-span-3">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Bairro <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={bairro}
+                    onChange={(e) => setBairro(e.target.value)}
+                    placeholder="Centro"
+                    className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                      isDark 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Cidade <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={cidade}
+                    onChange={(e) => setCidade(e.target.value)}
+                    placeholder="São Paulo"
+                    className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                      isDark 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                </div>
+
+                <div className="col-span-1">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    UF <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={2}
+                    value={uf}
+                    onChange={(e) => setUf(e.target.value.toUpperCase())}
+                    placeholder="SP"
+                    className={`w-full px-2 py-2 rounded-[4px] border text-xs font-mono text-center uppercase outline-hidden transition ${
+                      isDark 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                </div>
+              </div>
+
+            </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* 3. HORÁRIOS DE ATENDIMENTO (Abas Geral + Profissionais, Dias e Turnos com Intervalo/Pausa) */}
+        {/* ============================================================== */}
+        {showHorarios && (
+            <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
+              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+            }`}>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800/60 gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-emerald-400" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                    Horários de Atendimento
+                  </h3>
+                </div>
+                <span className="text-[10px] font-mono text-emerald-400 font-semibold">
+                  {generateOpeningHoursSummary()}
+                </span>
+              </div>
+
+              {/* CABEÇALHO DE ESCALAS: ABA "GERAL" + ABAS COM NOMES DOS PROFISSIONAIS */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Escala por Profissional & Geral do Salão</span>
+                  </span>
                   <button
                     type="button"
                     onClick={() => {
                       hapticLight();
-                      setIsPixPrintModalOpen(true);
+                      setIsAddingQuickPro((prev) => !prev);
                     }}
-                    className="w-full sm:w-auto px-3 py-2 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                    className="px-2 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
                   >
-                    <QrCode className="w-3.5 h-3.5 text-white" />
-                    <span>Abrir Plaquinha Acrílico</span>
+                    <Plus className="w-3 h-3 text-white" />
+                    <span className="text-white">Profissional</span>
                   </button>
                 </div>
-              );
-            })()}
 
-            {/* Lista de Chaves Cadastradas (Flat Layout) */}
-            {pixKeys.length > 0 && (
-              <div className="divide-y divide-slate-800/60">
-                {pixKeys.map((item) => (
-                  <div
-                    key={item.id}
-                    className="py-2.5 flex items-center justify-between gap-2"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-200">
-                          {item.type.toUpperCase()}
-                        </span>
-                        <span className="text-xs font-mono font-bold truncate">
-                          {item.key}
-                        </span>
-                        {item.isPrimary && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500 text-white whitespace-nowrap">
-                            Principal
-                          </span>
-                        )}
-                      </div>
-                      {(item.holderName || item.institution) && (
-                        <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                          {[item.holderName, item.institution].filter(Boolean).join(' • ')}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {!item.isPrimary && (
-                        <button
-                          type="button"
-                          onClick={() => handleSetPrimaryPixKey(item.id)}
-                          className="px-2 py-1 rounded text-[10px] font-bold bg-slate-800 hover:bg-emerald-500 text-slate-300 hover:text-white transition cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                          title="Definir como Chave Principal"
-                        >
-                          <Star className="w-3 h-3" />
-                          Tornar Principal
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePixKey(item.id)}
-                        className="p-1.5 rounded text-slate-400 hover:text-rose-400 transition cursor-pointer"
-                        title="Remover chave PIX"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                {isAddingQuickPro && (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={newProNameInput}
+                      onChange={(e) => setNewProNameInput(e.target.value)}
+                      placeholder="Nome do profissional (ex: Lucas)"
+                      className={`flex-1 px-2.5 py-1.5 rounded-[4px] border text-xs outline-hidden ${
+                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddQuickProfessional}
+                      className="px-3 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold cursor-pointer whitespace-nowrap"
+                    >
+                      Adicionar
+                    </button>
                   </div>
-                ))}
-              </div>
-            )}
+                )}
 
-            {/* Adicionar Nova Chave PIX */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Tipo de Chave
-                </label>
-                <select
-                  value={newPixType}
-                  onChange={(e) => setNewPixType(e.target.value as PixKeyType)}
-                  className={`w-full px-2.5 py-2 rounded border text-xs font-bold outline-hidden ${
-                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                  }`}
-                >
-                  <option value="cpf">CPF</option>
-                  <option value="cnpj">CNPJ</option>
-                  <option value="phone">Celular</option>
-                  <option value="email">E-mail</option>
-                  <option value="evp">Aleatória (EVP)</option>
-                </select>
-              </div>
-              <div className="sm:col-span-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Chave PIX
-                </label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="text"
-                    value={newPixKey}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (newPixType === 'cpf') setNewPixKey(formatCpf(v));
-                      else if (newPixType === 'cnpj') setNewPixKey(formatCnpj(v));
-                      else if (newPixType === 'phone') setNewPixKey(formatPhone(v));
-                      else setNewPixKey(v);
-                    }}
-                    placeholder={
-                      newPixType === 'cpf'
-                        ? '000.000.000-00'
-                        : newPixType === 'cnpj'
-                        ? '00.000.000/0000-00'
-                        : newPixType === 'phone'
-                        ? '(00) 00000-0000'
-                        : newPixType === 'email'
-                        ? 'pix@estabelecimento.com'
-                        : 'Chave aleatória EVP'
-                    }
-                    className={`flex-1 px-3 py-2 rounded border text-xs font-mono outline-hidden transition ${
-                      isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                    }`}
-                  />
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <button
                     type="button"
-                    onClick={handleAddPixKey}
-                    className="px-3 py-2 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer shrink-0 whitespace-nowrap"
+                    onClick={() => {
+                      hapticLight();
+                      setActiveScheduleTab('geral');
+                    }}
+                    className={`px-3 py-1.5 rounded-[4px] text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                      activeScheduleTab === 'geral'
+                        ? 'bg-emerald-500 text-white shadow-xs'
+                        : isDark
+                        ? 'bg-slate-950 text-slate-300 hover:text-white'
+                        : 'bg-slate-100 text-slate-700 hover:text-slate-900'
+                    }`}
                   >
-                    <Plus className="w-3.5 h-3.5 text-white" />
-                    Adicionar
+                    <Building2 className={`w-3.5 h-3.5 ${activeScheduleTab === 'geral' ? 'text-white' : 'text-emerald-400'}`} />
+                    <span className={activeScheduleTab === 'geral' ? 'text-white' : ''}>Geral</span>
                   </button>
+
+                  {localProfessionals.map((pro, idx) => {
+                    const pid = pro.id || `pro-${idx + 1}`;
+                    const isSel = activeScheduleTab === pid;
+                    return (
+                      <button
+                        key={pid}
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          setActiveScheduleTab(pid);
+                        }}
+                        className={`px-3 py-1.5 rounded-[4px] text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                          isSel
+                            ? 'bg-emerald-500 text-white shadow-xs'
+                            : isDark
+                            ? 'bg-slate-950 text-slate-300 hover:text-white'
+                            : 'bg-slate-100 text-slate-700 hover:text-slate-900'
+                        }`}
+                      >
+                        <span className={isSel ? 'text-white' : ''}>{pro.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {hasMultipleProfessionals && activeScheduleTab === 'geral' && (
+                  <p className="text-[10px] text-emerald-400 font-medium">
+                    Aba Geral consolida automaticamente a união dos turnos de todos os profissionais (ex: 09:00 às 12:00 + 12:00 às 20:00 = 09:00 às 20:00). Selecione a aba de um profissional para ajustar seu turno individual.
+                  </p>
+                )}
+              </div>
+
+              {/* DIAS DE FUNCIONAMENTO */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  Dias de Funcionamento {activeScheduleTab !== 'geral' ? `(${localProfessionals.find((p, i) => (p.id || `pro-${i + 1}`) === activeScheduleTab)?.name || 'Profissional'})` : '(Salão)'}
+                </label>
+                <div className="grid grid-cols-7 gap-1.5">
+                  {activeDaysList.map((d) => (
+                    <button
+                      key={d.dayKey}
+                      type="button"
+                      onClick={() => toggleDay(d.dayKey)}
+                      className={`py-2 rounded-[4px] text-xs font-bold transition flex flex-col items-center justify-center cursor-pointer ${
+                        d.isOpen
+                          ? 'bg-emerald-500 text-white shadow-xs'
+                          : isDark
+                          ? 'bg-slate-950 text-slate-500'
+                          : 'bg-slate-100 text-slate-400'
+                      }`}
+                    >
+                      <span className={d.isOpen ? 'text-white' : ''}>{d.dayLabel}</span>
+                      <span className={`text-[9px] mt-0.5 ${d.isOpen ? 'text-white font-semibold' : 'text-slate-500'}`}>
+                        {d.isOpen ? 'Aberto' : 'Off'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* HORÁRIOS DE ATENDIMENTO (Ajuste Específico por Dia: 09:00 às 12:00 - 13:00 às 20:00) */}
+              <div className="space-y-2 pt-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Horários de Atendimento (Ajuste por Dia • Intervalo / Pausa)
+                </label>
+
+                <div className="divide-y divide-slate-800/60">
+                  {activeDaysList.map((d) => {
+                    const isReadOnlyUnion = hasMultipleProfessionals && activeScheduleTab === 'geral';
+                    return (
+                      <div
+                        key={d.dayKey}
+                        className={`py-2.5 flex flex-col gap-2 text-xs transition ${
+                          !d.isOpen ? 'opacity-45' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold w-9">{d.dayLabel}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-[4px] font-bold ${
+                              d.isOpen ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              {d.isOpen ? 'Aberto' : 'Fechado'}
+                            </span>
+                          </div>
+
+                          {d.isOpen ? (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {d.hasBreak ? (
+                                /* Formato 2 Turnos: 09:00 às 12:00 - 13:00 às 20:00 */
+                                <>
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="time"
+                                      disabled={isReadOnlyUnion}
+                                      value={d.openTime}
+                                      onChange={(e) => updateDayField(d.dayKey, 'openTime', e.target.value)}
+                                      className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
+                                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                                      }`}
+                                    />
+                                    <span className="text-[10px] text-slate-400">às</span>
+                                    <input
+                                      type="time"
+                                      disabled={isReadOnlyUnion}
+                                      value={d.breakStart || '12:00'}
+                                      onChange={(e) => updateDayField(d.dayKey, 'breakStart', e.target.value)}
+                                      className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
+                                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                                      }`}
+                                    />
+                                  </div>
+
+                                  <span className="text-xs font-bold text-emerald-400">-</span>
+
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="time"
+                                      disabled={isReadOnlyUnion}
+                                      value={d.breakEnd || '13:00'}
+                                      onChange={(e) => updateDayField(d.dayKey, 'breakEnd', e.target.value)}
+                                      className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
+                                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                                      }`}
+                                    />
+                                    <span className="text-[10px] text-slate-400">às</span>
+                                    <input
+                                      type="time"
+                                      disabled={isReadOnlyUnion}
+                                      value={d.closeTime}
+                                      onChange={(e) => updateDayField(d.dayKey, 'closeTime', e.target.value)}
+                                      className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
+                                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                                      }`}
+                                    />
+                                  </div>
+
+                                  {!isReadOnlyUnion && (
+                                    <button
+                                      type="button"
+                                      onClick={() => updateDayField(d.dayKey, 'hasBreak', false)}
+                                      className="p-1 rounded-[4px] text-slate-400 hover:text-rose-400 transition cursor-pointer"
+                                      title="Remover intervalo / pausa"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </>
+                              ) : (
+                                /* Turno Contínuo + Botão de Inserir Intervalo/Pausa */
+                                <>
+                                  <input
+                                    type="time"
+                                    disabled={isReadOnlyUnion}
+                                    value={d.openTime}
+                                    onChange={(e) => updateDayField(d.dayKey, 'openTime', e.target.value)}
+                                    className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
+                                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                                    }`}
+                                  />
+                                  <span className="text-[10px] text-slate-400">às</span>
+                                  <input
+                                    type="time"
+                                    disabled={isReadOnlyUnion}
+                                    value={d.closeTime}
+                                    onChange={(e) => updateDayField(d.dayKey, 'closeTime', e.target.value)}
+                                    className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
+                                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                                    }`}
+                                  />
+                                  {!isReadOnlyUnion && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        hapticLight();
+                                        updateDayField(d.dayKey, 'hasBreak', true);
+                                      }}
+                                      className="px-2 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+                                    >
+                                      <Plus className="w-3 h-3 text-white" />
+                                      <span className="text-white">Pausa</span>
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-500 italic">Sem expediente</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* 4. CONTATO (Link Exclusivo & QR Code, WhatsApp, Tel. Fixo, E-mail, Site, Instagram e Facebook) */}
+        {/* ============================================================== */}
+        {showContato && (
+          <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
+            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+          }`}>
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+              <Phone className="w-4 h-4 text-emerald-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                Contato & Canais Digitais
+              </h3>
+            </div>
+
+            {/* Link Exclusivo & QR Code da Vitrine */}
+            <div className="space-y-2 pb-3 border-b border-slate-800/60">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Link Exclusivo & QR Code da Vitrine</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    setIsStorefrontQrModalOpen(true);
+                  }}
+                  className="px-2.5 py-1 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] text-white text-[10px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Printer className="w-3 h-3 text-white" />
+                  <span className="text-white">Placa QR Code</span>
+                </button>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-mono font-bold text-emerald-400 truncate">
+                    {storefrontUrl}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleCopyStorefrontLink}
+                    className="flex-1 sm:flex-initial px-2.5 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer whitespace-nowrap"
+                  >
+                    {copiedLink ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-white" />
+                        <span className="text-white">Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-white" />
+                        <span className="text-white">Copiar Link</span>
+                      </>
+                    )}
+                  </button>
+                  <a
+                    href={storefrontUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`px-2.5 py-1.5 rounded-[4px] border text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer whitespace-nowrap ${
+                      isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Abrir</span>
+                  </a>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <input
-                type="text"
-                value={newPixHolder}
-                onChange={(e) => setNewPixHolder(e.target.value)}
-                placeholder="Titular da conta (opcional)"
-                className={`w-full px-3 py-1.5 rounded border text-xs outline-hidden transition ${
-                  isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
-              <input
-                type="text"
-                value={newPixInstitution}
-                onChange={(e) => setNewPixInstitution(e.target.value)}
-                placeholder="Banco / Instituição (opcional)"
-                className={`w-full px-3 py-1.5 rounded border text-xs outline-hidden transition ${
-                  isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
+            {/* WhatsApp, Tel. Fixo, E-mail */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+                  <Phone className="w-3 h-3 text-emerald-400" />
+                  <span>WhatsApp <span className="text-rose-400">*</span></span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={salonPhone}
+                  onChange={(e) => setSalonPhone(formatPhone(e.target.value))}
+                  placeholder="(00) 00000-0000"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
+                    isDark 
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Tel. Fixo
+                </label>
+                <input
+                  type="text"
+                  value={phoneLandline}
+                  onChange={(e) => setPhoneLandline(formatLandline(e.target.value))}
+                  placeholder="(00) 0000-0000"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
+                    isDark 
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+                  <Mail className="w-3 h-3 text-emerald-400" />
+                  <span>E-mail</span>
+                </label>
+                <input
+                  type="email"
+                  value={commercialEmail}
+                  onChange={(e) => setCommercialEmail(e.target.value)}
+                  placeholder="contato@salao.com"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark 
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+            </div>
+
+            {/* Site, Instagram e Facebook */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+                  <Globe className="w-3 h-3 text-emerald-400" />
+                  <span>Site</span>
+                </label>
+                <input
+                  type="text"
+                  value={websiteUrl}
+                  onChange={(e) => setWebsiteUrl(e.target.value)}
+                  placeholder="www.meusalao.com.br"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark 
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+                  <Instagram className="w-3 h-3 text-emerald-400" />
+                  <span>Instagram</span>
+                </label>
+                <input
+                  type="text"
+                  value={instagramUrl}
+                  onChange={(e) => setInstagramUrl(e.target.value)}
+                  placeholder="@meusalao"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark 
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+                  <Facebook className="w-3 h-3 text-emerald-400" />
+                  <span>Facebook</span>
+                </label>
+                <input
+                  type="text"
+                  value={facebookUrl}
+                  onChange={(e) => setFacebookUrl(e.target.value)}
+                  placeholder="facebook.com/meusalao"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark 
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
             </div>
           </div>
         )}
       </form>
-
-      {/* Modal de Impressão da Plaquinha Acrílica PIX */}
-      <SalonPixPrintModal
-        isOpen={isPixPrintModalOpen}
-        onClose={() => setIsPixPrintModalOpen(false)}
-        salonName={salonName || adminSettings.salonName || 'Meu Estabelecimento'}
-        salonCity={cidade || adminSettings.cidade || 'BRASIL'}
-        salonLogo={adminSettings.salonLogo || adminSettings.salonIcon}
-        slogan={adminSettings.slogan}
-        pixKeys={pixKeys}
-        fallbackPixKey={adminSettings.pixKey}
-      />
 
       {/* Modal de Impressão da Placa QR Code de Agendamento da Vitrine */}
       {isStorefrontQrModalOpen && (
@@ -1604,7 +1689,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
           onClick={() => setIsStorefrontQrModalOpen(false)}
         >
           <div
-            className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col max-h-[90dvh]"
+            className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-[4px] overflow-hidden flex flex-col max-h-[90dvh]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
@@ -1617,14 +1702,14 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsStorefrontQrModalOpen(false)}
-                className="p-1 rounded text-slate-400 hover:text-white transition cursor-pointer"
+                className="p-1 rounded-[4px] text-slate-400 hover:text-white transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="p-5 flex flex-col items-center text-center space-y-3 overflow-y-auto">
-              <span className="px-2.5 py-0.5 rounded bg-[#20C933] text-white text-[10px] font-bold uppercase tracking-wider">
+              <span className="px-2.5 py-0.5 rounded-[4px] bg-[#20C933] text-white text-[10px] font-bold uppercase tracking-wider">
                 Agende Seu Horário Online
               </span>
               <h4 className="text-base font-black text-white">
@@ -1633,7 +1718,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
               {adminSettings.slogan && (
                 <p className="text-[11px] text-slate-400">{adminSettings.slogan}</p>
               )}
-              <div className="p-3 bg-white rounded-xl shadow-md">
+              <div className="p-3 bg-white rounded-[4px] shadow-md">
                 <img
                   src={storefrontQrUrl}
                   alt={`QR Code Vitrine ${salonName}`}
@@ -1652,18 +1737,18 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
               <button
                 type="button"
                 onClick={handleCopyStorefrontLink}
-                className="flex-1 py-2.5 px-3 rounded bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                className="flex-1 py-2.5 px-3 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
               >
                 <Copy className="w-3.5 h-3.5 text-white" />
-                <span>{copiedLink ? 'Link Copiado!' : 'Copiar Link'}</span>
+                <span className="text-white">{copiedLink ? 'Link Copiado!' : 'Copiar Link'}</span>
               </button>
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="flex-1 py-2.5 px-3 rounded bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                className="flex-1 py-2.5 px-3 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
               >
                 <Printer className="w-3.5 h-3.5 text-white" />
-                <span>Imprimir Placa</span>
+                <span className="text-white">Imprimir Placa</span>
               </button>
             </div>
           </div>
@@ -1680,7 +1765,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
             hapticLight();
             onBack();
           }}
-          className={`px-4 py-2.5 rounded border text-xs font-bold transition cursor-pointer ${
+          className={`px-4 py-2.5 rounded-[4px] border text-xs font-bold transition cursor-pointer ${
             isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-900' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
           }`}
         >
@@ -1690,10 +1775,10 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
         <button
           type="button"
           onClick={() => handleSave()}
-          className="flex-1 py-2.5 px-4 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98"
+          className="flex-1 py-2.5 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98"
         >
           <Save className="w-4 h-4 text-white" />
-          <span>Salvar Dados do Negócio</span>
+          <span className="text-white">Salvar Dados do Negócio</span>
         </button>
       </div>
     </div>

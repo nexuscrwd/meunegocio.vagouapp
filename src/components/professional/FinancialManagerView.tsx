@@ -2,19 +2,25 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   DollarSign, TrendingUp, CreditCard, 
   ArrowUpRight, Share2, 
-  Sparkles, CheckCircle2, AlertCircle,
+  Sparkles, CheckCircle2,
   Wallet, Banknote, QrCode, Receipt, Target,
-  PieChart, Users
+  PieChart, Users, Printer, Plus, Trash2, Star
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
-import { BookingAppointment, PaymentMethod, ProfessionalTeamMember, UserPersona, FinancialExpense } from '../../types';
-import { hapticLight, hapticSuccess } from '../../utils/haptics';
+import { 
+  BookingAppointment, PaymentMethod, ProfessionalTeamMember, 
+  UserPersona, FinancialExpense, SalonAdminSettings, 
+  SalonPixKeyItem, PixKeyType 
+} from '../../types';
+import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
 import { ExpensesManager } from './financial/ExpensesManager';
 import { BreakEvenSimulator } from './financial/BreakEvenSimulator';
 import { SemiCircleGauge } from './dashboard/SemiCircleGauge';
 import { ClientEvolutionChart, DayEvolutionData } from './dashboard/ClientEvolutionChart';
 import { ServiceDistributionChart, ServiceStat } from './dashboard/ServiceDistributionChart';
 import { syncAllLocalUtilitiesToDatabase } from '../../services/mnvSupabaseSync';
+import { SalonPixPrintModal } from './SalonPixPrintModal';
+import { getPixQrCodeUrl } from '../../services/pixGenerator';
 
 export interface FinancialManagerViewProps {
   appointments: BookingAppointment[];
@@ -23,23 +29,153 @@ export interface FinancialManagerViewProps {
   currentPersona?: UserPersona;
   hideHeader?: boolean;
   hideTabs?: boolean;
-  initialTab?: 'caixa' | 'despesas' | 'balanco';
+  initialTab?: 'caixa' | 'despesas' | 'balanco' | 'pix_billing';
   variant?: 'full' | 'caixa';
+  adminSettings?: SalonAdminSettings;
+  onUpdateSettings?: (settings: Partial<SalonAdminSettings>) => Promise<any> | void;
 }
 
 export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
   appointments = [],
   salonName = 'Meu Estabelecimento',
-  currentPersona = 'admin',
   hideHeader = false,
   hideTabs = false,
   initialTab = 'caixa',
   variant = 'full',
+  adminSettings,
+  onUpdateSettings,
 }) => {
   const { isDark } = useTheme();
 
-  // Sub-Aba do Módulo Financeiro (Caixa, Despesas, Balanço)
-  const [activeTab, setActiveTab] = useState<'caixa' | 'despesas' | 'balanco'>(initialTab);
+  // Sub-Aba do Módulo Financeiro (Caixa, PIX & Placa, Despesas, Balanço)
+  const [activeTab, setActiveTab] = useState<'caixa' | 'despesas' | 'balanco' | 'pix_billing'>(initialTab);
+  const [isPixPrintModalOpen, setIsPixPrintModalOpen] = useState(false);
+
+  // Estado de Chaves PIX (hidratado de adminSettings ou localStorage)
+  const [pixKeys, setPixKeys] = useState<SalonPixKeyItem[]>(() => {
+    if (Array.isArray(adminSettings?.pixKeys) && adminSettings!.pixKeys.length > 0) {
+      return adminSettings!.pixKeys;
+    }
+    if (adminSettings?.pixKey && adminSettings.pixKey.trim()) {
+      return [
+        {
+          id: 'pix_primary_1',
+          type: 'cpf',
+          key: adminSettings.pixKey.trim(),
+          holderName: adminSettings.legalManagerName || adminSettings.salonName || salonName,
+          isPrimary: true,
+          verified: true,
+        },
+      ];
+    }
+    try {
+      const saved = localStorage.getItem('vagou_admin_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.pixKeys) && parsed.pixKeys.length > 0) return parsed.pixKeys;
+        if (parsed.pixKey) {
+          return [
+            {
+              id: 'pix_primary_1',
+              type: 'cpf',
+              key: String(parsed.pixKey).trim(),
+              holderName: parsed.legalManagerName || parsed.salonName || salonName,
+              isPrimary: true,
+              verified: true,
+            },
+          ];
+        }
+      }
+    } catch {}
+    return [];
+  });
+
+  const [newPixType, setNewPixType] = useState<PixKeyType>('cpf');
+  const [newPixKey, setNewPixKey] = useState('');
+  const [newPixHolder, setNewPixHolder] = useState('');
+  const [newPixInstitution, setNewPixInstitution] = useState('');
+
+  const persistPixKeys = (nextKeys: SalonPixKeyItem[]) => {
+    setPixKeys(nextKeys);
+    const primaryPix = nextKeys.find((k) => k.isPrimary)?.key || nextKeys[0]?.key || '';
+    try {
+      const saved = localStorage.getItem('vagou_admin_settings');
+      const parsed = saved ? JSON.parse(saved) : {};
+      localStorage.setItem(
+        'vagou_admin_settings',
+        JSON.stringify({ ...parsed, pixKey: primaryPix, pixKeys: nextKeys })
+      );
+    } catch {}
+    onUpdateSettings?.({ pixKey: primaryPix, pixKeys: nextKeys });
+  };
+
+  const formatCpf = (v: string) => {
+    const raw = v.replace(/\D/g, '').slice(0, 11);
+    return raw
+      .replace(/^(\d{3})(\d)/, '$1.$2')
+      .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/\.(\d{3})(\d)/, '.$1-$2');
+  };
+
+  const formatCnpj = (v: string) => {
+    const raw = v.replace(/\D/g, '').slice(0, 14);
+    return raw
+      .replace(/^(\d{2})(\d)/, '$1.$2')
+      .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/\.(\d{3})(\d)/, '.$1/$2')
+      .replace(/(\d{4})(\d)/, '$1-$2');
+  };
+
+  const formatPhone = (v: string) => {
+    const raw = v.replace(/\D/g, '').slice(0, 11);
+    if (raw.length <= 10) {
+      return raw
+        .replace(/^(\d{2})(\d)/, '($1) $2')
+        .replace(/(\d{4})(\d)/, '$1-$2');
+    }
+    return raw
+      .replace(/^(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{5})(\d)/, '$1-$2');
+  };
+
+  const handleAddPixKey = () => {
+    const cleanKey = newPixKey.trim();
+    if (!cleanKey) return;
+    hapticSuccess();
+    const isFirst = pixKeys.length === 0;
+    const item: SalonPixKeyItem = {
+      id: `pix_${Date.now()}`,
+      type: newPixType,
+      key: cleanKey,
+      holderName: newPixHolder.trim() || adminSettings?.legalManagerName || salonName || undefined,
+      institution: newPixInstitution.trim() || undefined,
+      isPrimary: isFirst,
+      verified: true,
+    };
+    const next = [...pixKeys, item];
+    persistPixKeys(next);
+    setNewPixKey('');
+    setNewPixHolder('');
+    setNewPixInstitution('');
+  };
+
+  const handleSetPrimaryPixKey = (id: string) => {
+    hapticLight();
+    const next = pixKeys.map((item) => ({
+      ...item,
+      isPrimary: item.id === id,
+    }));
+    persistPixKeys(next);
+  };
+
+  const handleRemovePixKey = (id: string) => {
+    hapticMedium();
+    const filtered = pixKeys.filter((item) => item.id !== id);
+    if (filtered.length > 0 && !filtered.some((k) => k.isPrimary)) {
+      filtered[0] = { ...filtered[0], isPrimary: true };
+    }
+    persistPixKeys(filtered);
+  };
 
   // Filtro de Período
   const [periodFilter, setPeriodFilter] = useState<'hoje' | 'semana' | 'mes' | 'todos'>('hoje');
@@ -443,15 +579,18 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
         </div>
       )}
 
-      {/* 2. Sub-Abas do Financeiro: [Caixa & Extrato] | [Custos & Despesas] | [Balanço & Metas] */}
-      {!hideHeader && !hideTabs && (
-        <div className={`px-3 py-2 border-b flex items-center justify-between gap-1.5 shrink-0 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+      {/* 2. Sub-Abas do Financeiro em 2 Linhas de Mini-Cards: [Caixa & Entradas] | [PIX & Placa] / [Custos & Despesas] | [Balanço & Metas] */}
+      {!hideTabs && (
+        <div className={` shrink-0 ${
+          hideHeader
+            ? 'pb-2'
+            : `px-3 py-2 border-b ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'}`
         }`}>
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <div className="grid grid-cols-2 gap-1.5">
             {(
               [
                 { id: 'caixa', label: 'Caixa & Entradas', icon: DollarSign },
+                { id: 'pix_billing', label: 'PIX & Placa', icon: QrCode },
                 { id: 'despesas', label: 'Custos & Despesas', icon: Receipt },
                 { id: 'balanco', label: 'Balanço & Metas', icon: Target },
               ] as const
@@ -466,16 +605,16 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
                     hapticLight();
                     setActiveTab(tab.id);
                   }}
-                  className={`px-3 py-1.5 rounded text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                  className={`py-2 px-2.5 rounded-[4px] text-[11px] font-bold border transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
                     isActive
-                      ? 'bg-emerald-500 text-white shadow-xs'
+                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
                       : isDark
-                      ? 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
-                      : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
+                      ? 'bg-slate-950 text-slate-300 hover:border-emerald-500/40 border-slate-800'
+                      : 'bg-white text-slate-700 hover:border-emerald-500/40 border-slate-200'
                   }`}
                 >
-                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-emerald-400'}`} />
-                  <span>{tab.label}</span>
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-emerald-400'}`} />
+                  <span className={isActive ? 'text-white' : ''}>{tab.label}</span>
                 </button>
               );
             })}
@@ -779,7 +918,231 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
           </div>
         )}
 
+        {/* ABA 4: PIX & PLACA */}
+        {activeTab === 'pix_billing' && (
+          <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
+            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+          }`}>
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800/60 gap-2">
+              <div className="flex items-center gap-2">
+                <QrCode className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                  PIX & Placa ({pixKeys.length})
+                </h3>
+              </div>
+              {pixKeys.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    setIsPixPrintModalOpen(true);
+                  }}
+                  className="px-2.5 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow-xs"
+                >
+                  <Printer className="w-3.5 h-3.5 text-white" />
+                  <span className="text-white">Gerar Plaquinha QR</span>
+                </button>
+              )}
+            </div>
+
+            {pixKeys.length > 0 && (() => {
+              const primaryItem = pixKeys.find((k) => k.isPrimary) || pixKeys[0];
+              const previewQrUrl = getPixQrCodeUrl({
+                pixKey: primaryItem.key,
+                keyType: primaryItem.type,
+                merchantName: primaryItem.holderName || adminSettings?.salonName || salonName || 'ESTABELECIMENTO',
+                merchantCity: adminSettings?.cidade || 'BRASIL',
+              }, 160);
+
+              return (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-2 border-b border-slate-800/60">
+                  <div className="flex items-center gap-3">
+                    {previewQrUrl && (
+                      <div className="p-1.5 rounded-[4px] bg-white shrink-0">
+                        <img
+                          src={previewQrUrl}
+                          alt="QR Code PIX BACEN"
+                          className="w-16 h-16 object-contain"
+                        />
+                      </div>
+                    )}
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
+                        QR Code Oficial BACEN Ativo
+                      </span>
+                      <p className="text-xs font-mono font-bold">
+                        {primaryItem.type.toUpperCase()}: {primaryItem.key}
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        Usado na Plaquinha de Balcão e no Checkout Pós-Serviço
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      setIsPixPrintModalOpen(true);
+                    }}
+                    className="w-full sm:w-auto px-3 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                  >
+                    <QrCode className="w-3.5 h-3.5 text-white" />
+                    <span className="text-white">Abrir Plaquinha Acrílico</span>
+                  </button>
+                </div>
+              );
+            })()}
+
+            {pixKeys.length > 0 && (
+              <div className="divide-y divide-slate-800/60">
+                {pixKeys.map((item) => (
+                  <div
+                    key={item.id}
+                    className="py-2.5 flex items-center justify-between gap-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-[4px] bg-slate-800 text-slate-200">
+                          {item.type.toUpperCase()}
+                        </span>
+                        <span className="text-xs font-mono font-bold truncate">
+                          {item.key}
+                        </span>
+                        {item.isPrimary && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-[4px] bg-emerald-500 text-white whitespace-nowrap">
+                            Principal
+                          </span>
+                        )}
+                      </div>
+                      {(item.holderName || item.institution) && (
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                          {[item.holderName, item.institution].filter(Boolean).join(' • ')}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {!item.isPrimary && (
+                        <button
+                          type="button"
+                          onClick={() => handleSetPrimaryPixKey(item.id)}
+                          className="px-2 py-1 rounded-[4px] text-[10px] font-bold bg-slate-800 hover:bg-emerald-500 text-slate-300 hover:text-white transition cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                          title="Definir como Chave Principal"
+                        >
+                          <Star className="w-3 h-3" />
+                          <span>Tornar Principal</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePixKey(item.id)}
+                        className="p-1.5 rounded-[4px] text-slate-400 hover:text-rose-400 transition cursor-pointer"
+                        title="Remover chave PIX"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Tipo de Chave
+                </label>
+                <select
+                  value={newPixType}
+                  onChange={(e) => setNewPixType(e.target.value as PixKeyType)}
+                  className={`w-full px-2.5 py-2 rounded-[4px] border text-xs font-bold outline-hidden ${
+                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                  }`}
+                >
+                  <option value="cpf">CPF</option>
+                  <option value="cnpj">CNPJ</option>
+                  <option value="phone">Celular</option>
+                  <option value="email">E-mail</option>
+                  <option value="evp">Aleatória (EVP)</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Chave PIX
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={newPixKey}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (newPixType === 'cpf') setNewPixKey(formatCpf(v));
+                      else if (newPixType === 'cnpj') setNewPixKey(formatCnpj(v));
+                      else if (newPixType === 'phone') setNewPixKey(formatPhone(v));
+                      else setNewPixKey(v);
+                    }}
+                    placeholder={
+                      newPixType === 'cpf'
+                        ? '000.000.000-00'
+                        : newPixType === 'cnpj'
+                        ? '00.000.000/0000-00'
+                        : newPixType === 'phone'
+                        ? '(00) 00000-0000'
+                        : newPixType === 'email'
+                        ? 'pix@estabelecimento.com'
+                        : 'Chave aleatória EVP'
+                    }
+                    className={`flex-1 px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddPixKey}
+                    className="px-3 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer shrink-0 whitespace-nowrap"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-white" />
+                    <span className="text-white">Adicionar</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input
+                type="text"
+                value={newPixHolder}
+                onChange={(e) => setNewPixHolder(e.target.value)}
+                placeholder="Titular da conta (opcional)"
+                className={`w-full px-3 py-1.5 rounded-[4px] border text-xs outline-hidden transition ${
+                  isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                }`}
+              />
+              <input
+                type="text"
+                value={newPixInstitution}
+                onChange={(e) => setNewPixInstitution(e.target.value)}
+                placeholder="Banco / Instituição (opcional)"
+                className={`w-full px-3 py-1.5 rounded-[4px] border text-xs outline-hidden transition ${
+                  isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                }`}
+              />
+            </div>
+          </div>
+        )}
+
       </div>
+
+      {/* Modal de Impressão da Plaquinha Acrílica PIX */}
+      <SalonPixPrintModal
+        isOpen={isPixPrintModalOpen}
+        onClose={() => setIsPixPrintModalOpen(false)}
+        salonName={adminSettings?.salonName || salonName || 'Meu Estabelecimento'}
+        salonCity={adminSettings?.cidade || 'BRASIL'}
+        salonLogo={adminSettings?.salonLogo || adminSettings?.salonIcon}
+        slogan={adminSettings?.slogan}
+        pixKeys={pixKeys}
+        fallbackPixKey={adminSettings?.pixKey}
+      />
     </div>
   );
 };

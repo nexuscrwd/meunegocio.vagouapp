@@ -455,15 +455,32 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const handleLiveAptUpdate = (e: Event) => {
+      const customEvt = e as CustomEvent<{ appointment?: BookingAppointment }>;
+      const updated = customEvt.detail?.appointment;
+      if (!updated) return;
+      setAppointments((prev) =>
+        prev.map((a) =>
+          a.protocolCode === updated.protocolCode || (a.id && a.id === updated.id)
+            ? { ...a, ...updated }
+            : a
+        )
+      );
+    };
+    window.addEventListener('vagou:appointments-updated', handleLiveAptUpdate);
+    return () => window.removeEventListener('vagou:appointments-updated', handleLiveAptUpdate);
+  }, []);
+
   const handleNavigateToAgenda = () => {
     loadAppointments();
     setViewMode('agenda');
   };
 
-  const handleCancelAppointment = async (protocolCode: string) => {
+  const handleCancelAppointment = async (protocolCode: string, reason?: string) => {
     try {
       if (isSupabaseConfigured) {
-        const res = await cancelAppointmentInDb(protocolCode);
+        const res = await cancelAppointmentInDb(protocolCode, reason);
         if (!res.success && res.error) {
           console.warn('Aviso: Cancelamento no banco de dados:', res.error);
         }
@@ -474,7 +491,12 @@ export const App: React.FC = () => {
         const list: BookingAppointment[] = JSON.parse(saved);
         const updated = list.map((apt) => {
           if (apt.protocolCode === protocolCode) {
-            return { ...apt, status: 'CANCELADO' };
+            return {
+              ...apt,
+              status: 'CANCELADO',
+              tracking_status: 'cancelled' as const,
+              ...(reason ? { cancellation_reason: reason } : {}),
+            };
           }
           return apt;
         });
@@ -485,7 +507,9 @@ export const App: React.FC = () => {
       setActiveToast({
         id: String(Date.now()),
         title: 'Agendamento Cancelado',
-        message: `O agendamento ${protocolCode} foi cancelado com sucesso.`,
+        message: reason
+          ? `O agendamento ${protocolCode} foi cancelado (Motivo: ${reason}).`
+          : `O agendamento ${protocolCode} foi cancelado com sucesso.`,
         type: 'info',
       });
     } catch (e) {
@@ -805,6 +829,21 @@ export const App: React.FC = () => {
               appointments={appointments}
               onBack={() => setViewMode('salon')}
               onCancelAppointment={handleCancelAppointment}
+              onUpdateAppointments={(updatedList) => {
+                setAppointments(updatedList);
+                try {
+                  localStorage.setItem('vagou_user_appointments', JSON.stringify(updatedList));
+                } catch {}
+              }}
+              onRescheduleAppointment={() => {
+                setViewMode('salon');
+                setActiveToast({
+                  id: String(Date.now()),
+                  title: 'Remanejamento de Horário',
+                  message: 'Escolha o novo horário desejado na grade de vagas do estabelecimento.',
+                  type: 'info',
+                });
+              }}
             />
           ) : (
             <UserDashboard

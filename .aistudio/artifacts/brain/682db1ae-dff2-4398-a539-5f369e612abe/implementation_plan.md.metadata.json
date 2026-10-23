@@ -1,6 +1,6 @@
 {
-  "summary": "Plano de implementação completo para o hook useOwnerAccess, badge discreto de acesso rápido do proprietário no cabeçalho do SalonProfileView, correção integral da persistência no Supabase (Dados do Negócio, Equipe/Profissionais e Meu Espaço/Horários) e paridade completa dos formulários locais do mnvapp com o admvapp (Módulo 11 CPF/CNPJ, BrasilAPI, Categoria, E-mail Comercial, Telefone Fixo e Kit QR Code da Vitrine).",
-  "updatedAt": "2026-10-20T11:59:44.403140799Z",
-  "requestFeedback": true,
-  "userFacing": true
+  "summary":  "Plano de implementação revisado e sincronizado com o Boletim bol-020 do admvapp: persistência preditiva em public.appointments (distance_km, eta_minutes, prep_buffer_minutes = 15, transport_mode, selected_route_summary), Conta Família inline (is_dependent, dependent_id, dependent_name), rascunho local vagou_booking_draft_v1 com banner flutuante + item na Minha Agenda, e conformidade 100% lucide-react e contraste text-white sobre verde sólido.",
+  "updatedAt":  "2026-10-22T22:23:40.964215171Z",
+  "requestFeedback":  true,
+  "userFacing":  true
 }

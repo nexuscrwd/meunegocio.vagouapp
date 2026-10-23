@@ -60,7 +60,7 @@ export interface ProfessionalDashboardViewProps {
   appointments?: BookingAppointment[];
   onUpdateAppointments?: (appointments: BookingAppointment[]) => void;
   professionals?: SalonProfessionalItem[];
-  onNavigateTab?: (tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades') => void;
+  onNavigateTab?: (tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual') => void;
   onOpenNewService?: () => void;
   onOpenNewAppointment?: () => void;
   onLogout?: () => void;

@@ -3,7 +3,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
-import { BookingAppointment, UserPersona } from '../../types';
+import { BookingAppointment, UserPersona, SalonAdminSettings } from '../../types';
 import { hapticLight } from '../../utils/haptics';
 import { FinancialManagerView } from './FinancialManagerView';
 import { GoalsAndShiftsCard } from './dashboard/GoalsAndShiftsCard';
@@ -16,8 +16,10 @@ export interface CaixaManagerViewProps {
   currentPersona?: UserPersona;
   activeProId?: string;
   matchesSelectedPro?: (app: BookingAppointment) => boolean;
-  onNavigateTab?: (tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades') => void;
+  onNavigateTab?: (tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual') => void;
   onBack?: () => void;
+  adminSettings?: SalonAdminSettings;
+  onUpdateSettings?: (settings: Partial<SalonAdminSettings>) => Promise<any> | void;
 }
 
 export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
@@ -28,6 +30,8 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
   matchesSelectedPro,
   onNavigateTab: _onNavigateTab,
   onBack,
+  adminSettings,
+  onUpdateSettings,
 }) => {
   const { isDark } = useTheme();
 
@@ -134,12 +138,12 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
           )}
 
           <h1 className="text-sm font-bold font-['Poppins'] tracking-tight truncate">
-            Caixa & Financeiro
+            Financeiro & Caixa
           </h1>
         </div>
       </header>
 
-      {/* 2. CORPO ROLÁVEL COM A FERRAMENTA DO CAIXA (LAYOUT PLANO, SEM BORDA NEM CAIXA ANINHADA) */}
+      {/* 2. CORPO ROLÁVEL COM A FERRAMENTA DO CAIXA E PIX & PLACA (LAYOUT PLANO, SEM BORDA NEM CAIXA ANINHADA) */}
       <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-3 sm:p-4 space-y-4 max-w-3xl mx-auto w-full pb-10">
         <FinancialManagerView
           appointments={appointments}
@@ -147,9 +151,11 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
           salonName={salonName}
           currentPersona={currentPersona}
           hideHeader={true}
-          hideTabs={true}
+          hideTabs={false}
           initialTab="caixa"
           variant="caixa"
+          adminSettings={adminSettings}
+          onUpdateSettings={onUpdateSettings}
         />
 
         {/* Bloco 1: Metas e Evolução Financeira por Turno (Hoje: Manhã, Tarde, Noite) */}

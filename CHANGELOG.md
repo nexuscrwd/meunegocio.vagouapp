@@ -15,6 +15,374 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-22] — Restauração do Subcabeçalho de Título nas Seções "Serviços" e "Espaço" (`SalonProfileView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Section Header & Identification]`
+- **Motivo / Solicitação:** Análise do print enviado pelo usuário (`image_476da2e3.png`) na aba "Serviços", apontando que estava faltando o subcabeçalho de título da seção entre o cabeçalho superior do salão e o grid/lista de procedimentos.
+- **Causa Raiz Identificada:**
+  1. Na Seção 2 (`#section-servicos`), quando o salão não possui múltiplos profissionais cadastrados (ou quando a seleção de profissional está oculta), a lista de serviços começava imediatamente colada à borda inferior do cabeçalho principal do salão, sem nenhuma barra de identificação ou título contextual.
+  2. Na Seção 4 (`#section-espaco`), a seção iniciava diretamente com a grade de botões de abas internas sem o subcabeçalho padrão de título e contagem.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Adicionado o subcabeçalho fixo no topo da **Seção 2 (Serviços)** com ícone `Scissors` (`lucide-react`), título `Catálogo de Serviços` (`text-xs sm:text-sm font-bold font-['Poppins']`) e badge com contador dinâmico de procedimentos (`procedimento(s)`).
+  2. Adicionado o subcabeçalho fixo no topo da **Seção 4 (Espaço)** com ícone `Store` (`lucide-react`), título `Espaço, Equipe & Localização` e badge `Conheça o local`.
+  3. Preservado o contraste estrito (fundo escuro/claro adaptativo conforme o tema `isDark` e raio `rounded-[4px]`).
+
+### [2026-10-22] — Restauração do Sub-Cabeçalho de Título da Seção de Agendamento (`SalonBookingModal.tsx`)
+- **Tipo:** `[Fix / UI-UX / Mobile Navigation & Orientation]`
+- **Motivo / Solicitação:** Usuário questionou a ausência do sub-cabeçalho de título que ficava localizado entre o cabeçalho principal do salão e as abas do stepper na visualização de agendamento ("cade o sub cabeçalho de titulo que estava aqui?").
+- **Causa Raiz Identificada:** Em uma iteração anterior de limpeza via Focus Mode, o elemento `<h2>` do topo havia sido removido para dar mais espaço vertical. Com isso, no primeiro passo (`currentStep === 'service'`) em modo inline, a primeira linha do contêiner ficava sem nenhum conteúdo à esquerda ou à direita, gerando um vazio visual sem identificação da tela.
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Reintegrado o sub-cabeçalho de título dinâmico com ícone `Calendar` (`lucide-react`) e tipografia nítida `text-xs sm:text-sm font-bold font-['Poppins']`:
+     - Passo 1: **`Agendar Horário • Serviços`**
+     - Passo 2: **`Agendar Horário • Data`** (com botão `Voltar` à esquerda)
+     - Passo 3: **`Agendar Horário • Horários`** (com botão `Voltar` à esquerda)
+  2. Preservada a integração lateral com os botões de beneficiário (`Para Você` / dependente) e `+ Mais Serviços`.
+
+### [2026-10-22] — Calibração de Vidro Jateado & Transparência (Alpha 100%), Sincronização em Tempo Real (Auto-Sync) e Palco de Prévia com Cenário Dinâmico (`BottomNav.tsx`, `LayoutCardView.tsx`, `SalonProfileView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Real-Time Live Preview / Glassmorphism Calibration]`
+- **Motivo / Solicitação:** Usuário reportou que as opções "Alpha-Vidro Jateado" e "Alpha 100%" (transparente) não estavam surtindo efeito visual na barra de navegação inferior ao serem selecionadas na tela de configuração.
+- **Causa Raiz Identificada:**
+  1. No `LayoutCardView.tsx`, os cliques em "Sólido", "Alpha-Vidro Jateado" e "Alpha 100%" ficavam retidos apenas no estado interno (`useState`) e não propagavam para a barra real do aplicativo até que o botão "Salvar" fosse clicado no canto superior, dando a impressão de inatividade.
+  2. No `BottomNav.tsx`, a opção de vidro jateado aplicava opacidade de 86% a 95% (`color-mix 86%` e `bg-slate-900/95`), mascarando quase que totalmente a transparência e o desfoque de fundo.
+  3. No `SalonProfileView.tsx`, o contêiner `<main>` terminava estritamente antes do `<footer>` na coluna flex, impedindo que os cards, textos e fotos rolassem por trás da barra de navegação para que o vidro e a transparência fossem visualizados.
+  4. Na prévia interna do `LayoutCardView.tsx`, a caixa de visualização ficava sobre um card cinza plano, sem nenhum elemento gráfico ou gradiente passando por trás para revelar o desfoque ou transparência.
+- **Arquivos Impactados:**
+  - `src/components/BottomNav.tsx`
+  - `src/components/professional/LayoutCardView.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`BottomNav.tsx`:** Calibrada a opacidade do vidro jateado para 45%-50% com `backdrop-filter: blur(16px) saturate(160%)` e `WebkitBackdropFilter: blur(16px) saturate(160%)`. Para o modo "Alpha 100%", configurado `backgroundColor: 'transparent'`, `borderColor: 'transparent'` e `boxShadow: 'none'` absoluto.
+  2. **`LayoutCardView.tsx`:**
+     - Implementado auto-sync imediato (`autoSyncSettings`): ao clicar em "Alpha 100%", "Alpha-Vidro Jateado", "Sólido" ou em qualquer paleta/formato de botão, a alteração é disparada instantaneamente para `onUpdateSettings`, fazendo a barra real de navegação no rodapé da tela reagir e transformar na mesma fração de segundo.
+     - Redesenhado o palco de teste da prévia: construído um cenário com card de serviço simulado e faixa vibrante em gradiente esmeralda/teal/ciano no fundo. A barra de rodapé sobrepõe o cenário, permitindo comprovar visualmente: (a) bloqueio 100% opaco no modo Sólido, (b) desfoque translúcido e brilho suave das cores no modo Vidro Jateado, e (c) transparência cristalina total das informações no modo Alpha 100%.
+  3. **`SalonProfileView.tsx`:** Quando a barra estiver em modo "Vidro Jateado" ou "Alpha 100%", o rodapé assume recuo negativo (`-mt-[66px] pointer-events-none` com `<div className="pointer-events-auto">`), permitindo que todo o catálogo de serviços, agenda, painéis e configurações rolem e transitem diretamente por trás da barra de navegação com desfoque e transparência física perceptível ao toque.
+
+### [2026-10-22] — Modularização do Menu "Layout & Navegação" em Cards de Opções com Abertura de Seções Independentes (`LayoutCardView.tsx`)
+- **Tipo:** `[Refactor / UI-UX / Architecture / Mobile Synthesis]`
+- **Motivo / Solicitação:** Em "Layout & Navegação", todas as seções (Tema, Cabeçalho, Slide, Rodapé, Faixa de Boas-Vindas) estavam agrupadas em uma única página longa. Conforme solicitado, a tela foi reestruturada em um Hub de Cards de Opções que, ao serem selecionados, abrem exclusivamente a seção solicitada de forma independente com botão de retorno ao hub.
+- **Arquivos Impactados:**
+  - `src/components/professional/LayoutCardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`LayoutCardView.tsx`:** Introduzido estado `activeSection: LayoutSectionKey | null` com fluxo de navegação mestre-detalhe.
+  2. **Hub de Cards (quando `activeSection === null`):** Renderiza grade limpa e moderna de 5 cards objetivos com raio 4px (`rounded-[4px]`), ícones estritos `lucide-react`, selos de status atual e chevrons de toque:
+     - `Tema do Layout` (Escuro / Claro)
+     - `Cabeçalho & Identificação` (Slogan, logo texto provisório e cor da fonte)
+     - `Slide da Página Inicial` (Slide ativo ou painel direto)
+     - `Barra de Navegação Inferior` (Fundo sólido/vidro/alpha 100%, cores e botão boleado)
+     - `Faixa de Boas-Vindas` (Degradê do tema vs Cristal)
+  3. **Seções Independentes (quando `activeSection !== null`):** Renderiza exclusivamente a tela selecionada, com barra de topo atualizada exibindo botão de voltar (`ArrowLeft`) para o hub de layout, título específico e botão de salvar com feedback tátil e visual.
+
+
+### [2026-10-22] — Expansão Visual da Barra de Navegação Inferior: Fundo (Sólido, Alpha-Vidro Jateado, Alpha 100%), Cor do Fundo, Cor de Destaque, Cor do Texto/Ícones e Botão Boleado (Borda / Sem Borda) (`types.ts`, `LayoutCardView.tsx`, `BottomNav.tsx`, `SalonProfileView.tsx`)
+- **Tipo:** `[Feat / UI-UX / Personalization / Design System]`
+- **Motivo / Solicitação:**
+  1. Personalização do fundo da barra de navegação inferior com opções de estilo: "sólido", "alpha-vidro jateado", "alpha 100%" (transparente) + seletor de cor do fundo.
+  2. Seleção da cor de destaque do item ativo.
+  3. Seleção da cor do texto e dos ícones (padrão / base).
+  4. Botão boleado com alternador de "Com borda" / "Sem borda".
+- **Arquivos Impactados:**
+  - `src/types.ts`
+  - `src/components/professional/LayoutCardView.tsx`
+  - `src/components/BottomNav.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`src/types.ts`:** Adicionados à interface `SalonAdminSettings` os campos `navBgStyle?: 'solid' | 'glass' | 'transparent'`, `navBgColor?: string`, `navTextColor?: string`, e `navBorder?: 'bordered' | 'none'`.
+  2. **`LayoutCardView.tsx`:**
+     - Adicionado seletor de 3 estados para o fundo do rodapé: "Sólido", "Alpha-Vidro Jateado" e "Alpha 100%".
+     - Adicionada paleta e color picker para a cor do fundo da barra (`navBgColor`).
+     - Adicionada paleta e color picker para a cor do texto e ícones padrão (`navTextColor`).
+     - Adicionado alternador para botões: "Com Borda" (`navBorder === 'bordered'`) vs "Sem Borda" (`navBorder === 'none'`).
+     - Prévia em tempo real aprimorada simulando com total fidelidade o fundo (sólido, vidro jateado com desfoque, ou transparente), cores personalizadas e contornos.
+  3. **`BottomNav.tsx`:** Atualizado o contêiner `<nav>` e os botões para aplicar dinamicamente o efeito de fundo, a cor do fundo, a cor dos ícones/textos e a presença de borda contornada, mantendo a regra inegociável de texto branco sobre superfícies sólidas ativas.
+  4. **`SalonProfileView.tsx`:** Sincronizados os novos campos em `initialSalonData`, `defaults`, `parsed` e repassados como props para o `<BottomNav>`.
+
+
+### [2026-10-22] — Customizações Avançadas de Layout & Vitrine: Tema Permanente, Slogan Dinâmico, Logo Provisório com Cor Customizada, Alternador de Slides e Rodapé com Formato Circular/Quadrado e Ícones em Traço (`types.ts`, `LayoutCardView.tsx`, `BottomNav.tsx`, `SalonProfileView.tsx`)
+- **Tipo:** `[Feat / UI-UX / Personalization / Clean Code]`
+- **Motivo / Solicitação:**
+  1. Opção de layout claro/escuro permanente com botão booleano.
+  2. Ocultar ou exibir slogan do cabeçalho.
+  3. Na ausência do logo, input de texto provisório com cor da fonte personalizada.
+  4. Ocultar ou exibir slide da página principal (em caso de falta de slides prontos).
+  5. Na prévia e no rodapé (`BottomNav`): opção de formato circular (`rounded-full`) além do quadrado (`rounded-[4px]`), ícones estritos em traço (`lucide-react` `stroke-[2]`), e seleção da cor da fonte e do ícone ativo/destaque.
+- **Arquivos Impactados:**
+  - `src/types.ts`
+  - `src/components/professional/LayoutCardView.tsx`
+  - `src/components/BottomNav.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`src/types.ts`:** Adicionados à interface `SalonAdminSettings` os campos opcionais `defaultTheme?: 'dark' | 'light'`, `showSlogan?: boolean`, `logoTextFallback?: string`, `logoTextColor?: string`, `showHeroSlides?: boolean`, `navShape?: 'square' | 'circle'`, e `navActiveColor?: string`.
+  2. **`LayoutCardView.tsx`:** Criados controles visuais com botões e seletores:
+     - Segmentado booleano de tema permanente (Escuro / Claro) sincronizado com `ThemeContext` e `localStorage`.
+     - Toggle booleano para exibir/ocultar slogan no cabeçalho.
+     - Input para texto provisório e paleta de cores para a fonte (`logoTextColor`) com chips predefinidos e input color nativo.
+     - Toggle booleano para exibir/ocultar slide publicitário da vitrine com prévia em tempo real.
+     - Seletor de formato dos botões do rodapé (Quadrado vs Circular).
+     - Paleta de cores para ícone e fonte ativa do rodapé (`navActiveColor`).
+     - Prévia em tempo real com ícones de traço autênticos `lucide-react` (`Home`, `Scissors`, `Calendar`, `MapPin`), sem emojis.
+  3. **`BottomNav.tsx`:** Integradas as propriedades `navShape` e `navActiveColor` para refletir dinamicamente a forma (quadrada vs circular) e as cores de destaque e texto em todos os estilos (`minimal`, `solid`, `boxed`), com garantia estrita de texto branco sobre superfícies sólidas.
+  4. **`SalonProfileView.tsx`:**
+     - Cabeçalho: Exibe `logoTextFallback` estilizado com `logoTextColor` na ausência de logo, e respeita a trava `showSlogan`.
+     - Seção 1 (Início): Exibe o carrossel de fotos se `showHeroSlides !== false`; caso desativado, exibe um painel de apresentação direto, moderno e limpo com atalhos de agendamento e informações do negócio.
+     - Passagem dos parâmetros `navShape` e `navActiveColor` para o `BottomNav`.
+
+
+### [2026-10-22] — Renomeação de "Serviços", Reestruturação do Menu Principal e Criação do Menu "Preferências" com 3 Cards (`Dados do negócio`, `Ident. Visual`, `Layout`) (`ProfileDrawer.tsx`, `SalonCustomizationHub.tsx`, `LayoutCardView.tsx`, `SalonProfileView.tsx`, `BottomNav.tsx`)
+- **Tipo:** `[Feat / UI-UX / Architecture]`
+- **Motivo / Solicitação:**
+  1. Renomear `"Catálogo de Serviços"` para `"Serviços"`.
+  2. Manter `"Equipe"` e `"Financeiro"`.
+  3. Criar o novo menu `"Preferências"`.
+  4. Inserir dentro de `"Preferências"` os 3 Cards dedicados:
+     - `-- Dados do negócio` (Informações comerciais e fiscais, atendimento, endereço e contato).
+     - `-- Ident. Visual` (Logo claro/escuro, ícone PWA, cor de destaque, tipografia e slogan).
+     - `-- Layout` (Barra de navegação inferior minimalista/sólida/emoldurada, faixa de boas-vindas degradê/cristal e estilo da vitrine).
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `src/components/professional/LayoutCardView.tsx` (novo)
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/BottomNav.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`ProfileDrawer.tsx`:** Atualizada a ordem do menu de gestão para: `Serviços`, `Equipe`, `Financeiro`, `Preferências` e `Vagas Relâmpagos`. "Dados do Negócio" e "Identidade Visual" migraram da raiz para dentro de `Preferências`.
+  2. **`LayoutCardView.tsx`:** Criado componente dedicado para controle de layout (BottomNav minimalista/sólido/emoldurado com prévia interativa ao vivo e faixa de boas-vindas da vitrine).
+  3. **`SalonCustomizationHub.tsx`:** Configurado como Hub oficial de `Preferências`, exibindo os 3 cards solicitados (`Dados do negócio`, `Ident. Visual` e `Layout`), permitindo navegação profunda e retorno imediato.
+  4. **`SalonProfileView.tsx` & `BottomNav.tsx`:** Adicionada rota de aba e permissão para `'preferencias'` e `'layout'`.
+
+### [2026-10-22] — [Focus Mode] Restrição dos Itens de "Minha Conta" Exclusivamente ao Modo Cliente (`ProfileDrawer.tsx`)
+- **Tipo:** `[Refactor / UI-UX / Persona Segmentation]`
+- **Motivo / Solicitação:** Os itens da seção "Minha Conta" (`Meus Dados Pessoais`, `Conta Família • Dependentes` e `Chat no App Vagou`) estavam aparecendo indevidamente no menu do Modo Gestão (`isGerMode`). Conforme solicitado, estes itens foram restritos para estar disponíveis exclusivamente no Modo Cliente (`!isGerMode`).
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`ProfileDrawer.tsx`:** Removida a renderização de `SEÇÃO 2: MINHA CONTA` e seus três botões (`Meus Dados Pessoais`, `Conta Família • Dependentes`, `Chat no App Vagou`) de dentro do bloco `isGerMode`.
+  2. No Modo Gestão, o menu agora exibe exclusivamente o atalho de alternância de visão (`Ver Vitrine como Cliente`), as opções do estabelecimento (`Dados do Negócio`, `Identidade Visual`, `Catálogo de Serviços`, `Equipe`, `Financeiro`, `Vagas Relâmpagos`) e o botão de desconexão.
+  3. No Modo Cliente (`!isGerMode`), a seção `Minha Conta` permanece íntegra, agrupando `Minha Agenda`, `Conta Família • Dependentes`, `Meus Dados Pessoais` e `Chat no App Vagou`.
+
+### [2026-10-22] — Remoção do Bloco de Mapa da Aba "Endereço" no Menu de Gestão (`BusinessDataCardView.tsx`)
+- **Tipo:** `[Refactor / UI-UX / Clean Design]`
+- **Motivo / Solicitação:** Remover o mapa do menu de gestão administrativa do negócio (`BusinessDataCardView.tsx`), assegurando que a visualização do mapa e rotas esteja disponível exclusivamente no modo cliente (`SalonProfileView.tsx` na seção Espaço & Localização), mantendo a aba "Endereço" enxuta com foco apenas nos campos de cadastro (CEP, Logradouro, Número, Complemento, Bairro, Cidade, UF).
+- **Arquivos Impactados:**
+  - `src/components/professional/BusinessDataCardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`BusinessDataCardView.tsx`:** Removido o contêiner `div:nth-of-type(5)` que continha o `iframe` do Google Maps, o link externo e o input redundante de URL da aba `Endereço`.
+  2. Eliminadas variáveis de cálculo e setters zumbis (`mapQueryAddress`, `effectiveMapsExternalUrl`, `setMapsUrl`), atendendo ao protocolo Clean Code ("Limpeza Pós-Obra").
+  3. A aba `Endereço` agora exibe de forma limpa e direta os campos de endereço com preenchimento automático por CEP (ViaCEP). A visualização interativa do mapa permanece ativa e destacada no modo cliente (`SalonProfileView.tsx`, slide de Localização).
+
+### [2026-10-22] — Nova Ordem das Abas em Dados do Negócio (`Informações`, `Atendimento`, `Endereço`, `Contato`), `Identidade Visual` no Menu Principal e `PIX & Placa` no Módulo `Financeiro` (`BusinessDataCardView.tsx`, `ProfileDrawer.tsx`, `SalonCustomizationHub.tsx`, `FinancialManagerView.tsx`, `CaixaManagerView.tsx`, `UtilitiesAndToolsView.tsx` & `SalonProfileView.tsx`)
+- **Tipo:** `[Refactor / UI-UX]`
+- **Motivo / Solicitação:**
+  1. Reordenar e enxugar as abas de **Dados do Negócio** para 4 mini-cards:
+     - `Informações` (Identificação Comercial + Fiscal)
+     - `Atendimento` (renomeado de `"Horários"` para `"Atendimento"`)
+     - `Endereço`
+     - `Contato`
+  2. Inserir **Identidade Visual** fora de `Dados do Negócio`, diretamente no **Menu Principal** (`ProfileDrawer` e `SalonCustomizationHub`).
+  3. Inserir **PIX & Placa** dentro do item de menu **Financeiro** (`FinancialManagerView` / `CaixaManagerView`).
+- **Arquivos Impactados:**
+  - `src/components/professional/BusinessDataCardView.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `src/components/professional/FinancialManagerView.tsx`
+  - `src/components/professional/CaixaManagerView.tsx`
+  - `src/components/professional/UtilitiesAndToolsView.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`BusinessDataCardView.tsx`:** Atualizado `BusinessDataTabId` para `'comercial' | 'horarios' | 'endereco' | 'contato'`, disposto em 2 linhas (`grid-cols-2 gap-1.5`) na ordem exata: `Informações`, `Atendimento`, `Endereço` e `Contato`.
+  2. **`ProfileDrawer.tsx` & `SalonCustomizationHub.tsx`:** Restaurado o item **Identidade Visual** no menu principal de gestão abrindo `VisualIdentityCardView` diretamente.
+  3. **`FinancialManagerView.tsx` & `CaixaManagerView.tsx`:** Adicionada a aba **PIX & Placa** (`pix_billing`) na grade de 2 linhas (`grid-cols-2 gap-1.5`) do módulo **Financeiro** (`Caixa & Entradas` | `PIX & Placa` / `Custos & Despesas` | `Balanço & Metas`), com suporte completo a cadastro de chaves PIX, definição de chave principal e impressão da Plaquinha QR Code oficial BACEN (`SalonPixPrintModal`).
+
+### [2026-10-22] — Aba "Informações" (Comercial + Fiscal), Mini-Card "Ident. Visual" & Enxugamento do Menu Geral (`BusinessDataCardView.tsx`, `ProfileDrawer.tsx` & `SalonCustomizationHub.tsx`)
+- **Tipo:** `[Refactor / UI-UX]`
+- **Motivo / Solicitação:**
+  1. Renomear a aba `"Comercial"` para `"Informações"` em `Dados do Negócio`, unificando dentro dela a **Identificação Comercial** (`Nome Fantasia`, `Categoria`) e a **Identificação Fiscal** (`Autônomo CPF` / `CNPJ`, consulta Receita Federal e `Titular & Responsável Legal CPF Pessoal`).
+  2. Substituir o mini-card `"Fiscal"` pelo mini-card `"Ident. Visual"` (`id: 'visual'`), contendo todas as opções de Identidade Visual (`Cor de Destaque`, `Logos Tema Escuro/Claro`, `Ícone do App 1:1 & Nome PWA`, `Tipografia & Slogan` e `Estilo da Barra de Rodapé`).
+  3. Remover a opção `"Identidade Visual"` do menu geral de gestão, mantendo as 5 opções consolidadas: `Dados do Negócio`, `Catálogo de Serviços`, `Equipe`, `Financeiro` e `Vagas Relâmpagos`.
+- **Arquivos Impactados:**
+  - `src/components/professional/BusinessDataCardView.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`BusinessDataCardView.tsx`:** Atualizado `BusinessDataTabId` para `'comercial' | 'endereco' | 'horarios' | 'contato' | 'visual' | 'pix_billing'`. Renomeado o primeiro mini-card para `'Informações'` (renderizando Comercial + Fiscal) e substituído o quinto mini-card por `'Ident. Visual'` (com paleta de destaque, logos tema claro/escuro, ícone/nome PWA, fonte da marca, slogan e estilo da barra de rodapé).
+  2. **`ProfileDrawer.tsx`:** Removida a opção `Identidade Visual` do menu lateral de gestão e alinhados os rótulos (`Dados do Negócio`, `Catálogo de Serviços`, `Equipe`, `Financeiro`, `Vagas Relâmpagos`).
+  3. **`SalonCustomizationHub.tsx`:** Removido o card autônomo `visual` e roteado qualquer acesso residual a `'visual'` diretamente para `<BusinessDataCardView initialTab="visual" />`.
+
+### [2026-10-22] — [Focus Mode] Grade de Mini-Cards em 2 Linhas (`grid-cols-3`) com Legendas 100% Legíveis em Dados do Negócio (`BusinessDataCardView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Focus Mode]`
+- **Motivo / Solicitação:** Os 6 mini-cards de abas (`Comercial`, `Endereço`, `Horários`, `Contato`, `Fiscal`, `PIX & Placa`) estavam espremidos em uma única linha (`sm:grid-cols-6`) dentro do contêiner mobile (`max-w-md`), truncando as legendas (`Co...`, `En...`, `Ho...`). Solicitado dispor os mini-cards em **2 linhas** para exibição integral das legendas.
+- **Arquivos Impactados:**
+  - `src/components/professional/BusinessDataCardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Alterado o contêiner de abas de `grid grid-cols-3 sm:grid-cols-6 gap-1.5` para `grid grid-cols-3 gap-1.5` (fixando 2 linhas de 3 mini-cards em qualquer resolução).
+  2. Removida a classe `truncate` do rótulo interno dos mini-cards para garantir leitura completa de `Comercial`, `Endereço`, `Horários`, `Contato`, `Fiscal` e `PIX & Placa`.
+
+### [2026-10-22] — [Focus Mode] Remoção do Seletor de "Motivo da Pausa", Isolamento Estrito em 6 Abas Dedicadas (`Comercial`, `Endereço`, `Horários`, `Contato`, `Fiscal`, `PIX & Placa`) & Mini-Cards 100% Visíveis sem Swipe (`BusinessDataCardView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Focus Mode]`
+- **Motivo / Solicitação:**
+  1. **Remoção do bloco "Motivo da pausa" (`div` selecionada via Focus Mode):** Remover a linha de botões/motivos de pausa (`Intervalo / Almoço`, `Consulta Médica`, `Manutenção`, `Pausa de Urgência`), mantendo apenas o controle de 2 turnos (`09:00 às 12:00 - 13:00 às 20:00` e botão `+ Pausa`).
+  2. **Abas Dedicadas Sem Mistura de Informações:** Separar cada uma das 6 categorias em sua própria aba dedicada (`Comercial`, `Endereço`, `Horários`, `Contato`, `Fiscal`, `PIX & Placa`) para que nenhuma informação fique misturada com outra na mesma aba.
+  3. **Mini-Cards de Abas 100% Visíveis (Sem Swipe Horizontal):** Exibir todos os mini-cards de abas simultaneamente em grade/quebra visível (`grid grid-cols-3 sm:grid-cols-6 gap-1.5` nas 6 abas principais e `flex-wrap` nas abas de profissionais de `Horários`), eliminando a rolagem lateral (`overflow-x-auto`).
+- **Arquivos Impactados:**
+  - `src/components/professional/BusinessDataCardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Focus Mode Clean-up:** Removidos a constante `PAUSE_REASONS`, os ícones `Coffee`, `Stethoscope` e `Wrench` e a `div` de seleção de motivo da pausa em cada dia aberto.
+  2. **Isolamento por Aba (`BusinessDataTabId`):** Atualizado `BusinessDataTabId` para `'comercial' | 'endereco' | 'horarios' | 'contato' | 'fiscal' | 'pix_billing'`, onde cada aba renderiza exclusivamente sua respectiva seção.
+  3. **Zero Swipe nos Mini-Cards:** Substituído `overflow-x-auto` por `grid grid-cols-3 sm:grid-cols-6 gap-1.5` no cabeçalho de seções e `flex-wrap` nas abas `"Geral"` + profissionais.
+
+### [2026-10-22] — Reestruturação Completa de "Dados do Negócio" em 6 Seções, Escalas por Profissional com União Dinâmica na Aba "Geral", Intervalos/Pausas de Urgência, Maps & Canais Digitais (`BusinessDataCardView.tsx`, `types.ts`, `supabase.ts`, `SalonProfileView.tsx` & `SalonCustomizationHub.tsx`)
+- **Tipo:** `[Feat / Architecture / UI-UX]`
+- **Motivo / Solicitação:** Reorganizar e aprimorar a tela de `Dados do Negócio` seguindo a estrutura de 6 blocos:
+  1. **Identificação Comercial:** Nome Fantasia, Categoria e Identidade Visual integrada.
+  2. **Localização & Endereço:** CEP, Endereço, Número, Compl., Bairro, Cidade, UF e inserção do **Maps** (preview interativo + link de rota).
+  3. **Horários de Atendimento:** Remoção de `"Padrão rápido"` e `"Aplicar horário geral em lote"`, manutenção de `"Dias de funcionamento"`, ajuste específico por dia em 2 turnos (`09:00 às 12:00 - 13:00 às 20:00`) com motivo de intervalo/pausa de urgência (Almoço, Consulta Médica, Manutenção, Urgência) e cabeçalho de abas `"Geral"` + nomes dos profissionais (calculando automaticamente na aba `"Geral"` a união dos turnos da equipe, ex: `09:00 às 12:00` + `12:00 às 20:00` = `09:00 às 20:00`).
+  4. **Contato:** Link Exclusivo & QR Code da Vitrine, WhatsApp, Tel. Fixo, E-mail, **Site**, **Instagram** e **Facebook**.
+  5. **Fiscal:** Todas as opções (Autônomo vs Pessoa Jurídica CNPJ com BrasilAPI + Razão Social e Titular & Responsável Legal CPF Pessoal Módulo 11).
+  6. **PIX e Placa:** Gestão de Chaves PIX, QR Code Oficial BACEN e impressão da Plaquinha Acrílica.
+- **Arquivos Impactados:**
+  - `src/types.ts`
+  - `src/components/professional/BusinessDataCardView.tsx`
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/lib/supabase.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Modelagem & Persistência (`types.ts`, `supabase.ts`, `SalonProfileView.tsx`):** Adicionados `hasBreak`, `breakStart`, `breakEnd` e `pauseReason` em `DayOperatingHours`, `professionalSchedules` em `OperatingSchedule` e `websiteUrl`, `facebookUrl` e `mapsUrl` em `SalonAdminSettings`, com sincronização em `public.salons.branding` e `operating_hours`.
+  2. **Motor de União Matemática de Turnos (`computeUnionGeneralSchedule`):** Mescla intervalos sobrepostos/adjacentes de todos os profissionais ativos por dia da semana para consolidar automaticamente o expediente geral do salão na aba `"Geral"`.
+  3. **Design System & Contraste:** Layout plano (`rounded-[4px]`), zero Box-in-Box, 100% ícones `lucide-react` e trava estrita de texto/ícone branco (`text-white`) em todos os botões e badges verdes (`bg-emerald-500` / `bg-[#20C933]`).
+
+### [2026-10-22] — Remoção da Opção Redundante "Espaço, Horários & Regras" e Eliminação do "Menu Após Menu" (`ProfileDrawer.tsx`, `SalonProfileView.tsx` & `SalonCustomizationHub.tsx`)
+- **Tipo:** `[Fix / UI-UX / Navigation]`
+- **Motivo / Solicitação:**
+  1. Ao abrir o menu lateral de opções (`ProfileDrawer`) no Modo Gestão e clicar em uma das opções, o aplicativo abria um segundo menu intermediário (`Gerenciamento - 5 Módulos` em `SalonCustomizationHub.tsx`) em vez de abrir diretamente a tela correspondente.
+  2. Remoção do item redundante `"Espaço, Horários & Regras"` do menu lateral de Gestão (`ProfileDrawer.tsx`), visto que horários e expediente já constam em `Dados do Negócio` e a aba de espaço já possui acesso dedicado na barra de navegação.
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `src/components/BottomNav.tsx`
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `src/components/professional/CaixaManagerView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Acesso Direto e Enxuto no Drawer (`ProfileDrawer.tsx`):** Substituída a opção genérica `"Configurações do Salão"` por acessos diretos de 1 toque (`Dados do Negócio` e `Identidade Visual`), removido o botão redundante `"Espaço, Horários & Regras"` (e o import órfão `Store`), mantendo `Catálogo de Serviços`, `Equipe & Profissionais`, `Caixa & Financeiro` e `Vagas Relâmpago (Radar)`.
+  2. **Roteamento Direto Sem Submenu (`SalonProfileView.tsx`):** Corrigido `handleSelectTab` e mapeadas todas as abas (`dados`, `visual`, `espaco`, `servicos`, `equipe`) diretamente para suas respectivas telas finais em `SalonCustomizationHub`.
+  3. **Retorno Direto ao Painel (`SalonCustomizationHub.tsx`):** Ajustado o botão `Voltar` (`ArrowLeft`) de todas as sub-telas para acionar `onBack()` diretamente rumo ao Painel principal (`home`).
+
+### [2026-10-22] — [Focus Mode] Stepper Dinâmico com Seleções Reais (Serviço Abreviado | Data | Horário) & Cabeçalho Limpo (`SalonBookingModal.tsx`)
+- **Tipo:** `[Feat / UI-UX / Focus Mode]`
+- **Motivo / Solicitação:** Na `div` das abas de progresso (`div:nth-of-type(2)`), substituir os nomes fixos das etapas pelo que foi efetivamente selecionado: no lugar de `"Serviço"`, exibir o nome abreviado do serviço (ex: `"Tratamento capilar fio a fio"` ➔ `"Tratamento capilar"`); em `"Data"`, exibir `"Data"` enquanto o cliente não chegou na seção e a data selecionada (`DD/MM`) ao defini-la; e em `"Horário"`, exibir `"Horário"` ou o horário selecionado (`HH:mm`), deixando o cabeçalho superior limpo.
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Implementado abreviador inteligente para o 1º slot do stepper (`getAbbreviatedServiceLabel`), preservando as 2 palavras nucleares do serviço (ou 3 quando há preposição intermediária) + contador `+N` se houver serviços extras.
+  2. Configurado o 2º slot para exibir `"Data"` enquanto `currentStep === 'service'` e `shortDateFormatted` (`DD/MM`) a partir da etapa de Data; e o 3º slot para exibir `"Horário"` ou `selectedTimeSlot`.
+  3. Removidas as tags duplicadas de serviço, data e horário da primeira linha do cabeçalho, deixando apenas `Voltar`, `Para Você / Dependente` e `+ Mais`.
+
+### [2026-10-22] — [Focus Mode] Remoção do `<h2>` Redundante no Cabeçalho de Agendamento & Destaque Responsivo dos Elementos do Topo (`SalonBookingModal.tsx`)
+- **Tipo:** `[Fix / UI-UX / Focus Mode]`
+- **Motivo / Solicitação:** Remover o título `<h2>` (`1-Serviço` / `2-Data` / `3-Horário`) selecionado via Focus Mode e tornar os demais elementos do cabeçalho (`Voltar`, `Serviço Selecionado`, `Para Você / Dependente`, `Data`, `Horário`, botão `+ Mais` e barra de progresso `1. Serviço | 2. Data | 3. Horário`) responsivos e mais visíveis.
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Removido o elemento `<h2>` que comprimia a largura útil da primeira linha do cabeçalho.
+  2. Reestruturados os elementos remanescentes com `flex-wrap`, tipografia ampliada (`text-xs sm:text-sm`), ícones `w-3.5 h-3.5`, espaçamento `gap-2` e stepper interativo (`text-[10px] sm:text-xs font-extrabold` e barra `h-1.5`), mantendo 100% de legibilidade em qualquer largura de tela.
+
+### [2026-10-22] — Correção do Desalinhamento de Cabeçalho & Unificação da Barra de Seleção no Topo (`1-Serviço` / `2-Data` / `3-Horário`) (`SalonBookingModal.tsx` & `SalonProfileView.tsx`)
+- **Tipo:** `[Fix / UI-UX / Focus Mode]`
+- **Motivo / Solicitação:** Corrigir o defeito no cabeçalho da seção de agendamento (onde a remoção condicional da barra superior de 44px causava deslocamento de `offsetTop` na rolagem suave) e integrar a `div` selecionada (resumo ao vivo: serviço, beneficiário, data/hora e botão `+ Mais`) na mesma linha superior do cabeçalho, resumindo a legenda `"2. Selecione a Data"` para **`"2-Data"`** (`"1-Serviço"`, `"2-Data"`, `"3-Horário"`).
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Estabilização da Altura de Rolagem (`SalonProfileView.tsx`):** Removida definitivamente a barra contextual superior redundante no modo público (movendo o botão opcional `onBack` para dentro do `<header id="salon-profile-header">`), garantindo que o `scrollContainerRef` mantenha altura 100% constante entre todas as seções (`home`, `servicos`, `vagas`, `espaco`) sem criar faixa branca ou cortar o topo do agendamento.
+  2. **Cabeçalho Unificado em Linha Única (`SalonBookingModal.tsx`):** Resumidas as legendas de etapa para **`1-Serviço`**, **`2-Data`** e **`3-Horário`** e movida a `div` de resumo ao vivo (`Serviço • Para Você/Dependente • Data • Horário` + botão `+ Mais`) para a primeira linha do cabeçalho, eliminando a linha extra e ampliando a área útil vertical.
+
+### [2026-10-22] — Correção do Cálculo de Distância & Tempo Real entre CEPs (Origem Cliente ➔ CEP Real do Salão via AwesomeAPI/BrasilAPI + OSRM) & Otimização Vertical da Etapa 3 (`bookingSlots.ts`, `SalonBookingModal.tsx` & `SalonProfileView.tsx`)
+- **Tipo:** `[Fix / GIS / Real Road Routing]`
+- **Motivo / Solicitação:** O cálculo de distância no comparador estava comparando o CEP do cliente (`08235-770`, Parque Guarani) contra a coordenada genérica padrão da Av. Paulista (`-23.561684, -46.655981`) em vez do CEP real do salão (`08285-010`, Cidade Líder — **6,6 km / 17 min** no Google Maps), além de a consulta Nominatim com bairro falhar em alguns CEPs brasileiros.
+- **Arquivos Impactados:**
+  - `src/utils/bookingSlots.ts`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Geocodificação Multi-Provedor de Alta Precisão (`geocodeBrazilLocation`):** Implementada resolução em cascata via **AwesomeAPI CEP**, **BrasilAPI CEP v2** (coordenadas diretas do CEP) e **ViaCEP + Nominatim estruturado** (sem bloqueio por bairro), resolvendo tanto a origem do cliente (`08235-770`) quanto o CEP/endereço real do salão (`08285-010`).
+  2. **Rota Viária Real de Carro (`calculateDrivingRouteDistanceAndEta` via OSRM):** Substituída a estimativa simples por consulta à malha viária real do **OSRM Driving API** (`router.project-osrm.org`) calibrada para tráfego urbano (~23,3 km/h), resultando exatamente em **`6,6 km` e `17 min` de carro** (+ `15 min` de preparo = `32 min` total) para o trajeto `08235-770 ➔ 08285-010`.
+  3. **Otimização de Espaço Vertical na Etapa 3:** Repassado `salonCep` do `SalonProfileView.tsx` para o `SalonBookingModal.tsx`, exibido par `Origem ➔ CEP Salão` no comparador e ocultadas barras redundantes na Etapa 3 para exibir o comparador e os cards de horários sem corte visual.
+
+### [2026-10-22] — Reestruturação Preditiva do Fluxo de Agendamento (`ETA + 15 min`), Modal Inline "Para Você ou Dependente?", Classificação por Períodos (`Manhã`, `Tarde`, `Noite`, `Todos`) & Pré-Salvamento de Rascunho (`SalonBookingModal.tsx`, `bookingSlots.ts`, `SalonProfileView.tsx`, `ProfileDrawer.tsx` & `UserAppointmentsView.tsx`)
+- **Tipo:** `[Feat / UX / Predictive GIS Scheduling / BOL-020 Synergy / Tríade Sync]`
+- **Motivo / Solicitação:**
+  1. Ao clicar em um serviço na vitrine, avançar direto para a seleção de **Data** (eliminando a etapa redundante de escolher serviço novamente), mantendo botão compacto **`+ Mais Serviços`** no cabeçalho.
+  2. Abrir modal compacto **"Para Você ou Dependente?"** logo após a escolha do serviço (antes da Data), listando os dependentes cadastrados no banco (`public.dependents` / `public.client_family_members`) e permitindo **`+ Cadastrar Dependente`** inline sem sair do agendamento.
+  3. Exibir no topo do agendamento a barra de seleções ao vivo (`Serviço • Para Você/Dependente • Data DD/MM • Horário HH:mm`).
+  4. Na etapa de Horários, consultar horários livres no banco (`fetchBusySlotsDirectly`) e bloquear horários passados + janela de deslocamento (`Hora Atual + Tempo de Deslocamento + 15 min de preparação`), com **Barra Comparadora de Endereço/CEP em Tempo Real** (ViaCEP + Nominatim + Haversine) para teste imediato.
+  5. Reordenar abas de turno para **`Manhã` ➔ `Tarde` ➔ `Noite` ➔ `Todos`**, exibindo os horários classificados por período e indisponibilizando automaticamente a aba **Manhã** quando já for tarde (`>= 12:00`) e **Manhã + Tarde** quando já for noite (`>= 18:00`).
+  6. Abrir **Modal Independente de Resumo** ao selecionar o horário, com opções de **Confirmar Agendamento** (persistindo `distance_km`, `eta_minutes`, `prep_buffer_minutes = 15`, `transport_mode`, `selected_route_summary`, `is_dependent`, `dependent_id`, `dependent_name` em `public.appointments`), **Pré-Salvar Rascunho** (`vagou_booking_draft_v1` acessível via Banner Flutuante e Card em Minha Agenda), **Revisar** ou **Cancelar**.
+- **Arquivos Impactados:**
+  - `src/utils/bookingSlots.ts`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/UserAppointmentsView.tsx`
+  - `src/lib/supabase.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:** Implementado gatilho reativo `bookingTrigger` para transição imediata no modo `inline`, geocodificação e cálculo Haversine + 15 min de preparação em `bookingSlots.ts`, bloqueio dinâmico de turnos encerrados no dia atual, sincronização bidirecional de dependentes via `syncClientDependentToDatabase` e persistência preditiva compatível com o Boletim `bol-020`.
+
+### [2026-10-22] — [Focus Mode] Remoção do Box de Cabeçalho Superior do Menu Lateral (`ProfileDrawer.tsx`)
+- **Tipo:** `[Fix / UI / UX / Focus Mode Cleanup]`
+- **Motivo / Solicitação:** Remover o box do cabeçalho superior do menu lateral (`div:nth-of-type(1) > div:nth-of-type(1)`) selecionado pelo usuário via Focus Mode ("remover (pédindo novamente!!!)").
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:** Removido o bloco de cabeçalho redundante (`MENU DE GESTÃO` / `Momy nail • Painel Administrativo` + `[X]`) no menu principal do drawer, integrando o botão de fechar `[X]` de forma direta, limpa e plana ao lado do alternador de tema Claro/Escuro dentro do próprio card de identificação do usuário, preservando o botão voltar exclusivamente nas sub-telas.
+
+### [2026-10-22] — [Focus Mode] Remoção do Box/Badge de Perfil no Menu Lateral (`ProfileDrawer.tsx`)
+- **Tipo:** `[Fix / UI / UX / Focus Mode Cleanup]`
+- **Motivo / Solicitação:** Remover o pequeno box/badge de perfil ("Proprietário" / "Cliente") no cabeçalho do menu lateral para evitar sobreposição e garantir visual limpo sem ocultar informações do usuário logado.
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:** Removido o elemento `span` de badge de papel de usuário no card de identificação do topo do `ProfileDrawer`, atendendo à seleção de foco do usuário.
+
+### [2026-10-22] — [BOL-020] Radar Bidirecional de Deslocamento Ao Vivo ("Estou a Caminho"), Traçador de Rota Google Maps In-App & Linha de Ruas Shopee/Correios 10s (`mnvapp` ⇄ `admvapp` ⇄ `pvapp`)
+- **Tipo:** `[Feat / Architecture / Realtime 10s Telemetry / Google Maps Routes API / Tríade Sync]`
+- **Motivo / Solicitação:** Implantação oficial do Boletim Técnico `bol-020` no `mnvapp` (Visão Cliente + Visão Salão/Meu Negócio), com sistema preditivo de pré-partida (`ETA + 10 min`), árvore de decisão (`Sim` / `Não` / `Comparecer` / `Cancelar com motivo obrigatório` / `Remanejar`), Traçador de Rota Google Maps In-App (Rota 1 Recomendada vs. Rota 2 Alternativa com extração de todas as ruas `route_checkpoints`), telemetria ao vivo a cada 10 segundos (`useLiveRouteTracker`), botões de 1 toque para reportar adversidades de trânsito (`+6m`, `+8m`, `+4m`), alerta automático de chegada em 5 minutos (`arriving_5min`), inversão automática para Atendimento Delivery (`home_delivery`) e Gaveta Dupla de Rastreamento (`📦 Linha de Ruas estilo Shopee/Correios` ⇄ `🗺️ Mapa Ao Vivo 10s`).
+- **Arquivos Impactados:**
+  - `supabase/migrations/20261022_live_tracking_bol020.sql`
+  - `src/types.ts`
+  - `src/lib/supabase.ts`
+  - `src/hooks/useLiveRouteTracker.ts`
+  - `src/components/live-tracking/LiveTrackingModal.tsx`
+  - `src/components/UserAppointmentsView.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/professional/ProfessionalAgendaView.tsx`
+  - `src/App.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Schema & Camada Supabase (`bol-020`):** Adicionadas as colunas `service_location_type`, `transport_mode`, `tracking_status`, `selected_route_summary`, `route_polyline`, `current_street_name`, `route_checkpoints` (JSONB), `active_adversity` (JSONB), `delay_minutes`, `client_lat`, `client_lng`, `distance_km`, `eta_minutes`, `prep_buffer_minutes`, `cancellation_reason` e `last_location_update` em `public.appointments`, com fallback resiliente em `upsertAppointmentInDb` e `updateAppointmentLiveTrackingInDb`.
+  - **Motor 10s & LGPD (`useLiveRouteTracker.ts`):** Hook nativo que atualiza a posição e a rua atual a cada 10 segundos, dispara `arriving_5min` quando `eta_minutes <= 5` e desliga automaticamente o GPS ao registrar `arrived`.
+  - **Visão Cliente (`UserAppointmentsView.tsx` & `ProfileDrawer.tsx`) e Visão Salão (`ProfessionalAgendaView.tsx`):** Pílulas dinâmicas de status ao vivo no card da agenda, alerta de 5 minutos para preparar a cadeira e gaveta em 1 toque alternando entre Linha de Ruas estilo Shopee/Correios e Mapa Dark 10s.
+
 ### [2026-10-21] — Atualização Instantânea no CRUD de Serviços, Modo Cliente por Padrão & Correção de Navegação (`SalonProfileView.tsx`, `SalonCustomizationHub.tsx`, `ProfessionalServicesManager.tsx` & `ProfileDrawer.tsx`)
 - **Tipo:** `[Fix / UX / Realtime Event Sync / UI Cleanup]`
 - **Motivo / Solicitação:** 

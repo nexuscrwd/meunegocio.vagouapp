@@ -1130,6 +1130,26 @@ export function mapDbAppointmentToBookingAppointment(dbApt: any, fallbackSalonNa
     customerEmail: dbApt.client_email || dbApt.customer_email || '',
     address: dbApt.client_address || dbApt.salons?.address || '',
     createdAt: dbApt.created_at,
+    // Campos de Dependente (Conta Família) e Rastreamento Ao Vivo (bol-020)
+    is_dependent: Boolean(dbApt.is_dependent),
+    dependent_id: dbApt.dependent_id || undefined,
+    dependent_name: dbApt.dependent_name || undefined,
+    service_location_type: dbApt.service_location_type || 'in_salon',
+    transport_mode: dbApt.transport_mode || 'driving',
+    tracking_status: dbApt.tracking_status || 'idle',
+    selected_route_summary: dbApt.selected_route_summary || undefined,
+    route_polyline: dbApt.route_polyline || undefined,
+    current_street_name: dbApt.current_street_name || undefined,
+    route_checkpoints: Array.isArray(dbApt.route_checkpoints) ? dbApt.route_checkpoints : undefined,
+    active_adversity: dbApt.active_adversity || null,
+    delay_minutes: dbApt.delay_minutes != null ? Number(dbApt.delay_minutes) : 0,
+    client_lat: dbApt.client_lat != null ? Number(dbApt.client_lat) : undefined,
+    client_lng: dbApt.client_lng != null ? Number(dbApt.client_lng) : undefined,
+    distance_km: dbApt.distance_km != null ? Number(dbApt.distance_km) : undefined,
+    eta_minutes: dbApt.eta_minutes != null ? Number(dbApt.eta_minutes) : undefined,
+    prep_buffer_minutes: dbApt.prep_buffer_minutes != null ? Number(dbApt.prep_buffer_minutes) : 15,
+    cancellation_reason: dbApt.cancellation_reason || undefined,
+    last_location_update: dbApt.last_location_update || undefined,
   };
 }
 
@@ -1180,6 +1200,25 @@ export function mapBookingAppointmentToDbPayload(apt: Partial<BookingAppointment
     end_time: endTime,
     status: (apt.status || 'CONFIRMADO').toUpperCase(),
     notes: (apt as any).notes || (apt.is_dependent && apt.dependent_name ? `Dependente: ${apt.dependent_name}` : null),
+    ...(apt.is_dependent !== undefined ? { is_dependent: apt.is_dependent } : {}),
+    ...((apt as any).dependent_id !== undefined ? { dependent_id: (apt as any).dependent_id } : {}),
+    ...(apt.dependent_name !== undefined ? { dependent_name: apt.dependent_name } : {}),
+    ...(apt.service_location_type !== undefined ? { service_location_type: apt.service_location_type } : {}),
+    ...(apt.transport_mode !== undefined ? { transport_mode: apt.transport_mode } : {}),
+    ...(apt.tracking_status !== undefined ? { tracking_status: apt.tracking_status } : {}),
+    ...(apt.selected_route_summary !== undefined ? { selected_route_summary: apt.selected_route_summary } : {}),
+    ...(apt.route_polyline !== undefined ? { route_polyline: apt.route_polyline } : {}),
+    ...(apt.current_street_name !== undefined ? { current_street_name: apt.current_street_name } : {}),
+    ...(apt.route_checkpoints !== undefined ? { route_checkpoints: apt.route_checkpoints } : {}),
+    ...(apt.active_adversity !== undefined ? { active_adversity: apt.active_adversity } : {}),
+    ...(apt.delay_minutes !== undefined ? { delay_minutes: apt.delay_minutes } : {}),
+    ...(apt.client_lat !== undefined ? { client_lat: apt.client_lat } : {}),
+    ...(apt.client_lng !== undefined ? { client_lng: apt.client_lng } : {}),
+    ...(apt.distance_km !== undefined ? { distance_km: apt.distance_km } : {}),
+    ...(apt.eta_minutes !== undefined ? { eta_minutes: apt.eta_minutes } : {}),
+    ...(apt.prep_buffer_minutes !== undefined ? { prep_buffer_minutes: apt.prep_buffer_minutes } : {}),
+    ...(apt.cancellation_reason !== undefined ? { cancellation_reason: apt.cancellation_reason } : {}),
+    ...(apt.last_location_update !== undefined ? { last_location_update: apt.last_location_update } : {}),
     updated_at: new Date().toISOString(),
   };
 }
@@ -1309,10 +1348,40 @@ export async function upsertAppointmentInDb(appointmentData: any): Promise<{ suc
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await (client.from('appointments') as any)
+    let { data, error } = await (client.from('appointments') as any)
       .upsert(payload, { onConflict: 'protocol_code' })
       .select()
       .maybeSingle();
+
+    // Fallback resiliente caso as colunas bol-020 ainda não tenham sido aplicadas no banco remoto
+    if (error && (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('column'))) {
+      const safePayload: any = { ...payload };
+      delete safePayload.is_dependent;
+      delete safePayload.dependent_id;
+      delete safePayload.dependent_name;
+      delete safePayload.service_location_type;
+      delete safePayload.transport_mode;
+      delete safePayload.tracking_status;
+      delete safePayload.selected_route_summary;
+      delete safePayload.route_polyline;
+      delete safePayload.current_street_name;
+      delete safePayload.route_checkpoints;
+      delete safePayload.active_adversity;
+      delete safePayload.delay_minutes;
+      delete safePayload.client_lat;
+      delete safePayload.client_lng;
+      delete safePayload.distance_km;
+      delete safePayload.eta_minutes;
+      delete safePayload.prep_buffer_minutes;
+      delete safePayload.cancellation_reason;
+      delete safePayload.last_location_update;
+      const retry = await (client.from('appointments') as any)
+        .upsert(safePayload, { onConflict: 'protocol_code' })
+        .select()
+        .maybeSingle();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       console.warn('Erro ao realizar upsert de appointment no Supabase:', error.message);
@@ -1323,6 +1392,72 @@ export async function upsertAppointmentInDb(appointmentData: any): Promise<{ suc
   } catch (err: any) {
     console.error('Falha em upsertAppointmentInDb:', err);
     return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Atualiza telemetria e status de deslocamento ao vivo (bol-020) em public.appointments a cada 10s
+ */
+export async function updateAppointmentLiveTrackingInDb(
+  appointmentIdOrProtocol: string,
+  livePayload: Partial<BookingAppointment>
+): Promise<{ success: boolean; error?: string }> {
+  if (!supabase || !isSupabaseConfigured || !appointmentIdOrProtocol) {
+    return { success: false, error: 'Supabase não conectado' };
+  }
+  const client = getDbClient() || supabase;
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(appointmentIdOrProtocol);
+    const cleanCode = appointmentIdOrProtocol.startsWith('#') ? appointmentIdOrProtocol : `#${appointmentIdOrProtocol}`;
+    const nowIso = new Date().toISOString();
+
+    const dbFields: Record<string, any> = {
+      updated_at: nowIso,
+      last_location_update: livePayload.last_location_update || nowIso,
+    };
+    if (livePayload.status !== undefined) dbFields.status = livePayload.status;
+    if (livePayload.service_location_type !== undefined) dbFields.service_location_type = livePayload.service_location_type;
+    if (livePayload.transport_mode !== undefined) dbFields.transport_mode = livePayload.transport_mode;
+    if (livePayload.tracking_status !== undefined) dbFields.tracking_status = livePayload.tracking_status;
+    if (livePayload.selected_route_summary !== undefined) dbFields.selected_route_summary = livePayload.selected_route_summary;
+    if (livePayload.route_polyline !== undefined) dbFields.route_polyline = livePayload.route_polyline;
+    if (livePayload.current_street_name !== undefined) dbFields.current_street_name = livePayload.current_street_name;
+    if (livePayload.route_checkpoints !== undefined) dbFields.route_checkpoints = livePayload.route_checkpoints;
+    if (livePayload.active_adversity !== undefined) dbFields.active_adversity = livePayload.active_adversity;
+    if (livePayload.delay_minutes !== undefined) dbFields.delay_minutes = livePayload.delay_minutes;
+    if (livePayload.client_lat !== undefined) dbFields.client_lat = livePayload.client_lat;
+    if (livePayload.client_lng !== undefined) dbFields.client_lng = livePayload.client_lng;
+    if (livePayload.distance_km !== undefined) dbFields.distance_km = livePayload.distance_km;
+    if (livePayload.eta_minutes !== undefined) dbFields.eta_minutes = livePayload.eta_minutes;
+    if (livePayload.prep_buffer_minutes !== undefined) dbFields.prep_buffer_minutes = livePayload.prep_buffer_minutes;
+    if (livePayload.cancellation_reason !== undefined) dbFields.cancellation_reason = livePayload.cancellation_reason;
+
+    let query = (client.from('appointments') as any).update(dbFields);
+    const { error } = isUuid
+      ? await query.eq('id', appointmentIdOrProtocol)
+      : await query.eq('protocol_code', cleanCode);
+
+    if (error && (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('column'))) {
+      if (livePayload.status) {
+        const fallbackQuery = (client.from('appointments') as any).update({
+          status: livePayload.status,
+          updated_at: nowIso,
+        });
+        if (isUuid) {
+          await fallbackQuery.eq('id', appointmentIdOrProtocol);
+        } else {
+          await fallbackQuery.eq('protocol_code', cleanCode);
+        }
+      }
+      return { success: true };
+    }
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
   }
 }
 
@@ -1354,16 +1489,29 @@ export async function updateAppointmentStatusInDb(appointmentIdOrProtocol: strin
 }
 
 /**
- * Cancelar agendamento no Supabase pelo código do protocolo
+ * Cancelar agendamento no Supabase pelo código do protocolo (com motivo opcional — bol-020)
  */
-export async function cancelAppointmentInDb(protocolCode: string): Promise<{ success: boolean; error?: string }> {
+export async function cancelAppointmentInDb(protocolCode: string, cancellationReason?: string): Promise<{ success: boolean; error?: string }> {
   if (!supabase || !isSupabaseConfigured) return { success: false, error: 'Supabase não conectado' };
   const client = getDbClient() || supabase;
   try {
     const cleanCode = protocolCode.startsWith('#') ? protocolCode : `#${protocolCode}`;
-    const { error } = await (client.from('appointments') as any)
-      .update({ status: 'CANCELADO', updated_at: new Date().toISOString() })
+    const payload: Record<string, any> = {
+      status: 'CANCELADO',
+      tracking_status: 'cancelled',
+      ...(cancellationReason ? { cancellation_reason: cancellationReason } : {}),
+      updated_at: new Date().toISOString(),
+    };
+    let { error } = await (client.from('appointments') as any)
+      .update(payload)
       .eq('protocol_code', cleanCode);
+
+    if (error && (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('column'))) {
+      const retry = await (client.from('appointments') as any)
+        .update({ status: 'CANCELADO', updated_at: new Date().toISOString() })
+        .eq('protocol_code', cleanCode);
+      error = retry.error;
+    }
 
     if (error) {
       return { success: false, error: error.message };
@@ -2203,11 +2351,15 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       ...(settings.numero !== undefined ? { numero: settings.numero } : {}),
       ...(settings.complemento !== undefined ? { complemento: settings.complemento } : {}),
       ...(settings.openingHours !== undefined ? { openingHours: settings.openingHours } : {}),
+      ...(settings.operatingSchedule !== undefined ? { operatingSchedule: settings.operatingSchedule } : {}),
       ...(settings.operatingHoursJson !== undefined ? { operatingHoursJson: settings.operatingHoursJson } : {}),
       ...(settings.holidays !== undefined ? { holidays: settings.holidays } : {}),
       ...(settings.cancellationPolicy !== undefined ? { cancellationPolicy: settings.cancellationPolicy } : {}),
       ...(settings.spacePhotos !== undefined ? { spacePhotos: settings.spacePhotos } : {}),
+      ...(settings.websiteUrl !== undefined ? { websiteUrl: settings.websiteUrl || '' } : {}),
       ...(settings.instagramUrl !== undefined ? { instagramUrl: settings.instagramUrl || '' } : {}),
+      ...(settings.facebookUrl !== undefined ? { facebookUrl: settings.facebookUrl || '' } : {}),
+      ...(settings.mapsUrl !== undefined ? { mapsUrl: settings.mapsUrl || '' } : {}),
       ...(settings.bio !== undefined ? { bio: settings.bio || '' } : {}),
     };
 

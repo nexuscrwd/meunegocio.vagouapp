@@ -11,7 +11,7 @@ import {
   Gauge
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
-import { BookingAppointment, CatalogServiceItem, UserPersona } from '../../types';
+import { BookingAppointment, CatalogServiceItem, UserPersona, SalonAdminSettings } from '../../types';
 import { hapticLight } from '../../utils/haptics';
 import { FinancialManagerView } from './FinancialManagerView';
 import { ServicesAndSuppliesForecast } from './dashboard/ServicesAndSuppliesForecast';
@@ -43,6 +43,8 @@ export interface UtilitiesAndToolsViewProps {
   currentPersona?: UserPersona;
   initialSubTab?: UtilitiesSubTab;
   onUpdateAppointments?: (appointments: BookingAppointment[]) => void;
+  adminSettings?: SalonAdminSettings;
+  onUpdateSettings?: (settings: Partial<SalonAdminSettings>) => Promise<any> | void;
 }
 
 export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
@@ -55,6 +57,8 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
   currentPersona = 'admin',
   initialSubTab = 'hub',
   onUpdateAppointments,
+  adminSettings,
+  onUpdateSettings,
 }) => {
   const { isDark } = useTheme();
 
@@ -436,7 +440,7 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
           </div>
         )}
 
-        {/* FERRAMENTA GERAL 1: GESTÃO FINANCEIRA (DRE, Despesas, Balanço, Comissões) */}
+        {/* FERRAMENTA GERAL 1: GESTÃO FINANCEIRA (DRE, PIX & Placa, Despesas, Balanço, Comissões) */}
         {activeSubTab === 'financeiro' && (
           <div className="animate-in fade-in duration-150">
             <FinancialManagerView
@@ -444,6 +448,8 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
               onUpdateAppointments={onUpdateAppointments}
               salonName={salonName}
               currentPersona={currentPersona}
+              adminSettings={adminSettings}
+              onUpdateSettings={onUpdateSettings}
             />
           </div>
         )}

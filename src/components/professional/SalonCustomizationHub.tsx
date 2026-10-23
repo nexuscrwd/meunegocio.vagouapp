@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Building2, Palette, Scissors, Users, DollarSign, 
   ArrowLeft, ChevronRight, ShieldCheck, Sparkles,
-  Store, Wrench
+  Store, Wrench, LayoutGrid, Sliders
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { 
@@ -12,13 +12,14 @@ import {
 import { hapticLight } from '../../utils/haptics';
 import { BusinessDataCardView } from './BusinessDataCardView';
 import { VisualIdentityCardView } from './VisualIdentityCardView';
+import { LayoutCardView } from './LayoutCardView';
 import { ProfessionalServicesManager } from './ProfessionalServicesManager';
 import { TeamManager } from './TeamManager';
 import { ProfessionalSpaceManager } from './ProfessionalSpaceManager';
 import { FinancialManagerView } from './FinancialManagerView';
 import { UtilitiesAndToolsView } from './UtilitiesAndToolsView';
 
-export type ManagementCardId = 'dados' | 'visual' | 'servicos' | 'equipe' | 'espaco' | 'financeiro' | 'utilidades';
+export type ManagementCardId = 'dados' | 'visual' | 'layout' | 'servicos' | 'equipe' | 'espaco' | 'financeiro' | 'utilidades';
 
 export interface SalonCustomizationHubProps {
   initialSubTab?: ManagementCardId | 'hub';
@@ -47,13 +48,14 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
 }) => {
   const { isDark } = useTheme();
 
-  // Mapeamento de sub-abas antigas para os novos cards se vier via props
+  // Mapeamento de sub-abas para os cards se vier via props
   const initialCard: ManagementCardId | null = 
     initialSubTab === 'servicos' ? 'servicos' :
     initialSubTab === 'equipe' ? 'equipe' :
     initialSubTab === 'espaco' ? 'espaco' :
     initialSubTab === 'dados' ? 'dados' :
     initialSubTab === 'visual' ? 'visual' :
+    initialSubTab === 'layout' ? 'layout' :
     initialSubTab === 'financeiro' ? 'financeiro' :
     initialSubTab === 'utilidades' ? 'utilidades' :
     null;
@@ -66,6 +68,7 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
     else if (initialSubTab === 'espaco') setSelectedCard('espaco');
     else if (initialSubTab === 'dados') setSelectedCard('dados');
     else if (initialSubTab === 'visual') setSelectedCard('visual');
+    else if (initialSubTab === 'layout') setSelectedCard('layout');
     else if (initialSubTab === 'financeiro') setSelectedCard('financeiro');
     else if (initialSubTab === 'utilidades') setSelectedCard('utilidades');
     else if (initialSubTab === 'hub') setSelectedCard(null);
@@ -82,61 +85,30 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
     return colorHex.toUpperCase();
   };
 
+  // Os 3 Cards Oficiais do menu Preferências: Dados do negócio, Ident. Visual e Layout
   const cards = [
     {
       id: 'dados' as ManagementCardId,
-      title: 'Dados do Negócio',
-      description: 'Nome fantasia, CNPJ, localização com busca CEP, horários e responsável legal',
+      title: 'Dados do negócio',
+      description: 'Informações comerciais e fiscais, atendimento, endereço e contato',
       icon: Building2,
-      badge: adminSettings.cnpj ? 'CNPJ Ativo' : 'Endereço & Horários',
+      badge: adminSettings.cnpj ? 'CNPJ Ativo' : '4 Seções',
       highlightColor: 'emerald',
     },
     {
       id: 'visual' as ManagementCardId,
-      title: 'Identidade Visual',
-      description: 'Cor de destaque, logo do cabeçalho do app e ícone mobile (PWA)',
+      title: 'Ident. Visual',
+      description: 'Logo do salão, cores de destaque, fonte da marca e ícone do aplicativo',
       icon: Palette,
       badge: getAccentBadge(adminSettings.accentColor),
-      highlightColor: 'blue',
-    },
-    {
-      id: 'servicos' as ManagementCardId,
-      title: 'Serviços & Preços',
-      description: 'Catálogo de serviços, categorias, valores, durações e destaques do cardápio',
-      icon: Scissors,
-      badge: `${services.length} ${services.length === 1 ? 'Serviço' : 'Serviços'}`,
-      highlightColor: 'purple',
-    },
-    {
-      id: 'equipe' as ManagementCardId,
-      title: 'Equipe & Turnos',
-      description: 'Colaboradores, turnos de atendimento, escalas de trabalho e taxas de comissão',
-      icon: Users,
-      badge: `${professionals.length} ${professionals.length === 1 ? 'Membro' : 'Membros'}`,
-      highlightColor: 'amber',
-    },
-    {
-      id: 'espaco' as ManagementCardId,
-      title: 'Espaço, Feriados & Regras',
-      description: 'Horários por dia, intervalos de almoço, feriados, política de cancelamento e galeria',
-      icon: Store,
-      badge: 'Horários & Fotos',
       highlightColor: 'emerald',
     },
     {
-      id: 'financeiro' as ManagementCardId,
-      title: 'Financeiro & Pagamentos',
-      description: 'Faturamento em tempo real, formas de pagamento, repasses e relatórios',
-      icon: DollarSign,
-      badge: 'Caixa & Métricas',
-      highlightColor: 'emerald',
-    },
-    {
-      id: 'utilidades' as ManagementCardId,
-      title: 'Utilidades & Ferramentas',
-      description: 'Água e luz, medição de relógios, auditoria de fugas, previsão de insumos e bancada',
-      icon: Wrench,
-      badge: 'Eficiência & Estoque',
+      id: 'layout' as ManagementCardId,
+      title: 'Layout',
+      description: 'Barra de navegação inferior (rodapé), faixa de boas-vindas e estilo da vitrine',
+      icon: LayoutGrid,
+      badge: adminSettings.navStyle === 'solid' ? 'Sólido' : adminSettings.navStyle === 'boxed' ? 'Emoldurado' : 'Minimalista',
       highlightColor: 'emerald',
     },
   ];
@@ -147,9 +119,12 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
       <BusinessDataCardView
         adminSettings={adminSettings}
         onUpdateSettings={onUpdateSettings}
+        professionals={professionals}
+        onUpdateProfessionals={onUpdateProfessionals}
         onBack={() => {
           hapticLight();
-          setSelectedCard(null);
+          if (onBack) onBack();
+          else setSelectedCard(null);
         }}
       />
     );
@@ -163,13 +138,29 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
         onUpdateSettings={onUpdateSettings}
         onBack={() => {
           hapticLight();
-          setSelectedCard(null);
+          if (onBack) onBack();
+          else setSelectedCard(null);
         }}
       />
     );
   }
 
-  // SUB-VIEW: 3. Serviços
+  // SUB-VIEW: 3. Layout
+  if (selectedCard === 'layout') {
+    return (
+      <LayoutCardView
+        adminSettings={adminSettings}
+        onUpdateSettings={onUpdateSettings}
+        onBack={() => {
+          hapticLight();
+          if (onBack) onBack();
+          else setSelectedCard(null);
+        }}
+      />
+    );
+  }
+
+  // SUB-VIEW: 4. Serviços
   if (selectedCard === 'servicos') {
     return (
       <div className={`w-full h-full flex flex-col justify-between overflow-hidden ${
@@ -183,12 +174,13 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
               type="button"
               onClick={() => {
                 hapticLight();
-                setSelectedCard(null);
+                if (onBack) onBack();
+                else setSelectedCard(null);
               }}
               className={`p-1.5 rounded transition cursor-pointer active:scale-95 ${
                 isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
               }`}
-              title="Voltar ao Gerenciamento"
+              title="Voltar ao Painel"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -227,12 +219,13 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
               type="button"
               onClick={() => {
                 hapticLight();
-                setSelectedCard(null);
+                if (onBack) onBack();
+                else setSelectedCard(null);
               }}
               className={`p-1.5 rounded transition cursor-pointer active:scale-95 ${
                 isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
               }`}
-              title="Voltar ao Gerenciamento"
+              title="Voltar ao Painel"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -271,12 +264,13 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
               type="button"
               onClick={() => {
                 hapticLight();
-                setSelectedCard(null);
+                if (onBack) onBack();
+                else setSelectedCard(null);
               }}
               className={`p-1.5 rounded transition cursor-pointer active:scale-95 ${
                 isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
               }`}
-              title="Voltar ao Gerenciamento"
+              title="Voltar ao Painel"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -315,12 +309,13 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
               type="button"
               onClick={() => {
                 hapticLight();
-                setSelectedCard(null);
+                if (onBack) onBack();
+                else setSelectedCard(null);
               }}
               className={`p-1.5 rounded transition cursor-pointer active:scale-95 ${
                 isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
               }`}
-              title="Voltar ao Gerenciamento"
+              title="Voltar ao Painel"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -341,6 +336,8 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
             onUpdateAppointments={onUpdateAppointments}
             salonName={adminSettings.salonName}
             currentPersona="admin"
+            adminSettings={adminSettings}
+            onUpdateSettings={onUpdateSettings}
           />
         </div>
       </div>
@@ -356,7 +353,8 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
           services={services}
           onBack={() => {
             hapticLight();
-            setSelectedCard(null);
+            if (onBack) onBack();
+            else setSelectedCard(null);
           }}
         />
       </div>
@@ -390,9 +388,9 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
             </button>
           )}
           <div className="flex items-center gap-1.5 min-w-0">
-            <Store className="w-4 h-4 text-emerald-500 shrink-0" />
+            <Sliders className="w-4 h-4 text-emerald-500 shrink-0" />
             <h1 className="text-xs sm:text-sm font-bold font-['Poppins'] tracking-tight truncate">
-              Gerenciamento
+              Preferências
             </h1>
           </div>
         </div>
@@ -417,11 +415,11 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
             <span className="text-[11px] font-medium">
-              Configure as informações vitais do seu estabelecimento
+              Configure os dados do negócio, identidade visual e layout da vitrine
             </span>
           </div>
           <span className="text-[10px] font-mono text-emerald-400 font-bold shrink-0">
-            5 Módulos
+            3 Cards
           </span>
         </div>
 

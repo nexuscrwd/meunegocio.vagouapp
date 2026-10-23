@@ -69,6 +69,7 @@ export interface BookingAppointment {
 
   // Vagou Family / Dependentes (Multi-Perfis)
   is_dependent?: boolean;
+  dependent_id?: string;
   dependent_name?: string;
   client_user_id?: string;
 
@@ -108,6 +109,59 @@ export interface BookingAppointment {
     currentCascadeIndex?: number;
     timeoutSecondsPerTarget?: number;
     lastTargetUpdatedAt?: number;
+  };
+
+  // Radar Bidirecional de Deslocamento Ao Vivo ("Estou a Caminho" — bol-020)
+  service_location_type?: ServiceLocationType;
+  transport_mode?: TransportMode;
+  tracking_status?: LiveTrackingStatus;
+  selected_route_summary?: string;
+  route_polyline?: string;
+  current_street_name?: string;
+  route_checkpoints?: LiveRouteCheckpoint[];
+  active_adversity?: LiveAdversityReport | null;
+  delay_minutes?: number;
+  client_lat?: number;
+  client_lng?: number;
+  distance_km?: number;
+  eta_minutes?: number;
+  prep_buffer_minutes?: number;
+  cancellation_reason?: string;
+  last_location_update?: string;
+}
+
+export type ServiceLocationType = 'in_salon' | 'home_delivery';
+
+export type TransportMode = 'walking' | 'transit' | 'rideshare' | 'driving' | 'motorcycle';
+
+export type LiveTrackingStatus =
+  | 'idle'
+  | 'alerted'
+  | 'hurry_confirmed'
+  | 'on_way_no_map'
+  | 'live_sharing'
+  | 'arriving_5min'
+  | 'arrived'
+  | 'rescheduled'
+  | 'cancelled';
+
+export interface LiveAdversityReport {
+  type: 'traffic' | 'roadwork' | 'parking' | 'other';
+  label: string;
+  street: string;
+  addedMinutes: number;
+  reportedAt: string;
+}
+
+export interface LiveRouteCheckpoint {
+  street: string;
+  distanceText?: string;
+  status: 'passed' | 'current' | 'upcoming';
+  timestamp?: string;
+  adversity?: {
+    type: string;
+    label: string;
+    addedMinutes: number;
   };
 }
 
@@ -192,6 +246,10 @@ export interface DayOperatingHours {
   isOpen: boolean;
   openTime: string;
   closeTime: string;
+  hasBreak?: boolean;
+  breakStart?: string;
+  breakEnd?: string;
+  pauseReason?: string;
 }
 
 export interface OperatingSchedule {
@@ -199,6 +257,7 @@ export interface OperatingSchedule {
   days: DayOperatingHours[];
   defaultOpenTime?: string;
   defaultCloseTime?: string;
+  professionalSchedules?: Record<string, DayOperatingHours[]>;
 }
 
 export interface SalonAdminSettings {
@@ -219,11 +278,25 @@ export interface SalonAdminSettings {
   salonIcon?: string; // Ícone quadrado (1:1) para o PWA (instalação no celular)
   pwaName?: string;   // Nome curto/completo exibido na tela inicial do celular
   slogan?: string;    // Assinatura curta da marca (até 60 caracteres) exibida abaixo do nome do salão
+  showSlogan?: boolean; // Ocultar ou exibir slogan do cabeçalho (padrão true)
+  logoTextFallback?: string; // Texto provisório do cabeçalho na ausência de logotipo
+  logoTextColor?: string; // Cor personalizada da fonte do texto provisório
+  showHeroSlides?: boolean; // Ocultar ou exibir slide da página principal (padrão true)
   brandFont?: 'Poppins' | 'Cormorant Garamond' | 'Oswald' | 'Plus Jakarta Sans' | string; // Fonte de destaque do Nome/Cabeçalho
+  defaultTheme?: 'dark' | 'light'; // Layout claro ou escuro permanente
   navStyle?: 'minimal' | 'solid' | 'boxed'; // Estilo visual da barra de navegação inferior (BottomNav)
+  navShape?: 'square' | 'circle'; // Formato dos botões da navegação inferior (quadrado vs circular)
+  navBorder?: 'bordered' | 'none'; // Botão com borda ou sem borda
+  navBgStyle?: 'solid' | 'glass' | 'transparent'; // Fundo do rodapé: sólido, alpha-vidro jateado, alpha 100% (transparente)
+  navBgColor?: string; // Cor personalizada do fundo do rodapé
+  navActiveColor?: string; // Cor personalizada de destaque da navegação inferior (ícone e texto ativos)
+  navTextColor?: string; // Cor personalizada do texto e ícones (inativos / base)
   welcomeStyle?: 'atmospheric' | 'glass'; // Estilo da faixa de boas-vindas na seção Início
   bio?: string;       // História/apresentação do espaço (preenchida pós-cadastro no painel do salão)
-  instagramUrl?: string; // @instagram (preenchido pós-cadastro no painel do salão)
+  websiteUrl?: string; // Site oficial do estabelecimento
+  instagramUrl?: string; // @instagram ou URL
+  facebookUrl?: string; // Facebook página ou URL
+  mapsUrl?: string; // Link ou referência do Google Maps
 
   // Dados Cadastrais e Fiscais (Exclusivos para CNPJ 14 dígitos; vazios '' quando Autônomo)
   razaoSocial?: string;

@@ -6,11 +6,12 @@ import {
   Check, MessageCircle, MessageSquare,
   Scissors, Hand, Smile, Eye, Sparkles, LayoutDashboard,
   Store, Car, MapPin, Clock, Users, Wifi, Coffee, Wind,
-  LogOut, EyeOff, User, Share2, Loader2
+  LogOut, EyeOff, User, Share2, Loader2, Bookmark, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ServiceOffer, BookingAppointment, SalonAdminSettings, UserPersona, ProfessionalTeamMember } from '../types';
 import { SalonBookingModal, CatalogServiceItem, SalonProfessionalItem } from './SalonBookingModal';
+import { getSavedBookingDraft, saveBookingDraft, BookingDraftItem } from '../utils/bookingSlots';
 import { ProfessionalDashboardView } from './professional/ProfessionalDashboardView';
 import { ProfessionalServicesManager } from './professional/ProfessionalServicesManager';
 import { ProfessionalAgendaView } from './professional/ProfessionalAgendaView';
@@ -182,7 +183,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   onNavigateToUserDashboard,
   onBackToAuth,
 }) => {
-  const { isDark, accentColor, setAccentColor: setAccentColorContext } = useTheme();
+  const { isDark, theme, setTheme, accentColor, setAccentColor: setAccentColorContext } = useTheme();
   const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState<boolean>(false);
   const [isClientAuthModalOpen, setIsClientAuthModalOpen] = useState<boolean>(false);
   const [currentUserName, setCurrentUserName] = useState<string>(userName);
@@ -478,6 +479,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         uf: initialSalonData.state || '',
         cep: initialSalonData.cep || '',
         openingHours: initialSalonData.opening_hours_text || initialSalonData.branding?.openingHours || 'Seg a Sáb: 09:00 às 20:00',
+        operatingSchedule: initialSalonData.operating_hours || initialSalonData.branding?.operatingSchedule || initialSalonData.branding?.operatingHoursJson || undefined,
         operatingHoursJson: initialSalonData.operating_hours || initialSalonData.branding?.operatingHours || undefined,
         spacePhotos: initialSalonData.space_photos || initialSalonData.branding?.spacePhotos || undefined,
         spaceDescription: initialSalonData.space_description || initialSalonData.branding?.spaceDescription || undefined,
@@ -491,10 +493,24 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         pwaName: initialSalonData.branding?.pwaName || resolvedName,
         slogan: initialSalonData.slogan || initialSalonData.branding?.slogan || '',
         brandFont: initialSalonData.brand_font || initialSalonData.branding?.brandFont || 'Poppins',
+        defaultTheme: initialSalonData.branding?.defaultTheme || undefined,
+        showSlogan: initialSalonData.branding?.showSlogan !== false,
+        logoTextFallback: initialSalonData.branding?.logoTextFallback || '',
+        logoTextColor: initialSalonData.branding?.logoTextColor || resolvedColor,
+        showHeroSlides: initialSalonData.branding?.showHeroSlides !== false,
         navStyle: initialSalonData.branding?.navStyle || 'minimal',
+        navShape: initialSalonData.branding?.navShape || 'square',
+        navBorder: initialSalonData.branding?.navBorder || 'bordered',
+        navBgStyle: initialSalonData.branding?.navBgStyle || 'glass',
+        navBgColor: initialSalonData.branding?.navBgColor || undefined,
+        navActiveColor: initialSalonData.branding?.navActiveColor || resolvedColor,
+        navTextColor: initialSalonData.branding?.navTextColor || undefined,
         welcomeStyle: initialSalonData.branding?.welcomeStyle || 'atmospheric',
         bio: initialSalonData.bio || initialSalonData.branding?.bio || '',
+        websiteUrl: initialSalonData.branding?.websiteUrl || '',
         instagramUrl: initialSalonData.branding?.instagramUrl || '',
+        facebookUrl: initialSalonData.branding?.facebookUrl || '',
+        mapsUrl: initialSalonData.branding?.mapsUrl || '',
       };
     }
 
@@ -532,8 +548,19 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       salonIcon: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_icon') || (partnerInfo ? '' : DEFAULT_ROTA99_ICON)),
       pwaName: effectiveSalonName,
       slogan: '',
+      showSlogan: true,
+      logoTextFallback: '',
+      logoTextColor: effectiveColor,
+      showHeroSlides: true,
       brandFont: 'Poppins',
+      defaultTheme: undefined,
       navStyle: 'minimal',
+      navShape: 'square',
+      navBorder: 'bordered',
+      navBgStyle: 'glass',
+      navBgColor: undefined,
+      navActiveColor: effectiveColor,
+      navTextColor: undefined,
       welcomeStyle: 'atmospheric',
       bio: '',
       instagramUrl: '',
@@ -552,8 +579,19 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             salonIcon: parsed.salonIcon || localStorage.getItem('vagou_salon_icon') || defaults.salonIcon,
             accentColor: parsed.accentColor || localStorage.getItem('vagou_accent_color') || defaults.accentColor,
             slogan: parsed.slogan || defaults.slogan,
+            showSlogan: parsed.showSlogan !== undefined ? parsed.showSlogan : defaults.showSlogan,
+            logoTextFallback: parsed.logoTextFallback !== undefined ? parsed.logoTextFallback : defaults.logoTextFallback,
+            logoTextColor: parsed.logoTextColor || defaults.logoTextColor,
+            showHeroSlides: parsed.showHeroSlides !== undefined ? parsed.showHeroSlides : defaults.showHeroSlides,
+            defaultTheme: parsed.defaultTheme || defaults.defaultTheme,
             brandFont: parsed.brandFont || defaults.brandFont,
             navStyle: parsed.navStyle || defaults.navStyle,
+            navShape: parsed.navShape || defaults.navShape,
+            navBorder: parsed.navBorder || defaults.navBorder,
+            navBgStyle: parsed.navBgStyle || defaults.navBgStyle,
+            navBgColor: parsed.navBgColor !== undefined ? parsed.navBgColor : defaults.navBgColor,
+            navActiveColor: parsed.navActiveColor || defaults.navActiveColor,
+            navTextColor: parsed.navTextColor !== undefined ? parsed.navTextColor : defaults.navTextColor,
             welcomeStyle: parsed.welcomeStyle || defaults.welcomeStyle,
             bio: parsed.bio || defaults.bio,
             instagramUrl: parsed.instagramUrl || defaults.instagramUrl,
@@ -566,6 +604,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
     return defaults;
   });
+
+  // Sincroniza tema padrão / permanente do estabelecimento
+  useEffect(() => {
+    if (adminSettings.defaultTheme && adminSettings.defaultTheme !== theme) {
+      setTheme(adminSettings.defaultTheme);
+    }
+  }, [adminSettings.defaultTheme, theme, setTheme]);
 
   // Cor de destaque / tema ativa e prioritária do estabelecimento
   const effectiveAccentColor = adminSettings.accentColor || accentColor || '#20C933';
@@ -846,8 +891,22 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           if (salonRecord.bio || salonRecord.branding?.bio) {
             updatedSettings.bio = salonRecord.bio || salonRecord.branding?.bio;
           }
-          if (salonRecord.branding?.instagramUrl) {
+          if (salonRecord.branding?.websiteUrl !== undefined) {
+            updatedSettings.websiteUrl = salonRecord.branding.websiteUrl;
+          }
+          if (salonRecord.branding?.instagramUrl !== undefined) {
             updatedSettings.instagramUrl = salonRecord.branding.instagramUrl;
+          }
+          if (salonRecord.branding?.facebookUrl !== undefined) {
+            updatedSettings.facebookUrl = salonRecord.branding.facebookUrl;
+          }
+          if (salonRecord.branding?.mapsUrl !== undefined) {
+            updatedSettings.mapsUrl = salonRecord.branding.mapsUrl;
+          }
+          if (salonRecord.operating_hours?.days || salonRecord.branding?.operatingSchedule?.days) {
+            updatedSettings.operatingSchedule = salonRecord.operating_hours?.days
+              ? salonRecord.operating_hours
+              : salonRecord.branding?.operatingSchedule;
           }
           if (salonRecord.branding?.pwaName) {
             updatedSettings.pwaName = salonRecord.branding.pwaName;
@@ -1200,7 +1259,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       return;
     }
     setIsPublicPreviewMode(false);
-    setActiveTab('personalizar');
+    setActiveTab('dados');
   }, [isSalonLoggedIn]);
 
   useEffect(() => {
@@ -1209,22 +1268,33 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
   }, [userName]);
 
-  const [activeTab, setActiveTab] = useState<'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout'>('home');
 
   // Reset de abas de gestão seguro: NÃO reseta enquanto role === 'loading'
   useEffect(() => {
     if (isRoleLoading) return; // Aguarda a resolução final do papel no banco
 
-    const managementTabs = ['caixa', 'financeiro', 'equipe', 'personalizar', 'utilidades'];
+    const managementTabs = ['caixa', 'financeiro', 'equipe', 'personalizar', 'utilidades', 'dados', 'visual', 'preferencias', 'layout'];
     if (managementTabs.includes(activeTab) && !isOwnerOrManager) {
       setActiveTab('home');
     }
   }, [activeTab, isOwnerOrManager, isRoleLoading]);
 
   const [bookingService, setBookingService] = useState<CatalogServiceItem | null>(null);
+  const [bookingTrigger, setBookingTrigger] = useState<number>(0);
   const [skipDateStep, setSkipDateStep] = useState<boolean>(false);
+  const [activeBookingDraft, setActiveBookingDraft] = useState<BookingDraftItem | null>(() => getSavedBookingDraft());
+  const [resumeDraftTarget, setResumeDraftTarget] = useState<BookingDraftItem | null>(null);
   const [activeSlideIndex, setActiveSlideIndex] = useState<number>(0);
   const [selectedPublicProfessional, setSelectedPublicProfessional] = useState<string>('any');
+
+  useEffect(() => {
+    const handleDraftUpdated = () => {
+      setActiveBookingDraft(getSavedBookingDraft());
+    };
+    window.addEventListener('vagou:booking-draft-updated', handleDraftUpdated);
+    return () => window.removeEventListener('vagou:booking-draft-updated', handleDraftUpdated);
+  }, []);
 
   // Refs para controle do scroll snap da landing page (4 seções) e micro-swipe vertical
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -1408,9 +1478,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   }, [primaryOffer, salonName, salonOffers, offers]);
 
   // Navegação direta: no modo público rola para a seção; no modo gerenciamento alterna a aba diretamente
-  const handleSelectTab = useCallback((tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades') => {
-    // 3. Abas de caixa, financeiro, equipe, personalização e utilidades só para owner e manager.
-    if (tab === 'caixa' || tab === 'financeiro' || tab === 'utilidades' || tab === 'personalizar' || tab === 'equipe') {
+  const handleSelectTab = useCallback((tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout') => {
+    // 3. Abas de gestão só para owner e manager.
+    if (tab === 'caixa' || tab === 'financeiro' || tab === 'utilidades' || tab === 'personalizar' || tab === 'equipe' || tab === 'dados' || tab === 'visual' || tab === 'preferencias' || tab === 'layout') {
       if (!isOwnerOrManager) {
         setIsClientAuthModalOpen(true);
         return;
@@ -1446,7 +1516,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
     if (tab === 'servicos') {
       if (isGerMode) {
-        handleRequestManage();
+        if (!isOwnerOrManager) {
+          setIsClientAuthModalOpen(true);
+          return;
+        }
+        setActiveTab('servicos');
         return;
       }
       setActiveTab('servicos');
@@ -1689,7 +1763,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       setIsClientAuthModalOpen(true);
       return;
     }
+    setResumeDraftTarget(null);
     setBookingService(srv || catalogServices[0]);
+    setBookingTrigger((prev) => prev + 1);
     setSkipDateStep(directToTimeGrid);
     setSelectedTimeSlotForBooking(timeSlot || null);
     if (dateIso) {
@@ -1746,9 +1822,15 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     price: number;
     offerId?: string;
     isDependentBooking?: boolean;
+    dependentId?: string;
     dependentName?: string;
     clientPhone?: string;
     notes?: string;
+    distanceKm?: number;
+    etaMinutes?: number;
+    prepBufferMinutes?: number;
+    transportMode?: 'driving' | 'motorcycle' | 'walking' | 'transit';
+    selectedRouteSummary?: string;
   }): Promise<{ success: boolean; error?: string }> => {
     try {
       const rawCode = `VGA-${Math.floor(10000 + Math.random() * 90000)}`;
@@ -1808,7 +1890,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           }
         }
 
-        const appointmentPayload = {
+        const appointmentPayload: Record<string, any> = {
           protocol_code: `#${rawCode}`,
           salon_id: targetSalonId,
           offer_id: bookingData.offerId || null,
@@ -1824,16 +1906,41 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           end_time: endTimeStr,
           status: 'CONFIRMADO',
           notes: bookingData.notes || null,
+          is_dependent: Boolean(bookingData.isDependentBooking),
+          dependent_id: bookingData.isDependentBooking && bookingData.dependentId ? bookingData.dependentId : null,
+          dependent_name: bookingData.isDependentBooking && bookingData.dependentName ? bookingData.dependentName : null,
+          distance_km: bookingData.distanceKm ?? 4.2,
+          eta_minutes: bookingData.etaMinutes ?? 15,
+          prep_buffer_minutes: bookingData.prepBufferMinutes ?? 15,
+          transport_mode: bookingData.transportMode || 'driving',
+          selected_route_summary: bookingData.selectedRouteSummary || null,
         };
 
-        const { error: insertErr } = await (supabase.from('appointments') as any)
+        let { error: insertErr } = await (supabase.from('appointments') as any)
           .insert(appointmentPayload)
           .select()
           .single();
 
+        // Fallback resiliente caso o banco remoto ainda não possua todas as colunas extras de bol-020
+        if (insertErr && (insertErr.code === 'PGRST204' || insertErr.code === '42703' || insertErr.message?.includes('column'))) {
+          const fallbackPayload = { ...appointmentPayload };
+          delete fallbackPayload.is_dependent;
+          delete fallbackPayload.dependent_id;
+          delete fallbackPayload.dependent_name;
+          delete fallbackPayload.distance_km;
+          delete fallbackPayload.eta_minutes;
+          delete fallbackPayload.prep_buffer_minutes;
+          delete fallbackPayload.transport_mode;
+          delete fallbackPayload.selected_route_summary;
+          const retry = await (supabase.from('appointments') as any)
+            .insert(fallbackPayload)
+            .select()
+            .single();
+          insertErr = retry.error;
+        }
+
         if (insertErr) {
           console.warn('Erro ao inserir appointment:', insertErr);
-          // Mensagem de erro real do banco (ex: 'Esta vaga não está mais disponível')
           return { success: false, error: insertErr.message || 'Falha ao gravar agendamento no banco.' };
         }
       }
@@ -1862,22 +1969,34 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         address: bookingData.salonAddress,
       });
 
-      // Salvar nos agendamentos do usuário para visualização em Minha Agenda
+      // Salvar nos agendamentos do usuário para visualização em Minha Agenda (com dados BOL-020 + Dependente)
       try {
         const savedList = JSON.parse(localStorage.getItem('vagou_user_appointments') || '[]');
-        const newRecord = {
+        const newRecord: BookingAppointment = {
           protocolCode: rawCode,
           service: bookingData.service.title,
+          serviceTitle: bookingData.service.title,
           professional: bookingData.professional,
+          professionalName: bookingData.professional,
           salonName: bookingData.salonName,
           dateTime: `${bookingData.dateFormatted} às ${bookingData.timeSlot}`,
           dayGroup: bookingData.dateFormatted,
+          dateIso: bookingData.dateIso,
           time: bookingData.timeSlot,
           totalPrice: bookingData.price,
           status: 'CONFIRMADO',
           address: bookingData.salonAddress,
+          is_dependent: Boolean(bookingData.isDependentBooking),
+          dependent_name: bookingData.dependentName,
+          distance_km: bookingData.distanceKm ?? 4.2,
+          eta_minutes: bookingData.etaMinutes ?? 15,
+          prep_buffer_minutes: bookingData.prepBufferMinutes ?? 15,
+          transport_mode: bookingData.transportMode || 'driving',
+          selected_route_summary: bookingData.selectedRouteSummary,
         };
-        localStorage.setItem('vagou_user_appointments', JSON.stringify([newRecord, ...savedList]));
+        const updatedApts = [newRecord, ...savedList];
+        localStorage.setItem('vagou_user_appointments', JSON.stringify(updatedApts));
+        setAppointmentsList(updatedApts);
       } catch {
         // ignore
       }
@@ -1939,12 +2058,27 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         id="salon-profile-header"
         className={`sticky top-0 z-40 ${isDark ? 'bg-[#151A1E]/95 border-slate-800/80' : 'bg-white/95 border-slate-200/90 shadow-xs'} backdrop-blur-md border-b px-2 sm:px-4 shadow-md flex items-center justify-between gap-1.5 sm:gap-3 transition-colors h-14 sm:h-16 overflow-hidden shrink-0 w-full max-w-full`}
       >
-        {/* Lado Esquerdo: Logotipia / Logo do Salão no Cabeçalho + Slogan e Fonte de Marca (Boletim bol-017) */}
-        <div 
-          onClick={() => handleSelectTab('home')}
-          className="h-full min-w-0 max-w-[180px] xs:max-w-[210px] sm:max-w-[260px] pl-1 pr-0.5 flex items-center gap-2 shrink select-none cursor-pointer overflow-hidden"
-          title={salonInfo.name}
-        >
+        {/* Lado Esquerdo: Botão Voltar (quando aberto via Radar) + Logotipia / Logo do Salão no Cabeçalho */}
+        <div className="h-full min-w-0 flex items-center gap-1.5 shrink overflow-hidden">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
+                isDark
+                  ? 'bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white'
+                  : 'bg-white hover:bg-slate-200 border border-slate-200 text-slate-700 hover:text-slate-950 shadow-xs'
+              }`}
+              title="Voltar"
+              aria-label="Voltar"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-emerald-500" />
+            </button>
+          )}
+          <div 
+            onClick={() => handleSelectTab('home')}
+            className="h-full min-w-0 max-w-[180px] xs:max-w-[210px] sm:max-w-[260px] pl-1 pr-0.5 flex items-center gap-2 shrink select-none cursor-pointer overflow-hidden"
+            title={salonInfo.name}
+          >
           {activeLogo ? (
             <div className="flex flex-col justify-center min-w-0">
               <img 
@@ -1952,7 +2086,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 alt={salonInfo.name}
                 className="max-h-7 sm:max-h-8.5 w-auto max-w-full object-contain object-left shrink-0"
               />
-              {adminSettings.slogan && (
+              {adminSettings.showSlogan !== false && adminSettings.slogan && (
                 <span className="text-[9px] sm:text-[10px] font-medium text-slate-400 truncate leading-none mt-0.5">
                   {adminSettings.slogan}
                 </span>
@@ -1964,29 +2098,32 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 <img
                   src={adminSettings.salonIcon}
                   alt={salonInfo.name}
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg object-cover shrink-0 border border-slate-700/60"
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-[4px] object-cover shrink-0 border border-slate-700/60"
                 />
               ) : (
                 <div
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-xs"
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-[4px] flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-xs"
                   style={{
-                    backgroundColor: adminSettings.accentColor || '#20C933',
+                    backgroundColor: adminSettings.navActiveColor || adminSettings.accentColor || '#20C933',
                     fontFamily: activeBrandFontFamily,
                   }}
                 >
-                  {salonInfo.name.slice(0, 2).toUpperCase()}
+                  {(adminSettings.logoTextFallback || salonInfo.name).slice(0, 2).toUpperCase()}
                 </div>
               )}
               <div className="flex flex-col justify-center min-w-0">
                 <span
-                  style={{ fontFamily: activeBrandFontFamily }}
+                  style={{ 
+                    fontFamily: activeBrandFontFamily,
+                    color: adminSettings.logoTextColor || undefined
+                  }}
                   className={`text-xs sm:text-sm font-extrabold tracking-tight leading-tight truncate ${
-                    isDark ? 'text-white' : 'text-slate-900'
+                    !adminSettings.logoTextColor ? (isDark ? 'text-white' : 'text-slate-900') : ''
                   }`}
                 >
-                  {salonInfo.name}
+                  {adminSettings.logoTextFallback || salonInfo.name}
                 </span>
-                {adminSettings.slogan && (
+                {adminSettings.showSlogan !== false && adminSettings.slogan && (
                   <span className="text-[9px] sm:text-[10px] font-medium text-slate-400 truncate leading-tight">
                     {adminSettings.slogan}
                   </span>
@@ -1994,6 +2131,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               </div>
             </div>
           )}
+          </div>
         </div>
 
         {/* Lado Direito: Badge de Proprietário + Compartilhar + Foto do Usuário */}
@@ -2169,10 +2307,18 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             </div>
           )}
 
-          {(activeTab === 'personalizar' || activeTab === 'servicos' || activeTab === 'espaco' || activeTab === 'equipe') && (
+          {(activeTab === 'personalizar' || activeTab === 'preferencias' || activeTab === 'dados' || activeTab === 'visual' || activeTab === 'layout' || activeTab === 'servicos' || activeTab === 'espaco' || activeTab === 'equipe') && (
             <div className="w-full h-full flex-1 min-h-0 overflow-hidden flex flex-col justify-start animate-in fade-in duration-150">
               <SalonCustomizationHub
-                initialSubTab={activeTab === 'servicos' ? 'servicos' : activeTab === 'equipe' ? 'equipe' : 'hub'}
+                initialSubTab={
+                  activeTab === 'servicos' ? 'servicos' :
+                  activeTab === 'equipe' ? 'equipe' :
+                  activeTab === 'espaco' ? 'espaco' :
+                  activeTab === 'visual' ? 'visual' :
+                  activeTab === 'dados' ? 'dados' :
+                  activeTab === 'layout' ? 'layout' :
+                  'hub'
+                }
                 adminSettings={adminSettings}
                 onUpdateSettings={handleUpdateSettings}
                 services={catalogServicesList}
@@ -2203,6 +2349,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 }}
                 onNavigateTab={handleSelectTab}
                 onBack={() => handleSelectTab('home')}
+                adminSettings={adminSettings}
+                onUpdateSettings={handleUpdateSettings}
               />
             </div>
           )}
@@ -2218,6 +2366,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 currentPersona={currentPersona}
                 initialSubTab="financeiro"
                 onUpdateAppointments={handleUpdateAppointments}
+                adminSettings={adminSettings}
+                onUpdateSettings={handleUpdateSettings}
                 onBack={() => handleSelectTab('home')}
               />
             </div>
@@ -2234,89 +2384,16 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 currentPersona={currentPersona}
                 initialSubTab="hub"
                 onUpdateAppointments={handleUpdateAppointments}
+                adminSettings={adminSettings}
+                onUpdateSettings={handleUpdateSettings}
                 onBack={() => handleSelectTab('home')}
               />
             </div>
           )}
         </main>
       ) : (
-        /* MODO PÚBLICO / CLIENTE: BARRA CONTEXTUAL FIXA NO TOPO + SWIPE VERTICAL DE ALTA SENSIBILIDADE */
+        /* MODO PÚBLICO / CLIENTE: SWIPE VERTICAL DE ALTA SENSIBILIDADE COM ALTURA ESTÁVEL */
         <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden relative">
-          {/* BARRA SUPERIOR CONTEXTUAL FIXA (NÃO ROLA COM A PÁGINA) */}
-          <div className={`sticky top-0 z-30 w-full px-3 sm:px-4 border-b flex items-center justify-between gap-2 transition-colors h-11 shrink-0 ${
-            adminSettings.welcomeStyle === 'glass'
-              ? isDark
-                ? 'bg-slate-950/95 border-emerald-500/30 backdrop-blur-md'
-                : 'bg-white/95 border-emerald-500/25 backdrop-blur-md'
-              : isDark
-                ? 'bg-gradient-to-r from-emerald-500/15 via-slate-900/95 to-slate-900/95 border-emerald-500/25'
-                : 'bg-gradient-to-r from-emerald-500/12 via-white to-slate-50 border-emerald-500/25'
-          }`}>
-            {/* Lado Esquerdo: Voltar (se houver) + Saudação / Título Contextual da Seção Ativa */}
-            <div className="flex items-center gap-2 min-w-0 py-1">
-              {onBack && (
-                <button
-                  onClick={onBack}
-                  className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
-                    isDark
-                      ? 'bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white'
-                      : 'bg-white hover:bg-slate-200 border border-slate-200 text-slate-700 hover:text-slate-950 shadow-xs'
-                  }`}
-                  title="Voltar"
-                  aria-label="Voltar"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5 text-emerald-500" />
-                </button>
-              )}
-
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
-
-              <h2 className={`text-xs sm:text-sm font-bold truncate leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                {activeTab === 'home' ? (
-                  currentUserName && currentUserName !== 'Profissional' && currentUserName !== 'Usuário' ? (
-                    <>Olá, <span className={isDark ? 'text-emerald-400' : 'text-emerald-600'}>{currentUserName.trim().split(' ')[0]}</span></>
-                  ) : (
-                    'Seja bem-vindo'
-                  )
-                ) : activeTab === 'servicos' ? (
-                  'Serviços & Procedimentos'
-                ) : activeTab === 'vagas' ? (
-                  'Agendar Horário'
-                ) : espacoSlideIndex === 0 ? (
-                  hasMultipleProfessionals ? 'Equipe & Especialistas' : 'Perfil do Profissional'
-                ) : espacoSlideIndex === 1 ? (
-                  salonInfo.isHomeCare ? 'Modalidade de Atendimento' : 'Estrutura do Espaço'
-                ) : (
-                  'Endereço & Localização'
-                )}
-              </h2>
-            </div>
-
-            {/* Lado Direito: Status Rápido + Atalho 1-Toque para Horários */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className={`hidden xs:inline-flex items-center gap-1 text-[10px] font-bold whitespace-nowrap ${
-                isDark ? 'text-slate-400' : 'text-slate-600'
-              }`}>
-                <Clock className="w-3 h-3 text-emerald-500 shrink-0" />
-                <span>{adminSettings.isOpenNow !== false ? 'Aberto hoje' : 'Sob agendamento'}</span>
-              </span>
-
-              {activeTab !== 'vagas' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    hapticLight();
-                    handleSelectTab('vagas');
-                  }}
-                  className="h-7 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-wider whitespace-nowrap flex items-center gap-1 transition active:scale-95 cursor-pointer shadow-2xs"
-                >
-                  <Calendar className="w-3 h-3 text-white shrink-0" />
-                  <span className="text-white">Horários</span>
-                </button>
-              )}
-            </div>
-          </div>
-
           {/* CONTAINER DE SEÇÕES COM SNAP OBRIGATÓRIO E MICRO-SWIPE */}
           <div 
             ref={scrollContainerRef}
@@ -2331,76 +2408,154 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               data-tab-id="home"
               className="w-full h-full min-h-full shrink-0 snap-start snap-always snap-section overflow-hidden flex flex-col justify-between"
             >
-              {/* SLIDER / CARROSSEL PUBLICITÁRIO TOTALMENTE RESPONSIVO */}
-              <div className={`relative w-full h-full flex-1 min-h-0 overflow-hidden select-none touch-pan-y ${
-                isDark ? 'bg-slate-900 border-b border-slate-800' : 'bg-slate-200 border-b border-slate-300'
-              }`}>
-              <AnimatePresence mode="wait">
-                {portfolioSlides.map((slide, idx) => {
-                  if (idx !== activeSlideIndex) return null;
-                  return (
-                    <motion.div
-                      key={slide.id}
-                      drag="x"
-                      dragConstraints={{ left: 0, right: 0 }}
-                      dragElastic={0.2}
-                      onDragEnd={(_, info) => {
-                        if (info.offset.x < -40 || info.velocity.x < -300) {
-                          setActiveSlideIndex((prev) => (prev + 1) % portfolioSlides.length);
-                        } else if (info.offset.x > 40 || info.velocity.x > 300) {
-                          setActiveSlideIndex((prev) => (prev - 1 + portfolioSlides.length) % portfolioSlides.length);
-                        }
-                      }}
-                      initial={{ opacity: 0, scale: 0.98 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.98 }}
-                      transition={{ duration: 0.35, ease: 'easeOut' }}
-                      className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"
-                    >
-                      {/* Imagem de Fundo Fullscreen */}
-                      <img
-                        src={slide.image}
-                        alt={slide.title}
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
+              {/* SLIDER / CARROSSEL PUBLICITÁRIO OU PAINEL DIRETO */}
+              {adminSettings.showHeroSlides !== false ? (
+                <div className={`relative w-full h-full flex-1 min-h-0 overflow-hidden select-none touch-pan-y ${
+                  isDark ? 'bg-slate-900 border-b border-slate-800' : 'bg-slate-200 border-b border-slate-300'
+                }`}>
+                  <AnimatePresence mode="wait">
+                    {portfolioSlides.map((slide, idx) => {
+                      if (idx !== activeSlideIndex) return null;
+                      return (
+                        <motion.div
+                          key={slide.id}
+                          drag="x"
+                          dragConstraints={{ left: 0, right: 0 }}
+                          dragElastic={0.2}
+                          onDragEnd={(_, info) => {
+                            if (info.offset.x < -40 || info.velocity.x < -300) {
+                              setActiveSlideIndex((prev) => (prev + 1) % portfolioSlides.length);
+                            } else if (info.offset.x > 40 || info.velocity.x > 300) {
+                              setActiveSlideIndex((prev) => (prev - 1 + portfolioSlides.length) % portfolioSlides.length);
+                            }
+                          }}
+                          initial={{ opacity: 0, scale: 0.98 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.98 }}
+                          transition={{ duration: 0.35, ease: 'easeOut' }}
+                          className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"
+                        >
+                          {/* Imagem de Fundo Fullscreen */}
+                          <img
+                            src={slide.image}
+                            alt={slide.title}
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
 
-                      {/* Degradês Publicitários de Alta Qualidade para Leitura Impecável */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/75 to-slate-950/35" />
-                      <div className="absolute inset-0 bg-gradient-to-b from-slate-950/70 via-transparent to-slate-950/90" />
+                          {/* Degradês Publicitários de Alta Qualidade para Leitura Impecável */}
+                          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/75 to-slate-950/35" />
+                          <div className="absolute inset-0 bg-gradient-to-b from-slate-950/70 via-transparent to-slate-950/90" />
 
-                      {/* Conteúdo Publicitário Integrado */}
-                      <div className="absolute inset-0 p-4 sm:p-6 flex flex-col justify-between z-10 max-w-[90%] sm:max-w-[78%]">
-                        {/* Topo do Slide: Título Principal e Tagline */}
-                        <div className="pt-2 sm:pt-4 space-y-1.5">
-                          <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight leading-tight drop-shadow-md font-['Poppins']">
-                            {slide.title}
-                          </h3>
-                          <p className="text-xs sm:text-sm text-slate-200/95 font-normal leading-relaxed line-clamp-3 drop-shadow-xs max-w-md">
-                            {slide.tagline}
-                          </p>
-                        </div>
+                          {/* Conteúdo Publicitário Integrado */}
+                          <div className="absolute inset-0 p-4 sm:p-6 flex flex-col justify-between z-10 max-w-[90%] sm:max-w-[78%]">
+                            {/* Topo do Slide: Título Principal e Tagline */}
+                            <div className="pt-2 sm:pt-4 space-y-1.5">
+                              <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight leading-tight drop-shadow-md font-['Poppins']">
+                                {slide.title}
+                              </h3>
+                              <p className="text-xs sm:text-sm text-slate-200/95 font-normal leading-relaxed line-clamp-3 drop-shadow-xs max-w-md">
+                                {slide.tagline}
+                              </p>
+                            </div>
 
-                        {/* Base do Slide: Indicador de pontos minimalista */}
-                        <div className="flex items-center gap-1.5 pb-2 sm:pb-3">
-                          {portfolioSlides.map((_, dotIdx) => (
-                            <div
-                              key={dotIdx}
-                              className={`transition-all rounded-full ${
-                                dotIdx === activeSlideIndex
-                                  ? 'w-5 h-1.5 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)]'
-                                  : 'w-1.5 h-1.5 bg-white/40'
-                              }`}
-                            />
-                          ))}
-                        </div>
+                            {/* Base do Slide: Indicador de pontos minimalista */}
+                            <div className="flex items-center gap-1.5 pb-2 sm:pb-3">
+                              {portfolioSlides.map((_, dotIdx) => (
+                                <div
+                                  key={dotIdx}
+                                  className={`transition-all rounded-full ${
+                                    dotIdx === activeSlideIndex
+                                      ? 'w-5 h-1.5 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)]'
+                                      : 'w-1.5 h-1.5 bg-white/40'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </div>
+              ) : (
+                <div className={`relative w-full h-full flex-1 min-h-0 overflow-y-auto no-scrollbar p-4 sm:p-6 flex flex-col justify-between ${
+                  isDark 
+                    ? 'bg-gradient-to-b from-slate-900 via-slate-950 to-slate-950 text-slate-100 border-b border-slate-800' 
+                    : 'bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900 border-b border-slate-200'
+                }`}>
+                  <div className="space-y-4 max-w-lg mx-auto w-full pt-4">
+                    <div className="space-y-2">
+                      <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-[4px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold uppercase tracking-wider font-['Poppins']">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>{adminSettings.category || 'Atendimento Oficial'}</span>
                       </div>
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
-            </div>
-          </section>
+                      <h2 
+                        className={`text-2xl sm:text-3xl font-black tracking-tight leading-tight font-['Poppins'] ${
+                          isDark ? 'text-white' : 'text-slate-900'
+                        }`}
+                        style={{ fontFamily: activeBrandFontFamily }}
+                      >
+                        {adminSettings.logoTextFallback || salonInfo.name}
+                      </h2>
+                      {adminSettings.showSlogan !== false && adminSettings.slogan && (
+                        <p className="text-xs sm:text-sm text-slate-400 font-medium leading-relaxed">
+                          {adminSettings.slogan}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Atalhos Rápidos para Agendamento e Serviços */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          scrollToPublicSectionIndex(1);
+                        }}
+                        className="p-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-between shadow-xs transition active:scale-95 cursor-pointer font-['Poppins']"
+                      >
+                        <span className="text-white">Ver Catálogo de Serviços</span>
+                        <Scissors className="w-4 h-4 text-white" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          scrollToPublicSectionIndex(2);
+                        }}
+                        className={`p-3 rounded-[4px] border font-bold text-xs flex items-center justify-between transition active:scale-95 cursor-pointer font-['Poppins'] ${
+                          isDark 
+                            ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-emerald-500/40' 
+                            : 'bg-white border-slate-200 text-slate-800 hover:border-emerald-500/40 shadow-xs'
+                        }`}
+                      >
+                        <span>Consultar Horários</span>
+                        <Calendar className="w-4 h-4 text-emerald-400" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex items-center justify-between border-t border-slate-800/40 text-[11px] text-slate-400 max-w-lg mx-auto w-full">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      {salonInfo.isOpenNow ? 'Aberto Agora' : 'Fechado no Momento'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        scrollToPublicSectionIndex(3);
+                      }}
+                      className="text-emerald-400 hover:underline font-bold cursor-pointer"
+                    >
+                      Ver equipe & espaço
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
 
         {/* SEÇÃO 2: SERVIÇOS */}
         <section
@@ -2409,6 +2564,23 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           data-tab-id="servicos"
           className="w-full h-full min-h-full shrink-0 snap-start snap-always snap-section overflow-hidden flex flex-col justify-between"
         >
+          {/* Subcabeçalho de Título da Seção: Serviços */}
+          <div className={`w-full shrink-0 px-3.5 py-2.5 border-b flex items-center justify-between transition-colors ${
+            isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-slate-100/95 border-slate-200'
+          }`}>
+            <div className="flex items-center gap-2">
+              <Scissors className="w-4 h-4 text-emerald-500 shrink-0" />
+              <h2 className={`text-xs sm:text-sm font-bold font-['Poppins'] ${
+                isDark ? 'text-white' : 'text-slate-900'
+              }`}>
+                Catálogo de Serviços
+              </h2>
+            </div>
+            <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-[4px]">
+              {catalogServices.length} {catalogServices.length === 1 ? 'procedimento' : 'procedimentos'}
+            </span>
+          </div>
+
           {/* PASSO 1: Seleção de Profissional (Visível Apenas se Múltiplos Profissionais) */}
           {hasMultipleProfessionals && (
             <div className={`w-full shrink-0 border-b ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'} p-3 flex flex-col gap-2`}>
@@ -2650,17 +2822,27 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 <SalonBookingModal
                   isOpen={true}
                   inline={true}
+                  salonId={currentSalonDbId || salonInfo.id}
                   salonName={salonInfo.name}
                   salonAddress={salonInfo.address}
+                  salonCep={adminSettings.cep || initialSalonData?.cep || ''}
+                  salonCoords={
+                    initialSalonData?.latitude && initialSalonData?.longitude
+                      ? { lat: Number(initialSalonData.latitude), lng: Number(initialSalonData.longitude) }
+                      : undefined
+                  }
                   salonLogo={adminSettings.salonLogo || adminSettings.salonLogoDark || adminSettings.salonLogoLight}
                   primaryColor={adminSettings.accentColor || '#00a033'}
                   services={catalogServices}
                   professionals={professionalsList}
                   initialService={bookingService}
+                  bookingTrigger={bookingTrigger}
+                  resumeDraft={resumeDraftTarget}
                   skipDateStep={skipDateStep}
                   initialTimeSlot={selectedTimeSlotForBooking}
                   initialDateIso={selectedCalendarDateIso}
                   preSelectedProfessionalName={selectedPublicProfessional}
+                  onDraftSaved={(draft) => setActiveBookingDraft(draft)}
                   onConfirmAppointment={handleConfirmSchedule}
                 />
               </div>
@@ -2673,6 +2855,23 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           data-tab-id="espaco"
           className="w-full h-full min-h-full shrink-0 snap-start snap-always snap-section overflow-hidden flex flex-col justify-start"
         >
+          {/* Subcabeçalho de Título da Seção: Espaço */}
+          <div className={`w-full shrink-0 px-3.5 py-2.5 border-b flex items-center justify-between transition-colors ${
+            isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-slate-100/95 border-slate-200'
+          }`}>
+            <div className="flex items-center gap-2">
+              <Store className="w-4 h-4 text-emerald-500 shrink-0" />
+              <h2 className={`text-xs sm:text-sm font-bold font-['Poppins'] ${
+                isDark ? 'text-white' : 'text-slate-900'
+              }`}>
+                Espaço, Equipe & Localização
+              </h2>
+            </div>
+            <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-[4px]">
+              Conheça o local
+            </span>
+          </div>
+
               <div className="px-3.5 sm:px-4 py-2.5 space-y-2.5 flex-1 min-h-0 flex flex-col justify-start overflow-y-auto">
                 {/* Abas de Navegação Interna da Seção Espaço */}
                 <div className="grid grid-cols-3 gap-1.5 w-full">
@@ -3003,21 +3202,81 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         </div>
       )}
 
+      {/* Banner Flutuante de Pré-Agendamento Pausado (Retomada em 1 Toque) */}
+      {!isGerMode && activeBookingDraft && (
+        <div className={`shrink-0 z-30 px-3 py-2 border-t flex items-center justify-between gap-2 transition-colors ${
+          isDark ? 'bg-slate-900 border-amber-500/40 text-white' : 'bg-amber-50 border-amber-300 text-slate-900'
+        }`}>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Bookmark className="w-4 h-4 text-amber-400 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-bold truncate">
+                Pré-Agendamento: {activeBookingDraft.combinedServiceTitle}
+              </div>
+              <div className="text-[10px] text-amber-400 font-semibold truncate">
+                {activeBookingDraft.dateFormatted} às {activeBookingDraft.timeSlot} • Não garante vaga até confirmar
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                hapticMedium();
+                setResumeDraftTarget({ ...activeBookingDraft });
+                handleSelectTab('vagas');
+              }}
+              className="px-2.5 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold transition cursor-pointer whitespace-nowrap"
+            >
+              <span className="text-white">Retomar</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                hapticLight();
+                saveBookingDraft(null);
+                setActiveBookingDraft(null);
+                setResumeDraftTarget(null);
+              }}
+              className={`w-6 h-6 rounded-[4px] flex items-center justify-center transition cursor-pointer ${
+                isDark ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-amber-200/60 text-slate-700 hover:text-slate-900'
+              }`}
+              title="Descartar pré-agendamento"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Barra de Navegação Inferior Nativa do Estabelecimento (4 Abas: Início/Painel, Serviços/Gestão, Agendar/Agenda, Espaço/Gerenciar) */}
-      <footer className="shrink-0 z-30 w-full">
-        <BottomNav
-          activeTab={activeTab}
-          onSelectTab={handleSelectTab}
-          spaceTabLabel={spaceTabLabel}
-          SpaceIcon={SpaceIcon}
-          ServicesIcon={ServicesIcon}
-          isProfessionalMode={isGerMode}
-          currentPersona={currentPersona}
-          isProAdmin={isActiveProAdmin}
-          isOwnerOrManager={isGerMode}
-          isProfessionalStaff={isGerMode && isProfessional}
-          navStyle={adminSettings.navStyle || 'minimal'}
-        />
+      <footer className={`w-full z-30 shrink-0 ${
+        adminSettings.navBgStyle === 'transparent' || adminSettings.navBgStyle === 'glass'
+          ? '-mt-[66px] pointer-events-none'
+          : ''
+      }`}>
+        <div className="pointer-events-auto w-full">
+          <BottomNav
+            activeTab={activeTab}
+            onSelectTab={handleSelectTab}
+            spaceTabLabel={spaceTabLabel}
+            SpaceIcon={SpaceIcon}
+            ServicesIcon={ServicesIcon}
+            isProfessionalMode={isGerMode}
+            currentPersona={currentPersona}
+            isProAdmin={isActiveProAdmin}
+            isOwnerOrManager={isGerMode}
+            isProfessionalStaff={isGerMode && isProfessional}
+            navStyle={adminSettings.navStyle || 'minimal'}
+            navShape={adminSettings.navShape || 'square'}
+            navBorder={adminSettings.navBorder || 'bordered'}
+            navBgStyle={adminSettings.navBgStyle || 'glass'}
+            navBgColor={adminSettings.navBgColor}
+            navActiveColor={adminSettings.navActiveColor || '#10b981'}
+            navTextColor={adminSettings.navTextColor}
+          />
+        </div>
       </footer>
 
       {/* 2. MODAL DE AGENDAMENTO CONFIRMADO (DENTRO DA SEÇÃO DO ESTABELECIMENTO) */}

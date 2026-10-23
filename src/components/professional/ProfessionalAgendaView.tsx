@@ -6,12 +6,15 @@ import {
   DollarSign, Mail,
   ChevronLeft, ChevronRight, ChevronDown, RefreshCw, Send, ShieldCheck,
   Lock, Unlock, ArrowRight,
-  LayoutGrid, List, Zap, Baby, Heart
+  LayoutGrid, List, Zap, Baby, Heart,
+  Navigation, Package, Map as MapIcon, AlertTriangle, Bell, Home
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { BookingAppointment, CatalogServiceItem, SalonAdminSettings, SalonProfessionalItem } from '../../types';
 import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
 import { PixCheckoutModal } from './PixCheckoutModal';
+import { LiveRouteDepartureModal, LiveTrackingDrawerModal } from '../live-tracking/LiveTrackingModal';
+import { syncAppointmentAcrossStorageAndDb, formatCurrentClockTime } from '../../hooks/useLiveRouteTracker';
 
 export interface ProfessionalAgendaViewProps {
   appointments: BookingAppointment[];
@@ -312,6 +315,41 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
   // Modais
   const [selectedAppointment, setSelectedAppointment] = useState<BookingAppointment | null>(null);
   const [pixCheckoutAppointment, setPixCheckoutAppointment] = useState<BookingAppointment | null>(null);
+  const [liveTrackingViewerState, setLiveTrackingViewerState] = useState<{
+    appointment: BookingAppointment;
+    initialTab: 'timeline' | 'map';
+  } | null>(null);
+  const [proDeliveryDepartureApt, setProDeliveryDepartureApt] = useState<BookingAppointment | null>(null);
+
+  const handleSingleLiveAppointmentUpdate = (updated: BookingAppointment) => {
+    const nextList = appointments.map((apt) =>
+      apt.protocolCode === updated.protocolCode || (apt.id && apt.id === updated.id)
+        ? { ...apt, ...updated }
+        : apt
+    );
+    onUpdateAppointments(nextList);
+    if (selectedAppointment && selectedAppointment.protocolCode === updated.protocolCode) {
+      setSelectedAppointment(updated);
+    }
+    if (liveTrackingViewerState && liveTrackingViewerState.appointment.protocolCode === updated.protocolCode) {
+      setLiveTrackingViewerState({ ...liveTrackingViewerState, appointment: updated });
+    }
+    if (proDeliveryDepartureApt && proDeliveryDepartureApt.protocolCode === updated.protocolCode) {
+      setProDeliveryDepartureApt(updated);
+    }
+  };
+
+  useEffect(() => {
+    const handleGlobalLiveUpdate = (e: Event) => {
+      const customEvt = e as CustomEvent<{ appointment?: BookingAppointment }>;
+      const updated = customEvt.detail?.appointment;
+      if (!updated) return;
+      handleSingleLiveAppointmentUpdate(updated);
+    };
+    window.addEventListener('vagou:appointments-updated', handleGlobalLiveUpdate);
+    return () => window.removeEventListener('vagou:appointments-updated', handleGlobalLiveUpdate);
+  }, [appointments, selectedAppointment, liveTrackingViewerState, proDeliveryDepartureApt]);
+
   const [isNewModalOpen, setIsNewModalOpen] = useState(() => {
     try {
       const shouldOpen = localStorage.getItem('vagou_pending_open_schedule');
@@ -1291,6 +1329,22 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                         Dep. de {clientName}
                       </p>
                     )}
+                    {/* Selo Compacto bol-020 no Grid */}
+                    {(app.tracking_status === 'live_sharing' || app.tracking_status === 'arriving_5min') && (
+                      <div className="mt-1 px-1 py-0.5 rounded-[2px] bg-emerald-500 text-white text-[7.5px] font-mono tabular-nums font-black truncate flex items-center gap-0.5">
+                        <Navigation className="w-2.5 h-2.5 text-white shrink-0" />
+                        <span className="text-white truncate">
+                          {app.tracking_status === 'arriving_5min'
+                            ? `Chega 5m!`
+                            : `${app.current_street_name || 'Rota'} • ${app.eta_minutes ?? 12}m`}
+                        </span>
+                      </div>
+                    )}
+                    {app.tracking_status === 'on_way_no_map' && (
+                      <div className="mt-1 text-[8px] font-bold text-emerald-400 truncate">
+                        A caminho
+                      </div>
+                    )}
                   </div>
                 </button>
               );
@@ -1404,16 +1458,62 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                           Resp: {clientName}
                         </p>
                       )}
+                      {/* Pílula Dinâmica de Deslocamento Ao Vivo na Lista (bol-020) */}
+                      {(app.tracking_status === 'live_sharing' || app.tracking_status === 'arriving_5min') && (
+                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                          <span className="px-1.5 py-0.5 rounded-[3px] bg-emerald-500 text-white text-[9.5px] font-mono tabular-nums font-black flex items-center gap-1 whitespace-nowrap">
+                            <Navigation className="w-2.5 h-2.5 text-white shrink-0" />
+                            <span className="text-white">
+                              {app.tracking_status === 'arriving_5min'
+                                ? `Chegando em ${app.eta_minutes ?? 4} min — Prepare a cadeira!`
+                                : `A caminho • ${app.current_street_name || 'Av. Rebouças'} (ETA ${app.eta_minutes ?? 12}m)`}
+                            </span>
+                          </span>
+                          {app.active_adversity && (
+                            <span className="px-1.5 py-0.5 rounded-[3px] bg-amber-500/20 text-amber-300 text-[9.5px] font-mono tabular-nums font-bold flex items-center gap-1 whitespace-nowrap">
+                              <AlertTriangle className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                              <span>+{app.active_adversity.addedMinutes}m ({app.active_adversity.label})</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {app.tracking_status === 'on_way_no_map' && (
+                        <p className="text-[10px] font-bold text-emerald-400 mt-0.5">
+                          Cliente a caminho (sem mapa compartilhado)
+                        </p>
+                      )}
+                      {app.cancellation_reason && app.status === 'CANCELADO' && (
+                        <p className="text-[10px] text-rose-400 mt-0.5 truncate">
+                          Motivo: {app.cancellation_reason}
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  <span className={`text-[8.5px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-[3px] border whitespace-nowrap shrink-0 ${
-                    catInfo.key === 'confirmados'
-                      ? 'bg-emerald-600 border-emerald-500 text-white'
-                      : catInfo.badgeFullClass
-                  }`}>
-                    {catInfo.shortLabel}
-                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {(app.tracking_status === 'live_sharing' || app.tracking_status === 'arriving_5min') && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          hapticLight();
+                          setLiveTrackingViewerState({ appointment: app, initialTab: 'timeline' });
+                        }}
+                        className="px-2 py-1 rounded-[3px] bg-emerald-500 hover:bg-emerald-600 text-white text-[9.5px] font-black uppercase flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                        title="Abrir Gaveta de Rastreamento Ao Vivo (Linha Shopee ⇄ Mapa 10s)"
+                      >
+                        <Package className="w-3 h-3 text-white shrink-0" />
+                        <span className="text-white">Rastrear 10s</span>
+                      </button>
+                    )}
+                    <span className={`text-[8.5px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-[3px] border whitespace-nowrap shrink-0 ${
+                      catInfo.key === 'confirmados'
+                        ? 'bg-emerald-600 border-emerald-500 text-white'
+                        : catInfo.badgeFullClass
+                    }`}>
+                      {catInfo.shortLabel}
+                    </span>
+                  </div>
                 </div>
               );
             })}
@@ -1566,6 +1666,150 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                     <span className="text-[10px] font-mono text-slate-400 font-bold">
                       {selectedAppointment.time || '10:00'}
                     </span>
+                  </div>
+                )}
+
+                {/* PAINEL BOL-020: RADAR BIDIRECIONAL DE DESLOCAMENTO AO VIVO (MAPA 10S ⇄ LINHA SHOPEE) */}
+                {!isConcluded && !(selectedAppointment.isBlockedSlot || selectedAppointment.status === 'BLOQUEADO') && (
+                  <div className={`p-3 rounded-[4px] space-y-2.5 ${
+                    isDark ? 'bg-slate-900' : 'bg-slate-100'
+                  }`}>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                        <Navigation className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Radar de Deslocamento Ao Vivo (10s)</span>
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          const nextLoc = selectedAppointment.service_location_type === 'home_delivery' ? 'in_salon' : 'home_delivery';
+                          syncAppointmentAcrossStorageAndDb(
+                            selectedAppointment,
+                            { service_location_type: nextLoc },
+                            handleSingleLiveAppointmentUpdate
+                          );
+                        }}
+                        className="px-2 py-0.5 rounded-[3px] bg-slate-800 hover:bg-slate-700 text-slate-200 text-[9.5px] font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Home className="w-3 h-3 text-emerald-400" />
+                        <span>
+                          {selectedAppointment.service_location_type === 'home_delivery'
+                            ? 'Atendimento Delivery'
+                            : 'Atendimento no Salão'}
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Alerta de Chegada em 5 Minutos */}
+                    {(selectedAppointment.tracking_status === 'arriving_5min' ||
+                      ((selectedAppointment.eta_minutes ?? 99) <= 5 && (selectedAppointment.eta_minutes ?? 0) > 0)) && (
+                      <div className="p-2.5 rounded-[4px] bg-emerald-500 text-white flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1.5 text-xs font-black text-white">
+                          <Bell className="w-4 h-4 text-white shrink-0 animate-bounce" />
+                          <span className="text-white">
+                            Chegando em {selectedAppointment.eta_minutes ?? 4} min — Prepare a cadeira!
+                          </span>
+                        </span>
+                        <span className="text-[10px] font-mono tabular-nums font-black text-white">
+                          {formatCurrentClockTime(selectedAppointment.eta_minutes ?? 4)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Status atual da rota */}
+                    {(selectedAppointment.tracking_status === 'live_sharing' ||
+                      selectedAppointment.tracking_status === 'arriving_5min') ? (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-300 font-semibold">
+                            Rua atual: <strong className="text-white">{selectedAppointment.current_street_name || 'Av. Rebouças'}</strong>
+                          </span>
+                          <span className="font-mono tabular-nums font-bold text-emerald-400">
+                            ETA {selectedAppointment.eta_minutes ?? 12} min ({selectedAppointment.distance_km ?? 2.4} km)
+                          </span>
+                        </div>
+                        {selectedAppointment.active_adversity && (
+                          <div className="p-2 rounded-[4px] bg-amber-500/15 text-amber-300 text-[10.5px] flex items-center justify-between">
+                            <span className="flex items-center gap-1.5 font-bold">
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                              <span>
+                                {selectedAppointment.active_adversity.label} na {selectedAppointment.active_adversity.street}
+                              </span>
+                            </span>
+                            <span className="font-mono tabular-nums font-black text-amber-400">
+                              +{selectedAppointment.active_adversity.addedMinutes} min
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ) : selectedAppointment.tracking_status === 'on_way_no_map' ? (
+                      <p className="text-[11px] text-emerald-400 font-semibold">
+                        Cliente confirmou partida (deslocamento sem compartilhamento de mapa).
+                      </p>
+                    ) : selectedAppointment.tracking_status === 'hurry_confirmed' ? (
+                      <p className="text-[11px] text-amber-300 font-semibold">
+                        Cliente confirmou que vai comparecer e sairá em instantes.
+                      </p>
+                    ) : selectedAppointment.cancellation_reason ? (
+                      <p className="text-[11px] text-rose-400 font-semibold">
+                        Cancelado pelo cliente • Motivo: {selectedAppointment.cancellation_reason}
+                      </p>
+                    ) : (
+                      <p className="text-[10.5px] text-slate-400">
+                        Aguardando início do deslocamento (Alerta automático em ETA + 10 min).
+                      </p>
+                    )}
+
+                    {/* Botões de 1 Toque: Linha de Ruas Shopee ⇄ Mapa 10s + Modo Delivery */}
+                    <div className="grid grid-cols-2 gap-2 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          setLiveTrackingViewerState({
+                            appointment: selectedAppointment,
+                            initialTab: 'timeline',
+                          });
+                        }}
+                        className="py-2 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-extrabold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-98 whitespace-nowrap"
+                      >
+                        <Package className="w-3.5 h-3.5 text-white shrink-0" />
+                        <span className="text-white">Ver Linha Ruas</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          setLiveTrackingViewerState({
+                            appointment: selectedAppointment,
+                            initialTab: 'map',
+                          });
+                        }}
+                        className="py-2 px-2.5 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-98 whitespace-nowrap"
+                      >
+                        <MapIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span>Ver Mapa 10s</span>
+                      </button>
+                    </div>
+
+                    {selectedAppointment.service_location_type === 'home_delivery' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          setProDeliveryDepartureApt(selectedAppointment);
+                        }}
+                        className="w-full py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-extrabold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-98 whitespace-nowrap"
+                      >
+                        <Navigation className="w-3.5 h-3.5 text-white shrink-0" />
+                        <span className="text-white">
+                          Iniciar Deslocamento até o Cliente (Traçar Rota)
+                        </span>
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -2582,6 +2826,33 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
           } catch {}
         }}
       />
+
+      {/* GAVETA DE RASTREAMENTO AO VIVO EM 1 TOQUE (LINHA SHOPEE/CORREIOS ⇄ MAPA 10S) */}
+      {liveTrackingViewerState && (
+        <LiveTrackingDrawerModal
+          isOpen={Boolean(liveTrackingViewerState)}
+          appointment={liveTrackingViewerState.appointment}
+          initialTab={liveTrackingViewerState.initialTab}
+          viewerRole="salon"
+          onClose={() => setLiveTrackingViewerState(null)}
+          onUpdateAppointment={handleSingleLiveAppointmentUpdate}
+        />
+      )}
+
+      {/* MODAL DE PARTIDA DO PROFISSIONAL DELIVERY (TRAÇADOR DE ROTA GOOGLE MAPS IN-APP) */}
+      {proDeliveryDepartureApt && (
+        <LiveRouteDepartureModal
+          isOpen={Boolean(proDeliveryDepartureApt)}
+          appointment={proDeliveryDepartureApt}
+          isProfessionalDeliveryMode={true}
+          onClose={() => setProDeliveryDepartureApt(null)}
+          onUpdateAppointment={handleSingleLiveAppointmentUpdate}
+          onOpenLiveViewer={(apt, tab) => {
+            setProDeliveryDepartureApt(null);
+            setLiveTrackingViewerState({ appointment: apt, initialTab: tab });
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -3,9 +3,10 @@ import {
   X, User, Mail, Phone, MapPin, Calendar, Clock, 
   Check, Moon, Sun, MessageCircle, MessageSquare, Send, ShieldCheck, 
   ChevronRight, ArrowRight, Sparkles, CheckCircle2, 
-  Scissors, LayoutDashboard, Store, LogOut, Users, DollarSign, Wrench, Wallet,
+  Scissors, LayoutDashboard, LogOut, Users, DollarSign, Wrench, Wallet,
   ArrowLeftRight, AlertCircle, RotateCcw, Timer, Ban, HelpCircle, Info, Layers,
-  Camera, Upload, Eye, Plus, Trash2, UserPlus
+  Camera, Upload, Eye, Plus, Trash2, UserPlus, Navigation, Package, Map as MapIcon, Bell, Bookmark,
+  Building2, Palette, Sliders, LayoutGrid
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../utils/haptics';
@@ -13,6 +14,8 @@ import { DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
 import { BookingAppointment, UserProfile, UserPersona, ClientSwapGovernance, SwapTargetQueueItem, UserFamilyDependent } from '../types';
 import { fetchUserProfileFromDb, updateUserProfileInDb, resolveTriadeAvatar, uploadAvatarToSupabaseStorage, isSupabaseConfigured, supabase, getDbClient, generateUuidV4, fetchClientFamilyMembers } from '../lib/supabase';
 import { syncClientDependentToDatabase, refreshClientDependentsCount } from '../services/mnvSupabaseSync';
+import { LiveRouteDepartureModal, LiveTrackingDrawerModal } from './live-tracking/LiveTrackingModal';
+import { getSavedBookingDraft, saveBookingDraft, BookingDraftItem } from '../utils/bookingSlots';
 
 interface ProfileDrawerProps {
   isOpen: boolean;
@@ -22,7 +25,7 @@ interface ProfileDrawerProps {
   onUpdateUserName?: (name: string) => void;
   onUpdateUserAvatar?: (avatarUrl: string) => void;
   onNavigateToSchedule?: () => void;
-  onNavigateTab?: (tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades') => void;
+  onNavigateTab?: (tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout') => void;
   salonName?: string;
   salonPhone?: string;
   isSalonLoggedIn?: boolean;
@@ -150,6 +153,11 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 }) => {
   const { isDark, toggleTheme } = useTheme();
   const [activeSubTab, setActiveSubTab] = useState<'menu' | 'agenda' | 'dados' | 'dependentes' | 'config'>('menu');
+  const [drawerDepartureApt, setDrawerDepartureApt] = useState<BookingAppointment | null>(null);
+  const [drawerLiveViewState, setDrawerLiveViewState] = useState<{
+    appointment: BookingAppointment;
+    initialTab: 'timeline' | 'map';
+  } | null>(null);
 
   // Estado do Chat Interno no App
   const [isAppChatOpen, setIsAppChatOpen] = useState(false);
@@ -495,6 +503,16 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
       setAppointments(allAppointments);
     }
   }, [allAppointments]);
+
+  const [savedDraft, setSavedDraft] = useState<BookingDraftItem | null>(() => getSavedBookingDraft());
+  useEffect(() => {
+    if (isOpen) {
+      setSavedDraft(getSavedBookingDraft());
+    }
+    const handleDraftSync = () => setSavedDraft(getSavedBookingDraft());
+    window.addEventListener('vagou:booking-draft-updated', handleDraftSync);
+    return () => window.removeEventListener('vagou:booking-draft-updated', handleDraftSync);
+  }, [isOpen]);
 
   // Governança e Regras de Reciprocidade de Troca
   const [swapGovernance, setSwapGovernance] = useState<ClientSwapGovernance>(() => {
@@ -999,60 +1017,46 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 1. CABEÇALHO DO MENU DO USUÁRIO */}
-        <div className={`p-4 border-b flex items-center justify-between shrink-0 ${
-          isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
-          <div className="flex items-center gap-3">
-            {activeSubTab !== 'menu' ? (
-              <button
-                type="button"
-                onClick={() => {
-                  hapticLight();
-                  setActiveSubTab('menu');
-                  setIsEditing(false);
-                }}
-                className={`p-1.5 rounded transition active:scale-95 cursor-pointer ${
-                  isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
-                }`}
-                title="Voltar ao Menu"
-                aria-label="Voltar ao Menu"
-              >
-                <ChevronRight className="w-5 h-5 rotate-180 text-emerald-500" />
-              </button>
-            ) : null}
+        {/* 1. CABEÇALHO COMPACTO SOMENTE NAS SUB-TELAS (AGENDA, DADOS, ETC.) */}
+        {activeSubTab !== 'menu' && (
+          <div className={`p-3.5 border-b flex items-center justify-between shrink-0 ${
+            isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+          }`}>
+            <button
+              type="button"
+              onClick={() => {
+                hapticLight();
+                setActiveSubTab('menu');
+                setIsEditing(false);
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] transition active:scale-95 cursor-pointer text-xs font-bold ${
+                isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
+              }`}
+              title="Voltar ao Menu"
+              aria-label="Voltar ao Menu"
+            >
+              <ChevronRight className="w-4 h-4 rotate-180 text-emerald-500" />
+              <span>Voltar</span>
+            </button>
 
-            <div>
-              <h2 className="text-sm font-bold tracking-tight uppercase font-['Poppins']">
-                {activeSubTab === 'menu' && (isGerMode ? 'Menu de Gestão' : 'Menu do Cliente')}
-                {activeSubTab === 'agenda' && 'Minha Agenda'}
-                {activeSubTab === 'dados' && 'Meus Dados Pessoais'}
-                {activeSubTab === 'dependentes' && 'Conta Família & Dependentes'}
-                {activeSubTab === 'config' && 'Configurações'}
-              </h2>
-              <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                {isGerMode ? `${salonName} • Painel Administrativo` : salonName}
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                hapticLight();
+                onClose();
+              }}
+              className={`w-8 h-8 rounded-[4px] flex items-center justify-center transition active:scale-95 cursor-pointer ${
+                isDark 
+                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white' 
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900'
+              }`}
+              title="Fechar menu"
+              aria-label="Fechar menu"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              hapticLight();
-              onClose();
-            }}
-            className={`w-8 h-8 rounded flex items-center justify-center transition active:scale-95 cursor-pointer ${
-              isDark 
-                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white' 
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900'
-            }`}
-            title="Fechar menu"
-            aria-label="Fechar menu"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+        )}
 
         {/* 2. CORPO DO DRAWER COM ROLAGEM */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain no-scrollbar p-4 pb-28 space-y-4">
@@ -1067,12 +1071,12 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
           {/* VISTA 1: MENU PRINCIPAL DE OPÇÕES */}
           {activeSubTab === 'menu' && (
             <div className="space-y-4">
-              {/* CARD DE IDENTIFICAÇÃO DO USUÁRIO COM BOTÃO DE TEMA NO LADO DIREITO OPOSTO */}
-              <div className={`p-3.5 sm:p-4 rounded border flex items-center justify-between gap-3 ${
+              {/* CARD DE IDENTIFICAÇÃO DO USUÁRIO COM BOTÃO DE TEMA E FECHAR NO LADO DIREITO OPOSTO */}
+              <div className={`p-3.5 sm:p-4 rounded-[4px] border flex items-center justify-between gap-3 ${
                 isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
               }`}>
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded flex items-center justify-center shrink-0 border overflow-hidden ${
+                  <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-[4px] flex items-center justify-center shrink-0 border overflow-hidden ${
                     isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
                   }`}>
                     {resolveTriadeAvatar({
@@ -1099,15 +1103,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <h3 className="text-sm font-bold truncate">{profile.name}</h3>
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${
-                        isGerMode
-                          ? (isProAdmin ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-blue-500/20 text-blue-400 border-blue-500/30')
-                          : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                      }`}>
-                        {isGerMode
-                          ? (isProAdmin ? 'Proprietário' : 'Equipe Pro')
-                          : 'Cliente'}
-                      </span>
                     </div>
                     <p className={`text-xs truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                       {profile.email}
@@ -1118,31 +1113,50 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   </div>
                 </div>
 
-                {/* Botão Modo Claro/Escuro (Lado direito oposto ao avatar) */}
-                <button
-                  type="button"
-                  id="drawer-theme-toggle-btn"
-                  onClick={() => {
-                    hapticLight();
-                    toggleTheme();
-                  }}
-                  className={`px-2.5 py-2 rounded border flex flex-col items-center justify-center gap-1 transition active:scale-95 cursor-pointer shrink-0 ${
-                    isDark 
-                      ? 'bg-slate-800/90 hover:bg-slate-750 text-amber-400 border-slate-700' 
-                      : 'bg-slate-100 hover:bg-slate-200 text-amber-600 border-slate-200 shadow-xs'
-                  }`}
-                  title={isDark ? "Mudar para Modo Claro" : "Mudar para Modo Escuro"}
-                  aria-label="Alternar Modo Claro / Escuro"
-                >
-                  {isDark ? (
-                    <Moon className="w-4 h-4 text-amber-400" />
-                  ) : (
-                    <Sun className="w-4 h-4 text-amber-500" />
-                  )}
-                  <span className="text-[9.5px] font-bold tracking-tight uppercase whitespace-nowrap">
-                    {isDark ? 'Escuro' : 'Claro'}
-                  </span>
-                </button>
+                {/* Ações no Lado direito oposto: Tema + Fechar [X] */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    id="drawer-theme-toggle-btn"
+                    onClick={() => {
+                      hapticLight();
+                      toggleTheme();
+                    }}
+                    className={`px-2 py-1.5 rounded-[4px] border flex flex-col items-center justify-center gap-0.5 transition active:scale-95 cursor-pointer shrink-0 ${
+                      isDark 
+                        ? 'bg-slate-800/90 hover:bg-slate-750 text-amber-400 border-slate-700' 
+                        : 'bg-slate-100 hover:bg-slate-200 text-amber-600 border-slate-200 shadow-xs'
+                    }`}
+                    title={isDark ? "Mudar para Modo Claro" : "Mudar para Modo Escuro"}
+                    aria-label="Alternar Modo Claro / Escuro"
+                  >
+                    {isDark ? (
+                      <Moon className="w-3.5 h-3.5 text-amber-400" />
+                    ) : (
+                      <Sun className="w-3.5 h-3.5 text-amber-500" />
+                    )}
+                    <span className="text-[9px] font-bold tracking-tight uppercase whitespace-nowrap">
+                      {isDark ? 'Escuro' : 'Claro'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      onClose();
+                    }}
+                    className={`w-8 h-8 rounded-[4px] border flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
+                      isDark 
+                        ? 'bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white border-slate-700' 
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border-slate-200 shadow-xs'
+                    }`}
+                    title="Fechar menu"
+                    aria-label="Fechar menu"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {/* LISTA DE OPÇÕES CONTEXTUAIS DO MENU */}
@@ -1187,42 +1201,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       </span>
                     </div>
 
-                    {/* Configurações do Salão */}
-                    {isProAdmin && (
-                      <button
-                        type="button"
-                        id="menu-option-personalizar"
-                        onClick={() => {
-                          hapticLight();
-                          onClose();
-                          if (onRequestManage) {
-                            onRequestManage();
-                          } else {
-                            onNavigateTab?.('personalizar');
-                          }
-                        }}
-                        className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                          isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                            <Store className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <div className="text-xs font-bold font-['Poppins']">Configurações do Salão</div>
-                            <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                              Espaço, tema visual, fotos e horários
-                            </div>
-                          </div>
-                        </div>
-                        <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                      </button>
-                    )}
-
-                    {/* Catálogo de Serviços */}
+                    {/* 1. Serviços (Renomeado de Catálogo de Serviços) */}
                     <button
                       type="button"
+                      id="menu-option-servicos"
                       onClick={() => {
                         hapticLight();
                         onClose();
@@ -1237,7 +1219,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           <Scissors className="w-4 h-4" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold font-['Poppins']">Catálogo de Serviços</div>
+                          <div className="text-xs font-bold font-['Poppins']">Serviços</div>
                           <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                             Valores, durações e procedimentos
                           </div>
@@ -1246,9 +1228,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
                     </button>
 
-                    {/* Equipe & Comissões */}
+                    {/* 2. Equipe */}
                     <button
                       type="button"
+                      id="menu-option-equipe"
                       onClick={() => {
                         hapticLight();
                         onClose();
@@ -1263,7 +1246,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           <Users className="w-4 h-4" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold font-['Poppins']">Equipe & Profissionais</div>
+                          <div className="text-xs font-bold font-['Poppins']">Equipe</div>
                           <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                             Colaboradores, permissões e comissões
                           </div>
@@ -1272,9 +1255,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
                     </button>
 
-                    {/* Caixa & Faturamento */}
+                    {/* 3. Financeiro */}
                     <button
                       type="button"
+                      id="menu-option-financeiro"
                       onClick={() => {
                         hapticLight();
                         onClose();
@@ -1289,18 +1273,48 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           <DollarSign className="w-4 h-4" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold font-['Poppins']">Caixa & Financeiro</div>
+                          <div className="text-xs font-bold font-['Poppins']">Financeiro</div>
                           <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Faturamento diário, vendas e repasses
+                            Caixa, PIX & Placa, despesas e repasses
                           </div>
                         </div>
                       </div>
                       <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
                     </button>
 
-                    {/* Vagas Relâmpago / Radar */}
+                    {/* 4. Preferências (Criar Menu com Cards: Dados do negócio, Ident. Visual e Layout) */}
+                    {isProAdmin && (
+                      <button
+                        type="button"
+                        id="menu-option-preferencias"
+                        onClick={() => {
+                          hapticLight();
+                          onClose();
+                          onNavigateTab?.('preferencias');
+                        }}
+                        className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                          isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                            <Sliders className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold font-['Poppins']">Preferências</div>
+                            <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                              Dados do negócio, ident. visual e layout
+                            </div>
+                          </div>
+                        </div>
+                        <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                      </button>
+                    )}
+
+                    {/* 5. Vagas Relâmpagos */}
                     <button
                       type="button"
+                      id="menu-option-vagas-relampagos"
                       onClick={() => {
                         hapticLight();
                         onClose();
@@ -1315,98 +1329,9 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           <Sparkles className="w-4 h-4" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold font-['Poppins']">Vagas Relâmpago (Radar)</div>
+                          <div className="text-xs font-bold font-['Poppins']">Vagas Relâmpagos</div>
                           <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                             Publicar horários ociosos com vídeo/foto
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                    </button>
-
-                    {/* SEÇÃO 2: MINHA CONTA */}
-                    <div className="pt-2 px-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
-                        Minha Conta
-                      </span>
-                    </div>
-
-                    {/* Meus Dados Pessoais */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        hapticLight();
-                        setActiveSubTab('dados');
-                      }}
-                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-[4px] bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
-                          <User className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold font-['Poppins']">Meus Dados Pessoais</div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Nome, e-mail, telefone e endereço
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                    </button>
-
-                    {/* Conta Família & Dependentes */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        hapticLight();
-                        setActiveSubTab('dependentes');
-                      }}
-                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-[4px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
-                          <Users className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold font-['Poppins'] flex items-center gap-1.5">
-                            <span>Conta Família • Dependentes</span>
-                            {dependents.length > 0 && (
-                              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-500 text-white">
-                                {dependents.length}
-                              </span>
-                            )}
-                          </div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Dependentes vinculados à sua conta
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                    </button>
-
-                    {/* Chat no App Vagou */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        hapticLight();
-                        setIsAppChatOpen(true);
-                      }}
-                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                          <MessageSquare className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold font-['Poppins']">Chat no App Vagou</div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Mensagens diretas com a equipe e clientes
                           </div>
                         </div>
                       </div>
@@ -1443,6 +1368,13 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         <ChevronRight className="w-4 h-4 text-white" />
                       </button>
                     )}
+
+                    {/* Seção Minha Conta exclusiva do Modo Cliente */}
+                    <div className="pt-2 px-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                        Minha Conta
+                      </span>
+                    </div>
 
                     {/* Minha Agenda */}
                     <button
@@ -1631,6 +1563,62 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   {appointments.length} itens
                 </span>
               </div>
+
+              {/* CARD DE PRÉ-AGENDAMENTO PAUSADO (RASCUNHO) */}
+              {savedDraft && (
+                <div className={`p-3.5 rounded-[4px] border space-y-2.5 ${
+                  isDark ? 'bg-slate-900 border-amber-500/50 text-white' : 'bg-amber-50 border-amber-300 text-slate-900'
+                }`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] font-bold">
+                      <Bookmark className="w-3 h-3" />
+                      <span>Pré-Agendamento (Não garante vaga)</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        saveBookingDraft(null);
+                        setSavedDraft(null);
+                      }}
+                      className="text-[10px] font-bold text-rose-400 hover:underline cursor-pointer"
+                    >
+                      Descartar
+                    </button>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold">{savedDraft.combinedServiceTitle}</h4>
+                    <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      {savedDraft.isDependentBooking && savedDraft.dependentName
+                        ? `Dependente: ${savedDraft.dependentName}`
+                        : 'Para Você (Titular)'}{' '}
+                      • {savedDraft.professional}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-800/40">
+                    <span className="font-bold text-amber-400 flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{savedDraft.dateFormatted} às {savedDraft.timeSlot}</span>
+                    </span>
+                    <span className="font-extrabold text-xs">R$ {savedDraft.totalPrice.toFixed(0)}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticMedium();
+                      onClose();
+                      onNavigateToSchedule?.();
+                    }}
+                    className="w-full py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                    <span className="text-white">Retomar e Confirmar Vaga</span>
+                  </button>
+                </div>
+              )}
 
               {/* BANNER DE PROPOSTA DE TROCA RECEBIDA (INCOMING SWAP) */}
               {incomingSwapRequests.length > 0 && (
@@ -1932,42 +1920,124 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         </div>
                       )}
 
-                      {/* ESTADO 4: HORÁRIO CONFIRMADO -> BOTÃO SOLICITAR TROCA */}
+                      {/* ESTADO 4: HORÁRIO CONFIRMADO -> ESTOU A CAMINHO (BOL-020) & SOLICITAR TROCA */}
                       {!isPendingB && !isRejected && !isPendingSalon && item.status === 'CONFIRMADO' && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            hapticLight();
-                            if (!swapGovernance.optIn) {
-                              setGovernanceWarning({ isOpen: true, type: 'optInRequired' });
-                              return;
-                            }
-                            if (swapGovernance.isBannedFromRequesting || swapGovernance.activeRejections >= 5) {
-                              setGovernanceWarning({ isOpen: true, type: 'banned' });
-                              return;
-                            }
-                            if (swapGovernance.usedThisMonth >= swapGovernance.monthlyQuota) {
-                              setGovernanceWarning({ isOpen: true, type: 'quotaExceeded' });
-                              return;
-                            }
-                            setSwapTargetAppointment(item);
-                            const candidates = getCandidateSlots(item).filter(c => c.isEligible);
-                            setSelectedSwapSlots(candidates.slice(0, 1).map(c => c.time || ''));
-                            setIsSwapModalOpen(true);
-                          }}
-                          className={`w-full py-2 px-3 rounded border text-[11px] font-bold flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer ${
-                            isDark
-                              ? 'border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10'
-                              : 'border-emerald-600/40 text-emerald-700 hover:bg-emerald-50'
-                          }`}
-                        >
-                          <ArrowLeftRight className="w-3.5 h-3.5" />
-                          <span>Solicitar Troca de Horário (Cascata)</span>
-                        </button>
+                        <div className="space-y-2 pt-1">
+                          {(item.tracking_status === 'live_sharing' || item.tracking_status === 'arriving_5min') && (
+                            <div className="px-2.5 py-1.5 rounded-[4px] bg-emerald-500 text-white text-[10.5px] font-mono tabular-nums font-bold flex items-center justify-between">
+                              <span className="flex items-center gap-1.5 text-white truncate">
+                                <Bell className="w-3.5 h-3.5 text-white shrink-0" />
+                                <span className="text-white truncate">
+                                  {item.current_street_name || 'Av. Rebouças'} • ETA {item.eta_minutes ?? 12}m
+                                </span>
+                              </span>
+                              <span className="text-[9.5px] font-black text-white shrink-0">10s</span>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                hapticLight();
+                                setDrawerDepartureApt(item);
+                              }}
+                              className="py-2 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-extrabold flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer whitespace-nowrap"
+                            >
+                              <Navigation className="w-3.5 h-3.5 text-white shrink-0" />
+                              <span className="text-white">
+                                {item.tracking_status === 'live_sharing' || item.tracking_status === 'arriving_5min'
+                                  ? 'Rota Ao Vivo (10s)'
+                                  : 'Estou a Caminho'}
+                              </span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                hapticLight();
+                                setDrawerLiveViewState({ appointment: item, initialTab: 'timeline' });
+                              }}
+                              className="py-2 px-2.5 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[11px] font-bold flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer whitespace-nowrap"
+                            >
+                              <Package className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                              <span>Linha Shopee</span>
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              hapticLight();
+                              if (!swapGovernance.optIn) {
+                                setGovernanceWarning({ isOpen: true, type: 'optInRequired' });
+                                return;
+                              }
+                              if (swapGovernance.isBannedFromRequesting || swapGovernance.activeRejections >= 5) {
+                                setGovernanceWarning({ isOpen: true, type: 'banned' });
+                                return;
+                              }
+                              if (swapGovernance.usedThisMonth >= swapGovernance.monthlyQuota) {
+                                setGovernanceWarning({ isOpen: true, type: 'quotaExceeded' });
+                                return;
+                              }
+                              setSwapTargetAppointment(item);
+                              const candidates = getCandidateSlots(item).filter(c => c.isEligible);
+                              setSelectedSwapSlots(candidates.slice(0, 1).map(c => c.time || ''));
+                              setIsSwapModalOpen(true);
+                            }}
+                            className={`w-full py-2 px-3 rounded border text-[11px] font-bold flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer ${
+                              isDark
+                                ? 'border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10'
+                                : 'border-emerald-600/40 text-emerald-700 hover:bg-emerald-50'
+                            }`}
+                          >
+                            <ArrowLeftRight className="w-3.5 h-3.5" />
+                            <span>Solicitar Troca de Horário (Cascata)</span>
+                          </button>
+                        </div>
                       )}
                     </div>
                   );
                 })
+              )}
+
+              {drawerDepartureApt && (
+                <LiveRouteDepartureModal
+                  isOpen={Boolean(drawerDepartureApt)}
+                  appointment={drawerDepartureApt}
+                  onClose={() => setDrawerDepartureApt(null)}
+                  onUpdateAppointment={(updated) => {
+                    const nextList = appointments.map((a) =>
+                      a.protocolCode === updated.protocolCode ? { ...a, ...updated } : a
+                    );
+                    setAppointments(nextList);
+                    if (onUpdateAppointments) onUpdateAppointments(nextList);
+                    setDrawerDepartureApt(updated);
+                  }}
+                  onOpenLiveViewer={(apt, tab) => {
+                    setDrawerDepartureApt(null);
+                    setDrawerLiveViewState({ appointment: apt, initialTab: tab });
+                  }}
+                />
+              )}
+
+              {drawerLiveViewState && (
+                <LiveTrackingDrawerModal
+                  isOpen={Boolean(drawerLiveViewState)}
+                  appointment={drawerLiveViewState.appointment}
+                  initialTab={drawerLiveViewState.initialTab}
+                  viewerRole="client"
+                  onClose={() => setDrawerLiveViewState(null)}
+                  onUpdateAppointment={(updated) => {
+                    const nextList = appointments.map((a) =>
+                      a.protocolCode === updated.protocolCode ? { ...a, ...updated } : a
+                    );
+                    setAppointments(nextList);
+                    if (onUpdateAppointments) onUpdateAppointments(nextList);
+                    setDrawerLiveViewState({ ...drawerLiveViewState, appointment: updated });
+                  }}
+                />
               )}
 
               {onNavigateToSchedule && (
