@@ -15,6 +15,22 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-23] — Desacoplamento do Controle de Borda dos Botões e do Ícone da Navegação Inferior (Rodapé)
+- **Tipo:** `[Feat / UI & Design System / Customization]`
+- **Motivo / Solicitação:** Separar os controles de borda na barra de navegação inferior (rodapé) para que a borda do botão (box externo) e a borda do ícone (box interno no estilo boxed) possam ser ativadas ou desativadas de forma totalmente independente.
+- **Arquivos Impactados:**
+  - `src/types.ts`
+  - `src/components/BottomNav.tsx`
+  - `src/components/professional/LayoutCardView.tsx`
+  - `src/lib/supabase.ts`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Nova Propriedade `navIconBorder`:** Adicionada a propriedade `navIconBorder?: 'bordered' | 'none'` em `SalonAdminSettings`, `SalonNavContext` e `BottomNavProps`.
+  2. **Independência Visual no `BottomNav.tsx`:** O contêiner do botão (`<button>`) utiliza `navBorder` para a borda do box externo, enquanto o contêiner do ícone (`<div className="w-[34px] h-[34px]">`) utiliza `navIconBorder` para a borda interna do ícone. Isso permite atuar individualmente sobre cada nível visual de contorno.
+  3. **Controle na UI em `LayoutCardView.tsx`:** Adicionado o Seletor "4.7 Borda do Ícone (Box Interno)" com opções "Com Borda" (`navIconBorder: 'bordered'`) e "Sem Borda" (`navIconBorder: 'none'`), oferecendo alternância instantânea com salvamento no Supabase e sincronização ao vivo no app.
+  4. **Persistência no Supabase & LocalStorage:** Mapeada a coluna/propriedade `nav_icon_border` / `navIconBorder` em `updateSalonSettingsInDb` (`src/lib/supabase.ts`) e hidratação sincronizada em `SalonProfileView.tsx`.
+
 ### [2026-10-23] — Restauração da Borda da Caixa do Botão no Rodapé e Expansão da Paleta de Cores (Cor Secundária Clara e Indicador "Sem Cor")
 - **Tipo:** `[Feat / UI & Design System / Customization]`
 - **Motivo / Solicitação:**

@@ -286,7 +286,8 @@ export interface SalonAdminSettings {
   defaultTheme?: 'dark' | 'light'; // Layout claro ou escuro permanente
   navStyle?: 'minimal' | 'solid' | 'boxed'; // Estilo visual da barra de navegação inferior (BottomNav)
   navShape?: 'square' | 'circle'; // Formato dos botões da navegação inferior (quadrado vs circular)
-  navBorder?: 'bordered' | 'none'; // Botão com borda ou sem borda
+  navBorder?: 'bordered' | 'none'; // Botão com borda ou sem borda (box externo)
+  navIconBorder?: 'bordered' | 'none'; // Ícone com borda ou sem borda (box interno do ícone)
   navBgStyle?: 'solid' | 'glass' | 'transparent'; // Fundo do rodapé: sólido, alpha-vidro jateado, alpha 100% (transparente)
   navBgColor?: string; // Cor personalizada do fundo do rodapé
   navBtnBgColor?: string; // Cor personalizada do fundo dos botões (inativos / base)

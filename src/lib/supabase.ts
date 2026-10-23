@@ -2561,6 +2561,7 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
     if (settings.navStyle !== undefined) payload.nav_style = settings.navStyle;
     if (settings.navShape !== undefined) payload.nav_shape = settings.navShape;
     if (settings.navBorder !== undefined) payload.nav_border = settings.navBorder;
+    if (settings.navIconBorder !== undefined) payload.nav_icon_border = settings.navIconBorder;
     if (settings.navBgStyle !== undefined) payload.nav_bg_style = settings.navBgStyle;
     if (settings.navBgColor !== undefined) payload.nav_bg_color = settings.navBgColor;
     if (settings.navBtnBgColor !== undefined) payload.nav_btn_bg_color = settings.navBtnBgColor;
@@ -2615,6 +2616,7 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       navStyle: settings.navStyle || existingBranding.navStyle || 'minimal',
       navShape: settings.navShape || existingBranding.navShape || 'square',
       navBorder: settings.navBorder || existingBranding.navBorder || 'bordered',
+      navIconBorder: settings.navIconBorder || existingBranding.navIconBorder || 'none',
       navBgStyle: settings.navBgStyle || existingBranding.navBgStyle || 'glass',
       navBgColor: settings.navBgColor !== undefined ? settings.navBgColor : existingBranding.navBgColor,
       navBtnBgColor: settings.navBtnBgColor !== undefined ? settings.navBtnBgColor : existingBranding.navBtnBgColor,

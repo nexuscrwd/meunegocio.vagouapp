@@ -85,6 +85,9 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
   const [navBorder, setNavBorder] = useState<'bordered' | 'none'>(
     adminSettings.navBorder || 'bordered'
   );
+  const [navIconBorder, setNavIconBorder] = useState<'bordered' | 'none'>(
+    adminSettings.navIconBorder || 'none'
+  );
   const [navBgStyle, setNavBgStyle] = useState<'solid' | 'glass' | 'transparent'>(
     adminSettings.navBgStyle || 'glass'
   );
@@ -150,6 +153,7 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
         navStyle,
         navShape,
         navBorder,
+        navIconBorder,
         navBgStyle,
         navBgColor,
         navBtnBgColor,
@@ -1787,6 +1791,66 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
                         </span>
                       </div>
                       {navBorder === 'none' && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4.7 Borda do Ícone (Box Interno) */}
+                <div className="space-y-1.5 pt-1 border-t border-slate-800/40">
+                  <label className="text-xs font-bold">
+                    Borda do Ícone (Box Interno)
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setNavIconBorder('bordered');
+                        autoSyncSettings({ navIconBorder: 'bordered' });
+                      }}
+                      className={`p-2.5 rounded-[4px] border text-left transition cursor-pointer flex items-center justify-between gap-2 ${
+                        navIconBorder === 'bordered'
+                          ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                          : isDark
+                            ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-emerald-500/40'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500/40'
+                      }`}
+                    >
+                      <div>
+                        <span className={`text-xs font-bold block ${navIconBorder === 'bordered' ? 'text-white' : ''}`}>
+                          Com Borda
+                        </span>
+                        <span className={`text-[9px] ${navIconBorder === 'bordered' ? 'text-white/80' : 'text-slate-400'}`}>
+                          Contorno no ícone interno
+                        </span>
+                      </div>
+                      {navIconBorder === 'bordered' && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setNavIconBorder('none');
+                        autoSyncSettings({ navIconBorder: 'none' });
+                      }}
+                      className={`p-2.5 rounded-[4px] border text-left transition cursor-pointer flex items-center justify-between gap-2 ${
+                        navIconBorder === 'none'
+                          ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                          : isDark
+                            ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-emerald-500/40'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-emerald-500/40'
+                      }`}
+                    >
+                      <div>
+                        <span className={`text-xs font-bold block ${navIconBorder === 'none' ? 'text-white' : ''}`}>
+                          Sem Borda
+                        </span>
+                        <span className={`text-[9px] ${navIconBorder === 'none' ? 'text-white/80' : 'text-slate-400'}`}>
+                          Sem contorno no ícone
+                        </span>
+                      </div>
+                      {navIconBorder === 'none' && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
                     </button>
                   </div>
                 </div>

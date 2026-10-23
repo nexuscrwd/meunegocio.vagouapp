@@ -606,6 +606,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         navStyle: initialSalonData.nav_style || initialSalonData.branding?.navStyle || localSaved.navStyle || 'minimal',
         navShape: initialSalonData.nav_shape || initialSalonData.branding?.navShape || localSaved.navShape || 'square',
         navBorder: initialSalonData.nav_border || initialSalonData.branding?.navBorder || localSaved.navBorder || 'bordered',
+        navIconBorder: initialSalonData.nav_icon_border || initialSalonData.branding?.navIconBorder || localSaved.navIconBorder || 'none',
         navBgStyle: initialSalonData.nav_bg_style || initialSalonData.branding?.navBgStyle || localSaved.navBgStyle || 'glass',
         navBgColor: initialSalonData.nav_bg_color || initialSalonData.branding?.navBgColor || localSaved.navBgColor || undefined,
         navBtnBgColor: initialSalonData.nav_btn_bg_color || initialSalonData.branding?.navBtnBgColor || localSaved.navBtnBgColor || undefined,
@@ -699,6 +700,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             navStyle: parsed.navStyle || defaults.navStyle,
             navShape: parsed.navShape || defaults.navShape,
             navBorder: parsed.navBorder || defaults.navBorder,
+            navIconBorder: parsed.navIconBorder || defaults.navIconBorder,
             navBgStyle: parsed.navBgStyle || defaults.navBgStyle,
             navBgColor: parsed.navBgColor !== undefined ? parsed.navBgColor : defaults.navBgColor,
             navActiveColor: parsed.navActiveColor || defaults.navActiveColor,
@@ -1065,6 +1067,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           }
           if (salonRecord.nav_border || salonRecord.branding?.navBorder) {
             updatedSettings.navBorder = salonRecord.nav_border || salonRecord.branding?.navBorder;
+          }
+          if (salonRecord.nav_icon_border || salonRecord.branding?.navIconBorder) {
+            updatedSettings.navIconBorder = salonRecord.nav_icon_border || salonRecord.branding?.navIconBorder;
           }
           if (salonRecord.nav_bg_style || salonRecord.branding?.navBgStyle) {
             updatedSettings.navBgStyle = salonRecord.nav_bg_style || salonRecord.branding?.navBgStyle;

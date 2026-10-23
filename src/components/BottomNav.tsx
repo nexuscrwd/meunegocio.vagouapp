@@ -19,6 +19,7 @@ export interface SalonNavContext {
   navStyle?: 'minimal' | 'solid' | 'boxed';
   navShape?: 'square' | 'circle';
   navBorder?: 'bordered' | 'none';
+  navIconBorder?: 'bordered' | 'none';
   navBgStyle?: 'solid' | 'glass' | 'transparent';
   navBgColor?: string;
   navBtnBgColor?: string;
@@ -46,6 +47,7 @@ interface BottomNavProps {
   navStyle?: 'minimal' | 'solid' | 'boxed';
   navShape?: 'square' | 'circle';
   navBorder?: 'bordered' | 'none';
+  navIconBorder?: 'bordered' | 'none';
   navBgStyle?: 'solid' | 'glass' | 'transparent';
   navBgColor?: string;
   navBtnBgColor?: string;
@@ -72,6 +74,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   navStyle: propNavStyle,
   navShape: propNavShape,
   navBorder: propNavBorder,
+  navIconBorder: propNavIconBorder,
   navBgStyle: propNavBgStyle,
   navBgColor: propNavBgColor,
   navBtnBgColor: propNavBtnBgColor,
@@ -96,6 +99,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const navStyle = propNavStyle || salonContext?.navStyle || 'minimal';
   const navShape = propNavShape || salonContext?.navShape || 'square';
   const navBorder = propNavBorder || salonContext?.navBorder || 'bordered';
+  const navIconBorder = propNavIconBorder || salonContext?.navIconBorder || 'none';
   const navBgStyle = propNavBgStyle || salonContext?.navBgStyle || 'glass';
   const navBgColor = propNavBgColor || salonContext?.navBgColor;
   const navBtnBgColor = propNavBtnBgColor || salonContext?.navBtnBgColor;
@@ -333,7 +337,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 style={
                   isActive
                     ? { 
-                        borderColor: navBorder === 'bordered' ? navActiveColor : 'transparent', 
+                        borderColor: navIconBorder === 'bordered' ? navActiveColor : 'transparent', 
                         backgroundColor: effectiveActiveBg,
                         boxShadow: btnShadowCss !== 'none' ? btnShadowCss : undefined,
                         backdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
@@ -341,7 +345,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                       }
                     : {
                         backgroundColor: navBtnBgColor || undefined,
-                        borderColor: navBorder === 'bordered' ? (resolvedInactiveFg ? `${resolvedInactiveFg}40` : undefined) : 'transparent',
+                        borderColor: navIconBorder === 'bordered' ? (resolvedInactiveFg ? `${resolvedInactiveFg}40` : undefined) : 'transparent',
                         boxShadow: btnShadowCss !== 'none' ? btnShadowCss : undefined,
                         backdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
                         WebkitBackdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
@@ -350,15 +354,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 className={`w-[34px] h-[34px] flex items-center justify-center transition-all ${
                   navShape === 'circle' ? 'rounded-full' : 'rounded-[4px]'
                 } ${
-                  navBorder === 'bordered' ? 'border' : 'border-0'
+                  navIconBorder === 'bordered' ? 'border' : 'border-0'
                 } ${
                   isActive
                     ? 'scale-105 shadow-xs'
                     : resolvedInactiveFg
-                      ? 'border-white/25 bg-slate-950/30'
+                      ? navIconBorder === 'bordered' ? 'border-white/25 bg-slate-950/30' : 'bg-slate-950/30 border-transparent'
                       : isDark
-                        ? 'text-slate-400 hover:text-slate-200 border-slate-800 bg-slate-950/70 hover:border-emerald-500/40'
-                        : 'text-slate-500 hover:text-slate-800 border-slate-200 bg-slate-50 hover:border-emerald-500/40'
+                        ? `text-slate-400 hover:text-slate-200 bg-slate-950/70 ${navIconBorder === 'bordered' ? 'border-slate-800 hover:border-emerald-500/40' : 'border-transparent'}`
+                        : `text-slate-500 hover:text-slate-800 bg-slate-50 ${navIconBorder === 'bordered' ? 'border-slate-200 hover:border-emerald-500/40' : 'border-transparent'}`
                 }`}
               >
                 <Icon 
