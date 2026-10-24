@@ -15,6 +15,19 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-23] — Correção de Falha ao Confirmar Agendamento (`Cannot read properties of null (reading 'user')`) e Blindagem de Rota/Horário Máximo
+- **Tipo:** `[Fix / Bugfix / Booking Engine & Data Layer]`
+- **Motivo / Solicitação:** Usuário reportou erro `Cannot read properties of null (reading 'user')` no modal "Resumo do Agendamento" ao clicar em "CONFIRMAR AGENDAMENTO".
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `src/utils/bookingSlots.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Eliminação do TypeError em `handleConfirmSchedule`:** No `SalonProfileView.tsx`, corrigido acesso desprotegido `session.user.email` substituindo por *Optional Chaining* e fallbacks ordenados (`session?.user?.email || storedEmail || clientRow?.email || null`).
+  2. **Extração Unificada de Sessão de Cliente:** Em `handleConfirmSchedule`, adicionada leitura de `vagou_client_session` do localStorage para obter `id`, `email`, `phone` e `name` mesmo quando o cliente estiver autenticado na vitrine sem sessão de cookie/token no `supabase.auth`.
+  3. **Aritmética Segura em `formatMaxDepartureTime`:** Em `src/utils/bookingSlots.ts`, substituído `Math.max(0, diff)` que travava em `00H00` por cálculo modular de 24h com anotação de deslocamento seguro caso o tempo estimado ultrapasse um dia.
+  4. **Enriquecimento de Endereço do Salão para Geocodificação:** Em `SalonProfileView.tsx`, o `salonAddress` repassado para `SalonBookingModal` agora inclui bairro, cidade e estado caso o endereço simples não possua cidade definida, prevenindo desvios para estados distantes.
+
 ### [2026-10-23] — Desacoplamento do Controle de Borda dos Botões e do Ícone da Navegação Inferior (Rodapé)
 - **Tipo:** `[Feat / UI & Design System / Customization]`
 - **Motivo / Solicitação:** Separar os controles de borda na barra de navegação inferior (rodapé) para que a borda do botão (box externo) e a borda do ícone (box interno no estilo boxed) possam ser ativadas ou desativadas de forma totalmente independente.

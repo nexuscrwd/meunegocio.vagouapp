@@ -867,10 +867,20 @@ export function formatMaxDepartureTime(timeSlot: string, etaMinutes: number): st
   const [sh, sm] = String(timeSlot || '').split(':').map(Number);
   if (Number.isNaN(sh) || Number.isNaN(sm)) return '--H--';
   const totalAppointmentMinutes = sh * 60 + sm;
-  const departureMinutes = Math.max(0, totalAppointmentMinutes - Math.max(0, etaMinutes));
-  const clamped = Math.min(23 * 60 + 59, departureMinutes);
-  const h = Math.floor(clamped / 60);
-  const m = clamped % 60;
+  const safeEta = Math.max(0, etaMinutes);
+  if (safeEta > 12 * 60) {
+    const daysBefore = Math.floor(safeEta / 1440);
+    const remMinutes = safeEta % 1440;
+    const depMin = ((totalAppointmentMinutes - remMinutes) % 1440 + 1440) % 1440;
+    const h = Math.floor(depMin / 60);
+    const m = depMin % 60;
+    return daysBefore > 0
+      ? `${String(h).padStart(2, '0')}H${String(m).padStart(2, '0')} (-${daysBefore}d)`
+      : `${String(h).padStart(2, '0')}H${String(m).padStart(2, '0')}`;
+  }
+  const departureMinutes = ((totalAppointmentMinutes - safeEta) % 1440 + 1440) % 1440;
+  const h = Math.floor(departureMinutes / 60);
+  const m = departureMinutes % 60;
   return `${String(h).padStart(2, '0')}H${String(m).padStart(2, '0')}`;
 }
 

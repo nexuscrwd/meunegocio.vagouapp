@@ -1843,10 +1843,16 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
       if (isSupabaseConfigured && supabase) {
         const { data: { session } } = await supabase.auth.getSession();
-        const storedClientId = localStorage.getItem('vagou_client_id');
-        const storedEmail = (localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '').trim();
-        const storedPhone = (localStorage.getItem('vagou_user_phone') || bookingData.clientPhone || '').trim();
-        const storedName = (localStorage.getItem('vagou_user_name') || currentUserName || 'Cliente').trim();
+        let rawClientSession: any = null;
+        try {
+          const s = localStorage.getItem('vagou_client_session');
+          if (s) rawClientSession = JSON.parse(s);
+        } catch {}
+
+        const storedClientId = localStorage.getItem('vagou_client_id') || rawClientSession?.id || rawClientSession?.clientId || '';
+        const storedEmail = (localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || rawClientSession?.email || '').trim();
+        const storedPhone = (localStorage.getItem('vagou_user_phone') || rawClientSession?.phone || bookingData.clientPhone || '').trim();
+        const storedName = (localStorage.getItem('vagou_user_name') || rawClientSession?.name || currentUserName || 'Cliente').trim();
 
         if (!session?.user && !storedClientId && !storedEmail) {
           setIsClientAuthModalOpen(true);
@@ -1857,7 +1863,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         let clientRow: any = null;
         if (session?.user?.id) {
           const { data: existingClient } = await (supabase.from('clients') as any)
-            .select('id, name, phone')
+            .select('id, name, phone, email')
             .eq('user_id', session.user.id)
             .maybeSingle();
 
@@ -1869,13 +1875,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           }
         } else if (storedClientId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storedClientId)) {
           const { data: existingClient } = await (supabase.from('clients') as any)
-            .select('id, name, phone')
+            .select('id, name, phone, email')
             .eq('id', storedClientId)
             .maybeSingle();
           if (existingClient) clientRow = existingClient;
         } else if (storedEmail) {
           const { data: existingClient } = await (supabase.from('clients') as any)
-            .select('id, name, phone')
+            .select('id, name, phone, email')
             .ilike('email', storedEmail)
             .maybeSingle();
           if (existingClient) clientRow = existingClient;
@@ -1888,7 +1894,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               email: storedEmail || null,
               phone: storedPhone || null,
             })
-            .select('id, name, phone')
+            .select('id, name, phone, email')
             .maybeSingle();
           if (newClient) {
             clientRow = newClient;
@@ -1937,7 +1943,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           client_id: clientRow.id,
           client_name: finalClientName,
           client_phone: finalPhone,
-          client_email: session.user.email || null,
+          client_email: session?.user?.email || storedEmail || clientRow?.email || null,
           service_title: bookingData.service.title,
           service_category: bookingData.service.category || 'cabelo',
           price: bookingData.price,
@@ -2836,7 +2842,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   salonId={currentSalonDbId || salonInfo.id}
                   salonName={salonInfo.name}
                   salonSlug={adminSettings.salonSlug || activeSubdomain || ''}
-                  salonAddress={salonInfo.address}
+                  salonAddress={
+                    salonInfo.address ||
+                    [adminSettings.salonAddress, adminSettings.bairro, adminSettings.cidade, adminSettings.uf].filter(Boolean).join(', ') ||
+                    ''
+                  }
                   salonCep={adminSettings.cep || initialSalonData?.cep || ''}
                   salonCoords={
                     initialSalonData?.latitude && initialSalonData?.longitude
