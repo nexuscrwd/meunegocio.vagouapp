@@ -606,6 +606,50 @@ export async function calculateDrivingRouteDistanceAndEta(
   lng2: number,
   mode: TransportMode = 'car'
 ): Promise<{ distanceKm: number; etaMinutes: number; routeSummary?: string }> {
+  // 1. Tenta primeiro Google Routes API v2 via proxy do servidor (/api/maps/compute-route)
+  try {
+    const travelMode =
+      mode === 'walking'
+        ? 'WALK'
+        : mode === 'bicycling'
+        ? 'BICYCLE'
+        : mode === 'motorcycle'
+        ? 'TWO_WHEELER'
+        : mode === 'transit'
+        ? 'TRANSIT'
+        : 'DRIVE';
+
+    const gmpRes = await fetch('/api/maps/compute-route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        originLat: lat1,
+        originLng: lng1,
+        destLat: lat2,
+        destLng: lng2,
+        travelMode,
+      }),
+    });
+
+    if (gmpRes.ok) {
+      const gmpData = await gmpRes.json();
+      const gmpRoute = gmpData?.routes?.[0];
+      if (gmpRoute) {
+        const distMeters = Number(gmpRoute.distanceMeters || 0);
+        const durSec = Number(String(gmpRoute.duration || '0s').replace('s', '')) || 0;
+        if (distMeters > 0 && durSec > 0) {
+          const distanceKm = Math.max(0.2, Number((distMeters / 1000).toFixed(1)));
+          const gmpRawMinutes = Math.max(2, Math.ceil(durSec / 60));
+          const safetyBuffer = TRANSPORT_MODE_META[mode]?.safetyBufferMinutes ?? 4;
+          const etaMinutes = Math.max(4, gmpRawMinutes + safetyBuffer);
+          const routeSummary = gmpRoute.description ? `via ${gmpRoute.description}` : undefined;
+          return { distanceKm, etaMinutes, routeSummary };
+        }
+      }
+    }
+  } catch {}
+
+  // 2. Fallback para OSRM se offline ou sem chave
   try {
     const osrmProfile = mode === 'walking' ? 'foot' : mode === 'bicycling' ? 'bike' : 'driving';
     const osrmUrl = `https://router.project-osrm.org/route/v1/${osrmProfile}/${lng1},${lat1};${lng2},${lat2}?overview=false`;
@@ -630,7 +674,7 @@ export async function calculateDrivingRouteDistanceAndEta(
  * Geocodifica qualquer CEP brasileiro (8 dígitos) ou endereço textual usando 3 provedores reais em cascata:
  * 1. AwesomeAPI CEP (coordenadas diretas do CEP)
  * 2. BrasilAPI CEP v2 (coordenadas oficiais IBGE/Correios)
- * 3. ViaCEP + Nominatim OpenStreetMap (busca estruturada sem bloqueio de bairro)
+ * 3. ViaCEP + Google Places API (New v1) / Nominatim OpenStreetMap
  */
 export async function geocodeBrazilLocation(
   query: string
@@ -785,7 +829,30 @@ export async function geocodeBrazilLocation(
     }
   }
 
-  // Fluxo B: Endereço textual livre (ex.: "Av. Itaquera, São Paulo" ou "Parque Guarani, SP")
+  // Fluxo B: Endereço textual livre (ex.: "Shopping Internacional Guarulhos" ou "Av. Itaquera, São Paulo")
+  // 1. Tenta primeiro Google Places API (New v1) via proxy do servidor
+  try {
+    const placesRes = await fetch('/api/maps/places-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: cleanQuery }),
+    });
+    if (placesRes.ok) {
+      const placesData = await placesRes.json();
+      const firstPlace = placesData?.places?.[0];
+      if (firstPlace && typeof firstPlace.lat === 'number' && typeof firstPlace.lng === 'number') {
+        const resolved = {
+          lat: firstPlace.lat,
+          lng: firstPlace.lng,
+          formattedAddress: firstPlace.formattedAddress || firstPlace.title || cleanQuery,
+        };
+        locationGeoCache.set(cacheKey, resolved);
+        return resolved;
+      }
+    }
+  } catch {}
+
+  // 2. Fallback para Nominatim
   try {
     const nomRes = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(cleanQuery)}`,

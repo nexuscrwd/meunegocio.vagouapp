@@ -28,7 +28,312 @@ async function startServer() {
 
   // Health check
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', hasGeminiKey: !!apiKey });
+    res.json({
+      status: 'ok',
+      hasGeminiKey: !!apiKey,
+      hasMapsKey: Boolean(process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY),
+    });
+  });
+
+  const getMapsApiKey = () =>
+    (process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || '').trim();
+
+  // 1. Public config endpoint for Maps JS SDK initialization
+  app.get('/api/maps/config', (_req, res) => {
+    const mapsKey = getMapsApiKey();
+    res.json({
+      apiKey: mapsKey,
+      enabled: Boolean(mapsKey),
+    });
+  });
+
+  // 2. Routes API v2 — computeRoutes (Real route, polyline, and turn-by-turn steps)
+  app.post('/api/maps/compute-route', async (req, res) => {
+    const mapsKey = getMapsApiKey();
+    if (!mapsKey) {
+      return res.status(503).json({ error: 'VITE_GOOGLE_MAPS_API_KEY not configured' });
+    }
+
+    try {
+      const {
+        originLat,
+        originLng,
+         originAddress,
+        destLat,
+        destLng,
+        destAddress,
+        travelMode = 'DRIVE',
+      } = req.body || {};
+
+      const buildWaypoint = (lat?: number, lng?: number, address?: string) => {
+        if (typeof lat === 'number' && typeof lng === 'number' && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+          return {
+            location: {
+              latLng: { latitude: lat, longitude: lng },
+            },
+          };
+        }
+        return { address: String(address || 'São Paulo, SP') };
+      };
+
+      const normalizedMode = ['DRIVE', 'TWO_WHEELER', 'BICYCLE', 'WALK', 'TRANSIT'].includes(
+        String(travelMode).toUpperCase()
+      )
+        ? String(travelMode).toUpperCase()
+        : 'DRIVE';
+
+      const bodyPayload: Record<string, any> = {
+        origin: buildWaypoint(originLat, originLng, originAddress),
+        destination: buildWaypoint(destLat, destLng, destAddress),
+        travelMode: normalizedMode,
+        languageCode: 'pt-BR',
+        units: 'METRIC',
+      };
+
+      if (normalizedMode === 'DRIVE' || normalizedMode === 'TWO_WHEELER') {
+        bodyPayload.routingPreference = 'TRAFFIC_AWARE';
+      }
+
+      const fieldMask = [
+        'routes.duration',
+        'routes.distanceMeters',
+        'routes.description',
+        'routes.polyline.encodedPolyline',
+        'routes.legs.duration',
+        'routes.legs.distanceMeters',
+        'routes.legs.steps.distanceMeters',
+        'routes.legs.steps.staticDuration',
+        'routes.legs.steps.polyline.encodedPolyline',
+        'routes.legs.steps.startLocation',
+        'routes.legs.steps.endLocation',
+        'routes.legs.steps.navigationInstruction',
+        'routes.legs.steps.localizedValues',
+      ].join(',');
+
+      const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': mapsKey,
+          'X-Goog-FieldMask': fieldMask,
+          'X-Goog-Maps-Solution-ID': 'gmp_mcp_codeassist_v1_aistudio',
+        },
+        body: JSON.stringify(bodyPayload),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return res.status(response.status).json({
+          error: data?.error?.message || 'Erro ao calcular rota via Routes API v2',
+          details: data,
+        });
+      }
+
+      return res.json(data);
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Falha interna ao calcular rota' });
+    }
+  });
+
+  // 3. Routes API v2 — Simultaneous 5-Modal Route Matrix
+  app.post('/api/maps/route-matrix', async (req, res) => {
+    const mapsKey = getMapsApiKey();
+    if (!mapsKey) {
+      return res.status(503).json({ error: 'VITE_GOOGLE_MAPS_API_KEY not configured' });
+    }
+
+    try {
+      const { originLat, originLng, originAddress, destLat, destLng, destAddress } = req.body || {};
+
+      const buildWaypoint = (lat?: number, lng?: number, address?: string) => {
+        if (typeof lat === 'number' && typeof lng === 'number' && !Number.isNaN(lat) && !Number.isNaN(lng)) {
+          return { location: { latLng: { latitude: lat, longitude: lng } } };
+        }
+        return { address: String(address || 'São Paulo, SP') };
+      };
+
+      const originWp = buildWaypoint(originLat, originLng, originAddress);
+      const destWp = buildWaypoint(destLat, destLng, destAddress);
+
+      const modes: Array<{ key: string; gmpMode: string }> = [
+        { key: 'walking', gmpMode: 'WALK' },
+        { key: 'bicycling', gmpMode: 'BICYCLE' },
+        { key: 'motorcycle', gmpMode: 'TWO_WHEELER' },
+        { key: 'car', gmpMode: 'DRIVE' },
+        { key: 'transit', gmpMode: 'TRANSIT' },
+      ];
+
+      const results: Record<string, { distanceKm: number; etaMinutes: number; description?: string }> = {};
+
+      await Promise.all(
+        modes.map(async ({ key, gmpMode }) => {
+          try {
+            const payload: Record<string, any> = {
+              origin: originWp,
+              destination: destWp,
+              travelMode: gmpMode,
+              languageCode: 'pt-BR',
+              units: 'METRIC',
+            };
+            if (gmpMode === 'DRIVE' || gmpMode === 'TWO_WHEELER') {
+              payload.routingPreference = 'TRAFFIC_AWARE';
+            }
+
+            const r = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Goog-Api-Key': mapsKey,
+                'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.description',
+                'X-Goog-Maps-Solution-ID': 'gmp_mcp_codeassist_v1_aistudio',
+              },
+              body: JSON.stringify(payload),
+            });
+
+            if (r.ok) {
+              const d = await r.json();
+              const route = d?.routes?.[0];
+              if (route) {
+                const distMeters = Number(route.distanceMeters || 0);
+                const durSec = Number(String(route.duration || '0s').replace('s', '')) || 0;
+                if (distMeters > 0 && durSec > 0) {
+                  results[key] = {
+                    distanceKm: Math.max(0.2, Number((distMeters / 1000).toFixed(1))),
+                    etaMinutes: Math.max(2, Math.ceil(durSec / 60)),
+                    description: route.description || undefined,
+                  };
+                }
+              }
+            }
+          } catch {}
+        })
+      );
+
+      return res.json({ modes: results });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Falha ao calcular matriz de modais' });
+    }
+  });
+
+  // 4. Places API (New v1) — Search Text & Address Autocomplete Suggestions
+  app.post('/api/maps/places-search', async (req, res) => {
+    const mapsKey = getMapsApiKey();
+    if (!mapsKey) {
+      return res.status(503).json({ error: 'VITE_GOOGLE_MAPS_API_KEY not configured' });
+    }
+
+    try {
+      const { query } = req.body || {};
+      const cleanQuery = String(query || '').trim();
+      if (cleanQuery.length < 3) {
+        return res.json({ places: [] });
+      }
+
+      const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': mapsKey,
+          'X-Goog-FieldMask':
+            'places.id,places.displayName,places.formattedAddress,places.location',
+        },
+        body: JSON.stringify({
+          textQuery: cleanQuery,
+          languageCode: 'pt-BR',
+          regionCode: 'BR',
+          maxResultCount: 5,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return res.status(response.status).json({
+          error: data?.error?.message || 'Erro na busca do Places API (New)',
+          places: [],
+        });
+      }
+
+      const places = Array.isArray(data?.places)
+        ? data.places.map((p: any) => ({
+            id: p.id,
+            title: p.displayName?.text || p.formattedAddress || cleanQuery,
+            formattedAddress: p.formattedAddress || p.displayName?.text || cleanQuery,
+            lat: p.location?.latitude,
+            lng: p.location?.longitude,
+          }))
+        : [];
+
+      return res.json({ places });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Erro ao buscar locais', places: [] });
+    }
+  });
+
+  // 5. Roads API (nearestRoads) + Geocoding API (Reverse Geocode) for Live GPS Snap-to-Road
+  app.get('/api/maps/snap-and-reverse', async (req, res) => {
+    const mapsKey = getMapsApiKey();
+    if (!mapsKey) {
+      return res.status(503).json({ error: 'VITE_GOOGLE_MAPS_API_KEY not configured' });
+    }
+
+    try {
+      const rawLat = Number(req.query.lat);
+      const rawLng = Number(req.query.lng);
+      if (Number.isNaN(rawLat) || Number.isNaN(rawLng)) {
+        return res.status(400).json({ error: 'Coordenadas inválidas' });
+      }
+
+      let snappedLat = rawLat;
+      let snappedLng = rawLng;
+
+      // Step A: Snap to nearest road via Roads API
+      try {
+        const roadsRes = await fetch(
+          `https://roads.googleapis.com/v1/nearestRoads?points=${rawLat},${rawLng}&key=${mapsKey}`
+        );
+        if (roadsRes.ok) {
+          const roadsData = await roadsRes.json();
+          const firstPoint = roadsData?.snappedPoints?.[0]?.location;
+          if (
+            firstPoint &&
+            typeof firstPoint.latitude === 'number' &&
+            typeof firstPoint.longitude === 'number'
+          ) {
+            snappedLat = firstPoint.latitude;
+            snappedLng = firstPoint.longitude;
+          }
+        }
+      } catch {}
+
+      // Step B: Reverse Geocode snapped coordinate to get street name
+      let streetName = '';
+      let formattedAddress = '';
+      try {
+        const geoRes = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${snappedLat},${snappedLng}&language=pt-BR&key=${mapsKey}`
+        );
+        if (geoRes.ok) {
+          const geoData = await geoRes.json();
+          const firstResult = geoData?.results?.[0];
+          if (firstResult) {
+            formattedAddress = firstResult.formatted_address || '';
+            const routeComp = (firstResult.address_components || []).find(
+              (c: any) => Array.isArray(c.types) && c.types.includes('route')
+            );
+            streetName = routeComp?.short_name || routeComp?.long_name || formattedAddress.split(',')[0] || '';
+          }
+        }
+      } catch {}
+
+      return res.json({
+        lat: snappedLat,
+        lng: snappedLng,
+        streetName: streetName || 'Via em deslocamento',
+        formattedAddress,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Erro no snap-and-reverse' });
+    }
   });
 
   // AI Structure & Screen Analysis endpoint

@@ -15,6 +15,38 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-28] — Implantação Completa da Suíte Google Maps Platform (Cockpit GPS In-App com Botão "Iniciar Trajeto", Linha do Tempo Real via Routes API v2, Matriz Simultânea dos 5 Modais, Autocomplete Places API New v1 e Snap-to-Road via Roads API)
+- **Tipo:** `[Feat / Google Maps Platform Full Suite Integration]`
+- **Motivo / Solicitação:** Implantar todas as 5 melhorias avançadas baseadas nas 11 APIs habilitadas no Google Cloud Console (`VITE_GOOGLE_MAPS_API_KEY`):
+  1. **Modo Cockpit GPS In-App com Botão `▶ Iniciar Trajeto` (Fim da Caixa Branca):** Mapa interativo via `Maps JavaScript API` (`AdvancedMarkerElement`, polilinha Emerald decodificada da `Routes API v2`, zero caixa branca do embed) com botão `▶ Iniciar Trajeto` que ativa o HUD superior de navegação passo a passo em tempo real;
+  2. **Linha do Tempo 100% Real (`Routes API v2`):** Geração automática das ruas e manobras reais (`navigationInstruction`, `distanceMeters`, `localizedValues`) na aba **Linha do Tempo**;
+  3. **Matriz Simultânea Real dos 5 Modais (`Routes API v2`):** Cálculo em paralelo dos tempos reais com trânsito (`TRAFFIC_AWARE`) para A pé, Bicicleta, Moto, Carro e Transporte Público;
+  4. **Autocomplete de Endereços e Locais (`Places API New v1`):** Sugestões instantâneas de ruas, bairros e estabelecimentos ao digitar em "Outro Local";
+  5. **Snap-to-Road + Radar Recepção Inteligente (`Roads API` + `Geocoding API`):** Ajuste da coordenada GPS ao vivo para a via exata e alerta automático de chegada iminente (`arriving_5min`) para a recepção do salão.
+- **Arquivos Impactados:**
+  - `server.ts`
+  - `src/services/googleMapsService.ts`
+  - `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
+  - `src/components/live-tracking/LiveTrackingModal.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/utils/bookingSlots.ts`
+  - `.env.example`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Rotas Proxy Seguras no Backend (`server.ts`):** Criados os endpoints `/api/maps/config`, `/api/maps/compute-route` (`Routes API v2`), `/api/maps/route-matrix`, `/api/maps/places-search` (`Places API New v1`) e `/api/maps/snap-and-reverse` (`Roads API nearestRoads` + `Geocoding API`), evitando bloqueios de CORS no navegador e mantendo compatibilidade total com `VITE_GOOGLE_MAPS_API_KEY`.
+  2. **Mapa Interativo e Cockpit GPS (`InteractiveGoogleRouteMap.tsx`):** Renderização nativa via `google.maps.Map` (`mapId: 'DEMO_MAP_ID'`, `internalUsageAttributionIds: ['gmp_mcp_codeassist_v1_aistudio']`), polilinha dupla em Emerald, marcadores `AdvancedMarkerElement`, rastreamento `navigator.geolocation.watchPosition` e HUD de manobras no topo do mapa ao acionar `▶ Iniciar Trajeto`.
+
+### [2026-10-28] — Unificação do Mapa Google Maps In-App + Aba "Linha do Tempo" no Radar "Estou a Caminho" (Minha Agenda) e no Fluxo de Agendamento
+- **Tipo:** `[Feat / In-App Route Map & Timeline Unification]`
+- **Motivo / Solicitação:** Quando o cliente acessa seu agendamento pelo menu "Agenda" / "Minha Agenda" e clica na partida ("Sim, estou saindo" no modal "Radar Estou a Caminho"), abrir diretamente o Mapa Google Maps integrado dentro do próprio aplicativo, contando com duas abas principais de visualização: **Mapa** e **Linha do Tempo** (aplicadas tanto no modal de partida da Agenda quanto na solução de rota pós-agendamento).
+- **Arquivos Impactados:**
+  - `src/components/live-tracking/LiveTrackingModal.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Abertura Direta do Mapa In-App ao Clicar em "Sim, estou saindo" (`LiveTrackingModal.tsx`):** Atualizado `LiveRouteDepartureModal` e `LiveTrackingDrawerModal` para utilizarem `buildTransportDeepLinks` (`googleMapsEmbedUrl`) e abrirem a tela expandida em tela cheia com `<iframe>` real do Google Maps dentro do app ao confirmar a partida na Minha Agenda.
+  2. **Duas Abas Unificadas (`Mapa` ⇄ `Linha do Tempo`) em `LiveTrackingModal.tsx` e `SalonBookingModal.tsx`:** Adicionado alternador superior entre a aba **Mapa** (Google Maps interativo in-app com seletor rápido de A pé, Bicicleta, Moto, Carro e Transp. Público) e a aba **Linha do Tempo** (sequência visual das etapas desde o horário limite de saída e endereço de origem até as ruas/trajeto, avisos rápidos de trânsito e chegada ao estabelecimento).
+
 ### [2026-10-27] — Tela Expandida de Mapa Integrado (In-App Route Embed) no Modal "Ir Agora • Rota & Deslocamento"
 - **Tipo:** `[Feat / In-App Navigation & Route Map Embed]`
 - **Motivo / Solicitação:** Ao clicar em "Mapa" / "Maps (...)" nas modalidades A pé, Bicicleta, Transporte Público, Moto ou Carro dentro do modal "Ir Agora • Rota & Deslocamento", abrir uma tela expandida em tela cheia diretamente dentro do aplicativo (via `iframe` embed do Google Maps com rota ativa), com barra superior de resumo, botões de troca rápida de modalidade e botão discreto para abertura externa opcional, mantendo Waze, Uber e 99 como acionamento externo nativo.

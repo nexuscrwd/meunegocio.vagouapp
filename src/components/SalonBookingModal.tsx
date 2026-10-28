@@ -28,6 +28,15 @@ import {
 } from '../utils/bookingSlots';
 import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
 import { SalonClientAuthModal } from './SalonClientAuthModal';
+import {
+  computeGoogleDetailedRoute,
+  fetchGoogleModalRouteMatrix,
+  searchGooglePlacesSuggestions,
+  GoogleComputedRouteResult,
+  GooglePlaceSuggestion,
+  ModalMatrixMap,
+} from '../services/googleMapsService';
+import { InteractiveGoogleRouteMap } from './live-tracking/InteractiveGoogleRouteMap';
 
 export type { CatalogServiceItem, SalonProfessionalItem };
 
@@ -223,7 +232,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   // Modal Pós-Confirmação 2: Modal Próprio de Rota / Deslocamento (Google Maps API)
   const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
   const [isEmbeddedMapOpen, setIsEmbeddedMapOpen] = useState(false);
+  const [embeddedMapTab, setEmbeddedMapTab] = useState<'map' | 'timeline'>('map');
   const [isRideAppOptionsOpen, setIsRideAppOptionsOpen] = useState(false);
+  const [liveRouteData, setLiveRouteData] = useState<GoogleComputedRouteResult | null>(null);
+  const [modalMatrix, setModalMatrix] = useState<ModalMatrixMap>({});
+  const [isNavigatingInApp, setIsNavigatingInApp] = useState(false);
+  const [activeNavStepIdx, setActiveNavStepIdx] = useState(0);
+  const [placesSuggestions, setPlacesSuggestions] = useState<GooglePlaceSuggestion[]>([]);
 
   // 2. Date Selection State (Monthly Calendar)
   const today = useMemo(() => {
@@ -288,6 +303,71 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       setSalonDestQuery(nextDest);
     }
   }, [salonCep, salonAddress]);
+
+  // Carregar rota detalhada real (Routes API v2) + matriz simultânea dos 5 modais quando o modal de rota ou mapa abrir
+  useEffect(() => {
+    if (!isRouteModalOpen && !isEmbeddedMapOpen) return;
+    let active = true;
+
+    computeGoogleDetailedRoute({
+      originLat: originCoords.lat,
+      originLng: originCoords.lng,
+      originAddress: resolvedAddressLabel || addressQuery,
+      destLat: resolvedSalonCoords.lat,
+      destLng: resolvedSalonCoords.lng,
+      destAddress: salonAddress || resolvedSalonAddressLabel || salonName,
+      mode: transportMode,
+    }).then((res) => {
+      if (active && res) {
+        setLiveRouteData(res);
+        setDistanceKm(res.distanceKm);
+        setEtaMinutes(res.etaMinutes);
+      }
+    });
+
+    fetchGoogleModalRouteMatrix({
+      originLat: originCoords.lat,
+      originLng: originCoords.lng,
+      originAddress: resolvedAddressLabel || addressQuery,
+      destLat: resolvedSalonCoords.lat,
+      destLng: resolvedSalonCoords.lng,
+      destAddress: salonAddress || resolvedSalonAddressLabel || salonName,
+    }).then((matrix) => {
+      if (active && matrix) {
+        setModalMatrix(matrix);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [
+    isRouteModalOpen,
+    isEmbeddedMapOpen,
+    transportMode,
+    originCoords.lat,
+    originCoords.lng,
+    resolvedSalonCoords.lat,
+    resolvedSalonCoords.lng,
+  ]);
+
+  // Autocomplete Places API (New v1) ao digitar rua/local em "Outro Local"
+  useEffect(() => {
+    const clean = customCepInput.trim();
+    const hasLetters = /[a-zA-ZÀ-ÿ]/.test(clean);
+    if (!isOriginModalOpen || originModalMode !== 'custom_cep' || !hasLetters || clean.length < 3) {
+      setPlacesSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      searchGooglePlacesSuggestions(clean).then((list) => {
+        setPlacesSuggestions(list);
+      });
+    }, 280);
+
+    return () => clearTimeout(timer);
+  }, [customCepInput, isOriginModalOpen, originModalMode]);
 
   // Horários ocupados e profissionais disponíveis no dia vindos do banco de dados
   const [busySlotsFromDb, setBusySlotsFromDb] = useState<BusySlotRecord[]>([]);
@@ -2506,7 +2586,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                       setHasCalculatedCustomCep(false);
                     }
                   }}
-                  placeholder="CEP (00000-000) ou Cidade - UF"
+                  placeholder="CEP (00000-000), Rua, Bairro ou Local"
                   className={`w-full pl-8 pr-3 py-2.5 text-xs rounded-[4px] border outline-hidden transition-colors ${
                     isDark
                       ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500'
@@ -2528,6 +2608,43 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 <span className="text-white">Calcular</span>
               </button>
             </form>
+
+            {/* Sugestões Instantâneas do Google Places API (New v1) */}
+            {placesSuggestions.length > 0 && (
+              <div className={`rounded-[4px] divide-y overflow-hidden ${isDark ? 'bg-slate-900 divide-slate-800' : 'bg-slate-100 divide-slate-200'}`}>
+                {placesSuggestions.map((place) => (
+                  <button
+                    key={place.id}
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      setCustomCepInput(place.formattedAddress);
+                      setAddressQuery(place.formattedAddress);
+                      setPlacesSuggestions([]);
+                      runRouteCalculation(
+                        place.formattedAddress,
+                        salonDestQuery,
+                        transportMode,
+                        returnToRouteModalAfterOrigin
+                      ).then(() => {
+                        setHasCalculatedCustomCep(true);
+                      });
+                    }}
+                    className={`w-full px-3 py-2 text-left text-xs flex items-start gap-2 transition cursor-pointer ${
+                      isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-slate-200 text-slate-800'
+                    }`}
+                  >
+                    <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <span className="font-bold block truncate">{place.title}</span>
+                      <span className={`text-[10.5px] block truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {place.formattedAddress}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
 
             <p className={`text-xs leading-relaxed font-bold break-words ${
               hasCalculatedCustomCep && !isCalculatingRoute
@@ -3036,16 +3153,56 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             </div>
           </div>
 
-          {/* Topo Resumo + Troca Rápida de Modalidade (A pé, Bicicleta, Moto, Carro, Transp. Público) */}
+          {/* Abas Principais: Mapa ⇄ Linha do Tempo + Troca Rápida de Modalidade */}
           <div
             className={`px-3.5 py-2.5 border-b space-y-2 shrink-0 ${
               isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
             }`}
           >
+            {/* Alternador de Abas: Mapa vs Linha do Tempo */}
+            <div className={`grid grid-cols-2 gap-1.5 p-1 rounded-[4px] ${isDark ? 'bg-slate-900' : 'bg-slate-200/80'}`}>
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setEmbeddedMapTab('map');
+                }}
+                className={`py-2 px-2.5 rounded-[3px] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                  embeddedMapTab === 'map'
+                    ? 'bg-emerald-500 text-white shadow-xs'
+                    : isDark
+                    ? 'text-slate-300 hover:text-white'
+                    : 'text-slate-700 hover:text-slate-900'
+                }`}
+              >
+                <MapPin className={`w-3.5 h-3.5 shrink-0 ${embeddedMapTab === 'map' ? 'text-white' : 'text-emerald-500'}`} />
+                <span className={embeddedMapTab === 'map' ? 'text-white' : ''}>Mapa</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setEmbeddedMapTab('timeline');
+                }}
+                className={`py-2 px-2.5 rounded-[3px] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                  embeddedMapTab === 'timeline'
+                    ? 'bg-emerald-500 text-white shadow-xs'
+                    : isDark
+                    ? 'text-slate-300 hover:text-white'
+                    : 'text-slate-700 hover:text-slate-900'
+                }`}
+              >
+                <Clock className={`w-3.5 h-3.5 shrink-0 ${embeddedMapTab === 'timeline' ? 'text-white' : 'text-emerald-500'}`} />
+                <span className={embeddedMapTab === 'timeline' ? 'text-white' : ''}>Linha do Tempo</span>
+              </button>
+            </div>
+
             <div className="grid grid-cols-5 gap-1.5">
               {mapCompatibleModes.map((opt) => {
                 const isSelectedMode = transportMode === opt.key;
                 const ModeIcon = opt.Icon;
+                const matrixItem = modalMatrix[opt.key];
                 return (
                   <button
                     key={opt.key}
@@ -3053,7 +3210,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     onClick={() => {
                       hapticLight();
                       setTransportMode(opt.key);
-                      setEtaMinutes(computeCalibratedEtaForMode(distanceKm, null, opt.key));
+                      if (matrixItem) {
+                        setDistanceKm(matrixItem.distanceKm);
+                        setEtaMinutes(matrixItem.etaMinutes);
+                      } else {
+                        setEtaMinutes(computeCalibratedEtaForMode(distanceKm, null, opt.key));
+                      }
                       const activeOrigin =
                         originModalMode === 'custom_cep' && customCepInput.replace(/\D/g, '').length === 8
                           ? customCepInput
@@ -3072,6 +3234,15 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     <span className={`leading-tight whitespace-nowrap truncate max-w-full ${isSelectedMode ? 'text-white' : ''}`}>
                       {opt.label}
                     </span>
+                    {matrixItem && (
+                      <span
+                        className={`text-[9px] font-mono tabular-nums leading-none ${
+                          isSelectedMode ? 'text-white' : 'text-emerald-500'
+                        }`}
+                      >
+                        {matrixItem.etaMinutes}m
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -3098,38 +3269,209 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             </div>
           </div>
 
-          {/* Mapa Interativo Incorporado em Tela Cheia */}
-          <div className="relative flex-1 w-full min-h-[340px] bg-slate-900">
-            <iframe
-              key={`${transportMode}-${originCoords.lat}-${originCoords.lng}-${resolvedSalonCoords.lat}-${resolvedSalonCoords.lng}`}
-              title={`Mapa da Rota - ${TRANSPORT_MODE_META[transportMode].label}`}
-              src={transportLinks.googleMapsEmbedUrl}
-              className="w-full h-full border-0"
-              allowFullScreen
-              loading="eager"
-              referrerPolicy="no-referrer-when-downgrade"
+          {/* Conteúdo Principal: Aba Mapa (Interactive Google Maps In-App sem caixa branca) vs Aba Linha do Tempo */}
+          {embeddedMapTab === 'map' ? (
+            <InteractiveGoogleRouteMap
+              originLat={originCoords.lat}
+              originLng={originCoords.lng}
+              originLabel={resolvedAddressLabel}
+              destLat={resolvedSalonCoords.lat}
+              destLng={resolvedSalonCoords.lng}
+              destLabel={salonName}
+              routeData={liveRouteData}
+              activeStepIndex={activeNavStepIdx}
+              isNavigating={isNavigatingInApp}
+              fallbackEmbedUrl={transportLinks.googleMapsEmbedUrl}
+              onStartNavigation={() => setIsNavigatingInApp(true)}
+              onAdvanceStep={() =>
+                setActiveNavStepIdx((prev) =>
+                  Math.min(prev + 1, Math.max(0, (liveRouteData?.steps?.length || 1) - 1))
+                )
+              }
             />
-          </div>
+          ) : (
+            <div className="flex-1 w-full overflow-y-auto p-4 space-y-4">
+              {/* Métricas Rápidas no Topo da Linha do Tempo */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className={`p-2.5 rounded-[4px] ${isDark ? 'bg-slate-900' : 'bg-slate-100'}`}>
+                  <span className={`text-[9.5px] uppercase font-bold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Saída Máx.
+                  </span>
+                  <span className="text-sm font-mono tabular-nums font-black text-emerald-500 block mt-0.5">
+                    {maxDepartureTimeFormatted}
+                  </span>
+                </div>
 
-          {/* Rodapé Fixo de Ação */}
+                <div className={`p-2.5 rounded-[4px] ${isDark ? 'bg-slate-900' : 'bg-slate-100'}`}>
+                  <span className={`text-[9.5px] uppercase font-bold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Distância
+                  </span>
+                  <span className="text-sm font-mono tabular-nums font-bold block mt-0.5">
+                    {formattedDistanceComma} km
+                  </span>
+                </div>
+
+                <div className={`p-2.5 rounded-[4px] ${isDark ? 'bg-slate-900' : 'bg-slate-100'}`}>
+                  <span className={`text-[9.5px] uppercase font-bold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Atendimento
+                  </span>
+                  <span className="text-sm font-mono tabular-nums font-bold text-emerald-500 block mt-0.5">
+                    {selectedTimeSlot}
+                  </span>
+                </div>
+              </div>
+
+              {/* Etapas Sequenciais da Linha do Tempo + Manobras Reais da Routes API v2 */}
+              <div className="space-y-1 pt-1">
+                {/* Etapa 1: Alerta Pré-Partida */}
+                <div className="flex items-start gap-3 pb-3">
+                  <div className="flex flex-col items-center">
+                    <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white shrink-0">
+                      <Clock className="w-3.5 h-3.5 text-white" />
+                    </div>
+                    <div className="w-0.5 h-8 bg-emerald-500/60 mt-1" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-extrabold text-emerald-500">
+                        1. Horário Limite de Saída
+                      </span>
+                      <span className="text-[11px] font-mono tabular-nums font-black text-emerald-500">
+                        {maxDepartureTimeFormatted}
+                      </span>
+                    </div>
+                    <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      Saia de {resolvedAddressLabel} até este horário.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Passos Reais Rua a Rua da Routes API v2 */}
+                {liveRouteData?.steps && liveRouteData.steps.length > 0 ? (
+                  liveRouteData.steps.slice(0, 12).map((step, idx) => {
+                    const isPassed = idx < activeNavStepIdx;
+                    const isCurrent = idx === activeNavStepIdx;
+                    return (
+                      <div key={`${step.instruction}-${idx}`} className="flex items-start gap-3 pb-3">
+                        <div className="flex flex-col items-center">
+                          <div
+                            className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                              isPassed || isCurrent
+                                ? 'bg-emerald-500 text-white'
+                                : isDark
+                                ? 'bg-slate-800 text-slate-400'
+                                : 'bg-slate-200 text-slate-600'
+                            }`}
+                          >
+                            {isPassed ? (
+                              <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                            ) : (
+                              <Navigation className={`w-3 h-3 ${isCurrent ? 'text-white' : ''}`} />
+                            )}
+                          </div>
+                          <div className="w-0.5 h-8 bg-emerald-500/40 mt-1" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-bold leading-snug">
+                              {step.instruction}
+                            </span>
+                            <span className="text-[10.5px] font-mono tabular-nums text-emerald-500 font-bold shrink-0">
+                              {step.distanceText}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="flex items-start gap-3 pb-3">
+                    <div className="flex flex-col items-center">
+                      <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white ring-4 ring-emerald-500/20 shrink-0">
+                        {renderModeIcon(transportMode, 'w-3.5 h-3.5 text-white shrink-0')}
+                      </div>
+                      <div className="w-0.5 h-8 bg-emerald-500/60 mt-1" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-extrabold">
+                          2. Deslocamento ({TRANSPORT_MODE_META[transportMode].shortLabel})
+                        </span>
+                        <span className="text-[11px] font-mono tabular-nums font-bold text-emerald-500">
+                          {formattedDistanceComma} km
+                        </span>
+                      </div>
+                      <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                        Tempo estimado de trajeto: <strong>{formattedEtaHoursAndMinutes}</strong>
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Etapa Final: Destino & Atendimento */}
+                <div className="flex items-start gap-3">
+                  <div className="flex flex-col items-center">
+                    <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white shrink-0">
+                      <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-extrabold text-emerald-500">
+                        Destino • {salonName}
+                      </span>
+                      <span className="text-[11px] font-mono tabular-nums font-black text-emerald-500">
+                        {selectedTimeSlot}
+                      </span>
+                    </div>
+                    <p className={`text-[11px] font-semibold mt-0.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                      {salonAddress || resolvedSalonAddressLabel || salonName}
+                    </p>
+                    <p className={`text-[10.5px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Procedimento: {selectedService.title}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Rodapé Fixo de Ação (sticky bottom-0 z-20) */}
           <div
             className={`sticky bottom-0 z-20 px-3.5 py-2.5 border-t flex items-center justify-between gap-2 shrink-0 ${
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
             }`}
           >
-            <button
-              type="button"
-              onClick={() => {
-                hapticLight();
-                setIsEmbeddedMapOpen(false);
-              }}
-              className={`py-2 px-3 rounded-[4px] font-bold text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
-                isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-100' : 'bg-slate-200 hover:bg-slate-300 text-slate-800'
-              }`}
-            >
-              <ArrowLeft className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <span>Voltar</span>
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setIsEmbeddedMapOpen(false);
+                }}
+                className={`py-2 px-3 rounded-[4px] font-bold text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                  isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-100' : 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                }`}
+              >
+                <ArrowLeft className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span>Voltar</span>
+              </button>
+
+              {!isNavigatingInApp && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticMedium();
+                    setEmbeddedMapTab('map');
+                    setIsNavigatingInApp(true);
+                  }}
+                  className="py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow-xs"
+                >
+                  <Navigation className="w-3.5 h-3.5 text-white shrink-0" />
+                  <span className="text-white">Iniciar Trajeto</span>
+                </button>
+              )}
+            </div>
 
             <div className="flex items-center gap-2">
               {(transportMode === 'car' || transportMode === 'motorcycle') && (
@@ -3154,7 +3496,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 className="py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow-xs"
               >
                 <MapPin className="w-3.5 h-3.5 text-white shrink-0" />
-                <span className="text-white">Abrir no Google Maps</span>
+                <span className="text-white">Google Maps</span>
                 <ExternalLink className="w-3 h-3 text-white shrink-0" />
               </a>
             </div>
