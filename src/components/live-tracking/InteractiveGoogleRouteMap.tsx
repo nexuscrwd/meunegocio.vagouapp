@@ -3,6 +3,7 @@ import {
   GoogleComputedRouteResult,
   loadGoogleMapsJsSdk,
   snapAndReverseGeocodeGps,
+  decodeGooglePolyline,
 } from '../../services/googleMapsService';
 import { useTheme } from '../../context/ThemeContext';
 import { hapticLight } from '../../utils/haptics';
@@ -53,6 +54,21 @@ function formatCountdownHhMm(totalMinutes: number): string {
   return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
 }
 
+function createPinBadge(bgHex: string, textHex: string, labelText: string): HTMLDivElement {
+  const el = document.createElement('div');
+  el.style.background = bgHex;
+  el.style.color = textHex;
+  el.style.padding = '3px 7px';
+  el.style.borderRadius = '4px';
+  el.style.fontWeight = '800';
+  el.style.fontSize = '10.5px';
+  el.style.fontFamily = 'Poppins, sans-serif';
+  el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.28)';
+  el.style.whiteSpace = 'nowrap';
+  el.textContent = labelText;
+  return el;
+}
+
 export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps> = ({
   originLat = -23.5505,
   originLng = -46.6333,
@@ -76,6 +92,14 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   const originMarkerRef = useRef<any>(null);
   const destMarkerRef = useRef<any>(null);
   const liveUserMarkerRef = useRef<any>(null);
+  const lastFittedKeyRef = useRef<string>('');
+  const lastReportedGpsRef = useRef<{ lat: number; lng: number; ts: number } | null>(null);
+
+  const onLiveGpsUpdateRef = useRef(onLiveGpsUpdate);
+  onLiveGpsUpdateRef.current = onLiveGpsUpdate;
+
+  const onDestinationReachedRef = useRef(onDestinationReachedChange);
+  onDestinationReachedRef.current = onDestinationReachedChange;
 
   const [sdkReady, setSdkReady] = useState<boolean>(false);
   const [sdkFailed, setSdkFailed] = useState<boolean>(false);
@@ -93,14 +117,14 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     setRemainingMinutes(baseEtaMinutes);
   }, [baseDistanceKm, baseEtaMinutes]);
 
-  // Verifica se o cliente chegou ao destino (<= 0.1 km ou 00:00)
+  // Verifica se o cliente chegou ao destino (<= 0.15 km ou 00:00)
   const hasReachedDestination = remainingDistanceKm <= 0.15 || remainingMinutes <= 0;
 
   useEffect(() => {
-    onDestinationReachedChange?.(hasReachedDestination);
+    onDestinationReachedRef.current?.(hasReachedDestination);
   }, [hasReachedDestination]);
 
-  // 1. Load Google Maps JS SDK
+  // 1. Carrega Google Maps JS SDK apenas uma vez
   useEffect(() => {
     let mounted = true;
     loadGoogleMapsJsSdk().then((loaded) => {
@@ -116,26 +140,14 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     };
   }, []);
 
-  // 2. Initialize Clean Google Map (Sem botões extras e respeitando o tema Claro/Escuro)
+  // 2. Inicializa a instância do Google Map APENAS quando o SDK fica pronto ou o tema muda (ZERO piscar!)
   useEffect(() => {
     if (!sdkReady || !mapContainerRef.current) return;
     const gmaps = (window as any).google?.maps;
     if (!gmaps) return;
 
-    const pathPoints =
-      routeData?.decodedPath && routeData.decodedPath.length > 1
-        ? routeData.decodedPath
-        : [
-            { lat: originLat, lng: originLng },
-            { lat: destLat, lng: destLng },
-          ];
-
-    const startCoord = pathPoints[0] || { lat: originLat, lng: originLng };
-    const endCoord = pathPoints[pathPoints.length - 1] || { lat: destLat, lng: destLng };
-
-    // Se o tema mudar, recria a instância com o colorScheme correspondente (LIGHT ou DARK)
-    mapInstanceRef.current = new gmaps.Map(mapContainerRef.current, {
-      center: startCoord,
+    const map = new gmaps.Map(mapContainerRef.current, {
+      center: { lat: originLat, lng: originLng },
       zoom: 14,
       mapId: 'DEMO_MAP_ID',
       colorScheme: isDark ? 'DARK' : 'LIGHT',
@@ -148,22 +160,19 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       internalUsageAttributionIds: ['gmp_mcp_codeassist_v1_aistudio'],
     });
 
-    const map = mapInstanceRef.current;
-
-    if (outerPolylineRef.current) outerPolylineRef.current.setMap(null);
-    if (innerPolylineRef.current) innerPolylineRef.current.setMap(null);
+    mapInstanceRef.current = map;
 
     outerPolylineRef.current = new gmaps.Polyline({
-      path: pathPoints,
+      path: [],
       geodesic: true,
       strokeColor: '#064e3b',
-      strokeOpacity: 0.75,
+      strokeOpacity: 0.78,
       strokeWeight: 8,
       map,
     });
 
     innerPolylineRef.current = new gmaps.Polyline({
-      path: pathPoints,
+      path: [],
       geodesic: true,
       strokeColor: '#10b981',
       strokeOpacity: 1.0,
@@ -171,29 +180,11 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       map,
     });
 
-    const createPinBadge = (bgHex: string, textHex: string, labelText: string) => {
-      const el = document.createElement('div');
-      el.style.background = bgHex;
-      el.style.color = textHex;
-      el.style.padding = '3px 7px';
-      el.style.borderRadius = '4px';
-      el.style.fontWeight = '800';
-      el.style.fontSize = '10.5px';
-      el.style.fontFamily = 'Poppins, sans-serif';
-      el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.28)';
-      el.style.whiteSpace = 'nowrap';
-      el.textContent = labelText;
-      return el;
-    };
-
     const AdvancedMarker = gmaps.marker?.AdvancedMarkerElement;
     if (AdvancedMarker) {
-      if (originMarkerRef.current) originMarkerRef.current.map = null;
-      if (destMarkerRef.current) destMarkerRef.current.map = null;
-
       originMarkerRef.current = new AdvancedMarker({
         map,
-        position: startCoord,
+        position: { lat: originLat, lng: originLng },
         title: originLabel,
         content: createPinBadge(
           isDark ? '#0f172a' : '#ffffff',
@@ -204,24 +195,125 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
 
       destMarkerRef.current = new AdvancedMarker({
         map,
-        position: endCoord,
+        position: { lat: destLat, lng: destLng },
         title: destLabel,
         content: createPinBadge('#10b981', '#ffffff', destLabel.slice(0, 22)),
       });
     }
 
-    if (pathPoints.length > 1) {
-      const bounds = new gmaps.LatLngBounds();
-      pathPoints.forEach((pt) => bounds.extend(pt));
-      map.fitBounds(bounds, { top: 36, right: 36, bottom: 56, left: 36 });
-    }
-  }, [sdkReady, isDark, routeData, originLat, originLng, destLat, destLng, originLabel, destLabel]);
+    // Força ajuste de bounds para a nova instância
+    lastFittedKeyRef.current = '';
+  }, [sdkReady, isDark]);
 
-  // 3. Rastreamento GPS em tempo real: recalcula km e HH:MM conforme aproxima ou se distancia do destino
+  // 3. Atualiza a geometria da rota (Polilinha Seguindo as Ruas Reais) e marcadores de forma imperativa SEM recriar o mapa
+  useEffect(() => {
+    if (!sdkReady || !mapInstanceRef.current) return;
+    const gmaps = (window as any).google?.maps;
+    if (!gmaps) return;
+
+    let cancelled = false;
+    const map = mapInstanceRef.current;
+
+    const applyRoadPathToMap = (roadPath: Array<{ lat: number; lng: number }>) => {
+      if (cancelled || !roadPath || roadPath.length < 2) return;
+
+      const startPt = roadPath[0];
+      const endPt = roadPath[roadPath.length - 1];
+
+      if (outerPolylineRef.current) {
+        outerPolylineRef.current.setPath(roadPath);
+      }
+      if (innerPolylineRef.current) {
+        innerPolylineRef.current.setPath(roadPath);
+      }
+
+      if (originMarkerRef.current) {
+        originMarkerRef.current.position = startPt;
+      }
+      if (destMarkerRef.current) {
+        destMarkerRef.current.position = endPt;
+        destMarkerRef.current.content = createPinBadge(
+          '#10b981',
+          '#ffffff',
+          destLabel.slice(0, 22)
+        );
+      }
+
+      const routeFitKey = `${startPt.lat.toFixed(3)},${startPt.lng.toFixed(3)}->${endPt.lat.toFixed(3)},${endPt.lng.toFixed(3)}:${roadPath.length > 2 ? 'road' : 'init'}`;
+      if (lastFittedKeyRef.current !== routeFitKey) {
+        lastFittedKeyRef.current = routeFitKey;
+        const bounds = new gmaps.LatLngBounds();
+        roadPath.forEach((pt) => bounds.extend(pt));
+        map.fitBounds(bounds, { top: 36, right: 36, bottom: 56, left: 36 });
+      }
+    };
+
+    // Caso 1: Já temos a malha viária decodificada com múltiplos pontos da Routes API v2 / OSRM
+    if (routeData?.decodedPath && routeData.decodedPath.length > 2) {
+      applyRoadPathToMap(routeData.decodedPath);
+      return;
+    }
+
+    // Caso 2: Busca a geometria viária real direto pelo DirectionsService do navegador ou OSRM (NUNCA linha reta!)
+    const fetchBrowserRoadGeometry = async () => {
+      if (gmaps.DirectionsService) {
+        try {
+          const directionsService = new gmaps.DirectionsService();
+          const result: any = await new Promise((resolve) => {
+            directionsService.route(
+              {
+                origin: { lat: originLat, lng: originLng },
+                destination: { lat: destLat, lng: destLng },
+                travelMode: gmaps.TravelMode?.DRIVING || 'DRIVING',
+              },
+              (res: any, status: string) => {
+                if (status === 'OK' && res) resolve(res);
+                else resolve(null);
+              }
+            );
+          });
+
+          const overviewPath = result?.routes?.[0]?.overview_path;
+          if (Array.isArray(overviewPath) && overviewPath.length > 2) {
+            const pts = overviewPath.map((p: any) => ({
+              lat: typeof p.lat === 'function' ? p.lat() : Number(p.lat),
+              lng: typeof p.lng === 'function' ? p.lng() : Number(p.lng),
+            }));
+            applyRoadPathToMap(pts);
+            return;
+          }
+        } catch {}
+      }
+
+      // Fallback OSRM direto para garantir contorno real das ruas mesmo se Directions API ainda estiver propagando
+      try {
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=full&geometries=polyline`;
+        const res = await fetch(osrmUrl);
+        if (res.ok) {
+          const data = await res.json();
+          const encoded = data?.routes?.[0]?.geometry;
+          if (encoded) {
+            const pts = decodeGooglePolyline(encoded);
+            if (pts.length > 2) {
+              applyRoadPathToMap(pts);
+              return;
+            }
+          }
+        }
+      } catch {}
+    };
+
+    fetchBrowserRoadGeometry();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sdkReady, isDark, routeData, originLat, originLng, destLat, destLng, destLabel]);
+
+  // 4. Rastreamento GPS em tempo real com throttle para evitar re-renders em cascata
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return;
 
-    let lastSnapTs = 0;
     const avgMinutesPerKm =
       baseDistanceKm > 0 ? baseEtaMinutes / baseDistanceKm : 4.2;
 
@@ -229,10 +321,21 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       async (pos) => {
         const rawLat = pos.coords.latitude;
         const rawLng = pos.coords.longitude;
+
+        const prev = lastReportedGpsRef.current;
+        const now = Date.now();
+        const movedKm = prev
+          ? computeRoadDistanceKm(prev.lat, prev.lng, rawLat, rawLng)
+          : 999;
+
+        // Ignora micro-oscilações de GPS (< 20m em menos de 10s) para zero flicker
+        if (prev && movedKm < 0.02 && now - prev.ts < 10000) {
+          return;
+        }
+
         setLiveUserPos({ lat: rawLat, lng: rawLng });
 
         const liveDistKm = computeRoadDistanceKm(rawLat, rawLng, destLat, destLng);
-        // Atualiza a distância e o tempo regressivo se o GPS estiver dentro de um raio urbano plausível (< 100 km)
         if (liveDistKm <= 100) {
           setRemainingDistanceKm(liveDistKm);
           const nextMin =
@@ -242,22 +345,21 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
           setRemainingMinutes(nextMin);
         }
 
-        const now = Date.now();
-        if (now - lastSnapTs > 15000) {
-          lastSnapTs = now;
+        if (!prev || now - prev.ts >= 15000) {
+          lastReportedGpsRef.current = { lat: rawLat, lng: rawLng, ts: now };
           const snapped = await snapAndReverseGeocodeGps(rawLat, rawLng);
           if (snapped) {
             setLiveUserPos({ lat: snapped.lat, lng: snapped.lng });
-            onLiveGpsUpdate?.(snapped.lat, snapped.lng, snapped.streetName);
+            onLiveGpsUpdateRef.current?.(snapped.lat, snapped.lng, snapped.streetName);
             return;
           }
+          onLiveGpsUpdateRef.current?.(rawLat, rawLng);
         }
-        onLiveGpsUpdate?.(rawLat, rawLng);
       },
       () => {},
       {
         enableHighAccuracy: true,
-        maximumAge: 5000,
+        maximumAge: 8000,
         timeout: 10000,
       }
     );
@@ -267,7 +369,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     };
   }, [destLat, destLng, baseDistanceKm, baseEtaMinutes]);
 
-  // Atualiza pino da posição atual no mapa quando houver GPS ao vivo
+  // 5. Atualiza apenas o pino da posição atual do cliente no mapa sem tocar na câmera nem recriar o mapa
   useEffect(() => {
     if (!sdkReady || !mapInstanceRef.current || !liveUserPos) return;
     const gmaps = (window as any).google?.maps;

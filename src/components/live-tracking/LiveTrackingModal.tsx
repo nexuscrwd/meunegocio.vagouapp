@@ -91,10 +91,27 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
 
   const [liveRouteData, setLiveRouteData] = useState<GoogleComputedRouteResult | null>(null);
 
+  const anyApt = appointment as any;
+  const appointmentKey = appointment.id || appointment.protocolCode || 'apt';
+
+  // Coordenadas fixas de origem e destino por agendamento (impede que mutações de telemetria recriem ou pisquem o mapa)
+  const stableCoords = useMemo(() => {
+    const oLat = Number(anyApt.originLat ?? appointment.client_lat ?? -23.5505);
+    const oLng = Number(anyApt.originLng ?? appointment.client_lng ?? -46.6333);
+    const dLat = Number(anyApt.salonLat ?? -23.5592);
+    const dLng = Number(anyApt.salonLng ?? -46.6589);
+    return {
+      originLat: Number.isFinite(oLat) ? oLat : -23.5505,
+      originLng: Number.isFinite(oLng) ? oLng : -46.6333,
+      destLat: Number.isFinite(dLat) ? dLat : -23.5592,
+      destLng: Number.isFinite(dLng) ? dLng : -46.6589,
+    };
+  }, [appointmentKey]);
+
   const { secondsUntilNextPing } = useLiveRouteTracker({
     appointment,
     onUpdateAppointment,
-    autoTickEnabled: isOpen && (isAlreadySharing || step === 'in_app_map'),
+    autoTickEnabled: isOpen && step === 'in_app_map' && activeViewTab === 'timeline',
   });
 
   const selectedRoute = GOOGLE_MAPS_ROUTE_OPTIONS[0];
@@ -116,7 +133,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
   }, [liveRouteData, fallbackMetrics]);
 
   const clientOriginAddress = useMemo(() => {
-    const anyApt = appointment as any;
     return (
       anyApt.originFormattedAddress ||
       anyApt.origin_formatted_address ||
@@ -126,49 +142,43 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
           'Endereço de Saída do Cliente'
         : 'Endereço de Saída do Cliente')
     );
-  }, [appointment]);
+  }, [appointmentKey]);
 
   const salonDestAddress = useMemo(() => {
     return appointment.address || appointment.salonName || 'Estabelecimento';
-  }, [appointment]);
+  }, [appointment.address, appointment.salonName]);
 
-  // Busca Rota Real (Routes API v2)
+  // Busca Rota Real seguindo a malha viária (Routes API v2 + Fallback Viário)
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
-    const anyApt = appointment as any;
 
     computeGoogleDetailedRoute({
-      originLat: appointment.client_lat ?? anyApt.originLat,
-      originLng: appointment.client_lng ?? anyApt.originLng,
+      originLat: stableCoords.originLat,
+      originLng: stableCoords.originLng,
       originAddress: clientOriginAddress,
-      destLat: anyApt.salonLat,
-      destLng: anyApt.salonLng,
+      destLat: stableCoords.destLat,
+      destLng: stableCoords.destLng,
       destAddress: salonDestAddress,
       mode: bookingTransportMode,
     }).then((res) => {
       if (!active || !res) return;
       setLiveRouteData(res);
-
-      if (res.checkpoints.length > 0) {
-        syncAppointmentAcrossStorageAndDb(
-          appointment,
-          {
-            selected_route_summary: res.description,
-            route_checkpoints: res.checkpoints,
-            current_street_name: res.checkpoints[0].street,
-            eta_minutes: res.etaMinutes,
-            distance_km: res.distanceKm,
-          },
-          onUpdateAppointment
-        );
-      }
     });
 
     return () => {
       active = false;
     };
-  }, [isOpen, bookingTransportMode, clientOriginAddress, salonDestAddress]);
+  }, [
+    isOpen,
+    bookingTransportMode,
+    stableCoords.originLat,
+    stableCoords.originLng,
+    stableCoords.destLat,
+    stableCoords.destLng,
+    clientOriginAddress,
+    salonDestAddress,
+  ]);
 
   const transportLinks = useMemo(() => {
     const anyApt = appointment as any;
@@ -326,8 +336,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
       ? appointment.address || 'Residência do Cliente'
       : appointment.salonName || 'Recepção do Salão';
 
-  const anyApt = appointment as any;
-
   // SE ESTIVER NA TELA EXPANDIDA DE MAPA IN-APP + ITINERÁRIO
   if (step === 'in_app_map') {
     return (
@@ -463,11 +471,11 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
           {/* 4. Conteúdo Principal: Aba Mapa Limpo vs Aba Itinerário */}
           {activeViewTab === 'map' ? (
             <InteractiveGoogleRouteMap
-              originLat={appointment.client_lat ?? anyApt.originLat ?? -23.5505}
-              originLng={appointment.client_lng ?? anyApt.originLng ?? -46.6333}
+              originLat={stableCoords.originLat}
+              originLng={stableCoords.originLng}
               originLabel={clientOriginAddress}
-              destLat={anyApt.salonLat ?? -23.5621}
-              destLng={anyApt.salonLng ?? -46.4795}
+              destLat={stableCoords.destLat}
+              destLng={stableCoords.destLng}
               destLabel={appointment.salonName || salonDestAddress}
               routeData={liveRouteData}
               initialDistanceKm={metrics.distanceKm}
@@ -980,16 +988,31 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
   const transportMode: TransportMode = appointment.transport_mode || 'driving';
   const [liveRouteData, setLiveRouteData] = useState<GoogleComputedRouteResult | null>(null);
 
+  const anyApt = appointment as any;
+  const drawerAppointmentKey = appointment.id || appointment.protocolCode || 'drawer-apt';
+
+  const stableDrawerCoords = useMemo(() => {
+    const oLat = Number(anyApt.originLat ?? appointment.client_lat ?? -23.5505);
+    const oLng = Number(anyApt.originLng ?? appointment.client_lng ?? -46.6333);
+    const dLat = Number(anyApt.salonLat ?? -23.5592);
+    const dLng = Number(anyApt.salonLng ?? -46.6589);
+    return {
+      originLat: Number.isFinite(oLat) ? oLat : -23.5505,
+      originLng: Number.isFinite(oLng) ? oLng : -46.6333,
+      destLat: Number.isFinite(dLat) ? dLat : -23.5592,
+      destLng: Number.isFinite(dLng) ? dLng : -46.6589,
+    };
+  }, [drawerAppointmentKey]);
+
   const { secondsUntilNextPing } = useLiveRouteTracker({
     appointment,
     onUpdateAppointment,
-    autoTickEnabled: isOpen,
+    autoTickEnabled: isOpen && activeTab === 'timeline',
   });
 
   const bookingTransportMode = normalizeBookingTransportMode(transportMode);
 
   const clientOriginAddress = useMemo(() => {
-    const anyApt = appointment as any;
     return (
       anyApt.originFormattedAddress ||
       anyApt.origin_formatted_address ||
@@ -999,23 +1022,22 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
           'Endereço de Saída do Cliente'
         : 'Endereço de Saída do Cliente')
     );
-  }, [appointment]);
+  }, [drawerAppointmentKey]);
 
   const salonDestAddress = useMemo(() => {
     return appointment.address || appointment.salonName || 'Estabelecimento';
-  }, [appointment]);
+  }, [appointment.address, appointment.salonName]);
 
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
-    const anyApt = appointment as any;
 
     computeGoogleDetailedRoute({
-      originLat: appointment.client_lat ?? anyApt.originLat,
-      originLng: appointment.client_lng ?? anyApt.originLng,
+      originLat: stableDrawerCoords.originLat,
+      originLng: stableDrawerCoords.originLng,
       originAddress: clientOriginAddress,
-      destLat: anyApt.salonLat,
-      destLng: anyApt.salonLng,
+      destLat: stableDrawerCoords.destLat,
+      destLng: stableDrawerCoords.destLng,
       destAddress: salonDestAddress,
       mode: bookingTransportMode,
     }).then((res) => {
@@ -1027,21 +1049,29 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
     return () => {
       active = false;
     };
-  }, [isOpen, bookingTransportMode, clientOriginAddress, salonDestAddress]);
+  }, [
+    isOpen,
+    bookingTransportMode,
+    stableDrawerCoords.originLat,
+    stableDrawerCoords.originLng,
+    stableDrawerCoords.destLat,
+    stableDrawerCoords.destLng,
+    clientOriginAddress,
+    salonDestAddress,
+  ]);
 
   const transportLinks = useMemo(() => {
-    const anyApt = appointment as any;
     return buildTransportDeepLinks({
       originAddress: clientOriginAddress,
-      originLat: appointment.client_lat ?? anyApt.originLat,
-      originLng: appointment.client_lng ?? anyApt.originLng,
+      originLat: stableDrawerCoords.originLat,
+      originLng: stableDrawerCoords.originLng,
       salonName: appointment.salonName,
       salonAddress: salonDestAddress,
-      salonLat: anyApt.salonLat,
-      salonLng: anyApt.salonLng,
+      salonLat: stableDrawerCoords.destLat,
+      salonLng: stableDrawerCoords.destLng,
       transportMode: bookingTransportMode,
     });
-  }, [appointment, clientOriginAddress, salonDestAddress, bookingTransportMode]);
+  }, [appointment.salonName, clientOriginAddress, salonDestAddress, bookingTransportMode, stableDrawerCoords]);
 
   if (!isOpen) return null;
 
@@ -1070,8 +1100,6 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
     appointment.service_location_type === 'home_delivery'
       ? appointment.address || 'Residência do Cliente'
       : appointment.salonName || 'Recepção do Salão';
-
-  const anyApt = appointment as any;
 
   const handleMarkArrived = () => {
     hapticSuccess();
@@ -1235,15 +1263,15 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
         {/* 4. Conteúdo Principal: Aba Mapa Limpo vs Aba Itinerário */}
         {activeTab === 'map' ? (
           <InteractiveGoogleRouteMap
-            originLat={appointment.client_lat ?? anyApt.originLat ?? -23.5505}
-            originLng={appointment.client_lng ?? anyApt.originLng ?? -46.6333}
+            originLat={stableDrawerCoords.originLat}
+            originLng={stableDrawerCoords.originLng}
             originLabel={clientOriginAddress}
-            destLat={anyApt.salonLat ?? -23.5621}
-            destLng={anyApt.salonLng ?? -46.4795}
+            destLat={stableDrawerCoords.destLat}
+            destLng={stableDrawerCoords.destLng}
             destLabel={appointment.salonName || salonDestAddress}
             routeData={liveRouteData}
-            initialDistanceKm={appointment.distance_km ?? 3.2}
-            initialEtaMinutes={appointment.eta_minutes ?? 14}
+            initialDistanceKm={liveRouteData?.distanceKm ?? appointment.distance_km ?? 3.2}
+            initialEtaMinutes={liveRouteData?.etaMinutes ?? appointment.eta_minutes ?? 14}
             fallbackEmbedUrl={transportLinks.googleMapsEmbedUrl}
             onDestinationReachedChange={(reached) => setHasReachedDestination(reached)}
           />

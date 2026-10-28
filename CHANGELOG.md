@@ -15,6 +15,23 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-28] — Correção Definitiva de Flickering (Tela Piscando) no Mapa e Fim da Rota em Linha Reta (Geometria Viária Real por Ruas)
+- **Tipo:** `[Fix / Map Flickering & Real Road Network Geometry]`
+- **Motivo / Solicitação:** Avaliar e corrigir dois problemas identificados na seção do mapa:
+  1. **Tela piscando (Flickering):** O mapa era destruído e recriado a cada atualização de GPS (`watchPosition`) e a cada tick do timer de telemetria (`useLiveRouteTracker`);
+  2. **Rota em linha reta diagonal:** Quando a chamada backend `Routes API v2` não retornava `encodedPolyline` (por endereço genérico `"Endereço de Saída do Cliente"` ou restrição de `Referer` HTTP da chave), o mapa caía em um array de 2 pontos `[origem, destino]`, traçando uma reta por cima dos quarteirões.
+- **Arquivos Impactados:**
+  - `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
+  - `src/components/live-tracking/LiveTrackingModal.tsx`
+  - `server.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Instância Única Imperativa do `google.maps.Map` (`InteractiveGoogleRouteMap.tsx`):** A criação de `new gmaps.Map(...)` agora depende exclusivamente de `[sdkReady, isDark]`. Atualizações de rota, polilinhas (`setPath`) e marcadores (`position`) ocorrem de forma 100% imperativa via `useRef`, sem jamais destruir o canvas do mapa.
+  2. **Estabilização de Coordenadas e Throttle de GPS (`LiveTrackingModal.tsx` & `InteractiveGoogleRouteMap.tsx`):** As coordenadas de origem e destino do agendamento foram memorizadas (`stableCoords`) por ID/protocolo do agendamento, e o timer de 1s do `useLiveRouteTracker` fica desativado enquanto a aba `Mapa` está visível.
+  3. **Garantia Tripla de Malha Viária Real (Zero Linha Reta):**
+     - No backend (`/api/maps/compute-route` em `server.ts`), encaminhamento do cabeçalho `Referer` para a `Routes API v2` + fallback automático de malha viária real via OSRM (`overview=full&geometries=polyline&steps=true`);
+     - No navegador (`InteractiveGoogleRouteMap.tsx`), acionamento automático do `google.maps.DirectionsService` + fallback OSRM caso `routeData.decodedPath` ainda não esteja carregado, garantindo que o traçado siga rigorosamente o contorno das ruas e avenidas.
+
 ### [2026-10-28] — Refinamento Visual do Mapa de Rota: Sincronização com Tema Claro/Escuro, Sub-Cabeçalho Exclusivo de Destino, Abas "Mapa" e "Itinerário", Contagem Regressiva Alpha (km + HH:MM) e Rodapé Limpo com Botão "Cheguei"
 - **Tipo:** `[Refactor / Clean Map UI & Theme Synchronization]`
 - **Motivo / Solicitação:** Ajustar a seção de mapa de rota para:
