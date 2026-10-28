@@ -58,8 +58,10 @@ export function getAdjustedRouteMetrics(
 ): { etaMinutes: number; distanceKm: number } {
   const factorMap: Record<TransportMode, number> = {
     motorcycle: 0.75,
+    car: 1.0,
     driving: 1.0,
     rideshare: 1.05,
+    bicycling: 1.15,
     transit: 1.45,
     walking: 2.6,
   };

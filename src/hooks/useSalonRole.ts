@@ -39,21 +39,43 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
         // 1. Tenta obter sessão nativa do Supabase no subdomínio atual
         const { data: { session } } = await supabase.auth.getSession();
 
-        // 2. Suporte Cross-Subdomain SSO (Login realizado no iframe adm.vagouapp.com via postMessage)
-        const storedUserId = typeof window !== 'undefined' ? (localStorage.getItem('vagou_auth_user_id') || '').trim() : '';
+        // 2. Suporte Cross-Subdomain SSO e Sessão Unificada da Tríade (system_admins, clients, salon_users)
+        let clientSession: any = null;
+        if (typeof window !== 'undefined') {
+          try {
+            const rawSession = localStorage.getItem('vagou_client_session');
+            if (rawSession) clientSession = JSON.parse(rawSession);
+          } catch {}
+        }
+
+        const isSuperadminLocal =
+          typeof window !== 'undefined' &&
+          (localStorage.getItem('vagou_is_superadmin') === 'true' ||
+            Boolean(clientSession?.isSuperadmin) ||
+            String(clientSession?.accessLevel || '').toLowerCase().includes('superadmin'));
+
+        const storedUserId = typeof window !== 'undefined'
+          ? (localStorage.getItem('vagou_auth_user_id') || clientSession?.id || '').trim()
+          : '';
         const storedUserEmail = typeof window !== 'undefined'
-          ? (localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '').trim().toLowerCase()
+          ? (
+              localStorage.getItem('vagou_user_email') ||
+              localStorage.getItem('vagou_active_partner') ||
+              clientSession?.email ||
+              clientSession?.username ||
+              ''
+            ).trim().toLowerCase()
           : '';
         const storedUserCpf = typeof window !== 'undefined'
-          ? (localStorage.getItem('vagou_user_cpf') || '').replace(/\D/g, '')
+          ? (localStorage.getItem('vagou_user_cpf') || clientSession?.cpf || '').replace(/\D/g, '')
           : '';
 
         const currentUserId = session?.user?.id || storedUserId || '';
         const currentUserEmail = (session?.user?.email || storedUserEmail || '').trim().toLowerCase();
         const currentUserCpf = (session?.user?.user_metadata?.cpf || storedUserCpf || '').replace(/\D/g, '');
 
-        // Se não há sessão Supabase nem identidade autenticada pelo admvapp, é visitante ('guest')
-        if (!currentUserId && !currentUserEmail && !currentUserCpf) {
+        // Se não há sessão Supabase nem identidade autenticada na Tríade, é visitante ('guest')
+        if (!currentUserId && !currentUserEmail && !currentUserCpf && !isSuperadminLocal) {
           if (isMounted && reqId === currentReqIdRef.current) {
             setRole('guest');
             setUserId(null);
@@ -64,9 +86,9 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
           return;
         }
 
-        const identityKey = `${currentUserId}::${currentUserEmail}::${currentUserCpf}::${salonIdentifier || ''}`;
+        const identityKey = `${currentUserId}::${currentUserEmail}::${currentUserCpf}::${isSuperadminLocal}::${salonIdentifier || ''}`;
         if (isMounted) {
-          setUserId(currentUserId || currentUserEmail || currentUserCpf);
+          setUserId(currentUserId || currentUserEmail || currentUserCpf || 'superadmin');
           lastIdentityKeyRef.current = identityKey;
         }
 
@@ -75,11 +97,13 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
           (typeof window !== 'undefined' ? (localStorage.getItem('vagou_salon_slug') || localStorage.getItem('vagou_salon_db_id') || '').trim() : '');
 
         if (!effectiveSalonIdent) {
-          if (isMounted && reqId === currentReqIdRef.current) setRole('client');
+          if (isMounted && reqId === currentReqIdRef.current) {
+            setRole(isSuperadminLocal ? 'owner' : 'client');
+          }
           return;
         }
 
-        // 3. Verificação Multi-Camada Soberana (salons.owner_id/email/owner_cpf + salon_members + professionals)
+        // 3. Verificação Multi-Camada Soberana (system_admins + salons.owner_id/email/owner_cpf + salon_users + salon_members + professionals)
         const membership = await checkUserSalonMembership(
           currentUserId,
           effectiveSalonIdent,
@@ -96,9 +120,10 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
           setSalonData(membership.salonData);
         }
 
-        if (membership.isMember) {
-          if (membership.role === 'owner') setRole('owner');
-          else if (membership.role === 'manager') setRole('manager');
+        if (isSuperadminLocal || membership.role === 'owner') {
+          setRole('owner');
+        } else if (membership.isMember) {
+          if (membership.role === 'manager') setRole('manager');
           else if (membership.role === 'professional') setRole('professional');
           else setRole('client');
         } else {
@@ -116,8 +141,14 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
     // Escuta eventos nativos do Supabase Auth
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        const hasSsoEmail = typeof window !== 'undefined' && Boolean(localStorage.getItem('vagou_user_email'));
-        if (!hasSsoEmail) {
+        const hasTriadeSession =
+          typeof window !== 'undefined' &&
+          Boolean(
+            localStorage.getItem('vagou_user_email') ||
+              localStorage.getItem('vagou_client_session') ||
+              localStorage.getItem('vagou_is_superadmin') === 'true'
+          );
+        if (!hasTriadeSession) {
           lastIdentityKeyRef.current = null;
           if (isMounted) {
             setRole('guest');

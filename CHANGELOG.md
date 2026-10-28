@@ -15,6 +15,159 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-27] — Tela Expandida de Mapa Integrado (In-App Route Embed) no Modal "Ir Agora • Rota & Deslocamento"
+- **Tipo:** `[Feat / In-App Navigation & Route Map Embed]`
+- **Motivo / Solicitação:** Ao clicar em "Mapa" / "Maps (...)" nas modalidades A pé, Bicicleta, Transporte Público, Moto ou Carro dentro do modal "Ir Agora • Rota & Deslocamento", abrir uma tela expandida em tela cheia diretamente dentro do aplicativo (via `iframe` embed do Google Maps com rota ativa), com barra superior de resumo, botões de troca rápida de modalidade e botão discreto para abertura externa opcional, mantendo Waze, Uber e 99 como acionamento externo nativo.
+- **Arquivos Impactados:**
+  - `src/utils/bookingSlots.ts`
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Geração Direta de URL de Incorporação de Rota (`googleMapsEmbedUrl` em `src/utils/bookingSlots.ts`):** `buildTransportDeepLinks` agora gera `googleMapsEmbedUrl` (`https://www.google.com/maps/embed?origin=mfe&pb=...`) parametrizada com coordenadas/endereços de origem e destino e o código exato da modalidade (`!3e0` Carro/Moto, `!3e1` Bicicleta, `!3e2` A pé, `!3e3` Transporte Público), evitando redirecionamentos 301 com bloqueio `X-Frame-Options: SAMEORIGIN`.
+  2. **Tela Expandida In-App em Tela Cheia (`SalonBookingModal.tsx`):** Adicionado estado `isEmbeddedMapOpen` no modal de rota (`routeModalNode`). Ao clicar em `Mapa` (Carro/Moto) ou `Mapa (...)` (A pé, Bicicleta, Transp. Público), o modal se expande em tela cheia exibindo cabeçalho de retorno, barra superior de troca rápida entre as 5 modalidades de mapa (`A pé`, `Bicicleta`, `Moto`, `Carro`, `Transp. Público`), faixa de resumo (`Saída ➔ Destino`, distância, tempo estimado e horário máximo de saída), `iframe` interativo ocupando a área principal e rodapé fixo (`sticky bottom-0 z-20`) com botão `Voltar` e atalho opcional para `Abrir no Google Maps` / `Waze`.
+
+### [2026-10-27] — Exibição de Endereço de Saída do Cliente e Destino (Salão) em Duas Colunas Acima do Valor no Resumo do Agendamento
+- **Tipo:** `[Feat / UI Focus Mode]`
+- **Motivo / Solicitação:** Na div do total a pagar dentro do modal de Resumo do Agendamento (`SalonBookingModal.tsx`), incluir acima do valor uma linha com duas colunas: à esquerda o endereço de saída do cliente e à direita o endereço de destino do estabelecimento (salão).
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Linha de 2 Colunas (Saída vs. Destino) Acima do Valor (`SalonBookingModal.tsx`):** Estruturada dentro de `div:nth-of-type(4)` uma linha `grid-cols-2` plana (sem box-in-box) acima da linha `"Total a pagar no local"`, exibindo na coluna da esquerda o endereço de partida do cliente (`resolvedAddressLabel` / `addressQuery`) e na coluna da direita o endereço do estabelecimento (`salonAddress` / `resolvedSalonAddressLabel` / `salonName`).
+
+### [2026-10-27] — Autenticação Unificada Multi-Tabela da Tríade (`system_admins`, `clients`, `salon_users`, `professionals`, `salons`) e Soberania Irrestrita do Superadmin Master
+- **Tipo:** `[Fix / Ecosystem Authentication & Superadmin Master Sovereignty]`
+- **Motivo / Solicitação:** Resolver definitivamente a falha de login e restrição de permissão para o Criador do Sistema / Superadmin Master (`Anderson@` / `andersonhpires@gmail.com` / `(11) 91353-1030`) e demais usuários cadastrados no `admvapp` (`public.system_admins`, `public.clients`, `public.salon_users`, `public.professionals`), eliminando erros `400 Bad Request` no console e garantindo acesso irrestrito ao Superadmin Master em qualquer estabelecimento.
+- **Arquivos Impactados:**
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/lib/supabase.ts`
+  - `src/hooks/useSalonRole.ts`
+  - `src/hooks/useOwnerAccess.ts`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Resolução Multi-Tabela na Autenticação (`SalonClientAuthModal.tsx`):** `findMatchingClients` agora consulta em paralelo `public.system_admins`, `public.clients`, `public.salon_users` e `public.professionals`, suportando busca exata e sem sufixos (`@`, `#`, `&`) por `username` (ex.: `Anderson@`, `Elisa@`, `Luiza@`, `Momy@`, `fabio#`, `Maria&`), `email`, `cpf`, `phone_whatsapp` / `phone` / `phone_secondary` e `full_name` / `name`.
+  2. **Validação Nativa de `password_hash` Antes do GoTrue (Zero Erros 400):** `handleLoginSubmit` valida primeiramente a senha contra `password_hash` nas tabelas da Tríade (`system_admins`, `clients`, `salon_users`, `professionals`) sem disparar requisições `signInWithPassword` inválidas para usernames como `"Anderson@"` ou contas gerenciadas via `admvapp`.
+  3. **Camada 0 de Soberania Superadmin Master (`checkUserSalonMembership`, `useSalonRole`, `useOwnerAccess`):** Usuários ativos em `public.system_admins` ou com `access_level = 'Superadmin Master'` recebem automaticamente `isMember: true, role: 'owner'` e `vagou_is_superadmin = 'true'`, garantindo acesso irrestrito de gestão e agendamento em qualquer salão do ecossistema, além de espelhamento automático em `public.clients` para integridade de chave estrangeira em `public.appointments(client_id)`.
+  4. **Recuperação Direta de Senha em 2 Etapas (`mode === 'forgot'`):** Atualizado o fluxo "Esqueceu a senha?" no `SalonClientAuthModal` para permitir localização e redefinição direta de `password_hash` em todas as tabelas da Tríade.
+
+### [2026-10-27] — Bloqueio Obrigatório de Autenticação (Login / Cadastro) ao Clicar em Agendamento ou Serviços
+- **Tipo:** `[Fix / Auth Gate & Booking Security]`
+- **Motivo / Solicitação:** O cliente pode navegar livremente na vitrine do estabelecimento (`Início`, `Serviços`, `Espaço`), mas ao clicar em qualquer ação de agendamento (aba `Agendar`, clique em um procedimento no `Catálogo de Serviços`, `Consultar Horários` ou `Retomar` pré-agendamento), deve ser solicitado imediatamente seu login ou cadastro antes de iniciar o agendamento.
+- **Arquivos Impactados:**
+  - `src/App.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Validação Estrita de Sessão Ativa (`checkHasActiveSession`):** Corrigida a verificação de login para exigir sessão real (`vagou_client_session`, `vagou_auth_user_id` válido, `vagou_user_email` ou sessão Supabase), impedindo que nomes residuais sem sessão ativa ou IDs `guest-...` marquem um visitante deslogado como autenticado.
+  2. **Interceptação de Todos os Pontos de Entrada de Agendamento (`SalonProfileView.tsx` & `SalonBookingModal.tsx`):** Ao clicar na aba `Agendar` (`handleSelectTab('vagas')`), em `Consultar Horários`, em qualquer serviço do catálogo (`handleOpenBooking`), em `Retomar` rascunho ou dentro do próprio `SalonBookingModal`, caso o cliente não esteja autenticado, o sistema abre imediatamente o modal white-label `SalonClientAuthModal` (Login / Cadastro) e retoma automaticamente o agendamento escolhido assim que a autenticação é concluída (`onAuthenticated`).
+  3. **Limpeza Completa no Logout (`handleSalonLogout` & `App.tsx`):** Sincronizado o evento `vagou:auth-updated` com `App.tsx` e removidos todos os identificadores residuais (`vagou_client_id`, `vagou_client_session`) no logout, redirecionando o visitante para a aba `home` caso estivesse em `vagas`.
+
+### [2026-10-27] — Correção da Inicialização do Modal "Para Você / Dependente" na Montagem da Seção de Agendamento
+- **Tipo:** `[Fix / UX & Beneficiary Selection Flow]`
+- **Motivo / Solicitação:** Ao escolher um serviço diretamente no Catálogo de Serviços (`activeTab === 'servicos'`), o componente `SalonBookingModal` era montado pela primeira vez com `isBeneficiaryModalOpen = false` e `isOriginModalOpen = true`, pulando o modal "Para você / Dependente".
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Inicialização Correta no Mount (`useState`):** `isBeneficiaryModalOpen` agora inicializa como `true` (`Boolean(initialService && !initialTimeSlot && !resumeDraft)`) e `isOriginModalOpen` inicializa como `false` quando o componente `SalonBookingModal` é montado a partir do clique em um serviço no Catálogo de Serviços.
+  2. **Encadeamento Completo (Beneficiário ➔ Origem ➔ Proposta Mais Próxima / Outra Data):** Tanto ao selecionar `"Para Você"` quanto ao escolher ou cadastrar um `"Dependente"` inline (`handleSaveInlineDependent`), o modal de beneficiário fecha e abre imediatamente o modal de origem (`isOriginModalOpen = true`), exibindo a proposta `MAIS PRÓXIMO - DD/MM HH:MM` e `ESCOLHER OUTRA DATA E HORÁRIO` tanto para `"Saindo de Casa"` quanto para `"Outro Local"`.
+
+### [2026-10-26] — Renomeações e Fluxo Direto no Modal de Origem ("MAIS PRÓXIMO" Direto para o Resumo)
+- **Tipo:** `[Feat / UX & Origin Modal Navigation]`
+- **Motivo / Solicitação:** Renomear o primeiro botão do modal de origem para `MAIS PRÓXIMO - DD/MM HH:MM` e fazer com que o clique nele pule a escolha de data e hora abrindo diretamente o Resumo do Agendamento; renomear o segundo botão para `ESCOLHER OUTRA DATA E HORÁRIO` para seguir para a etapa de seleção de data.
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Botão 1 ("MAIS PRÓXIMO - DD/MM HH:MM"):** Atualizado o rótulo do botão principal do modal de origem (`originModalNode`) para `MAIS PRÓXIMO - ${propitiousSuggestion.shortDate} ${propitiousSuggestion.timeSlot}`. Ao ser clicado, grava a data/horário sugeridos, fecha o modal de origem e abre diretamente a Seção de Confirmação do Resumo (`setIsSummaryModalOpen(true)`), ignorando a escolha manual de data e horário.
+  2. **Botão 2 ("ESCOLHER OUTRA DATA E HORÁRIO"):** Atualizado o rótulo para `ESCOLHER OUTRA DATA E HORÁRIO` (quando não estiver retornando do modal de rota). Ao ser clicado, fecha o modal de origem e direciona o cliente para a etapa de seleção de data (`setCurrentStep('date')`).
+
+### [2026-10-26] — Alinhamento Centralizado de Data e Horário no Resumo do Agendamento
+- **Tipo:** `[UX / UI Alignment]`
+- **Motivo / Solicitação:** Alinhar "Data" e "Horário" ao centro dentro de suas respectivas `div`s (50% de largura cada) no modal de Resumo do Agendamento.
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Aplicado `items-center justify-center text-center` com espaçamento simétrico (`px-2`) em ambas as colunas (`Data` e `Hora`) dentro de `summaryModalNode`, garantindo centralização exata tanto dos rótulos com ícone quanto dos valores em destaque.
+
+### [2026-10-26] — Filtro Preditivo de Modais Viáveis no "Ir Agora", Botão Único "Chamar App" com Seletor de Aplicativos, Botões com Ícone para Mapa/Waze e Botão "Alterar origem"
+- **Tipo:** `[Feat / UX & Predictive Transport Feasibility / Ride App Chooser]`
+- **Motivo / Solicitação:** De acordo com o horário selecionado e o tempo de chegada comparando com o horário atual, não ofertar trajetos inviáveis (como "A pé" quando o horário máximo de saída já passou); substituir os botões diretos "Chamar Uber" e "Chamar 99" pelo botão único "Chamar App" que abre as opções de aplicativo instalado no dispositivo do cliente; exibir botões com ícone para "Mapa" e "Waze" quando selecionado "Carro" (ou "Moto"); e transformar "Alterar origem" em um botão estilizado com ícone.
+- **Arquivos Impactados:**
+  - `src/utils/bookingSlots.ts`
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Filtro Preditivo de Modais Viáveis (`feasibleTransportModeOptions`):** O sistema compara o horário selecionado do agendamento (`selectedDateIso` + `selectedTimeSlot`) menos o tempo de trajeto de cada modal (`computeCalibratedEtaForMode`) com o horário atual (`currentTimeTick`). Qualquer meio de transporte cujo horário máximo de saída já tenha passado (ex.: `A pé` com saída máxima às `09H02` quando já são `10:25`) deixa de ser ofertado na grade e alterna automaticamente para um modal viável (`Carro`).
+  2. **Botão Único "Chamar App" com Seletor de Aplicativos do Dispositivo:** Na opção `Aplicativo`, o botão principal **`Chamar App`** expande as opções de aplicativos instalados no dispositivo do cliente (**Uber**, **99** e **Outros Apps Instalados no Dispositivo** via intent `geo:` nativo em `buildTransportDeepLinks`).
+  3. **Botões com Ícone para Mapa e Waze (`Carro` / `Moto`):** Os botões **`Mapa`** e **`Waze`** contam com badges de ícone (`MapPin` e `Navigation` de `lucide-react`) e contraste elevado nos temas claro e escuro.
+  4. **Botão Estilizado "Alterar origem":** Convertido de texto simples para botão sólido (`bg-emerald-500 text-white`) com ícone `RotateCcw`.
+
+### [2026-10-26] — Seção de Confirmação no Resumo, Remoção de Telefone no Modo Cliente, Avanço Direto para Data/Hora e Modal Simples de Origem com Sugestão de Dia/Horário Propício
+- **Tipo:** `[Feat / UX & Confirmation Section Modal / Predictive Origin & Direct Date Step]`
+- **Motivo / Solicitação:** Remover informação de telefone no modo cliente; incluir novamente o modal simples de pergunta sobre o endereço de partida do cliente antes do agendamento (calculando distância mesmo para clientes de outro estado e oferecendo o dia e horário mais propício); ao clicar em um serviço direto na seção de Serviços, avançar diretamente para Data e Horário sem exibir novamente a lista de serviços; posicionar o botão "Confirmar Agendamento" abaixo dos botões "Pré-Salvar", "Revisar" e "Cancelar"; e estruturar o modal de Resumo do Agendamento como seção de confirmação com cabeçalho da logomarca do salão, cabeçalho de título "Resumo do agendamento", remoção de "Estabelecimento", e "Data | Hora" grandes na mesma linha (50% de largura cada).
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção de Telefone no Modo Cliente:** Removido o campo `WhatsApp de Contato` de `summaryModalNode`, ocultado o campo de telefone na visualização cliente de `ProfileDrawer.tsx`, e ajustado o fallback em `handleConfirmFinal` / `handleConfirmSchedule` para não exigir telefone do cliente.
+  2. **Avanço Direto da Seção de Serviços para Data e Horário:** Ao selecionar um serviço na seção `Serviços` (`handleOpenBooking`), `SalonBookingModal` inicializa `selectedServices` com o serviço clicado e abre diretamente na etapa de **Data e Horário** (`currentStep = 'date'`), sem pedir que o cliente selecione o serviço novamente.
+  3. **Modal Simples de Origem de Partida + Sugestão de Dia/Horário Propício (`originModalNode` & `propitiousSuggestion`):** Antes da seleção de data/horário, abre-se o modal simples perguntando `"De onde você vai sair?"` (`Saindo de Casa` vs `Outro Local`, aceitando CEP ou Cidade/Estado). O sistema calcula a distância real e o tempo de viagem (inclusive interestadual) e sugere/aplica o **dia e horário mais propício**.
+  4. **Modal de Confirmação Estilo Seção (`summaryModalNode`):** Reestruturado com Cabeçalho 1 exibindo a **Logomarca do Salão**, Cabeçalho 2 com o título **`Resumo do agendamento`**, linha principal dividida em **`Data | Hora` (50% / 50%)** com tipografia grande, linhas de `Serviço`, `Beneficiário`, `Profissional` e `Total a pagar no local` (sem `Estabelecimento`), e botão **`Confirmar Agendamento`** posicionado **abaixo** dos botões `Pré-Salvar`, `Revisar` e `Cancelar`.
+
+### [2026-10-25] — Extração do Bloco de Rota do Resumo para Modal Próprio Pós-Confirmação ("Pôr na Agenda" vs "Ir Agora" + 6 Modais Google Maps API)
+- **Tipo:** `[Feat / UX & Post-Confirmation Flow / Google Maps API Modes]`
+- **Motivo / Solicitação:** Remover o card de rota/deslocamento de dentro do "Resumo do Agendamento", transformando-o em um modal próprio que só abre após clicar em "Confirmar Agendamento", precedido por um modal de pergunta com as opções "Pôr na Agenda" e "Ir Agora", oferecendo todas as 6 opções do Google Maps API + Aplicativo (A pé, Bicicleta, Moto, Carro, Transporte Público e Aplicativo).
+- **Arquivos Impactados:**
+  - `src/types.ts`
+  - `src/utils/bookingSlots.ts`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Resumo do Agendamento Limpo:** Removido o bloco de logística/rota de dentro de `summaryModalNode`, deixando o resumo focado nos dados do serviço, horário, valor e contato.
+  2. **Modal de Pergunta Pós-Confirmação (`postConfirmChoiceModalNode`):** Ao clicar em `"Confirmar Agendamento"`, o agendamento é gravado e abre-se primeiro o modal de decisão com os botões **`Pôr na Agenda`** (integração direta via `buildGoogleCalendarEventUrl`) e **`Ir Agora`**.
+  3. **Modal Próprio de Rota & Deslocamento (`routeModalNode`):** Ao clicar em **`Ir Agora`**, abre-se o modal próprio contendo as **6 opções de deslocamento integradas ao Google Maps API** (`A pé`, `Bicicleta`, `Moto`, `Carro`, `Transp. Público` e `Aplicativo`), recalculando em tempo real a distância, o tempo de trajeto, o `Horário Máx. de saída` e os botões de navegação (`Google Maps`, `Waze`, `Uber`, `99`) com opção `Alterar origem`.
+
+### [2026-10-25] — Ergonomia Mobile: Separação em Linhas Dedicadas de Profissionais e Turnos (Zero Tumulto Visual)
+- **Tipo:** `[Fix / Mobile UX & Ergonomics]`
+- **Motivo / Solicitação:** Em telas mobile (~360px), posicionar os botões dos profissionais na mesma linha horizontal das 4 abas de turnos (`Manhã | Tarde | Noite | Todos`) comprimia a área disponível e cortava o segundo botão de profissional (ex: `Rafael`).
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Linha 1 Exclusiva para Profissionais (`overflow-x-auto`):** Os botões dos profissionais aptos para o serviço selecionado (`[Foto + Primeiro Nome]`, com `py-1.5 px-3` e `w-6 h-6`) agora ocupam sua própria linha horizontal exclusiva com respiro completo, exibindo todos os nomes sem cortes ou esmagamento.
+  2. **Linha 2 Exclusiva para Turnos (`grid-cols-4`):** As abas `Manhã | Tarde | Noite | Todos` ocupam uma barra dedicada de largura total (`grid grid-cols-4 gap-1 p-1`) logo abaixo dos profissionais, garantindo 25% de largura por turno e toque confortável no celular.
+
+### [2026-10-25] — Detalhe do Serviço ao Lado do Botão Voltar, Título Resumido na Aba e Filtro de Profissionais por Tipo de Serviço
+- **Tipo:** `[Feat / UX & Booking Header / Professional Filter]`
+- **Motivo / Solicitação:** Exibir a descrição completa do serviço selecionado no cabeçalho ao lado do botão Voltar, deixar o título da pequena aba apenas com o nome resumido de 1 palavra (ex: "Corte", "Unha"), filtrar para exibir apenas os profissionais que fazem aquele tipo de serviço e formatar o botão do profissional apenas com foto + primeiro nome.
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Detalhe do Serviço ao Lado do Botão Voltar:** Na barra superior do fluxo (`currentStep !== 'service'`), adicionado o título completo do serviço (ex: `"Corte Navalhado"`) e badge de duração/preço (`"45 min • R$ 45"`) imediatamente ao lado do botão `Voltar`.
+  2. **Nome Resumido de 1 Palavra na Aba de Etapa:** Atualizado `getAbbreviatedServiceLabel()` para exibir apenas o substantivo principal na pequena aba (ex: `"Corte"`, `"Unha"`, `"Barba"`, `"Sobrancelha"`, `"Escova"`, etc.), evitando truncamento com reticências (`...`).
+  3. **Filtro de Profissionais por Tipo de Serviço:** Removido o botão `"Qualquer"` e criado `professionalsForSelectedService` que filtra apenas os profissionais que executam a categoria/tipo do serviço selecionado (por `professionalId` ou `specialties`), selecionando automaticamente o primeiro profissional apto.
+  4. **Botões de Profissionais Compactos:** Formatados os botões de profissionais para exibir apenas a foto circular e o primeiro nome ao lado.
+
+### [2026-10-25] — Remoção de Checkboxes em Serviços e Avanço Direto no Fluxo de Agendamento (Serviço ➔ Data ➔ Horário)
+- **Tipo:** `[Refactor / UX & Booking Flow]`
+- **Motivo / Solicitação:** Remover os checkboxes da lista de serviços na seção de agendamento, eliminar o modal intermediário de confirmação ao clicar no serviço (avançando direto para a tela de data) e fazer com que o clique no dia do calendário avance diretamente para a escolha do horário sem botão extra de confirmação de data.
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção de Checkboxes e Botão de Rodapé na Etapa de Serviços:** Removido o bloco visual de checkbox (`w-5 h-5 rounded-[4px]`) de cada card de serviço e removido o botão de rodapé `"SELECIONE AO MENOS 1 SERVIÇO"`, mantendo apenas título, duração e preço limpos.
+  2. **Avanço Direto Serviço ➔ Data:** Ao clicar em qualquer serviço, o modal `"Deseja realizar o agendamento?"` não é mais exibido; o serviço é selecionado e o fluxo avança imediatamente para a tela de calendário (`currentStep = 'date'`).
+  3. **Avanço Direto Data ➔ Horário:** Na tela de calendário (`date`), clicar no botão do dia desejado seleciona a data e avança imediatamente para a tela de escolha de horários (`currentStep = 'professionals_and_time'`), sem botão adicional de confirmação de data e sem modais intermediários bloqueantes.
+
 ### [2026-10-24] — Diagnóstico de Políticas RLS (Supabase Error 42501), Blindagem Offline Resiliente e Migration de Policies
 - **Tipo:** `[Fix / Security & RLS / Data Resilience]`
 - **Motivo / Solicitação:** Usuário reportou que o problema de policy (RLS) continuava ocorrendo ("Não resolvido o problema de polícia. Nós temos rolo cadastrado, faça um teste").

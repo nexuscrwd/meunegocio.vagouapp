@@ -132,7 +132,7 @@ export interface BookingAppointment {
 
 export type ServiceLocationType = 'in_salon' | 'home_delivery';
 
-export type TransportMode = 'walking' | 'transit' | 'rideshare' | 'driving' | 'motorcycle';
+export type TransportMode = 'walking' | 'bicycling' | 'motorcycle' | 'car' | 'driving' | 'transit' | 'rideshare';
 
 export type LiveTrackingStatus =
   | 'idle'

@@ -85,8 +85,9 @@ function isValidEmailAddress(value: string): boolean {
 }
 
 /**
- * Busca registros em public.clients que correspondam ao identificador informado
- * (username como 'Momy@', 'fabio#', 'Samira Soraia', e-mail, nome completo, CPF ou telefone)
+ * Busca registros em todo o Ecossistema da Tríade (system_admins, clients, salon_users, professionals)
+ * que correspondam ao identificador informado (username como 'Anderson@', 'Elisa@', 'Luiza@', 'Momy@',
+ * 'fabio#', 'Samira Soraia', e-mail, nome completo, CPF ou telefone).
  */
 async function findMatchingClients(rawInput: string): Promise<any[]> {
   if (!isSupabaseConfigured || !supabase) return [];
@@ -94,79 +95,113 @@ async function findMatchingClients(rawInput: string): Promise<any[]> {
   if (!trimmed) return [];
 
   const cleanLower = trimmed.toLowerCase();
+  const cleanNoSymbols = cleanLower.replace(/^[@#&]+|[@#&]+$/g, '');
   const digits = trimmed.replace(/\D/g, '');
-  const resultsMap = new Map<string, any>();
+  const results: any[] = [];
+  const seenKeys = new Set<string>();
 
-  const addRows = (rows: any[] | null | undefined) => {
-    if (!Array.isArray(rows)) return;
-    for (const r of rows) {
-      if (r && r.id && !resultsMap.has(String(r.id))) {
-        resultsMap.set(String(r.id), r);
-      }
-    }
+  const matchesRecord = (r: any, table: 'system_admins' | 'clients' | 'salon_users' | 'professionals'): boolean => {
+    if (!r) return false;
+    if (r.is_active === false) return false;
+
+    const rUser = String(r.username || '').trim().toLowerCase();
+    const rUserNoSymbols = rUser.replace(/^[@#&]+|[@#&]+$/g, '');
+    const rEmail = String(r.email || '').trim().toLowerCase();
+    const rName = String(r.full_name || r.name || '').trim().toLowerCase();
+    const rPhone1 = String(r.phone_whatsapp || r.phone || '').replace(/\D/g, '');
+    const rPhone2 = String(r.phone_secondary || '').replace(/\D/g, '');
+    const rCpf = String(r.cpf || '').replace(/\D/g, '');
+
+    const matchesText =
+      (rUser && (rUser === cleanLower || (cleanNoSymbols.length >= 3 && rUserNoSymbols === cleanNoSymbols))) ||
+      (rEmail && rEmail === cleanLower) ||
+      (rName && rName === cleanLower);
+
+    const matchesDigits =
+      digits.length >= 8 &&
+      ((digits.length === 11 && rCpf && rCpf === digits) ||
+        (rPhone1 && (rPhone1 === digits || rPhone1.endsWith(digits) || digits.endsWith(rPhone1))) ||
+        (rPhone2 && (rPhone2 === digits || rPhone2.endsWith(digits) || digits.endsWith(rPhone2))));
+
+    if (!matchesText && !matchesDigits) return false;
+
+    const key = `${table}::${r.id}`;
+    if (seenKeys.has(key)) return false;
+    seenKeys.add(key);
+    return true;
+  };
+
+  const normalizeRecord = (r: any, table: 'system_admins' | 'clients' | 'salon_users' | 'professionals') => {
+    const rawRole = String(r.role || '').toLowerCase();
+    const rawAccess = String(r.access_level || '').toLowerCase();
+    const isSuperadmin =
+      table === 'system_admins' ||
+      rawRole === 'superadmin' ||
+      rawAccess.includes('superadmin') ||
+      rawAccess.includes('administrador master');
+
+    return {
+      ...r,
+      id: String(r.id),
+      user_id: r.user_id || null,
+      sourceTable: table,
+      name: r.full_name || r.name || r.username || '',
+      username: r.username || '',
+      email: r.email || '',
+      phone: r.phone_whatsapp || r.phone || r.phone_secondary || '',
+      cpf: r.cpf || '',
+      password_hash: r.password_hash ?? null,
+      avatar_url: r.avatar_url || '',
+      isSuperadmin,
+    };
   };
 
   try {
-    // 1. Busca direta por username (suporta Momy@, Luiza@, fabio#, Maria&, Samira Soraia)
-    const { data: byUsername } = await (supabase.from('clients') as any)
-      .select('*')
-      .ilike('username', trimmed)
-      .limit(10);
-    addRows(byUsername);
+    const [sysAdminsRes, clientsRes, salonUsersRes, prosRes] = await Promise.all([
+      (supabase.from('system_admins' as any) as any).select('*').limit(100),
+      (supabase.from('clients') as any).select('*').limit(400),
+      (supabase.from('salon_users' as any) as any).select('*').limit(200),
+      (supabase.from('professionals') as any).select('*').limit(200),
+    ]);
 
-    // 2. Busca direta por e-mail caso tenha formato de e-mail
-    if (isValidEmailAddress(trimmed)) {
-      const { data: byEmail } = await (supabase.from('clients') as any)
-        .select('*')
-        .ilike('email', trimmed)
-        .limit(10);
-      addRows(byEmail);
+    if (Array.isArray(sysAdminsRes?.data)) {
+      for (const r of sysAdminsRes.data) {
+        if (matchesRecord(r, 'system_admins')) {
+          results.push(normalizeRecord(r, 'system_admins'));
+        }
+      }
     }
 
-    // 3. Busca direta por nome completo
-    const { data: byName } = await (supabase.from('clients') as any)
-      .select('*')
-      .ilike('name', trimmed)
-      .limit(10);
-    addRows(byName);
+    if (Array.isArray(clientsRes?.data)) {
+      for (const r of clientsRes.data) {
+        if (matchesRecord(r, 'clients')) {
+          results.push(normalizeRecord(r, 'clients'));
+        }
+      }
+    }
 
-    // 4. Varredura em memória resiliente (imune a caracteres especiais @, #, & ou espaços no banco)
-    if (resultsMap.size === 0 || digits.length >= 8) {
-      const { data: pool } = await (supabase.from('clients') as any)
-        .select('*')
-        .limit(300);
+    if (Array.isArray(salonUsersRes?.data)) {
+      for (const r of salonUsersRes.data) {
+        if (matchesRecord(r, 'salon_users')) {
+          results.push(normalizeRecord(r, 'salon_users'));
+        }
+      }
+    }
 
-      if (Array.isArray(pool)) {
-        for (const c of pool) {
-          const cUser = String(c.username || '').trim().toLowerCase();
-          const cEmail = String(c.email || '').trim().toLowerCase();
-          const cName = String(c.name || '').trim().toLowerCase();
-          const cPhone = String(c.phone || '').replace(/\D/g, '');
-          const cCpf = String(c.cpf || '').replace(/\D/g, '');
-
-          const matchesText =
-            (cUser && cUser === cleanLower) ||
-            (cEmail && cEmail === cleanLower) ||
-            (cName && cName === cleanLower);
-
-          const matchesDigits =
-            digits.length >= 8 &&
-            ((cCpf && cCpf === digits) ||
-              (cPhone && (cPhone === digits || cPhone.endsWith(digits) || digits.endsWith(cPhone))));
-
-          if (matchesText || matchesDigits) {
-            resultsMap.set(String(c.id), c);
-          }
+    if (Array.isArray(prosRes?.data)) {
+      for (const r of prosRes.data) {
+        if (matchesRecord(r, 'professionals')) {
+          results.push(normalizeRecord(r, 'professionals'));
         }
       }
     }
   } catch {}
 
-  return Array.from(resultsMap.values());
+  return results;
 }
 
 /**
- * Resolve um identificador (E-mail, Telefone, CPF ou Usuário) para o e-mail cadastrado no Supabase
+ * Resolve um identificador (E-mail, Telefone, CPF ou Usuário) para o e-mail e contas cadastradas no Supabase
  */
 async function resolveIdentifierToEmail(rawInput: string): Promise<{
   email: string | null;
@@ -179,12 +214,12 @@ async function resolveIdentifierToEmail(rawInput: string): Promise<{
   }
 
   const matchedClients = await findMatchingClients(trimmed);
-  const clientWithEmail = matchedClients.find(
+  const recordWithEmail = matchedClients.find(
     (c: any) => c.email && isValidEmailAddress(String(c.email))
   );
-  if (clientWithEmail?.email) {
+  if (recordWithEmail?.email) {
     return {
-      email: String(clientWithEmail.email).trim().toLowerCase(),
+      email: String(recordWithEmail.email).trim().toLowerCase(),
       matchedClients,
     };
   }
@@ -202,7 +237,7 @@ async function resolveIdentifierToEmail(rawInput: string): Promise<{
   const cleanLower = trimmed.toLowerCase();
 
   try {
-    // 1. Se possui dígitos de telefone ou CPF (8 a 14 dígitos), buscar em salons e professionals
+    // 1. Se possui dígitos de telefone ou CPF (8 a 14 dígitos), buscar em salons
     if (digits.length >= 8) {
       const { data: salonsData } = await (supabase.from('salons') as any)
         .select('email, phone_whatsapp, owner_cpf, document_number, branding')
@@ -225,21 +260,6 @@ async function resolveIdentifierToEmail(rawInput: string): Promise<{
           matchedSalon?.branding?.email;
         if (salonEmail && isValidEmailAddress(String(salonEmail))) {
           return { email: String(salonEmail).trim().toLowerCase(), matchedClients };
-        }
-      }
-
-      const { data: prosData } = await (supabase.from('professionals') as any)
-        .select('email, phone')
-        .not('email', 'is', null)
-        .limit(50);
-
-      if (Array.isArray(prosData)) {
-        const matchedPro = prosData.find((p: any) => {
-          const pPhone = String(p.phone || '').replace(/\D/g, '');
-          return pPhone && (pPhone === digits || pPhone.endsWith(digits) || digits.endsWith(pPhone));
-        });
-        if (matchedPro?.email && isValidEmailAddress(String(matchedPro.email))) {
-          return { email: String(matchedPro.email).trim().toLowerCase(), matchedClients };
         }
       }
     }
@@ -288,6 +308,12 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
   const [phone, setPhone] = useState('');
   const [cpf, setCpf] = useState('');
 
+  // Campos de Recuperação Direta de Senha
+  const [forgotStep, setForgotStep] = useState<'identify' | 'reset'>('identify');
+  const [forgotMatchedAccounts, setForgotMatchedAccounts] = useState<any[]>([]);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -326,6 +352,10 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setMode(initialMode);
+      setForgotStep('identify');
+      setForgotMatchedAccounts([]);
+      setNewPassword('');
+      setConfirmNewPassword('');
       setErrorMsg(null);
       setSuccessMsg(null);
     }
@@ -350,30 +380,97 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
     fallbackPhone?: string,
     fallbackCpf?: string,
     userMeta?: Record<string, any>,
-    existingClientRow?: any
+    existingAccountRow?: any
   ) => {
-    let client = existingClientRow || null;
+    const isSuperadmin = Boolean(
+      existingAccountRow?.isSuperadmin ||
+      existingAccountRow?.sourceTable === 'system_admins' ||
+      userMeta?.isSuperadmin ||
+      String(existingAccountRow?.access_level || '').toLowerCase().includes('superadmin') ||
+      String(existingAccountRow?.role || '').toLowerCase() === 'superadmin'
+    );
 
-    if (!client) {
-      const ensured = await ensureClientRow(
-        userId,
-        isValidEmailAddress(emailOrUsername) ? emailOrUsername : null,
-        {
-          full_name: fallbackName || userMeta?.full_name || userMeta?.name,
-          phone: fallbackPhone || userMeta?.phone,
-          cpf: fallbackCpf || userMeta?.cpf,
-          username: userMeta?.username || (!isValidEmailAddress(emailOrUsername) ? emailOrUsername : undefined),
-          password_hash: userMeta?.password_hash,
+    let clientRow: any =
+      existingAccountRow?.sourceTable === 'clients' || (!existingAccountRow?.sourceTable && existingAccountRow?.id)
+        ? existingAccountRow
+        : null;
+
+    // Se a conta veio de system_admins, salon_users ou professionals, garante espelho em public.clients para FKs de agendamento
+    if (!clientRow && supabase) {
+      try {
+        const candidateEmail = existingAccountRow?.email || (isValidEmailAddress(emailOrUsername) ? emailOrUsername : '');
+        const candidateUsername = existingAccountRow?.username || (!isValidEmailAddress(emailOrUsername) ? emailOrUsername : '');
+        if (candidateEmail) {
+          const { data: cByEmail } = await (supabase.from('clients') as any)
+            .select('*')
+            .ilike('email', candidateEmail)
+            .limit(1)
+            .maybeSingle();
+          if (cByEmail) clientRow = cByEmail;
         }
-      );
-      client = ensured.client;
+        if (!clientRow && candidateUsername) {
+          const { data: cByUser } = await (supabase.from('clients') as any)
+            .select('*')
+            .ilike('username', candidateUsername)
+            .limit(1)
+            .maybeSingle();
+          if (cByUser) clientRow = cByUser;
+        }
+      } catch {}
     }
 
-    const effectiveUserId = String(userId || client?.user_id || client?.id || '').trim();
-    const cleanCpf = (fallbackCpf || client?.cpf || userMeta?.cpf || '').replace(/\D/g, '');
-    const effectiveIdentity = (client?.email || emailOrUsername || client?.username || '').trim();
+    if (!clientRow) {
+      const ensured = await ensureClientRow(
+        userId,
+        isValidEmailAddress(emailOrUsername) ? emailOrUsername : (existingAccountRow?.email || null),
+        {
+          full_name: fallbackName || existingAccountRow?.name || userMeta?.full_name || userMeta?.name,
+          phone: fallbackPhone || existingAccountRow?.phone || userMeta?.phone,
+          cpf: fallbackCpf || existingAccountRow?.cpf || userMeta?.cpf,
+          username:
+            existingAccountRow?.username ||
+            userMeta?.username ||
+            (!isValidEmailAddress(emailOrUsername) ? emailOrUsername : undefined),
+          password_hash: existingAccountRow?.password_hash || userMeta?.password_hash,
+        }
+      );
+      clientRow = ensured.client;
+    }
 
-    // Verifica vínculo com o salão atual (Dono, Gerente, Profissional ou Cliente)
+    const effectiveUserId = String(
+      userId || existingAccountRow?.id || clientRow?.user_id || clientRow?.id || ''
+    ).trim();
+    const effectiveClientId = String(clientRow?.id || effectiveUserId).trim();
+    const cleanCpf = (
+      fallbackCpf ||
+      existingAccountRow?.cpf ||
+      clientRow?.cpf ||
+      userMeta?.cpf ||
+      ''
+    ).replace(/\D/g, '');
+    const effectiveIdentity = (
+      existingAccountRow?.email ||
+      clientRow?.email ||
+      emailOrUsername ||
+      existingAccountRow?.username ||
+      clientRow?.username ||
+      ''
+    ).trim();
+    const effectiveUsername = (
+      existingAccountRow?.username ||
+      clientRow?.username ||
+      effectiveIdentity
+    ).trim();
+
+    try {
+      if (isSuperadmin) {
+        localStorage.setItem('vagou_is_superadmin', 'true');
+      } else {
+        localStorage.removeItem('vagou_is_superadmin');
+      }
+    } catch {}
+
+    // Verifica vínculo com o salão atual (Superadmin Master, Dono, Gerente, Profissional ou Cliente)
     const membership = await checkUserSalonMembership(
       effectiveUserId,
       currentSlug,
@@ -383,21 +480,25 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
 
     const resolvedName =
       fallbackName ||
-      client?.name ||
-      client?.username ||
+      existingAccountRow?.name ||
+      clientRow?.name ||
+      existingAccountRow?.username ||
+      clientRow?.username ||
       userMeta?.full_name ||
       userMeta?.name ||
       (effectiveIdentity ? effectiveIdentity.split('@')[0] : 'Usuário');
 
     const resolvedPhone =
-      fallbackPhone || client?.phone || userMeta?.phone || '';
+      fallbackPhone || existingAccountRow?.phone || clientRow?.phone || userMeta?.phone || '';
 
     const resolvedAvatar =
-      client?.avatar_url || userMeta?.avatar_url || '';
+      existingAccountRow?.avatar_url || clientRow?.avatar_url || userMeta?.avatar_url || '';
+
+    const finalIsSuperadmin = isSuperadmin || membership.role === 'owner' && existingAccountRow?.sourceTable === 'system_admins';
 
     try {
       if (effectiveUserId) localStorage.setItem('vagou_auth_user_id', effectiveUserId);
-      if (client?.id) localStorage.setItem('vagou_client_id', String(client.id));
+      if (effectiveClientId) localStorage.setItem('vagou_client_id', effectiveClientId);
       if (resolvedName) localStorage.setItem('vagou_user_name', resolvedName);
       if (effectiveIdentity) {
         localStorage.setItem('vagou_user_email', effectiveIdentity);
@@ -409,20 +510,30 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
         localStorage.setItem('vagou_user_avatar', resolvedAvatar);
       }
       localStorage.setItem(
+        'vagou_user_role',
+        finalIsSuperadmin ? 'superadmin' : membership.role
+      );
+      localStorage.setItem(
         'vagou_client_session',
         JSON.stringify({
-          id: effectiveUserId || client?.id,
-          clientId: client?.id || effectiveUserId,
+          id: effectiveUserId || effectiveClientId,
+          clientId: effectiveClientId || effectiveUserId,
           name: resolvedName,
           email: effectiveIdentity,
-          username: client?.username || effectiveIdentity,
+          username: effectiveUsername,
           phone: resolvedPhone,
           cpf: cleanCpf,
+          role: finalIsSuperadmin ? 'superadmin' : membership.role,
+          accessLevel: finalIsSuperadmin
+            ? 'Superadmin Master'
+            : existingAccountRow?.access_level || clientRow?.access_level || membership.role,
+          isSuperadmin: finalIsSuperadmin,
         })
       );
     } catch {}
 
-    const mappedRole: 'pro' | 'cliente' = membership.isMember ? 'pro' : 'cliente';
+    const mappedRole: 'pro' | 'cliente' =
+      finalIsSuperadmin || membership.isMember ? 'pro' : 'cliente';
 
     window.dispatchEvent(
       new CustomEvent('vagou:auth-updated', {
@@ -431,7 +542,8 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
           email: effectiveIdentity,
           cpf: cleanCpf,
           name: resolvedName,
-          accountType: membership.role,
+          accountType: finalIsSuperadmin ? 'owner' : membership.role,
+          isSuperadmin: finalIsSuperadmin,
         },
       })
     );
@@ -439,7 +551,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
     hapticSuccess();
     onAuthenticated(
       {
-        id: effectiveUserId,
+        id: effectiveClientId || effectiveUserId,
         name: resolvedName,
         phone: resolvedPhone,
         email: effectiveIdentity,
@@ -471,7 +583,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
     try {
       const resolved = await resolveIdentifierToEmail(cleanIdentifier);
 
-      // 1. Verifica autenticação direta na tabela public.clients (username / email / phone / cpf + password_hash)
+      // 1. Verifica autenticação direta nas tabelas oficiais da Tríade (system_admins, clients, salon_users, professionals)
       if (resolved.matchedClients.length > 0) {
         const matchedByHash = resolved.matchedClients.find(
           (c: any) =>
@@ -481,23 +593,9 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
         );
 
         if (matchedByHash) {
-          let authUser: any = null;
-          const candidateEmail = matchedByHash.email || resolved.email;
-          if (candidateEmail && isValidEmailAddress(String(candidateEmail))) {
-            try {
-              const { data: authData } = await supabase.auth.signInWithPassword({
-                email: String(candidateEmail).trim().toLowerCase(),
-                password: cleanPass,
-              });
-              if (authData?.user) {
-                authUser = authData.user;
-              }
-            } catch {}
-          }
-
-          const finalUserId = String(authUser?.id || matchedByHash.user_id || matchedByHash.id);
+          const finalUserId = String(matchedByHash.user_id || matchedByHash.id);
           const finalIdentity = String(
-            authUser?.email || matchedByHash.email || matchedByHash.username || cleanIdentifier
+            matchedByHash.email || matchedByHash.username || cleanIdentifier
           ).trim();
 
           await finalizeAuthentication(
@@ -506,21 +604,44 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
             matchedByHash.name || matchedByHash.username || cleanIdentifier,
             matchedByHash.phone || '',
             matchedByHash.cpf || '',
-            authUser?.user_metadata,
+            {
+              full_name: matchedByHash.name,
+              phone: matchedByHash.phone,
+              cpf: matchedByHash.cpf,
+              username: matchedByHash.username,
+              password_hash: cleanPass,
+              isSuperadmin: matchedByHash.isSuperadmin,
+            },
             matchedByHash
           );
           return;
         }
       }
 
-      // 2. Caso não tenha autenticado via password_hash em public.clients, tenta via Supabase Auth
-      if (!resolved.email) {
-        // Se encontrou o usuário em public.clients mas a senha não conferiu com password_hash
+      // 2. Caso não tenha autenticado via password_hash nas tabelas da Tríade, tenta via Supabase Auth (apenas se houver e-mail válido)
+      if (!resolved.email || !isValidEmailAddress(resolved.email)) {
         if (resolved.matchedClients.length > 0) {
           setErrorMsg('Credenciais inválidas. Verifique seu usuário e senha.');
         } else {
           setErrorMsg(resolved.error || 'Conta não localizada. Verifique seu usuário, e-mail ou telefone.');
         }
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Se todas as contas localizadas já possuem password_hash diferente da senha digitada, rejeita sem disparar erro 400 no GoTrue
+      const allMatchedHaveDifferentHash =
+        resolved.matchedClients.length > 0 &&
+        resolved.matchedClients.every(
+          (c: any) =>
+            c.password_hash !== null &&
+            c.password_hash !== undefined &&
+            String(c.password_hash).trim().length > 0 &&
+            String(c.password_hash).trim() !== cleanPass
+        );
+
+      if (allMatchedHaveDifferentHash) {
+        setErrorMsg('Credenciais inválidas. Verifique seu usuário e senha.');
         setIsSubmitting(false);
         return;
       }
@@ -532,7 +653,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
 
       if (!error && data?.user) {
         const matchedClientRow = resolved.matchedClients[0] || undefined;
-        if (matchedClientRow?.id && !matchedClientRow.password_hash) {
+        if (matchedClientRow?.id && matchedClientRow?.sourceTable === 'clients' && !matchedClientRow.password_hash) {
           try {
             await (supabase.from('clients') as any)
               .update({ password_hash: cleanPass })
@@ -551,145 +672,89 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
         return;
       }
 
-      // 3. Fallback resiliente para contas criadas via admvapp / public.salons / public.salon_users / public.professionals / public.clients ou e-mail pendente de confirmação
+      // 3. Fallback resiliente para contas criadas via admvapp em public.salons / public.clients sem password_hash
       const rawMsg = error?.message || '';
-      const hasConflictingClientHash = resolved.matchedClients.some(
+      const cleanEmailLower = resolved.email.toLowerCase();
+      let fallbackAccount: {
+        id?: string;
+        name?: string;
+        phone?: string;
+        cpf?: string;
+        clientRow?: any;
+      } | null = null;
+
+      // 3a. Cliente já existente em public.clients sem password_hash gravado
+      const clientWithoutHash = resolved.matchedClients.find(
         (c: any) =>
-          c.password_hash !== null &&
-          c.password_hash !== undefined &&
-          String(c.password_hash).trim().length > 0 &&
-          String(c.password_hash).trim() !== cleanPass
+          c.sourceTable === 'clients' &&
+          (!c.password_hash || String(c.password_hash).trim() === '')
       );
+      if (clientWithoutHash) {
+        try {
+          await (supabase.from('clients') as any)
+            .update({ password_hash: cleanPass })
+            .eq('id', clientWithoutHash.id);
+        } catch {}
+        fallbackAccount = {
+          id: String(clientWithoutHash.user_id || clientWithoutHash.id),
+          name: clientWithoutHash.name || clientWithoutHash.username,
+          phone: clientWithoutHash.phone || '',
+          cpf: clientWithoutHash.cpf || '',
+          clientRow: { ...clientWithoutHash, password_hash: cleanPass },
+        };
+      }
 
-      if (!hasConflictingClientHash) {
-        const cleanEmailLower = resolved.email.toLowerCase();
-        let fallbackAccount: {
-          id?: string;
-          name?: string;
-          phone?: string;
-          cpf?: string;
-          clientRow?: any;
-        } | null = null;
-
-        // 3a. Cliente já existente em public.clients sem password_hash gravado
-        const clientWithoutHash = resolved.matchedClients.find(
-          (c: any) => !c.password_hash || String(c.password_hash).trim() === ''
-        );
-        if (clientWithoutHash) {
-          try {
-            await (supabase.from('clients') as any)
-              .update({ password_hash: cleanPass })
-              .eq('id', clientWithoutHash.id);
-          } catch {}
-          fallbackAccount = {
-            id: String(clientWithoutHash.user_id || clientWithoutHash.id),
-            name: clientWithoutHash.name || clientWithoutHash.username,
-            phone: clientWithoutHash.phone || '',
-            cpf: clientWithoutHash.cpf || '',
-            clientRow: { ...clientWithoutHash, password_hash: cleanPass },
-          };
-        }
-
-        // 3b. Titular / Parceiro em public.salons (cadastrado no admvapp)
-        if (!fallbackAccount) {
-          try {
-            const { data: salonsPool } = await (supabase.from('salons') as any)
-              .select('id, owner_id, trade_name, legal_name, email, phone_whatsapp, owner_cpf, document_number, branding')
-              .limit(100);
-            if (Array.isArray(salonsPool)) {
-              const matchedSalon = salonsPool.find((s: any) => {
-                const emails = [
-                  s.email,
-                  s.branding?.ownerEmail,
-                  s.branding?.legalManagerEmail,
-                  s.branding?.email,
-                ]
-                  .filter(Boolean)
-                  .map((em: any) => String(em).trim().toLowerCase());
-                return emails.includes(cleanEmailLower);
-              });
-              if (matchedSalon) {
-                const storedSalonPass =
-                  matchedSalon.branding?.password ||
-                  matchedSalon.branding?.adminPassword ||
-                  matchedSalon.branding?.ownerPassword;
-                if (!storedSalonPass || String(storedSalonPass).trim() === cleanPass) {
-                  fallbackAccount = {
-                    id: String(matchedSalon.owner_id || matchedSalon.id),
-                    name:
-                      matchedSalon.branding?.legalManagerName ||
-                      matchedSalon.legal_name ||
-                      matchedSalon.trade_name ||
-                      cleanEmailLower.split('@')[0],
-                    phone: matchedSalon.phone_whatsapp || '',
-                    cpf: matchedSalon.owner_cpf || matchedSalon.branding?.ownerCpf || '',
-                  };
-                }
+      // 3b. Titular / Parceiro em public.salons (cadastrado no admvapp)
+      if (!fallbackAccount) {
+        try {
+          const { data: salonsPool } = await (supabase.from('salons') as any)
+            .select('id, owner_id, trade_name, legal_name, email, phone_whatsapp, owner_cpf, document_number, branding')
+            .limit(100);
+          if (Array.isArray(salonsPool)) {
+            const matchedSalon = salonsPool.find((s: any) => {
+              const emails = [
+                s.email,
+                s.branding?.ownerEmail,
+                s.branding?.legalManagerEmail,
+                s.branding?.email,
+              ]
+                .filter(Boolean)
+                .map((em: any) => String(em).trim().toLowerCase());
+              return emails.includes(cleanEmailLower);
+            });
+            if (matchedSalon) {
+              const storedSalonPass =
+                matchedSalon.branding?.password ||
+                matchedSalon.branding?.adminPassword ||
+                matchedSalon.branding?.ownerPassword;
+              if (!storedSalonPass || String(storedSalonPass).trim() === cleanPass) {
+                fallbackAccount = {
+                  id: String(matchedSalon.owner_id || matchedSalon.id),
+                  name:
+                    matchedSalon.branding?.legalManagerName ||
+                    matchedSalon.legal_name ||
+                    matchedSalon.trade_name ||
+                    cleanEmailLower.split('@')[0],
+                  phone: matchedSalon.phone_whatsapp || '',
+                  cpf: matchedSalon.owner_cpf || matchedSalon.branding?.ownerCpf || '',
+                };
               }
             }
-          } catch {}
-        }
+          }
+        } catch {}
+      }
 
-        // 3c. Profissional / Equipe em public.professionals ou public.salon_users
-        if (!fallbackAccount) {
-          try {
-            const { data: proRow } = await (supabase.from('professionals') as any)
-              .select('id, user_id, name, phone, email')
-              .ilike('email', cleanEmailLower)
-              .limit(1)
-              .maybeSingle();
-            if (proRow) {
-              fallbackAccount = {
-                id: String(proRow.user_id || proRow.id),
-                name: proRow.name || cleanEmailLower.split('@')[0],
-                phone: proRow.phone || '',
-              };
-            }
-          } catch {}
-        }
-
-        // 3d. E-mail pendente de confirmação no Supabase Auth
-        if (!fallbackAccount && rawMsg.includes('Email not confirmed')) {
-          fallbackAccount = {
-            id: resolved.matchedClients[0]?.user_id || resolved.matchedClients[0]?.id || cleanEmailLower,
-            name: resolved.matchedClients[0]?.name || cleanEmailLower.split('@')[0],
-            phone: resolved.matchedClients[0]?.phone || '',
-            cpf: resolved.matchedClients[0]?.cpf || '',
-            clientRow: resolved.matchedClients[0],
-          };
-        }
-
-        if (fallbackAccount) {
-          let resolvedUserId = fallbackAccount.id || '';
-          try {
-            const { data: signUpData } = await supabase.auth.signUp({
-              email: cleanEmailLower,
-              password: cleanPass,
-              options: {
-                data: {
-                  full_name: fallbackAccount.name,
-                  name: fallbackAccount.name,
-                  phone: fallbackAccount.phone,
-                  password_hash: cleanPass,
-                },
-              },
-            });
-            if (signUpData?.user?.id) {
-              resolvedUserId = signUpData.user.id;
-            }
-          } catch {}
-
-          await finalizeAuthentication(
-            resolvedUserId,
-            cleanEmailLower,
-            fallbackAccount.name,
-            fallbackAccount.phone,
-            fallbackAccount.cpf,
-            { full_name: fallbackAccount.name, phone: fallbackAccount.phone, password_hash: cleanPass },
-            fallbackAccount.clientRow
-          );
-          return;
-        }
+      if (fallbackAccount) {
+        await finalizeAuthentication(
+          fallbackAccount.id || '',
+          cleanEmailLower,
+          fallbackAccount.name,
+          fallbackAccount.phone,
+          fallbackAccount.cpf,
+          { full_name: fallbackAccount.name, phone: fallbackAccount.phone, password_hash: cleanPass },
+          fallbackAccount.clientRow
+        );
+        return;
       }
 
       if (rawMsg.includes('Invalid login credentials')) {
@@ -822,37 +887,79 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    if (!identifier.trim()) {
-      setErrorMsg('Informe seu usuário ou e-mail cadastrado para recuperar a senha.');
-      return;
-    }
-
     if (!isSupabaseConfigured || !supabase) {
       setErrorMsg('Serviço indisponível no momento.');
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      const resolved = await resolveIdentifierToEmail(identifier);
-      if (!resolved.email) {
-        setErrorMsg(resolved.error || 'Informe um e-mail válido.');
-        setIsSubmitting(false);
+    if (forgotStep === 'identify') {
+      const cleanIdent = identifier.trim();
+      if (!cleanIdent) {
+        setErrorMsg('Informe seu usuário, e-mail ou telefone cadastrado.');
         return;
       }
 
-      const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
-      const { error } = await supabase.auth.resetPasswordForEmail(resolved.email, {
-        redirectTo,
-      });
-
-      if (error) {
-        setErrorMsg(error.message || 'Não foi possível enviar o e-mail de recuperação.');
-      } else {
-        setSuccessMsg(`Enviamos as instruções de recuperação para ${resolved.email}.`);
+      setIsSubmitting(true);
+      try {
+        const matched = await findMatchingClients(cleanIdent);
+        if (matched.length === 0) {
+          setErrorMsg('Conta não localizada com este identificador.');
+          setIsSubmitting(false);
+          return;
+        }
+        setForgotMatchedAccounts(matched);
+        setForgotStep('reset');
+        setSuccessMsg(`Conta localizada (${matched[0].name || matched[0].username || matched[0].email}). Defina sua nova senha abaixo.`);
+      } catch (err: any) {
+        setErrorMsg(err?.message || 'Erro ao localizar conta.');
+      } finally {
+        setIsSubmitting(false);
       }
+      return;
+    }
+
+    // Etapa 2: Redefinir senha diretamente nas tabelas da Tríade
+    const cleanNewPass = newPassword.trim();
+    const cleanConfirmPass = confirmNewPassword.trim();
+
+    if (cleanNewPass.length < 6) {
+      setErrorMsg('A nova senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+    if (cleanNewPass !== cleanConfirmPass) {
+      setErrorMsg('As senhas digitadas não coincidem.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      for (const acc of forgotMatchedAccounts) {
+        const table = acc.sourceTable || 'clients';
+        try {
+          await (supabase.from(table as any) as any)
+            .update({ password_hash: cleanNewPass, updated_at: new Date().toISOString() })
+            .eq('id', acc.id);
+        } catch {}
+
+        // Também sincroniza em public.clients pelo e-mail ou username caso exista espelho
+        if (acc.email) {
+          try {
+            await (supabase.from('clients') as any)
+              .update({ password_hash: cleanNewPass })
+              .ilike('email', acc.email);
+          } catch {}
+        }
+      }
+
+      setPassword(cleanNewPass);
+      setForgotStep('identify');
+      setForgotMatchedAccounts([]);
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setMode('login');
+      setSuccessMsg('Senha atualizada com sucesso! Clique em Entrar.');
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Erro ao solicitar recuperação de senha.');
+      setErrorMsg(err?.message || 'Erro ao atualizar a senha.');
     } finally {
       setIsSubmitting(false);
     }
@@ -1301,30 +1408,102 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
         {/* MODO 3: RECUPERAR SENHA */}
         {mode === 'forgot' && (
           <form onSubmit={handleForgotSubmit} className={`space-y-4 ${!hasSalonLogo ? 'pt-3' : ''}`}>
-            <div className="space-y-1.5">
-              <label
-                className={`block text-[11px] font-bold ${
-                  isDark ? 'text-slate-200' : 'text-slate-700'
-                }`}
-              >
-                Usuário, E-mail ou Telefone{' '}
-                <span style={{ color: resolvedPrimaryColor }}>*</span>
-              </label>
-              <div className="relative">
-                <Mail
-                  className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none ${
-                    isDark ? 'text-slate-500' : 'text-slate-400'
+            {forgotStep === 'identify' ? (
+              <div className="space-y-1.5">
+                <label
+                  className={`block text-[11px] font-bold ${
+                    isDark ? 'text-slate-200' : 'text-slate-700'
                   }`}
-                />
-                <input
-                  type="text"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="Digite seu e-mail ou telefone"
-                  className={inputBaseClass}
-                />
+                >
+                  Usuário, E-mail ou Telefone{' '}
+                  <span style={{ color: resolvedPrimaryColor }}>*</span>
+                </label>
+                <div className="relative">
+                  <User
+                    className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none ${
+                      isDark ? 'text-slate-500' : 'text-slate-400'
+                    }`}
+                  />
+                  <input
+                    type="text"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="Usuário, E-mail ou Telefone"
+                    className={inputBaseClass}
+                  />
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  <label
+                    className={`block text-[11px] font-bold ${
+                      isDark ? 'text-slate-200' : 'text-slate-700'
+                    }`}
+                  >
+                    Nova Senha de Acesso{' '}
+                    <span style={{ color: resolvedPrimaryColor }}>*</span>
+                  </label>
+                  <div className="relative">
+                    <Lock
+                      className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none ${
+                        isDark ? 'text-slate-500' : 'text-slate-400'
+                      }`}
+                    />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Mínimo de 6 caracteres"
+                      autoComplete="new-password"
+                      className={`${inputBaseClass} pr-10`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-[4px] transition cursor-pointer ${
+                        isDark
+                          ? 'text-slate-500 hover:text-slate-300'
+                          : 'text-slate-400 hover:text-slate-700'
+                      }`}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    className={`block text-[11px] font-bold ${
+                      isDark ? 'text-slate-200' : 'text-slate-700'
+                    }`}
+                  >
+                    Confirmar Nova Senha{' '}
+                    <span style={{ color: resolvedPrimaryColor }}>*</span>
+                  </label>
+                  <div className="relative">
+                    <Lock
+                      className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none ${
+                        isDark ? 'text-slate-500' : 'text-slate-400'
+                      }`}
+                    />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      placeholder="Repita a nova senha"
+                      autoComplete="new-password"
+                      className={inputBaseClass}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
 
             <div className="pt-1">
               <button
@@ -1336,11 +1515,15 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    <span className="text-white">Enviando...</span>
+                    <span className="text-white">
+                      {forgotStep === 'identify' ? 'Localizando...' : 'Salvando...'}
+                    </span>
                   </>
                 ) : (
                   <>
-                    <span className="text-white">Recuperar Senha</span>
+                    <span className="text-white">
+                      {forgotStep === 'identify' ? 'Localizar Conta' : 'Salvar Nova Senha'}
+                    </span>
                     <ArrowRight className="w-4 h-4 text-white" />
                   </>
                 )}
@@ -1358,6 +1541,8 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
                   hapticLight();
                   setErrorMsg(null);
                   setSuccessMsg(null);
+                  setForgotStep('identify');
+                  setForgotMatchedAccounts([]);
                   setMode('login');
                 }}
                 style={{ color: resolvedPrimaryColor }}

@@ -470,23 +470,35 @@ const locationGeoCache = new Map<
   { lat: number; lng: number; formattedAddress: string; cep?: string }
 >();
 
-export type TransportMode = 'car' | 'motorcycle' | 'transit' | 'rideshare';
+export type TransportMode = 'walking' | 'bicycling' | 'motorcycle' | 'car' | 'transit' | 'rideshare';
 
 export const TRANSPORT_MODE_META: Record<
   TransportMode,
   { label: string; shortLabel: string; safetyBufferMinutes: number; description: string }
 > = {
-  car: {
-    label: 'Carro',
-    shortLabel: 'Carro',
-    safetyBufferMinutes: 6,
-    description: 'Trânsito urbano + 6 min de folga para semáforos/estacionar',
+  walking: {
+    label: 'A pé',
+    shortLabel: 'A pé',
+    safetyBufferMinutes: 3,
+    description: 'Caminhada via Google Maps + 3 min de margem',
+  },
+  bicycling: {
+    label: 'Bicicleta',
+    shortLabel: 'Bicicleta',
+    safetyBufferMinutes: 4,
+    description: 'Ciclovias e vias urbanas via Google Maps + 4 min de margem',
   },
   motorcycle: {
     label: 'Moto',
     shortLabel: 'Moto',
     safetyBufferMinutes: 4,
     description: 'Rota rápida (corredor) + 4 min de margem de segurança',
+  },
+  car: {
+    label: 'Carro',
+    shortLabel: 'Carro',
+    safetyBufferMinutes: 6,
+    description: 'Trânsito urbano + 6 min de folga para semáforos/estacionar',
   },
   transit: {
     label: 'Transporte Público',
@@ -495,10 +507,10 @@ export const TRANSPORT_MODE_META: Record<
     description: 'Ônibus/Metrô + caminhada e tempo de espera/baldeação',
   },
   rideshare: {
-    label: 'App (Uber / 99)',
-    shortLabel: 'Uber / 99',
+    label: 'Aplicativo',
+    shortLabel: 'Aplicativo',
     safetyBufferMinutes: 10,
-    description: 'Tempo de chamada do motorista + trajeto urbano com folga',
+    description: 'Tempo de chamada do motorista (Uber / 99) + trajeto urbano',
   },
 };
 
@@ -512,6 +524,20 @@ export function computeCalibratedEtaForMode(
   mode: TransportMode = 'car'
 ): number {
   const safeDist = Math.max(0.2, distanceKm);
+
+  if (mode === 'walking') {
+    // Caminhada urbana (~4.8 km/h)
+    const walkMinutes = (safeDist / 4.8) * 60;
+    const baseWalk = osrmRawMinutes ? Math.max(walkMinutes, osrmRawMinutes) : walkMinutes;
+    return Math.max(4, Math.ceil(baseWalk + TRANSPORT_MODE_META.walking.safetyBufferMinutes));
+  }
+
+  if (mode === 'bicycling') {
+    // Bicicleta urbana (~14.5 km/h)
+    const bikeMinutes = (safeDist / 14.5) * 60;
+    const baseBike = osrmRawMinutes ? Math.max(bikeMinutes, osrmRawMinutes * 1.05) : bikeMinutes;
+    return Math.max(5, Math.ceil(baseBike + TRANSPORT_MODE_META.bicycling.safetyBufferMinutes));
+  }
 
   if (mode === 'motorcycle') {
     const urbanMotoMinutes = (safeDist / (safeDist <= 15 ? 24.5 : 32.0)) * 60;
@@ -571,7 +597,7 @@ export function calculateHaversineDistanceAndEta(
 }
 
 /**
- * Calcula a distância real de condução por ruas (OSRM Driving API) e o tempo estimado urbano (padrão Google Maps + margem de folga)
+ * Calcula a distância real de condução por ruas (OSRM API) e o tempo estimado urbano (padrão Google Maps + margem de folga)
  */
 export async function calculateDrivingRouteDistanceAndEta(
   lat1: number,
@@ -581,7 +607,8 @@ export async function calculateDrivingRouteDistanceAndEta(
   mode: TransportMode = 'car'
 ): Promise<{ distanceKm: number; etaMinutes: number; routeSummary?: string }> {
   try {
-    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=false`;
+    const osrmProfile = mode === 'walking' ? 'foot' : mode === 'bicycling' ? 'bike' : 'driving';
+    const osrmUrl = `https://router.project-osrm.org/route/v1/${osrmProfile}/${lng1},${lat1};${lng2},${lat2}?overview=false`;
     const res = await fetch(osrmUrl);
     if (res.ok) {
       const data = await res.json();
@@ -911,7 +938,11 @@ export function buildTransportDeepLinks(params: {
   const destAddressOnly = (params.salonAddress || params.salonName || salonCoordStr || 'Estabelecimento').trim();
 
   const googleTravelMode =
-    params.transportMode === 'transit'
+    params.transportMode === 'walking'
+      ? 'walking'
+      : params.transportMode === 'bicycling'
+      ? 'bicycling'
+      : params.transportMode === 'transit'
       ? 'transit'
       : params.transportMode === 'motorcycle'
       ? 'two-wheeler'
@@ -924,6 +955,42 @@ export function buildTransportDeepLinks(params: {
   const googleMapsTransitUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
     originQuery || originCoordStr
   )}&destination=${encodeURIComponent(destAddressOnly || salonCoordStr)}&travelmode=transit`;
+
+  // URL de incorporação direta (iframe embed) do Google Maps com rota e modalidade selecionada
+  // 0 = carro/moto, 1 = bicicleta, 2 = a pé, 3 = transporte público
+  const embedModeCode =
+    params.transportMode === 'bicycling'
+      ? 1
+      : params.transportMode === 'walking'
+      ? 2
+      : params.transportMode === 'transit'
+      ? 3
+      : 0;
+
+  const hasOriginCoords =
+    typeof params.originLat === 'number' &&
+    typeof params.originLng === 'number' &&
+    !Number.isNaN(params.originLat) &&
+    !Number.isNaN(params.originLng);
+  const hasSalonCoords =
+    typeof params.salonLat === 'number' &&
+    typeof params.salonLng === 'number' &&
+    !Number.isNaN(params.salonLat) &&
+    !Number.isNaN(params.salonLng);
+
+  const originPbBlock = hasOriginCoords
+    ? `!4m3!3m2!1d${params.originLat}!2d${params.originLng}`
+    : `!4m1!2s${encodeURIComponent(originQuery || 'São Paulo, SP')}`;
+  const originPbCount = hasOriginCoords ? 4 : 2;
+
+  const destPbBlock = hasSalonCoords
+    ? `!4m3!3m2!1d${params.salonLat}!2d${params.salonLng}`
+    : `!4m1!2s${encodeURIComponent(destAddressOnly || 'São Paulo, SP')}`;
+  const destPbCount = hasSalonCoords ? 4 : 2;
+
+  const innerPbCount = 1 + originPbCount + destPbCount;
+  const outerPbCount = 1 + innerPbCount;
+  const googleMapsEmbedUrl = `https://www.google.com/maps/embed?origin=mfe&pb=!1m${outerPbCount}!4m${innerPbCount}!3e${embedModeCode}${originPbBlock}${destPbBlock}!3m1!1spt-BR!5m1!1spt-BR`;
 
   const wazeUrl = salonCoordStr
     ? `https://waze.com/ul?ll=${salonCoordStr}&q=${encodeURIComponent(destAddressOnly)}&navigate=yes`
@@ -967,14 +1034,70 @@ export function buildTransportDeepLinks(params: {
   }
   const app99Url = `https://99app.com/?${app99Params.toString()}`;
 
+  // Intent nativo do sistema (Android/iOS) para abrir aplicativos instalados no dispositivo do cliente
+  const nativeGeoIntentUrl = salonCoordStr
+    ? `geo:${salonCoordStr}?q=${encodeURIComponent(destLabel || destAddressOnly)}`
+    : `geo:0,0?q=${encodeURIComponent(destLabel || destAddressOnly)}`;
+
   return {
     googleMapsUrl,
     googleMapsTransitUrl,
+    googleMapsEmbedUrl,
     wazeUrl,
     uberUrl,
     app99Url,
+    nativeGeoIntentUrl,
     destAddressOnly,
   };
+}
+
+/**
+ * Gera link universal do Google Calendar para salvar o agendamento na agenda do celular/conta Google
+ */
+export function buildGoogleCalendarEventUrl(params: {
+  serviceTitle: string;
+  salonName: string;
+  salonAddress?: string;
+  professionalName?: string;
+  dateIso: string;
+  timeSlot: string;
+  durationStr?: string;
+}): string {
+  const [y, m, d] = String(params.dateIso || '').split('-').map(Number);
+  const [hh, mm] = String(params.timeSlot || '09:00').split(':').map(Number);
+  const durMatch = String(params.durationStr || '45 min').match(/(\d+)/);
+  const durationMinutes = durMatch ? Math.max(15, parseInt(durMatch[1], 10)) : 45;
+
+  const startDate = new Date(y || 2026, (m || 1) - 1, d || 1, hh || 9, mm || 0, 0);
+  const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+
+  const toCalIso = (dt: Date) => {
+    const yy = dt.getFullYear();
+    const mo = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    const h = String(dt.getHours()).padStart(2, '0');
+    const mi = String(dt.getMinutes()).padStart(2, '0');
+    return `${yy}${mo}${dd}T${h}${mi}00`;
+  };
+
+  const title = `${params.serviceTitle} - ${params.salonName}`;
+  const details = [
+    `Serviço: ${params.serviceTitle}`,
+    params.professionalName ? `Profissional: ${params.professionalName}` : '',
+    `Estabelecimento: ${params.salonName}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const calParams = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: title,
+    dates: `${toCalIso(startDate)}/${toCalIso(endDate)}`,
+    details,
+    location: params.salonAddress || params.salonName,
+  });
+
+  return `https://calendar.google.com/calendar/render?${calParams.toString()}`;
 }
 
 export interface SlotGenerationOptions {

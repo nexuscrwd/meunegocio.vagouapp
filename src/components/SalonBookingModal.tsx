@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   X, Calendar, Clock, User, Users, CheckCircle2, ChevronLeft, ChevronRight,
-  Sparkles, Star, Scissors, ArrowLeft, Building2, AlertCircle,
-  Check, Video, Images, Phone, Plus, Navigation, MapPin, Search,
+  Scissors, ArrowLeft, AlertCircle,
+  Check, Video, Images, Plus, Navigation, MapPin, Search,
   Sun, Sunset, Moon, Bookmark, RotateCcw, Loader2, Car, Home,
-  Bike, Bus, Smartphone, ExternalLink
+  Bike, Bus, Smartphone, ExternalLink, Footprints, CalendarPlus
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured, fetchClientFamilyMembers, generateUuidV4 } from '../lib/supabase';
 import { syncClientDependentToDatabase } from '../services/mnvSupabaseSync';
@@ -22,7 +22,9 @@ import {
   TransportMode,
   TRANSPORT_MODE_META,
   buildTransportDeepLinks,
+  buildGoogleCalendarEventUrl,
   formatMaxDepartureTime,
+  computeCalibratedEtaForMode,
 } from '../utils/bookingSlots';
 import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
 import { SalonClientAuthModal } from './SalonClientAuthModal';
@@ -79,7 +81,7 @@ interface SalonBookingModalProps {
     distanceKm?: number;
     etaMinutes?: number;
     prepBufferMinutes?: number;
-    transportMode?: 'driving' | 'motorcycle' | 'walking' | 'transit';
+    transportMode?: 'driving' | 'motorcycle' | 'walking' | 'bicycling' | 'transit';
     uiTransportMode?: TransportMode;
     maxDepartureTime?: string;
     originFormattedAddress?: string;
@@ -125,26 +127,11 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
 }) => {
   const { isDark } = useTheme();
 
-  // 1. Selected Services State (Suporta 1 ou mais serviços)
+  // 1. Selected Services State
   const [selectedServices, setSelectedServices] = useState<CatalogServiceItem[]>(() => {
     if (initialService) return [initialService];
     return [];
   });
-
-  // Controle se o usuário clicou em "+ Mais Serviços" para adicionar procedimentos extras
-  const [isAddingExtraServices, setIsAddingExtraServices] = useState(false);
-
-  const toggleServiceSelection = (srv: CatalogServiceItem) => {
-    hapticLight();
-    setSelectedServices((prev) => {
-      const exists = prev.some((s) => s.id === srv.id);
-      if (exists) {
-        return prev.filter((s) => s.id !== srv.id);
-      } else {
-        return [...prev, srv];
-      }
-    });
-  };
 
   // Objeto consolidado de serviços selecionados
   const selectedService = useMemo(() => {
@@ -178,31 +165,65 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     } as CatalogServiceItem;
   }, [selectedServices]);
 
-  // Step state: 'service' -> 'date' -> 'professionals_and_time' (Resumo abre em modal independente)
+  // Step state: se o serviço já veio selecionado da seção Serviços, avança direto para Data e Horário ('date')
   const [currentStep, setCurrentStep] = useState<Step>(() => {
     if (initialTimeSlot) return 'professionals_and_time';
+    if (initialService) return skipDateStep ? 'professionals_and_time' : 'date';
     return 'service';
   });
 
-  // Modal "Deseja realizar o agendamento?" exibido logo ao clicar no serviço desejado
-  const [isConfirmScheduleIntentModalOpen, setIsConfirmScheduleIntentModalOpen] = useState(false);
-  const [pendingServiceForIntent, setPendingServiceForIntent] = useState<CatalogServiceItem | null>(null);
   const pendingAuthActionRef = useRef<'start_booking' | 'confirm_final'>('start_booking');
 
-  // Modal Inline "Para Você ou Dependente?" (abre após confirmação/login e antes da data)
-  const [isBeneficiaryModalOpen, setIsBeneficiaryModalOpen] = useState(false);
-  const [hasChosenBeneficiary, setHasChosenBeneficiary] = useState(false);
+  const checkIsClientAuthenticatedSync = (): boolean => {
+    try {
+      const rawClientSession = localStorage.getItem('vagou_client_session');
+      if (rawClientSession) {
+        const parsed = JSON.parse(rawClientSession);
+        if (parsed && (parsed.id || parsed.clientId || parsed.email || parsed.username)) {
+          return true;
+        }
+      }
+      const localUserId = (localStorage.getItem('vagou_auth_user_id') || '').trim();
+      if (localUserId && !localUserId.startsWith('guest-')) {
+        return true;
+      }
+      const localEmail = (
+        localStorage.getItem('vagou_user_email') ||
+        localStorage.getItem('vagou_active_partner') ||
+        ''
+      ).trim();
+      if (localEmail) {
+        return true;
+      }
+    } catch {}
+    return false;
+  };
 
-  // Modal Simples de Origem ("Saindo de Casa" vs "Outro Local" com cálculo de CEP/ETA)
-  const [isOriginModalOpen, setIsOriginModalOpen] = useState(false);
+  // Modal Inline "Para Você ou Dependente?" (abre imediatamente ao escolher o serviço quando autenticado)
+  const [isBeneficiaryModalOpen, setIsBeneficiaryModalOpen] = useState<boolean>(() => {
+    if (initialService && !initialTimeSlot && !resumeDraft && checkIsClientAuthenticatedSync()) return true;
+    return false;
+  });
+  const [returnToSummaryAfterBeneficiary, setReturnToSummaryAfterBeneficiary] = useState<boolean>(false);
+
+  // Modal Simples de Origem ("Saindo de Casa" vs "Outro Local" com cálculo de distância e sugestão de dia/horário propício)
+  const [isOriginModalOpen, setIsOriginModalOpen] = useState<boolean>(false);
   const [originModalMode, setOriginModalMode] = useState<'choice' | 'custom_cep'>('choice');
   const [originType, setOriginType] = useState<'home' | 'other'>('home');
   const [customCepInput, setCustomCepInput] = useState('');
   const [hasCalculatedCustomCep, setHasCalculatedCustomCep] = useState(false);
+  const [returnToRouteModalAfterOrigin, setReturnToRouteModalAfterOrigin] = useState(false);
 
   // Modal Independente de Resumo Final / Pré-Salvamento
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [draftSavedFeedback, setDraftSavedFeedback] = useState<string | null>(null);
+
+  // Modal Pós-Confirmação 1: Pergunta "Pôr na Agenda" ou "Ir Agora"
+  const [isPostConfirmChoiceModalOpen, setIsPostConfirmChoiceModalOpen] = useState(false);
+  // Modal Pós-Confirmação 2: Modal Próprio de Rota / Deslocamento (Google Maps API)
+  const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
+  const [isEmbeddedMapOpen, setIsEmbeddedMapOpen] = useState(false);
+  const [isRideAppOptionsOpen, setIsRideAppOptionsOpen] = useState(false);
 
   // 2. Date Selection State (Monthly Calendar)
   const today = useMemo(() => {
@@ -250,6 +271,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     return salonCep || salonAddress || '08285-010';
   });
   const [resolvedAddressLabel, setResolvedAddressLabel] = useState<string>('Endereço Residencial');
+  const [resolvedSalonAddressLabel, setResolvedSalonAddressLabel] = useState<string>('');
   const [originCoords, setOriginCoords] = useState<{ lat: number; lng: number }>({
     lat: -23.5505,
     lng: -46.6333,
@@ -284,7 +306,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   }, []);
 
   // Estado de Autenticação e Dependentes (Conta Família sincronizada com o banco)
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(() => {
+    if (initialService && !checkIsClientAuthenticatedSync()) return true;
+    return false;
+  });
   const [isDependentBooking, setIsDependentBooking] = useState(false);
   const [dependentId, setDependentId] = useState<string>('');
   const [dependentName, setDependentName] = useState('');
@@ -399,43 +424,98 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     };
   }, [salonId, selectedDateIso, isSummaryModalOpen, professionals]);
 
-  // Sincronizar seleção automática quando houver apenas 1 profissional disponível no dia ou se o selecionado estiver de folga/ausente
+  // Filtrar apenas os profissionais que fazem o tipo de serviço selecionado
+  const professionalsForSelectedService = useMemo(() => {
+    if (!selectedService) return availableProfessionalsForDate;
+
+    // 1. Vínculo explícito por professionalId no serviço
+    if (selectedService.professionalId) {
+      const exactMatch = availableProfessionalsForDate.filter(
+        (p) => p.id && p.id === selectedService.professionalId
+      );
+      if (exactMatch.length > 0) return exactMatch;
+    }
+
+    // 2. Filtro por especialidade/categoria do serviço
+    const normalizeText = (val: string) =>
+      String(val || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+
+    const srvCategoryNorm = normalizeText(selectedService.category || '');
+    const srvTitleNorm = normalizeText(selectedService.title || '');
+
+    const serviceKeywords = new Set<string>();
+    if (srvCategoryNorm) serviceKeywords.add(srvCategoryNorm);
+    srvTitleNorm.split(/[\s+/,-]+/).forEach((w) => {
+      if (w.length >= 3) serviceKeywords.add(w);
+    });
+    if (
+      srvTitleNorm.includes('corte') ||
+      srvTitleNorm.includes('degrad') ||
+      srvTitleNorm.includes('navalha') ||
+      srvCategoryNorm.includes('cabelo')
+    ) {
+      serviceKeywords.add('cabelo');
+      serviceKeywords.add('corte');
+      serviceKeywords.add('barbeiro');
+      serviceKeywords.add('cabeleireir');
+    }
+    if (srvTitleNorm.includes('barba') || srvCategoryNorm.includes('barba')) {
+      serviceKeywords.add('barba');
+      serviceKeywords.add('barbeiro');
+    }
+    if (
+      srvTitleNorm.includes('unha') ||
+      srvTitleNorm.includes('gel') ||
+      srvCategoryNorm.includes('unha') ||
+      srvCategoryNorm.includes('manicure')
+    ) {
+      serviceKeywords.add('unha');
+      serviceKeywords.add('manicure');
+      serviceKeywords.add('pedicure');
+      serviceKeywords.add('nail');
+    }
+
+    const matchedBySpecialty = availableProfessionalsForDate.filter((prof) => {
+      const specs = Array.isArray(prof.specialties)
+        ? prof.specialties.map(normalizeText).filter(Boolean)
+        : [];
+      const specificSpecs = specs.filter((s) => s !== 'geral' && s !== 'todos');
+      if (specificSpecs.length === 0) return false;
+
+      return specificSpecs.some((spec) => {
+        for (const kw of serviceKeywords) {
+          if (spec.includes(kw) || kw.includes(spec)) return true;
+        }
+        return false;
+      });
+    });
+
+    if (matchedBySpecialty.length > 0) {
+      return matchedBySpecialty;
+    }
+
+    return availableProfessionalsForDate;
+  }, [availableProfessionalsForDate, selectedService]);
+
+  // Selecionar automaticamente o primeiro profissional apto para o serviço (sem botão "Qualquer")
   useEffect(() => {
-    if (availableProfessionalsForDate.length === 1) {
-      const singleProName = availableProfessionalsForDate[0].name;
-      if (selectedProfessional !== singleProName) {
-        setSelectedProfessional(singleProName);
-      }
-    } else if (availableProfessionalsForDate.length > 1) {
-      if (
+    if (professionalsForSelectedService.length > 0) {
+      const isCurrentValid =
         selectedProfessional !== 'any' &&
-        !availableProfessionalsForDate.some((p) => p.name === selectedProfessional)
-      ) {
-        setSelectedProfessional('any');
+        professionalsForSelectedService.some((p) => p.name === selectedProfessional);
+      if (!isCurrentValid) {
+        setSelectedProfessional(professionalsForSelectedService[0].name);
       }
     }
-  }, [availableProfessionalsForDate, selectedProfessional]);
+  }, [professionalsForSelectedService, selectedProfessional]);
 
   // Verificação unificada de autenticação do cliente (Sessão Local Vagou / admvapp + Supabase Auth)
   const checkIsClientAuthenticated = async (): Promise<boolean> => {
-    try {
-      const rawClientSession = localStorage.getItem('vagou_client_session');
-      if (rawClientSession) {
-        const parsed = JSON.parse(rawClientSession);
-        if (parsed && (parsed.id || parsed.clientId || parsed.email || parsed.username)) {
-          return true;
-        }
-      }
-      const localUserId = (localStorage.getItem('vagou_auth_user_id') || '').trim();
-      const localEmail = (
-        localStorage.getItem('vagou_user_email') ||
-        localStorage.getItem('vagou_active_partner') ||
-        ''
-      ).trim();
-      if (localUserId || localEmail) {
-        return true;
-      }
-    } catch {}
+    if (checkIsClientAuthenticatedSync()) return true;
 
     if (isSupabaseConfigured && supabase) {
       try {
@@ -447,11 +527,21 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     return false;
   };
 
-  // Avança para as etapas do agendamento após o cliente confirmar "Sim" no modal e estar autenticado
-  const proceedWithConfirmedServiceBooking = (srv: CatalogServiceItem) => {
+  // Abre o modal "Para você / Dependente" ao selecionar um serviço, exigindo login/cadastro caso ainda não autenticado
+  const proceedWithConfirmedServiceBooking = async (srv: CatalogServiceItem, bypassAuth = false) => {
+    hapticMedium();
     setSelectedServices([srv]);
-    setIsAddingExtraServices(false);
     if (initialDateIso) setSelectedDateIso(initialDateIso);
+
+    if (!bypassAuth) {
+      const isLogged = checkIsClientAuthenticatedSync() || (await checkIsClientAuthenticated());
+      if (!isLogged) {
+        pendingAuthActionRef.current = 'start_booking';
+        setIsAuthModalOpen(true);
+        return;
+      }
+    }
+
     if (initialTimeSlot) {
       setSelectedTimeSlot(initialTimeSlot);
       setCurrentStep('professionals_and_time');
@@ -459,42 +549,19 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     } else {
       setSelectedTimeSlot(null);
       setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
+      setIsOriginModalOpen(false);
+      setReturnToSummaryAfterBeneficiary(false);
       setIsBeneficiaryModalOpen(true);
     }
   };
 
-  // Quando o cliente clica em um serviço (na vitrine ou na lista), abre primeiro o modal "Deseja realizar o agendamento?"
-  const promptScheduleServiceIntent = (srv: CatalogServiceItem) => {
-    hapticMedium();
-    setPendingServiceForIntent(srv);
-    setIsConfirmScheduleIntentModalOpen(true);
-  };
-
-  // Ao clicar em "Sim" no modal "Deseja realizar o agendamento?": verifica login ou abre o formulário White-Label do estabelecimento
-  const handleConfirmScheduleIntent = async () => {
-    const targetSrv = pendingServiceForIntent || initialService || selectedService;
-    setIsConfirmScheduleIntentModalOpen(false);
-    if (!targetSrv) return;
-
-    const isLogged = await checkIsClientAuthenticated();
-    if (!isLogged) {
-      hapticMedium();
-      pendingAuthActionRef.current = 'start_booking';
-      setIsAuthModalOpen(true);
-      return;
-    }
-
-    hapticLight();
-    proceedWithConfirmedServiceBooking(targetSrv);
-  };
-
-  // Reagir imediatamente quando o usuário clica em um Serviço na Vitrine (corrige bug do modo inline)
+  // Reagir imediatamente quando o usuário clica em um Serviço na seção Serviços (abre o modal de Beneficiário)
   const prevBookingTriggerRef = useRef<number>(bookingTrigger);
   const prevInitialServiceIdRef = useRef<string | undefined>(initialService?.id);
 
   useEffect(() => {
     const triggerChanged = bookingTrigger > 0 && bookingTrigger !== prevBookingTriggerRef.current;
-    const serviceChanged = initialService && initialService.id !== prevInitialServiceIdRef.current;
+    const serviceChanged = initialService?.id !== prevInitialServiceIdRef.current;
 
     if (triggerChanged || serviceChanged) {
       prevBookingTriggerRef.current = bookingTrigger;
@@ -502,17 +569,30 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
 
       if (initialService) {
         setSelectedServices([initialService]);
-        setIsAddingExtraServices(false);
         if (initialDateIso) setSelectedDateIso(initialDateIso);
+        if (!checkIsClientAuthenticatedSync()) {
+          pendingAuthActionRef.current = 'start_booking';
+          setIsBeneficiaryModalOpen(false);
+          setIsAuthModalOpen(true);
+          return;
+        }
         if (initialTimeSlot) {
           setSelectedTimeSlot(initialTimeSlot);
           setCurrentStep('professionals_and_time');
           setIsSummaryModalOpen(true);
         } else {
-          // Abre imediatamente o modal "Deseja realizar o agendamento?" para o serviço clicado
-          setPendingServiceForIntent(initialService);
-          setIsConfirmScheduleIntentModalOpen(true);
+          setSelectedTimeSlot(null);
+          setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
+          setIsOriginModalOpen(false);
+          setReturnToSummaryAfterBeneficiary(false);
+          setIsBeneficiaryModalOpen(true);
         }
+      } else {
+        setSelectedServices([]);
+        setSelectedTimeSlot(null);
+        setCurrentStep('service');
+        setIsOriginModalOpen(false);
+        setIsBeneficiaryModalOpen(false);
       }
     }
   }, [bookingTrigger, initialService, skipDateStep, initialTimeSlot, initialDateIso]);
@@ -536,7 +616,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       setAddressQuery(resumeDraft.clientAddressQuery);
       setResolvedAddressLabel(resumeDraft.clientAddressQuery);
     }
-    setHasChosenBeneficiary(true);
+    setIsOriginModalOpen(false);
+    setIsBeneficiaryModalOpen(false);
     setCurrentStep('professionals_and_time');
     setIsSummaryModalOpen(true);
   }, [resumeDraft]);
@@ -548,21 +629,26 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       if (initialDateIso) setSelectedDateIso(initialDateIso);
       if (initialService) {
         setSelectedServices([initialService]);
-        setPendingServiceForIntent(initialService);
-        setIsConfirmScheduleIntentModalOpen(true);
+        setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
+        if (!initialTimeSlot && !resumeDraft) {
+          setIsOriginModalOpen(false);
+          setReturnToSummaryAfterBeneficiary(false);
+          setIsBeneficiaryModalOpen(true);
+        }
       } else {
         setSelectedServices([]);
         setCurrentStep('service');
       }
       if (initialTimeSlot) {
         setSelectedTimeSlot(initialTimeSlot);
+        setCurrentStep('professionals_and_time');
         setIsSummaryModalOpen(true);
       } else {
         setSelectedTimeSlot(null);
       }
     }
     prevIsOpenRef.current = isOpen;
-  }, [inline, isOpen, skipDateStep, initialTimeSlot, initialDateIso, initialService]);
+  }, [inline, isOpen, skipDateStep, initialTimeSlot, initialDateIso, initialService, resumeDraft]);
 
   // Handler para salvar novo dependente inline sem sair do fluxo de agendamento
   const handleSaveInlineDependent = async (e: React.FormEvent) => {
@@ -619,19 +705,22 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     setIsDependentBooking(true);
     setDependentId(newDepItem.id);
     setDependentName(newDepItem.full_name);
-    setHasChosenBeneficiary(true);
     setNewDepFullName('');
     setNewDepBirthDate('');
     setNewDepNotes('');
     setIsCreatingDependentInline(false);
     setIsSavingInlineDependent(false);
     setIsBeneficiaryModalOpen(false);
-    if (skipDateStep) {
-      setCurrentStep('professionals_and_time');
+    if (returnToSummaryAfterBeneficiary) {
+      setReturnToSummaryAfterBeneficiary(false);
+      setIsSummaryModalOpen(true);
+    } else {
+      setReturnToRouteModalAfterOrigin(false);
       setOriginModalMode('choice');
       setIsOriginModalOpen(true);
-    } else {
-      setCurrentStep('date');
+    }
+    if (currentStep === 'service') {
+      setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
     }
     hapticSuccess();
   };
@@ -640,7 +729,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   const runRouteCalculation = async (
     originInput: string,
     destInput: string,
-    modeOverride?: TransportMode
+    modeOverride?: TransportMode,
+    preserveSlot = false
   ) => {
     if (!originInput.trim()) return;
     const effectiveMode = modeOverride || transportMode;
@@ -653,11 +743,22 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         effectiveMode
       );
       setResolvedAddressLabel(result.formattedAddress);
+      if (result.salonFormattedAddress) {
+        setResolvedSalonAddressLabel(result.salonFormattedAddress);
+      }
       setOriginCoords({ lat: result.lat, lng: result.lng });
       setResolvedSalonCoords({ lat: result.salonLat, lng: result.salonLng });
       setDistanceKm(result.distanceKm);
       setEtaMinutes(result.etaMinutes);
-      setSelectedTimeSlot(null);
+      if (
+        !preserveSlot &&
+        !isRouteModalOpen &&
+        !isPostConfirmChoiceModalOpen &&
+        !returnToRouteModalAfterOrigin &&
+        !isSummaryModalOpen
+      ) {
+        setSelectedTimeSlot(null);
+      }
       try {
         localStorage.setItem('vagou_client_test_address', originInput.trim());
       } catch {}
@@ -672,7 +773,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     if (!cleanCep) return;
     hapticLight();
     setAddressQuery(cleanCep);
-    await runRouteCalculation(cleanCep, salonDestQuery, transportMode);
+    await runRouteCalculation(cleanCep, salonDestQuery, transportMode, returnToRouteModalAfterOrigin || isRouteModalOpen);
     setHasCalculatedCustomCep(true);
   };
 
@@ -681,7 +782,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     const cleanOriginDigits = addressQuery.replace(/\D/g, '');
     if (cleanOriginDigits.length === 8 || addressQuery.trim().length >= 6) {
       const timer = setTimeout(() => {
-        runRouteCalculation(addressQuery, salonDestQuery, transportMode);
+        runRouteCalculation(
+          addressQuery,
+          salonDestQuery,
+          transportMode,
+          isRouteModalOpen || isPostConfirmChoiceModalOpen || returnToRouteModalAfterOrigin || isSummaryModalOpen
+        );
       }, 250);
       return () => clearTimeout(timer);
     }
@@ -799,6 +905,83 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     };
   }, [generatedSlots]);
 
+  // Sugestão inteligente do Dia e Horário mais propício com base na distância e tempo de deslocamento (mesmo vindo de outro estado)
+  const propitiousSuggestion = useMemo(() => {
+    for (let dayOffset = 0; dayOffset <= 30; dayOffset++) {
+      const candDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayOffset);
+      if (candDate.getDay() === 0) continue; // Domingo fechado
+
+      const candIso = `${candDate.getFullYear()}-${String(candDate.getMonth() + 1).padStart(2, '0')}-${String(candDate.getDate()).padStart(2, '0')}`;
+      const candShortDate = `${String(candDate.getDate()).padStart(2, '0')}/${String(candDate.getMonth() + 1).padStart(2, '0')}`;
+
+      if (dayOffset === 0) {
+        const slotsToday = getAvailableSlotsForDate(candIso, selectedProfessional, {
+          travelMinutes: etaMinutes,
+          prepMinutes: PREP_BUFFER_MINUTES,
+          busySlots: busySlotsFromDb,
+          availableProfessionals: availableProfessionalsForDate,
+          nowOverride: currentTimeTick,
+        });
+        const firstToday = slotsToday.find((s) => s.available);
+        if (firstToday) {
+          return {
+            dateIso: candIso,
+            shortDate: candShortDate,
+            timeSlot: firstToday.time,
+            isToday: true,
+          };
+        }
+      } else {
+        const arrivalTimestamp =
+          currentTimeTick.getTime() + (etaMinutes + PREP_BUFFER_MINUTES) * 60 * 1000;
+        const candClosingTimestamp = new Date(
+          candDate.getFullYear(),
+          candDate.getMonth(),
+          candDate.getDate(),
+          20,
+          30,
+          0
+        ).getTime();
+
+        if (arrivalTimestamp > candClosingTimestamp) {
+          continue;
+        }
+
+        const slotsFuture = getAvailableSlotsForDate(candIso, selectedProfessional, {
+          travelMinutes: 0,
+          prepMinutes: 0,
+          busySlots: candIso === selectedDateIso ? busySlotsFromDb : [],
+          availableProfessionals: availableProfessionalsForDate,
+          nowOverride: currentTimeTick,
+        });
+
+        const firstReachable = slotsFuture.find((s) => {
+          if (!s.available) return false;
+          const [sh, sm] = s.time.split(':').map(Number);
+          const slotTimestamp = new Date(
+            candDate.getFullYear(),
+            candDate.getMonth(),
+            candDate.getDate(),
+            sh,
+            sm,
+            0
+          ).getTime();
+          return slotTimestamp >= arrivalTimestamp;
+        });
+
+        if (firstReachable) {
+          return {
+            dateIso: candIso,
+            shortDate: candShortDate,
+            timeSlot: firstReachable.time,
+            isToday: false,
+          };
+        }
+      }
+    }
+    return null;
+  }, [today, etaMinutes, selectedProfessional, busySlotsFromDb, availableProfessionalsForDate, currentTimeTick, selectedDateIso]);
+
   // Agrupar serviços por categoria
   const groupedServices = useMemo(() => {
     const groups: Record<string, CatalogServiceItem[]> = {};
@@ -898,16 +1081,16 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           return '';
         }
       })() ||
-      '';
-    if (!cleanPhone) {
-      setBookingErrorMessage('Informe um telefone WhatsApp de contato.');
-      return;
-    }
+      'Não informado';
 
     setIsSubmittingBooking(true);
     try {
       const dbTransportMode =
-        transportMode === 'motorcycle'
+        transportMode === 'walking'
+          ? 'walking'
+          : transportMode === 'bicycling'
+          ? 'bicycling'
+          : transportMode === 'motorcycle'
           ? 'motorcycle'
           : transportMode === 'transit'
           ? 'transit'
@@ -949,12 +1132,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         return;
       }
 
-      // Limpar rascunho pré-salvo após confirmação oficial no banco
+      // Limpar rascunho pré-salvo após confirmação oficial no banco e abrir o Modal de Pergunta ("Pôr na Agenda" | "Ir Agora")
       saveBookingDraft(null);
       onDraftSaved?.(null);
       setIsSummaryModalOpen(false);
+      setIsPostConfirmChoiceModalOpen(true);
       hapticSuccess();
-      onClose?.();
     } catch (err: any) {
       setBookingErrorMessage(err?.message || 'Falha ao realizar agendamento.');
     } finally {
@@ -1059,113 +1242,135 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       <div className={`px-3 py-2 border-b sticky top-0 z-10 transition-colors space-y-2 ${
         isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-slate-100/95 border-slate-200'
       }`}>
-        {/* Linha 1: Sub-Cabeçalho de Título com Botão Voltar + Beneficiário/Mais Serviços */}
-        <div className="flex items-center justify-between gap-2 min-h-7">
-          <div className="flex items-center gap-2 min-w-0">
-            {currentStep !== 'service' && (
-              <button
-                type="button"
-                onClick={() => {
-                  hapticMedium();
-                  if (currentStep === 'date') {
-                    setIsAddingExtraServices(true);
-                    setCurrentStep('service');
-                  } else if (currentStep === 'professionals_and_time') {
-                    setCurrentStep('date');
-                  }
-                }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-bold transition cursor-pointer shrink-0 ${
-                  isDark
-                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-100 hover:text-white'
-                    : 'bg-slate-200 hover:bg-slate-300 text-slate-800 hover:text-slate-950'
-                }`}
-                title="Voltar etapa"
-              >
-                <ArrowLeft className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                <span>Voltar</span>
-              </button>
-            )}
+        {/* Linha 1: Sub-Cabeçalho com Botão Voltar + Detalhe Completo do Serviço ao lado */}
+        {(currentStep !== 'service' || !inline) && (
+          <div className="flex items-center justify-between gap-2 min-h-7">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              {currentStep !== 'service' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticMedium();
+                    if (currentStep === 'date') {
+                      setCurrentStep('service');
+                    } else if (currentStep === 'professionals_and_time') {
+                      setCurrentStep('date');
+                    }
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-bold transition cursor-pointer shrink-0 ${
+                    isDark
+                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-100 hover:text-white'
+                      : 'bg-slate-200 hover:bg-slate-300 text-slate-800 hover:text-slate-950'
+                  }`}
+                  title="Voltar etapa"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <span>Voltar</span>
+                </button>
+              )}
 
-            {!inline && onClose && currentStep === 'service' && (
-              <button
-                type="button"
-                onClick={onClose}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-bold transition cursor-pointer shrink-0 ${
-                  isDark
-                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-100 hover:text-white'
-                    : 'bg-slate-200 hover:bg-slate-300 text-slate-800 hover:text-slate-950'
-                }`}
-              >
-                <ArrowLeft className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                <span>Voltar</span>
-              </button>
-            )}
+              {!inline && onClose && currentStep === 'service' && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-bold transition cursor-pointer shrink-0 ${
+                    isDark
+                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-100 hover:text-white'
+                      : 'bg-slate-200 hover:bg-slate-300 text-slate-800 hover:text-slate-950'
+                  }`}
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <span>Voltar</span>
+                </button>
+              )}
 
-            {!inline && selectedService && (
-              <button
-                type="button"
-                onClick={() => {
-                  hapticLight();
-                  setIsBeneficiaryModalOpen(true);
-                }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] font-bold text-xs transition cursor-pointer shrink-0 whitespace-nowrap ${
-                  isDependentBooking
-                    ? 'bg-emerald-500 text-white'
-                    : isDark
-                    ? 'bg-slate-800 text-slate-100 hover:bg-slate-700'
-                    : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
-                }`}
-                title="Alterar para quem é o agendamento"
-              >
-                {isDependentBooking ? (
-                  <Users className="w-3.5 h-3.5 text-white shrink-0" />
-                ) : (
-                  <User className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                )}
-                <span className={isDependentBooking ? 'text-white' : ''}>
-                  {isDependentBooking && dependentName ? dependentName : 'Para Você'}
-                </span>
-              </button>
-            )}
-          </div>
+              {/* Detalhe/Descrição completa do serviço ao lado do botão Voltar */}
+              {currentStep !== 'service' && selectedService && (
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <span
+                    className={`text-xs font-extrabold truncate font-['Poppins'] ${
+                      isDark ? 'text-white' : 'text-slate-900'
+                    }`}
+                    title={selectedService.title}
+                  >
+                    {selectedService.title}
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded-[4px] whitespace-nowrap ${
+                      isDark ? 'bg-slate-800 text-emerald-400' : 'bg-emerald-50 text-emerald-700'
+                    }`}
+                  >
+                    {selectedService.duration} • R$ {selectedService.price.toFixed(0)}
+                  </span>
+                </div>
+              )}
 
-          <div className="flex items-center justify-end gap-1.5 ml-auto">
+              {!inline && selectedService && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    setIsBeneficiaryModalOpen(true);
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] font-bold text-xs transition cursor-pointer shrink-0 whitespace-nowrap ${
+                    isDependentBooking
+                      ? 'bg-emerald-500 text-white'
+                      : isDark
+                      ? 'bg-slate-800 text-slate-100 hover:bg-slate-700'
+                      : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+                  }`}
+                  title="Alterar para quem é o agendamento"
+                >
+                  {isDependentBooking ? (
+                    <Users className="w-3.5 h-3.5 text-white shrink-0" />
+                  ) : (
+                    <User className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  )}
+                  <span className={isDependentBooking ? 'text-white' : ''}>
+                    {isDependentBooking && dependentName ? dependentName : 'Para Você'}
+                  </span>
+                </button>
+              )}
+            </div>
+
             {!inline && onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
-                  isDark
-                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white'
-                    : 'bg-slate-200 hover:bg-slate-300 text-slate-700 hover:text-slate-950'
-                }`}
-                aria-label="Fechar modal"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center justify-end gap-1.5 ml-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
+                    isDark
+                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white'
+                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700 hover:text-slate-950'
+                  }`}
+                  aria-label="Fechar modal"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             )}
           </div>
-        </div>
+        )}
 
-        {/* Linha 2 (div selecionada): Abas Dinâmicas Exibindo o Valor Selecionado (Serviço Abreviado | Data | Horário) */}
+        {/* Linha 2: Abas Dinâmicas Exibindo o Nome Resumido do Serviço (ex: Corte, Unha) | Data | Horário */}
         <div className="grid grid-cols-3 gap-1.5">
           {(() => {
-            // 1. Nome abreviado do serviço (ex: "Tratamento capilar fio a fio" -> "Tratamento capilar")
+            // 1. Nome resumido de 1 palavra na aba (ex: "Corte Navalhado" -> "Corte", "Unha em Gel" -> "Unha")
             const getAbbreviatedServiceLabel = (): string => {
               if (!selectedServices.length) return 'Serviço';
               const rawTitle = selectedServices[0].title.trim();
-              const words = rawTitle.split(/\s+/);
-              const connectors = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'a', 'o', 'em', 'no', 'na', 'com']);
-              let shortTitle = rawTitle;
-              if (words.length > 2) {
-                const secondWord = words[1].toLowerCase();
-                shortTitle = connectors.has(secondWord)
-                  ? words.slice(0, 3).join(' ')
-                  : words.slice(0, 2).join(' ');
-              }
-              return selectedServices.length > 1
-                ? `${shortTitle} +${selectedServices.length - 1}`
-                : shortTitle;
+              const lower = rawTitle.toLowerCase();
+              if (lower.includes('corte') || lower.includes('degrad') || lower.includes('navalha')) return 'Corte';
+              if (lower.includes('unha') || lower.includes('manicure') || lower.includes('pedicure') || lower.includes('gel') || lower.includes('fibra')) return 'Unha';
+              if (lower.includes('barba') || lower.includes('bigode')) return 'Barba';
+              if (lower.includes('sobrancelha') || lower.includes('cilio') || lower.includes('cílio')) return 'Sobrancelha';
+              if (lower.includes('escova') || lower.includes('chapinha') || lower.includes('prancha')) return 'Escova';
+              if (lower.includes('hidrata') || lower.includes('cronograma') || lower.includes('botox') || lower.includes('progressiva')) return 'Cabelo';
+              if (lower.includes('limpeza') || lower.includes('pele') || lower.includes('facial')) return 'Estética';
+              if (lower.includes('massagem') || lower.includes('drenagem')) return 'Massagem';
+              if (lower.includes('depila')) return 'Depilação';
+              const firstWord = rawTitle.split(/[\s+/,-]+/)[0] || 'Serviço';
+              return firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
             };
 
             // 2. Data: se o cliente ainda não chegou na seção de data, mostra "Data"; senão, mostra a data selecionada
@@ -1222,7 +1427,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   onClick={() => {
                     if (isPassed) {
                       hapticLight();
-                      if (st.key === 'service') setIsAddingExtraServices(true);
                       setCurrentStep(st.key);
                     }
                   }}
@@ -1318,13 +1522,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                           <button
                             key={srv.id}
                             type="button"
-                            onClick={() => {
-                              if (isAddingExtraServices) {
-                                toggleServiceSelection(srv);
-                              } else {
-                                promptScheduleServiceIntent(srv);
-                              }
-                            }}
+                            onClick={() => proceedWithConfirmedServiceBooking(srv)}
                             className={`w-full p-2.5 rounded-[4px] transition-all flex items-center justify-between gap-3 text-left cursor-pointer border ${
                               isSelected
                                 ? isDark
@@ -1335,48 +1533,36 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                                 : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
                             }`}
                           >
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <div className={`w-5 h-5 rounded-[4px] flex items-center justify-center shrink-0 transition-all border ${
-                                isSelected
-                                  ? 'bg-emerald-500 border-emerald-500 text-white'
-                                  : isDark
-                                  ? 'border-slate-700 bg-slate-950'
-                                  : 'border-slate-300 bg-white'
-                              }`}>
-                                {isSelected && <Check className="w-3.5 h-3.5 stroke-[3] text-white" />}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <h4 className={`text-xs font-bold leading-snug truncate ${
+                                  isSelected
+                                    ? isDark ? 'text-emerald-400' : 'text-emerald-800'
+                                    : isDark ? 'text-white' : 'text-slate-900'
+                                }`}>
+                                  {srv.title}
+                                </h4>
+                                {isVideoMode && (
+                                  <span className="shrink-0 px-1 py-0.2 rounded-[4px] bg-emerald-500 text-white text-[8px] font-black uppercase flex items-center gap-0.5">
+                                    <Video className="w-2.5 h-2.5 text-white" />
+                                    <span className="text-white">5s</span>
+                                  </span>
+                                )}
+                                {isSlideshowMode && (
+                                  <span className="shrink-0 px-1 py-0.2 rounded-[4px] bg-emerald-500 text-white text-[8px] font-black uppercase flex items-center gap-0.5">
+                                    <Images className="w-2.5 h-2.5 text-white" />
+                                    <span className="text-white">Slide</span>
+                                  </span>
+                                )}
                               </div>
 
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-1.5">
-                                  <h4 className={`text-xs font-bold leading-snug truncate ${
-                                    isSelected
-                                      ? isDark ? 'text-emerald-400' : 'text-emerald-800'
-                                      : isDark ? 'text-white' : 'text-slate-900'
-                                  }`}>
-                                    {srv.title}
-                                  </h4>
-                                  {isVideoMode && (
-                                    <span className="shrink-0 px-1 py-0.2 rounded-[4px] bg-emerald-500 text-white text-[8px] font-black uppercase flex items-center gap-0.5">
-                                      <Video className="w-2.5 h-2.5 text-white" />
-                                      <span className="text-white">5s</span>
-                                    </span>
-                                  )}
-                                  {isSlideshowMode && (
-                                    <span className="shrink-0 px-1 py-0.2 rounded-[4px] bg-emerald-500 text-white text-[8px] font-black uppercase flex items-center gap-0.5">
-                                      <Images className="w-2.5 h-2.5 text-white" />
-                                      <span className="text-white">Slide</span>
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div className="flex items-center gap-2 mt-1 text-[10px]">
-                                  <span className={`inline-flex items-center gap-1 font-medium ${
-                                    isDark ? 'text-slate-400' : 'text-slate-500'
-                                  }`}>
-                                    <Clock className="w-3 h-3 text-emerald-400" />
-                                    <span>{srv.duration}</span>
-                                  </span>
-                                </div>
+                              <div className="flex items-center gap-2 mt-1 text-[10px]">
+                                <span className={`inline-flex items-center gap-1 font-medium ${
+                                  isDark ? 'text-slate-400' : 'text-slate-500'
+                                }`}>
+                                  <Clock className="w-3 h-3 text-emerald-400" />
+                                  <span>{srv.duration}</span>
+                                </span>
                               </div>
                             </div>
 
@@ -1396,6 +1582,51 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Barra Compacta de Origem Calculada & Sugestão do Dia/Horário Mais Propício */}
+        {currentStep !== 'service' && selectedService && (
+          <div className={`px-2.5 py-2 rounded-[4px] flex items-center justify-between gap-2 text-xs ${
+            isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'
+          }`}>
+            <button
+              type="button"
+              onClick={() => {
+                hapticLight();
+                setReturnToRouteModalAfterOrigin(false);
+                setOriginModalMode('choice');
+                setIsOriginModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 min-w-0 flex-1 text-left cursor-pointer"
+              title="Alterar endereço de partida"
+            >
+              <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span className="truncate font-bold">
+                {originType === 'home' ? 'Saindo de Casa' : resolvedAddressLabel} ({distanceKm.toFixed(1).replace('.', ',')} km)
+              </span>
+            </button>
+
+            {propitiousSuggestion && (
+              <button
+                type="button"
+                onClick={() => {
+                  hapticMedium();
+                  const [py, pm] = propitiousSuggestion.dateIso.split('-').map(Number);
+                  setCurrentViewMonth(new Date(py, pm - 1, 1));
+                  setSelectedDateIso(propitiousSuggestion.dateIso);
+                  setSelectedTimeSlot(propitiousSuggestion.timeSlot);
+                  setCurrentStep('professionals_and_time');
+                }}
+                className="px-2 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10px] flex items-center gap-1 shrink-0 transition cursor-pointer whitespace-nowrap"
+                title="Selecionar o dia e horário mais propício para sua distância"
+              >
+                <Clock className="w-3 h-3 text-white shrink-0" />
+                <span className="text-white">
+                  Ideal: {propitiousSuggestion.shortDate} às {propitiousSuggestion.timeSlot}
+                </span>
+              </button>
             )}
           </div>
         )}
@@ -1472,8 +1703,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                           setSelectedDateIso(item.isoString);
                           setSelectedTimeSlot(null);
                           setCurrentStep('professionals_and_time');
-                          setOriginModalMode('choice');
-                          setIsOriginModalOpen(true);
                         }
                       }}
                       className={`h-11 rounded-[4px] font-bold text-xs transition-all relative flex flex-col items-center justify-center cursor-pointer ${
@@ -1506,168 +1735,112 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         )}
 
         {/* ============================================================ */}
-        {/* ETAPA 3: PROFISSIONAIS + COMPARADOR DE ENDEREÇO + HORÁRIOS */}
+        {/* ETAPA 3: PROFISSIONAIS (FOTO + 1º NOME) + TURNOS + HORÁRIOS */}
         {/* ============================================================ */}
         {currentStep === 'professionals_and_time' && (
           <div className="space-y-3 animate-in fade-in duration-200">
-            {/* BLOCO 1: SELEÇÃO DE PROFISSIONAIS (Exibido SOMENTE se houver mais de 1 profissional disponível no banco na data escolhida) */}
-            {availableProfessionalsForDate.length > 1 && (
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hapticLight();
-                      setSelectedProfessional('any');
-                      setSelectedTimeSlot(null);
-                    }}
-                    className={`min-w-[105px] flex-shrink-0 p-1.5 px-2 rounded-[4px] border text-left flex items-center gap-2 transition cursor-pointer ${
-                      selectedProfessional === 'any'
-                        ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
-                        : isDark
-                        ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
-                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center flex-shrink-0 ${
-                      selectedProfessional === 'any'
-                        ? 'bg-white/20 text-white'
-                        : isDark
-                        ? 'bg-emerald-600/30 text-emerald-400'
-                        : 'bg-emerald-100 text-emerald-700'
-                    }`}>
-                      <Sparkles className={`w-3.5 h-3.5 ${selectedProfessional === 'any' ? 'text-white' : ''}`} />
-                    </div>
-                    <span className={`text-[11px] font-bold truncate ${selectedProfessional === 'any' ? 'text-white' : ''}`}>
-                      Qualquer
-                    </span>
-                  </button>
-
-                  {availableProfessionalsForDate.map((prof, idx) => {
-                    const isSelected = selectedProfessional === prof.name;
-                    const profImg = prof.avatar || prof.avatarUrl;
-                    return (
-                      <button
-                        key={prof.id || idx}
-                        type="button"
-                        onClick={() => {
-                          hapticLight();
-                          setSelectedProfessional(prof.name);
-                          setSelectedTimeSlot(null);
-                        }}
-                        className={`min-w-[115px] max-w-[135px] flex-shrink-0 p-1.5 px-2 rounded-[4px] border text-left flex items-center gap-2 transition cursor-pointer ${
-                          isSelected
-                            ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
-                            : isDark
-                            ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
-                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
-                        }`}
-                      >
-                        {profImg && !profImg.includes('unsplash.com') && !profImg.startsWith('data:image/svg+xml') ? (
-                          <img
-                            src={profImg}
-                            alt={prof.name}
-                            className="w-6 h-6 rounded-[4px] object-cover flex-shrink-0"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center shrink-0 ${
-                            isSelected ? 'bg-white/20 text-white' : isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'
-                          }`}>
-                            <User className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : ''}`} />
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <h5 className={`text-[11px] font-bold truncate leading-tight ${
-                            isSelected ? 'text-white' : isDark ? 'text-slate-200' : 'text-slate-800'
-                          }`}>
-                            {prof.name}
-                          </h5>
-                          {prof.rating && (
-                            <div className={`flex items-center gap-0.5 text-[9px] leading-tight ${
-                              isSelected ? 'text-white/90' : 'text-amber-400'
-                            }`}>
-                              <Star className="w-2.5 h-2.5 fill-current" />
-                              <span>{prof.rating.toFixed(1)}</span>
-                            </div>
-                          )}
+            {/* Linha 1: Botões dos Profissionais que fazem o tipo do serviço (apenas Foto + Primeiro Nome, sem tumultuar com turnos) */}
+            {professionalsForSelectedService.length > 0 && (
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                {professionalsForSelectedService.map((prof, idx) => {
+                  const isSelected = selectedProfessional === prof.name;
+                  const profImg = prof.avatar || prof.avatarUrl;
+                  const firstName = (prof.name || 'Profissional').trim().split(/\s+/)[0];
+                  return (
+                    <button
+                      key={prof.id || idx}
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setSelectedProfessional(prof.name);
+                        setSelectedTimeSlot(null);
+                      }}
+                      className={`flex-shrink-0 py-1.5 px-3 rounded-[4px] border text-left flex items-center gap-2 transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                          : isDark
+                          ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
+                      }`}
+                    >
+                      {profImg && !profImg.startsWith('data:image/svg+xml') ? (
+                        <img
+                          src={profImg}
+                          alt={firstName}
+                          className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                          isSelected ? 'bg-white/20 text-white' : isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          <User className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : ''}`} />
                         </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                      )}
+                      <span className={`text-xs font-bold whitespace-nowrap leading-none ${
+                        isSelected ? 'text-white' : isDark ? 'text-slate-200' : 'text-slate-800'
+                      }`}>
+                        {firstName}
+                      </span>
+                    </button>
+                  );
+                })}
+                {isLoadingBusySlots && <Loader2 className="w-4 h-4 animate-spin text-emerald-500 shrink-0 ml-1" />}
               </div>
             )}
 
-            {/* BLOCO 2: TABELA DE HORÁRIOS CLASSIFICADA POR PERÍODO (Manhã -> Tarde -> Noite -> Todos) */}
-            <div className={`space-y-2.5 ${
-              availableProfessionalsForDate.length > 1
-                ? `pt-2 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`
-                : ''
+            {/* Linha 2: Abas de Turnos dedicadas em largura total (Manhã | Tarde | Noite | Todos) */}
+            <div className={`grid grid-cols-4 gap-1 p-1 rounded-[4px] border ${
+              isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
             }`}>
-              <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                <h4 className={`text-[11px] font-bold font-['Poppins'] flex items-center gap-1 uppercase tracking-wider ${
-                  isDark ? 'text-white' : 'text-slate-900'
-                }`}>
-                  <Clock className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span>Horários ({shortDateFormatted})</span>
-                  {isLoadingBusySlots && <Loader2 className="w-3 h-3 animate-spin text-emerald-500 ml-1" />}
-                </h4>
+              {(
+                [
+                  { key: 'manha', label: 'Manhã', disabled: isManhaPeriodDisabled },
+                  { key: 'tarde', label: 'Tarde', disabled: isTardePeriodDisabled },
+                  { key: 'noite', label: 'Noite', disabled: false },
+                  { key: 'todos', label: 'Todos', disabled: false },
+                ] as const
+              ).map((tab) => {
+                const isActive = timePeriodFilter === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    disabled={tab.disabled}
+                    onClick={() => {
+                      if (!tab.disabled) {
+                        hapticLight();
+                        setTimePeriodFilter(tab.key);
+                      }
+                    }}
+                    className={`py-1.5 px-2 rounded-[4px] text-[11px] font-bold transition whitespace-nowrap text-center ${
+                      tab.disabled
+                        ? isDark
+                          ? 'text-slate-700 line-through cursor-not-allowed opacity-50'
+                          : 'text-slate-300 line-through cursor-not-allowed opacity-50'
+                        : isActive
+                        ? 'bg-emerald-500 text-white font-extrabold cursor-pointer shadow-xs'
+                        : isDark
+                        ? 'text-slate-400 hover:text-white cursor-pointer'
+                        : 'text-slate-600 hover:text-slate-900 cursor-pointer'
+                    }`}
+                  >
+                    <span className={isActive && !tab.disabled ? 'text-white' : ''}>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-                {/* Filtro de Turnos na Ordem Obrigatória: Manhã, Tarde, Noite, Todos */}
-                <div className={`flex items-center gap-0.5 p-0.5 rounded-[4px] border ${
-                  isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
-                }`}>
-                  {(
-                    [
-                      { key: 'manha', label: 'Manhã', disabled: isManhaPeriodDisabled },
-                      { key: 'tarde', label: 'Tarde', disabled: isTardePeriodDisabled },
-                      { key: 'noite', label: 'Noite', disabled: false },
-                      { key: 'todos', label: 'Todos', disabled: false },
-                    ] as const
-                  ).map((tab) => {
-                    const isActive = timePeriodFilter === tab.key;
-                    return (
-                      <button
-                        key={tab.key}
-                        type="button"
-                        disabled={tab.disabled}
-                        onClick={() => {
-                          if (!tab.disabled) {
-                            hapticLight();
-                            setTimePeriodFilter(tab.key);
-                          }
-                        }}
-                        className={`px-2 py-1 rounded-[4px] text-[10px] font-bold transition whitespace-nowrap ${
-                          tab.disabled
-                            ? isDark
-                              ? 'text-slate-700 line-through cursor-not-allowed opacity-50'
-                              : 'text-slate-300 line-through cursor-not-allowed opacity-50'
-                            : isActive
-                            ? 'bg-emerald-500 text-white font-extrabold cursor-pointer'
-                            : isDark
-                            ? 'text-slate-400 hover:text-white cursor-pointer'
-                            : 'text-slate-600 hover:text-slate-900 cursor-pointer'
-                        }`}
-                      >
-                        <span className={isActive && !tab.disabled ? 'text-white' : ''}>{tab.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+            {/* Linha 3: Grade de Horários Classificada por Período (Manhã, Tarde, Noite) */}
+            <div className="space-y-3">
+              {(timePeriodFilter === 'manha' || timePeriodFilter === 'todos') &&
+                renderPeriodSlotsBlock('manha', 'Manhã (08h às 11h30)', Sun, slotsByPeriod.manha, isManhaPeriodDisabled)}
 
-              {/* Renderização Classificada por Período (Manhã, Tarde, Noite) */}
-              <div className="space-y-3">
-                {(timePeriodFilter === 'manha' || timePeriodFilter === 'todos') &&
-                  renderPeriodSlotsBlock('manha', 'Manhã (08h às 11h30)', Sun, slotsByPeriod.manha, isManhaPeriodDisabled)}
+              {(timePeriodFilter === 'tarde' || timePeriodFilter === 'todos') &&
+                renderPeriodSlotsBlock('tarde', 'Tarde (12h às 17h30)', Sunset, slotsByPeriod.tarde, isTardePeriodDisabled)}
 
-                {(timePeriodFilter === 'tarde' || timePeriodFilter === 'todos') &&
-                  renderPeriodSlotsBlock('tarde', 'Tarde (12h às 17h30)', Sunset, slotsByPeriod.tarde, isTardePeriodDisabled)}
-
-                {(timePeriodFilter === 'noite' || timePeriodFilter === 'todos') &&
-                  renderPeriodSlotsBlock('noite', 'Noite (18h às 20h30)', Moon, slotsByPeriod.noite, false)}
-              </div>
+              {(timePeriodFilter === 'noite' || timePeriodFilter === 'todos') &&
+                renderPeriodSlotsBlock('noite', 'Noite (18h às 20h30)', Moon, slotsByPeriod.noite, false)}
             </div>
           </div>
         )}
@@ -1676,60 +1849,24 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       {/* ============================================================ */}
       {/* RODAPÉ FIXO DE AÇÃO (sticky bottom-0 z-20) */}
       {/* ============================================================ */}
-      {(currentStep === 'service' || (currentStep === 'professionals_and_time' && Boolean(selectedTimeSlot))) && (
+      {currentStep === 'professionals_and_time' && Boolean(selectedTimeSlot) && (
         <div className={`px-3.5 py-2 border-t shrink-0 sticky bottom-0 z-20 transition-colors ${
           isDark ? 'bg-[#151A1E]/95 border-slate-800 backdrop-blur-md' : 'bg-white/95 border-slate-200 backdrop-blur-md'
         }`}>
-          {currentStep === 'service' && (
-            <button
-              id="btn-avancar-data"
-              type="button"
-              disabled={selectedServices.length === 0}
-              onClick={() => {
-                if (selectedServices.length > 0) {
-                  hapticMedium();
-                  setIsAddingExtraServices(false);
-                  setCurrentStep('date');
-                  if (!hasChosenBeneficiary) {
-                    setIsBeneficiaryModalOpen(true);
-                  }
-                }
-              }}
-              className={`w-full py-2.5 px-4 font-bold text-xs uppercase tracking-wider rounded-[4px] transition flex items-center justify-center gap-1.5 ${
-                selectedServices.length > 0
-                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer active:scale-98'
-                  : isDark
-                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-50'
-                  : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-50'
-              }`}
-            >
-              <span className={selectedServices.length > 0 ? 'text-white' : ''}>
-                {selectedServices.length > 1
-                  ? `Concluir Serviços (${selectedServices.length} itens • R$ ${selectedServices.reduce((acc, s) => acc + s.price, 0)})`
-                  : selectedServices.length === 1
-                  ? `Avançar para Data (${selectedServices[0].title} • R$ ${selectedServices[0].price})`
-                  : 'Selecione ao menos 1 serviço'}
-              </span>
-              <ChevronRight className={`w-3.5 h-3.5 ${selectedServices.length > 0 ? 'text-white' : ''}`} />
-            </button>
-          )}
-
-          {currentStep === 'professionals_and_time' && selectedTimeSlot && (
-            <button
-              id="btn-avancar-confirmacao"
-              type="button"
-              onClick={() => {
-                hapticMedium();
-                setIsSummaryModalOpen(true);
-              }}
-              className="w-full py-2 px-4 font-black text-xs uppercase tracking-wider rounded-[4px] transition flex items-center justify-center gap-1.5 font-['Poppins'] bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer active:scale-98"
-            >
-              <span className="text-white">
-                Revisar & Confirmar ({selectedTimeSlot})
-              </span>
-              <ChevronRight className="w-3.5 h-3.5 text-white" />
-            </button>
-          )}
+          <button
+            id="btn-avancar-confirmacao"
+            type="button"
+            onClick={() => {
+              hapticMedium();
+              setIsSummaryModalOpen(true);
+            }}
+            className="w-full py-2 px-4 font-black text-xs uppercase tracking-wider rounded-[4px] transition flex items-center justify-center gap-1.5 font-['Poppins'] bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer active:scale-98"
+          >
+            <span className="text-white">
+              Revisar & Confirmar ({selectedTimeSlot})
+            </span>
+            <ChevronRight className="w-3.5 h-3.5 text-white" />
+          </button>
         </div>
       )}
     </div>
@@ -1758,8 +1895,15 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           <button
             type="button"
             onClick={() => {
-              setHasChosenBeneficiary(true);
               setIsBeneficiaryModalOpen(false);
+              if (returnToSummaryAfterBeneficiary) {
+                setReturnToSummaryAfterBeneficiary(false);
+                setIsSummaryModalOpen(true);
+              } else {
+                setReturnToRouteModalAfterOrigin(false);
+                setOriginModalMode('choice');
+                setIsOriginModalOpen(true);
+              }
             }}
             className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
               isDark ? 'bg-slate-900 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
@@ -1769,7 +1913,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           </button>
         </div>
 
-        {/* Botões Principais em Colunas: Para Você vs Para Dependente */}
+        {/* Botões Principais em Colunas: Para Você vs Dependente */}
         <div className="grid grid-cols-2 gap-2.5">
           <button
             type="button"
@@ -1778,14 +1922,17 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               setIsDependentBooking(false);
               setDependentId('');
               setDependentName('');
-              setHasChosenBeneficiary(true);
               setIsBeneficiaryModalOpen(false);
-              if (skipDateStep) {
-                setCurrentStep('professionals_and_time');
+              if (returnToSummaryAfterBeneficiary) {
+                setReturnToSummaryAfterBeneficiary(false);
+                setIsSummaryModalOpen(true);
+              } else {
+                setReturnToRouteModalAfterOrigin(false);
                 setOriginModalMode('choice');
                 setIsOriginModalOpen(true);
-              } else {
-                setCurrentStep('date');
+              }
+              if (currentStep === 'service') {
+                setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
               }
             }}
             className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
@@ -1805,6 +1952,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             onClick={() => {
               hapticLight();
               setIsDependentBooking(true);
+              if (registeredDependents.length === 0) {
+                setIsCreatingDependentInline(true);
+              }
             }}
             className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
               isDependentBooking
@@ -1815,7 +1965,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             }`}
           >
             <Users className={`w-5 h-5 shrink-0 ${isDependentBooking ? 'text-white' : 'text-emerald-500'}`} />
-            <span className={`leading-tight ${isDependentBooking ? 'text-white' : ''}`}>Para Dependente</span>
+            <span className={`leading-tight ${isDependentBooking ? 'text-white' : ''}`}>Dependente</span>
           </button>
         </div>
 
@@ -1848,14 +1998,17 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                           hapticMedium();
                           setDependentId(dep.id);
                           setDependentName(dep.full_name);
-                          setHasChosenBeneficiary(true);
                           setIsBeneficiaryModalOpen(false);
-                          if (skipDateStep) {
-                            setCurrentStep('professionals_and_time');
+                          if (returnToSummaryAfterBeneficiary) {
+                            setReturnToSummaryAfterBeneficiary(false);
+                            setIsSummaryModalOpen(true);
+                          } else {
+                            setReturnToRouteModalAfterOrigin(false);
                             setOriginModalMode('choice');
                             setIsOriginModalOpen(true);
-                          } else {
-                            setCurrentStep('date');
+                          }
+                          if (currentStep === 'service') {
+                            setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
                           }
                         }}
                         className={`w-full p-2.5 rounded-[4px] border text-left flex items-center justify-between gap-2 transition cursor-pointer ${
@@ -1966,7 +2119,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 >
                   <Check className="w-4 h-4 text-white shrink-0" />
                   <span className="text-white">
-                    {isSavingInlineDependent ? 'Salvando...' : 'Salvar e Avançar para Data'}
+                    {isSavingInlineDependent ? 'Salvando...' : 'Salvar e Continuar'}
                   </span>
                 </button>
               </form>
@@ -2024,20 +2177,86 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     label: string;
     Icon: React.ElementType;
   }> = [
+    { key: 'walking', label: 'A pé', Icon: Footprints },
+    { key: 'bicycling', label: 'Bicicleta', Icon: Bike },
+    { key: 'motorcycle', label: 'Moto', Icon: Navigation },
     { key: 'car', label: 'Carro', Icon: Car },
-    { key: 'motorcycle', label: 'Moto', Icon: Bike },
-    { key: 'transit', label: 'Transporte Público', Icon: Bus },
-    { key: 'rideshare', label: 'Uber / 99', Icon: Smartphone },
+    { key: 'transit', label: 'Transp. Público', Icon: Bus },
+    { key: 'rideshare', label: 'Aplicativo', Icon: Smartphone },
   ];
 
-  // Botões empilhados em linhas e colunas (2x2) para exibir 100% das legendas sem cortes
-  const renderTransportSelectorGrid = () => (
-    <div className="space-y-2">
-      <span className={`text-[11px] font-bold uppercase tracking-wider block leading-snug ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-        Como você vai se deslocar? (com margem de folga)
+  const renderModeIcon = (mode: TransportMode, className = 'w-3.5 h-3.5 text-emerald-500 shrink-0') => {
+    if (mode === 'walking') return <Footprints className={className} />;
+    if (mode === 'bicycling') return <Bike className={className} />;
+    if (mode === 'motorcycle') return <Navigation className={className} />;
+    if (mode === 'transit') return <Bus className={className} />;
+    if (mode === 'rideshare') return <Smartphone className={className} />;
+    return <Car className={className} />;
+  };
+
+  // Filtra os meios de deslocamento viáveis comparando horário selecionado, tempo de chegada de cada modal e horário atual
+  const feasibleTransportModeOptions = useMemo(() => {
+    const nowMs = currentTimeTick.getTime();
+
+    const filtered = transportModeOptions.filter((opt) => {
+      const modeEta = computeCalibratedEtaForMode(distanceKm, null, opt.key);
+
+      if (selectedTimeSlot && selectedDateIso) {
+        const [y, m, d] = selectedDateIso.split('-').map(Number);
+        const [sh, sm] = selectedTimeSlot.split(':').map(Number);
+        if (!Number.isNaN(y) && !Number.isNaN(m) && !Number.isNaN(d) && !Number.isNaN(sh) && !Number.isNaN(sm)) {
+          const appointmentMs = new Date(y, m - 1, d, sh, sm, 0).getTime();
+          const maxDepartureMs = appointmentMs - modeEta * 60 * 1000;
+          // Não oferta o trajeto (ex: A pé) se o horário máximo de saída já tiver passado em relação ao horário atual
+          return maxDepartureMs >= nowMs;
+        }
+      }
+
+      if (selectedDateIso === todayIso) {
+        const closingMs = new Date(
+          currentTimeTick.getFullYear(),
+          currentTimeTick.getMonth(),
+          currentTimeTick.getDate(),
+          20,
+          30,
+          0
+        ).getTime();
+        return nowMs + (modeEta + PREP_BUFFER_MINUTES) * 60 * 1000 <= closingMs;
+      }
+
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      return transportModeOptions.filter(
+        (opt) => opt.key === 'motorcycle' || opt.key === 'car' || opt.key === 'rideshare'
+      );
+    }
+
+    return filtered;
+  }, [distanceKm, selectedTimeSlot, selectedDateIso, currentTimeTick, todayIso]);
+
+  // Se o meio de deslocamento atual (ex: A pé) não for viável para o horário selecionado, alterna automaticamente para um modal viável (ex: Carro)
+  useEffect(() => {
+    const isCurrentFeasible = feasibleTransportModeOptions.some((opt) => opt.key === transportMode);
+    if (!isCurrentFeasible && feasibleTransportModeOptions.length > 0) {
+      const preferredFallback =
+        feasibleTransportModeOptions.find((opt) => opt.key === 'car') ||
+        feasibleTransportModeOptions[0];
+      setTransportMode(preferredFallback.key);
+      setIsRideAppOptionsOpen(false);
+      setEtaMinutes(computeCalibratedEtaForMode(distanceKm, null, preferredFallback.key));
+    }
+  }, [feasibleTransportModeOptions, transportMode, distanceKm]);
+
+  // Grade compacta com as opções viáveis do Google Maps API + Aplicativo
+  const renderTransportSelectorGrid = (preserveSlot = false) => (
+    <div className="space-y-1.5">
+      <span className={`text-[10px] font-bold uppercase tracking-wider block leading-snug ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+        Meio de deslocamento (Google Maps API)
       </span>
-      <div className="grid grid-cols-2 gap-2">
-        {transportModeOptions.map((opt) => {
+      <div className={`grid gap-1.5 ${feasibleTransportModeOptions.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+        {feasibleTransportModeOptions.map((opt) => {
           const isSelectedMode = transportMode === opt.key;
           const ModeIcon = opt.Icon;
           return (
@@ -2047,28 +2266,42 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               onClick={() => {
                 hapticLight();
                 setTransportMode(opt.key);
+                setIsRideAppOptionsOpen(false);
+                setEtaMinutes(computeCalibratedEtaForMode(distanceKm, null, opt.key));
                 const activeOrigin =
                   originModalMode === 'custom_cep' && customCepInput.replace(/\D/g, '').length === 8
                     ? customCepInput
                     : addressQuery;
-                runRouteCalculation(activeOrigin, salonDestQuery, opt.key);
+                runRouteCalculation(activeOrigin, salonDestQuery, opt.key, preserveSlot);
               }}
-              className={`py-2.5 px-3 rounded-[4px] border font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer text-center ${
+              className={`py-2 px-1.5 rounded-[4px] border font-bold text-[11px] flex flex-col items-center justify-center gap-1 transition cursor-pointer text-center ${
                 isSelectedMode
-                  ? 'bg-emerald-500 border-emerald-500 text-white'
+                  ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
                   : isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-emerald-500/50'
                   : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
               }`}
             >
-              <ModeIcon className={`w-4 h-4 shrink-0 ${isSelectedMode ? 'text-white' : 'text-emerald-500'}`} />
-              <span className={`leading-tight ${isSelectedMode ? 'text-white' : ''}`}>{opt.label}</span>
+              <ModeIcon className={`w-3.5 h-3.5 shrink-0 ${isSelectedMode ? 'text-white' : 'text-emerald-500'}`} />
+              <span className={`leading-tight whitespace-nowrap ${isSelectedMode ? 'text-white' : ''}`}>{opt.label}</span>
             </button>
           );
         })}
       </div>
     </div>
   );
+
+  const handleCloseOriginModal = () => {
+    setIsOriginModalOpen(false);
+    if (returnToRouteModalAfterOrigin) {
+      setReturnToRouteModalAfterOrigin(false);
+      setIsRouteModalOpen(true);
+    }
+  };
+
+  const resolvedSalonLogo = isDark
+    ? salonLogoDark || salonLogo || salonLogoLight
+    : salonLogoLight || salonLogo || salonLogoDark;
 
   const originModalNode = isOriginModalOpen && selectedService && (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
@@ -2098,19 +2331,19 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             )}
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-extrabold font-['Poppins'] leading-snug">
-                {originModalMode === 'choice' ? 'De onde você vai sair?' : 'Saindo de Outro Local'}
+                {originModalMode === 'choice' ? 'De onde você vai sair?' : 'Informe o local de partida'}
               </h3>
               <p className={`text-[11px] leading-snug mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 {originModalMode === 'choice'
-                  ? 'Ajustamos os horários conforme seu deslocamento.'
-                  : 'Informe o CEP para calcularmos seu tempo de chegada.'}
+                  ? 'Calculamos a distância e oferecemos o dia e horário mais propício.'
+                  : 'Digite o CEP ou Cidade/Estado para calcularmos o melhor dia e horário.'}
               </p>
             </div>
           </div>
 
           <button
             type="button"
-            onClick={() => setIsOriginModalOpen(false)}
+            onClick={handleCloseOriginModal}
             className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
               isDark ? 'bg-slate-900 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
             }`}
@@ -2119,18 +2352,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           </button>
         </div>
 
-        {/* Seletor de Meio de Transporte em Linhas e Colunas 2x2 */}
-        {renderTransportSelectorGrid()}
-
         {originModalMode === 'choice' ? (
-          <div className="space-y-2">
-            <span className={`text-[11px] font-bold uppercase tracking-wider block leading-snug ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-              Local de partida
-            </span>
+          <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   hapticMedium();
                   setOriginType('home');
                   const savedHomeOrigin =
@@ -2139,8 +2366,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     localStorage.getItem('vagou_client_test_address') ||
                     '08235-770';
                   setAddressQuery(savedHomeOrigin);
-                  runRouteCalculation(savedHomeOrigin, salonDestQuery, transportMode);
-                  setIsOriginModalOpen(false);
+                  await runRouteCalculation(savedHomeOrigin, salonDestQuery, transportMode, returnToRouteModalAfterOrigin);
                 }}
                 className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
                   originType === 'home'
@@ -2173,6 +2399,84 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 <span className={`leading-tight ${originType === 'other' ? 'text-white' : ''}`}>Outro Local</span>
               </button>
             </div>
+
+            {originType === 'home' && (
+              <>
+                <div className={`p-3 rounded-[4px] space-y-1.5 text-xs font-bold ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'}`}>
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span>Distância de {formattedDistanceComma} km</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {renderModeIcon(transportMode)}
+                    <span>Trajeto de {formattedEtaHoursAndMinutes}</span>
+                  </div>
+                  {propitiousSuggestion && !returnToRouteModalAfterOrigin && (
+                    <div className="flex items-center gap-1.5 text-emerald-500 pt-1">
+                      <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <span>
+                        Dia e horário mais propício: <strong>{propitiousSuggestion.shortDate} às {propitiousSuggestion.timeSlot}</strong>
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-1 sticky bottom-0 z-20 space-y-2">
+                  {!returnToRouteModalAfterOrigin && !isCalculatingRoute && propitiousSuggestion && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticMedium();
+                        const [py, pm] = propitiousSuggestion.dateIso.split('-').map(Number);
+                        setCurrentViewMonth(new Date(py, pm - 1, 1));
+                        setSelectedDateIso(propitiousSuggestion.dateIso);
+                        setSelectedTimeSlot(propitiousSuggestion.timeSlot);
+                        handleCloseOriginModal();
+                        setIsSummaryModalOpen(true);
+                      }}
+                      className="w-full py-3 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                    >
+                      <Check className="w-4 h-4 text-white shrink-0" />
+                      <span className="text-white uppercase font-bold tracking-wide">
+                        MAIS PRÓXIMO - {propitiousSuggestion.shortDate} {propitiousSuggestion.timeSlot}
+                      </span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={isCalculatingRoute}
+                    onClick={() => {
+                      hapticMedium();
+                      if (!returnToRouteModalAfterOrigin && propitiousSuggestion) {
+                        const [py, pm] = propitiousSuggestion.dateIso.split('-').map(Number);
+                        setCurrentViewMonth(new Date(py, pm - 1, 1));
+                        setSelectedDateIso(propitiousSuggestion.dateIso);
+                      }
+                      handleCloseOriginModal();
+                      if (!returnToRouteModalAfterOrigin) {
+                        setCurrentStep('date');
+                      }
+                    }}
+                    className={`w-full py-2.5 px-4 rounded-[4px] font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50 ${
+                      !returnToRouteModalAfterOrigin && propitiousSuggestion
+                        ? isDark
+                          ? 'bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200'
+                          : 'bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800'
+                        : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                    }`}
+                  >
+                    <span className={
+                      !returnToRouteModalAfterOrigin && propitiousSuggestion
+                        ? ''
+                        : 'text-white'
+                    }>
+                      {returnToRouteModalAfterOrigin ? 'Confirmar Nova Origem' : 'ESCOLHER OUTRA DATA E HORÁRIO'}
+                    </span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-3 animate-in fade-in duration-150">
@@ -2181,22 +2485,28 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 <MapPin className="w-3.5 h-3.5 text-emerald-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
-                  inputMode="numeric"
                   value={customCepInput}
                   onChange={(e) => {
-                    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
-                    const formatted = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
-                    setCustomCepInput(formatted);
-                    if (digits.length === 8) {
-                      setAddressQuery(formatted);
-                      runRouteCalculation(formatted, salonDestQuery, transportMode).then(() => {
-                        setHasCalculatedCustomCep(true);
-                      });
+                    const rawVal = e.target.value;
+                    const hasLetters = /[a-zA-ZÀ-ÿ]/.test(rawVal);
+                    if (!hasLetters) {
+                      const digits = rawVal.replace(/\D/g, '').slice(0, 8);
+                      const formatted = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+                      setCustomCepInput(formatted);
+                      if (digits.length === 8) {
+                        setAddressQuery(formatted);
+                        runRouteCalculation(formatted, salonDestQuery, transportMode, returnToRouteModalAfterOrigin).then(() => {
+                          setHasCalculatedCustomCep(true);
+                        });
+                      } else {
+                        setHasCalculatedCustomCep(false);
+                      }
                     } else {
+                      setCustomCepInput(rawVal);
                       setHasCalculatedCustomCep(false);
                     }
                   }}
-                  placeholder="00000-000"
+                  placeholder="CEP (00000-000) ou Cidade - UF"
                   className={`w-full pl-8 pr-3 py-2.5 text-xs rounded-[4px] border outline-hidden transition-colors ${
                     isDark
                       ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500'
@@ -2207,7 +2517,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
 
               <button
                 type="submit"
-                disabled={isCalculatingRoute || customCepInput.replace(/\D/g, '').length < 8}
+                disabled={isCalculatingRoute || customCepInput.trim().length < 3}
                 className="py-2.5 px-3.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0"
               >
                 {isCalculatingRoute ? (
@@ -2225,10 +2535,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 : isDark ? 'text-slate-400' : 'text-slate-500'
             }`}>
               {isCalculatingRoute
-                ? 'Localizando CEP...'
+                ? 'Calculando distância e melhor horário...'
                 : hasCalculatedCustomCep && resolvedAddressLabel
                 ? resolvedAddressLabel
-                : 'Digite o CEP de origem acima.'}
+                : 'Informe o CEP ou Cidade/Estado acima.'}
             </p>
 
             {hasCalculatedCustomCep && !isCalculatingRoute && (
@@ -2238,32 +2548,72 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   <span>Distância de {formattedDistanceComma} km</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  {transportMode === 'motorcycle' ? (
-                    <Bike className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  ) : transportMode === 'transit' ? (
-                    <Bus className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  ) : transportMode === 'rideshare' ? (
-                    <Smartphone className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  ) : (
-                    <Car className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  )}
+                  {renderModeIcon(transportMode)}
                   <span>Trajeto de {formattedEtaHoursAndMinutes}</span>
                 </div>
+                {propitiousSuggestion && !returnToRouteModalAfterOrigin && (
+                  <div className="flex items-center gap-1.5 text-emerald-500 pt-1">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span>
+                      Dia e horário mais propício: <strong>{propitiousSuggestion.shortDate} às {propitiousSuggestion.timeSlot}</strong>
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
-            <div className="pt-1 sticky bottom-0 z-20">
+            <div className="pt-1 sticky bottom-0 z-20 space-y-2">
+              {!returnToRouteModalAfterOrigin && hasCalculatedCustomCep && !isCalculatingRoute && propitiousSuggestion && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticMedium();
+                    const [py, pm] = propitiousSuggestion.dateIso.split('-').map(Number);
+                    setCurrentViewMonth(new Date(py, pm - 1, 1));
+                    setSelectedDateIso(propitiousSuggestion.dateIso);
+                    setSelectedTimeSlot(propitiousSuggestion.timeSlot);
+                    handleCloseOriginModal();
+                    setIsSummaryModalOpen(true);
+                  }}
+                  className="w-full py-3 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                >
+                  <Check className="w-4 h-4 text-white shrink-0" />
+                  <span className="text-white uppercase font-bold tracking-wide">
+                    MAIS PRÓXIMO - {propitiousSuggestion.shortDate} {propitiousSuggestion.timeSlot}
+                  </span>
+                </button>
+              )}
+
               <button
                 type="button"
                 disabled={isCalculatingRoute || !hasCalculatedCustomCep}
                 onClick={() => {
                   hapticMedium();
-                  setIsOriginModalOpen(false);
+                  if (!returnToRouteModalAfterOrigin && propitiousSuggestion) {
+                    const [py, pm] = propitiousSuggestion.dateIso.split('-').map(Number);
+                    setCurrentViewMonth(new Date(py, pm - 1, 1));
+                    setSelectedDateIso(propitiousSuggestion.dateIso);
+                  }
+                  handleCloseOriginModal();
+                  if (!returnToRouteModalAfterOrigin) {
+                    setCurrentStep('date');
+                  }
                 }}
-                className="w-full py-3 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                className={`w-full py-2.5 px-4 rounded-[4px] font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50 ${
+                  !returnToRouteModalAfterOrigin && hasCalculatedCustomCep && propitiousSuggestion
+                    ? isDark
+                      ? 'bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200'
+                      : 'bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800'
+                    : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                }`}
               >
-                <Check className="w-4 h-4 text-white shrink-0" />
-                <span className="text-white">Ver Horários Disponíveis</span>
+                <span className={
+                  !returnToRouteModalAfterOrigin && hasCalculatedCustomCep && propitiousSuggestion
+                    ? ''
+                    : 'text-white'
+                }>
+                  {returnToRouteModalAfterOrigin ? 'Confirmar Nova Origem' : 'ESCOLHER OUTRA DATA E HORÁRIO'}
+                </span>
               </button>
             </div>
           </div>
@@ -2273,7 +2623,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   );
 
   // ============================================================================
-  // MODAL INDEPENDENTE 2: RESUMO DO AGENDAMENTO + HORÁRIO MÁX DE SAÍDA + ROTAS / APPS
+  // MODAL INDEPENDENTE 2: SEÇÃO DE CONFIRMAÇÃO — RESUMO DO AGENDAMENTO
   // ============================================================================
   const summaryModalNode = isSummaryModalOpen && selectedService && selectedTimeSlot && (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
@@ -2282,28 +2632,80 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
         }`}
       >
-        {/* Cabeçalho do Modal Independente de Resumo */}
-        <div className={`px-4 py-3 border-b flex items-center justify-between gap-2 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+        {/* 1. Cabeçalho com Logomarca do Salão */}
+        <div className={`px-4 py-2.5 border-b flex items-center justify-between gap-2 ${
+          isDark ? 'bg-[#151A1E] border-slate-800' : 'bg-white border-slate-200'
         }`}>
-          <div className="flex items-center gap-2 min-w-0">
-            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-            <h3 className="text-sm font-extrabold font-['Poppins'] leading-snug">Resumo do Agendamento</h3>
+          <div className="flex items-center gap-2 min-w-0 flex-1 h-9">
+            {resolvedSalonLogo ? (
+              <img
+                src={resolvedSalonLogo}
+                alt={salonName}
+                className="h-full w-auto max-w-[200px] object-contain object-left shrink-0"
+              />
+            ) : (
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-[4px] bg-emerald-500 flex items-center justify-center text-white text-xs font-black shrink-0">
+                  {salonName.slice(0, 2).toUpperCase()}
+                </div>
+                <span className="text-xs font-extrabold truncate font-['Poppins']">
+                  {salonName}
+                </span>
+              </div>
+            )}
           </div>
           <button
             type="button"
             onClick={() => setIsSummaryModalOpen(false)}
             className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
-              isDark ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-slate-200 text-slate-600 hover:text-slate-900'
+              isDark ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
             }`}
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Corpo do Resumo */}
-        <div className="p-4 space-y-3 overflow-y-auto no-scrollbar text-xs">
-          <div className="space-y-2">
+        {/* 2. Cabeçalho de Título: Resumo do agendamento */}
+        <div className={`px-4 py-2.5 border-b flex items-center gap-2 ${
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+        }`}>
+          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+          <h3 className="text-xs sm:text-sm font-extrabold font-['Poppins'] leading-snug">
+            Resumo do agendamento
+          </h3>
+        </div>
+
+        {/* 3. Corpo da Seção de Confirmação */}
+        <div className="p-4 space-y-3.5 overflow-y-auto no-scrollbar text-xs">
+          {/* Data | Hora: Ambos grandes na mesma linha ocupando 50% de largura da linha cada qual e centralizados */}
+          <div className={`grid grid-cols-2 pb-3.5 border-b ${
+            isDark ? 'border-slate-800' : 'border-slate-200'
+          }`}>
+            <div className="flex flex-col items-center justify-center text-center min-w-0 px-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span>Data</span>
+              </span>
+              <span className="text-xl sm:text-2xl font-black text-emerald-500 leading-tight mt-0.5 font-['Poppins']">
+                {shortDateFormatted}
+              </span>
+            </div>
+
+            <div className={`flex flex-col items-center justify-center text-center min-w-0 px-2 border-l ${
+              isDark ? 'border-slate-800' : 'border-slate-200'
+            }`}>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span>Hora</span>
+              </span>
+              <span className="text-xl sm:text-2xl font-black text-emerald-500 leading-tight mt-0.5 font-['Poppins']">
+                {selectedTimeSlot}
+              </span>
+            </div>
+          </div>
+
+          {/* Serviço, Beneficiário, Profissional e Total (Sem Estabelecimento e Sem Telefone) */}
+          <div className="space-y-2.5">
             <div className="flex justify-between items-start gap-2">
               <span className="flex items-center gap-1.5 text-slate-400 shrink-0">
                 <Scissors className="w-3.5 h-3.5 text-emerald-500" /> Serviço:
@@ -2324,19 +2726,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 type="button"
                 onClick={() => {
                   setIsSummaryModalOpen(false);
+                  setReturnToSummaryAfterBeneficiary(true);
                   setIsBeneficiaryModalOpen(true);
                 }}
-                className="font-bold text-emerald-400 hover:underline cursor-pointer text-right break-words"
+                className="font-bold text-emerald-500 hover:underline cursor-pointer text-right break-words"
               >
                 {isDependentBooking && dependentName ? `${dependentName} (Dependente)` : 'Para Você (Titular)'}
               </button>
-            </div>
-
-            <div className="flex justify-between items-start gap-2">
-              <span className="flex items-center gap-1.5 text-slate-400 shrink-0">
-                <Building2 className="w-3.5 h-3.5 text-emerald-500" /> Estabelecimento:
-              </span>
-              <span className="font-bold text-right break-words">{salonName}</span>
             </div>
 
             <div className="flex justify-between items-start gap-2">
@@ -2348,167 +2744,44 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               </span>
             </div>
 
-            <div className="flex justify-between items-center gap-2">
-              <span className="flex items-center gap-1.5 text-slate-400 shrink-0">
-                <Calendar className="w-3.5 h-3.5 text-emerald-500" /> Data e Horário:
-              </span>
-              <span className="font-extrabold text-emerald-400 text-right">
-                {shortDateFormatted} às {selectedTimeSlot}
-              </span>
-            </div>
-
-            {/* BLOCO DE LOGÍSTICA PÓS-ESCOLHA DO HORÁRIO: Horário Máx. de Saída + Rotas/Apps */}
-            <div className={`p-3 rounded-[4px] space-y-2.5 mt-2 ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'}`}>
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-[11px] font-extrabold text-emerald-400 leading-snug break-words flex-1">
-                  {resolvedAddressLabel}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    hapticLight();
-                    setIsSummaryModalOpen(false);
-                    setIsOriginModalOpen(true);
-                  }}
-                  className="text-[10px] font-bold text-emerald-400 hover:underline shrink-0 cursor-pointer"
-                >
-                  Alterar origem
-                </button>
-              </div>
-
-              <div className="space-y-1 font-bold text-xs">
-                <div className="flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span>Distância de {formattedDistanceComma} km</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {transportMode === 'motorcycle' ? (
-                    <Bike className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  ) : transportMode === 'transit' ? (
-                    <Bus className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  ) : transportMode === 'rideshare' ? (
-                    <Smartphone className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  ) : (
-                    <Car className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  )}
-                  <span>
-                    Trajeto de {formattedEtaHoursAndMinutes} ({TRANSPORT_MODE_META[transportMode].shortLabel})
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span>
-                    Horário Máx. de saída <strong className="text-emerald-400">{maxDepartureTimeFormatted}</strong>
-                  </span>
-                </div>
-              </div>
-
-              {/* Ações Inteligentes por Modal Selecionado (Maps Baldeações, Maps/Waze ou Uber/99) */}
-              <div className="pt-1 space-y-1.5">
-                {transportMode === 'transit' && (
-                  <a
-                    href={transportLinks.googleMapsTransitUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-2.5 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center"
-                  >
-                    <Bus className="w-3.5 h-3.5 text-white shrink-0" />
-                    <span className="text-white">Ver Linhas e Baldeações no Maps</span>
-                    <ExternalLink className="w-3 h-3 text-white shrink-0" />
-                  </a>
-                )}
-
-                {(transportMode === 'car' || transportMode === 'motorcycle') && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <a
-                      href={transportLinks.googleMapsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="py-2.5 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center"
-                    >
-                      <MapPin className="w-3.5 h-3.5 text-white shrink-0" />
-                      <span className="text-white">
-                        Maps ({transportMode === 'motorcycle' ? 'Moto' : 'Carro'})
-                      </span>
-                      <ExternalLink className="w-3 h-3 text-white shrink-0" />
-                    </a>
-
-                    <a
-                      href={transportLinks.wazeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`py-2.5 px-2.5 rounded-[4px] font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center ${
-                        isDark
-                          ? 'bg-slate-800 hover:bg-slate-700 text-white'
-                          : 'bg-slate-200 hover:bg-slate-300 text-slate-900'
-                      }`}
-                    >
-                      <Navigation className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                      <span>Abrir no Waze</span>
-                      <ExternalLink className="w-3 h-3 text-emerald-500 shrink-0" />
-                    </a>
-                  </div>
-                )}
-
-                {transportMode === 'rideshare' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <a
-                      href={transportLinks.uberUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="py-2.5 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center"
-                    >
-                      <Smartphone className="w-3.5 h-3.5 text-white shrink-0" />
-                      <span className="text-white">Chamar Uber</span>
-                      <ExternalLink className="w-3 h-3 text-white shrink-0" />
-                    </a>
-
-                    <a
-                      href={transportLinks.app99Url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`py-2.5 px-2.5 rounded-[4px] font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center ${
-                        isDark
-                          ? 'bg-slate-800 hover:bg-slate-700 text-amber-400'
-                          : 'bg-amber-100 hover:bg-amber-200 text-amber-900'
-                      }`}
-                    >
-                      <Car className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                      <span>Chamar 99</span>
-                      <ExternalLink className="w-3 h-3 text-amber-500 shrink-0" />
-                    </a>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className={`flex justify-between items-center pt-2.5 border-t ${
+            <div className={`pt-3 border-t space-y-3 ${
               isDark ? 'border-slate-800' : 'border-slate-200'
             }`}>
-              <span className="font-bold text-slate-400">Total a pagar no local:</span>
-              <span className="font-black text-base text-emerald-400">
-                R$ {selectedService.price.toFixed(2).replace('.', ',')}
-              </span>
-            </div>
-          </div>
+              <div className={`grid grid-cols-2 gap-3 pb-3 border-b ${
+                isDark ? 'border-slate-800' : 'border-slate-200'
+              }`}>
+                <div className="flex flex-col justify-start min-w-0 pr-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                    <Home className="w-3 h-3 text-emerald-500 shrink-0" />
+                    <span>Saída</span>
+                  </span>
+                  <span className="text-[11px] font-bold leading-snug mt-1 break-words">
+                    {resolvedAddressLabel && resolvedAddressLabel !== 'Endereço Residencial'
+                      ? resolvedAddressLabel
+                      : addressQuery || 'Endereço Residencial'}
+                  </span>
+                </div>
 
-          {/* Telefone de Contato */}
-          <div className={`space-y-1.5 pt-2.5 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Phone className="w-3.5 h-3.5 text-emerald-500" />
-              <span>WhatsApp de Contato</span>
-            </label>
-            <input
-              type="tel"
-              value={clientPhoneInput}
-              onChange={(e) => setClientPhoneInput(e.target.value)}
-              placeholder="(00) 00000-0000"
-              className={`w-full px-3 py-2 text-xs rounded-[4px] border outline-hidden ${
-                isDark
-                  ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500'
-                  : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-600'
-              }`}
-            />
+                <div className={`flex flex-col justify-start min-w-0 pl-3 border-l ${
+                  isDark ? 'border-slate-800' : 'border-slate-200'
+                }`}>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-emerald-500 shrink-0" />
+                    <span className="truncate">Destino ({salonName})</span>
+                  </span>
+                  <span className="text-[11px] font-bold leading-snug mt-1 break-words">
+                    {salonAddress || resolvedSalonAddressLabel || salonCep || salonName}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-slate-400">Total a pagar no local:</span>
+                <span className="font-black text-base text-emerald-500">
+                  R$ {selectedService.price.toFixed(2).replace('.', ',')}
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* Aviso de Erro */}
@@ -2528,25 +2801,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           )}
         </div>
 
-        {/* Rodapé Fixo do Modal de Resumo: Confirmar, Pausar/Pré-Salvar, Revisar ou Cancelar */}
+        {/* 4. Rodapé Fixo: Pré-Salvar, Revisar e Cancelar no topo + Confirmar Agendamento abaixo */}
         <div className={`p-3.5 border-t sticky bottom-0 z-20 space-y-2 ${
           isDark ? 'bg-[#151A1E] border-slate-800' : 'bg-slate-50 border-slate-200'
         }`}>
-          <button
-            id="btn-confirmar-agendamento-final"
-            type="button"
-            disabled={isSubmittingBooking}
-            onClick={() => handleConfirmFinal(false)}
-            className={`w-full py-3 px-4 font-black text-xs uppercase tracking-wider rounded-[4px] transition flex items-center justify-center gap-2 font-['Poppins'] ${
-              isSubmittingBooking
-                ? 'bg-slate-700 text-slate-400 cursor-wait'
-                : 'bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer active:scale-98'
-            }`}
-          >
-            <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
-            <span className="text-white">{isSubmittingBooking ? 'Confirmando...' : 'Confirmar Agendamento'}</span>
-          </button>
-
           <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
@@ -2595,119 +2853,533 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               <span>Cancelar</span>
             </button>
           </div>
+
+          <button
+            id="btn-confirmar-agendamento-final"
+            type="button"
+            disabled={isSubmittingBooking}
+            onClick={() => handleConfirmFinal(false)}
+            className={`w-full py-3 px-4 font-black text-xs uppercase tracking-wider rounded-[4px] transition flex items-center justify-center gap-2 font-['Poppins'] ${
+              isSubmittingBooking
+                ? 'bg-slate-700 text-slate-400 cursor-wait'
+                : 'bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer active:scale-98'
+            }`}
+          >
+            <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
+            <span className="text-white">{isSubmittingBooking ? 'Confirmando...' : 'Confirmar Agendamento'}</span>
+          </button>
         </div>
       </div>
     </div>
   );
 
-  // Modal Inicial: "Deseja realizar o agendamento?" (Exibido logo ao clicar no serviço desejado)
-  const resolvedBrandLogo = (
-    salonLogo ||
-    (isDark ? salonLogoDark : salonLogoLight) ||
-    salonLogoDark ||
-    salonLogoLight ||
-    ''
-  ).trim();
+  // ============================================================================
+  // MODAL PÓS-CONFIRMAÇÃO 1: PERGUNTA "PÔR NA AGENDA" OU "IR AGORA"
+  // ============================================================================
+  const googleCalendarUrl = useMemo(() => {
+    if (!selectedService || !selectedTimeSlot) return '#';
+    return buildGoogleCalendarEventUrl({
+      serviceTitle: selectedService.title,
+      salonName,
+      salonAddress: salonAddress || salonCep,
+      professionalName: selectedProfessional === 'any' ? resolvedProfessionalName : selectedProfessional,
+      dateIso: selectedDateIso,
+      timeSlot: selectedTimeSlot,
+      durationStr: selectedService.duration,
+    });
+  }, [selectedService, selectedTimeSlot, salonName, salonAddress, salonCep, selectedProfessional, resolvedProfessionalName, selectedDateIso]);
 
-  const confirmScheduleIntentModalNode =
-    isConfirmScheduleIntentModalOpen && pendingServiceForIntent && (
+  const postConfirmChoiceModalNode = isPostConfirmChoiceModalOpen && selectedService && selectedTimeSlot && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200"
-        onClick={() => setIsConfirmScheduleIntentModalOpen(false)}
+        className={`w-full max-w-md my-auto border rounded-[4px] p-4 sm:p-5 shadow-2xl space-y-4 transition-colors ${
+          isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+        }`}
       >
+        <div className={`flex items-start justify-between gap-3 pb-2.5 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-[4px] bg-emerald-500 flex items-center justify-center shrink-0">
+              <Check className="w-5 h-5 text-white stroke-[2.5]" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-sm font-extrabold font-['Poppins'] leading-snug">
+                Agendamento Confirmado!
+              </h3>
+              <p className="text-[11px] font-bold text-emerald-400 truncate mt-0.5">
+                {selectedService.title} • {shortDateFormatted} às {selectedTimeSlot}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setIsPostConfirmChoiceModalOpen(false);
+              onClose?.();
+            }}
+            className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
+              isDark ? 'bg-slate-900 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Botões da Pergunta: "Pôr na Agenda" vs "Ir Agora" */}
+        <div className="grid grid-cols-2 gap-2.5">
+          <a
+            href={googleCalendarUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => {
+              hapticMedium();
+              setIsPostConfirmChoiceModalOpen(false);
+              onClose?.();
+            }}
+            className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
+              isDark
+                ? 'bg-slate-900 border-slate-800 text-slate-100 hover:border-emerald-500/60'
+                : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/60'
+            }`}
+          >
+            <CalendarPlus className="w-5 h-5 text-emerald-500 shrink-0" />
+            <span className="leading-tight">Pôr na Agenda</span>
+          </a>
+
+          <button
+            type="button"
+            onClick={() => {
+              hapticMedium();
+              setIsPostConfirmChoiceModalOpen(false);
+              setIsRouteModalOpen(true);
+            }}
+            className="p-3.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 border border-emerald-500 text-white font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer shadow-xs"
+          >
+            <Navigation className="w-5 h-5 text-white shrink-0" />
+            <span className="leading-tight text-white">Ir Agora</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ============================================================================
+  // MODAL PÓS-CONFIRMAÇÃO 2: MODAL PRÓPRIO DE ROTA & DESLOCAMENTO (GOOGLE MAPS API)
+  // ============================================================================
+  const mapCompatibleModes = transportModeOptions.filter((opt) => opt.key !== 'rideshare');
+
+  const routeModalNode = isRouteModalOpen && selectedService && selectedTimeSlot && (
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xs animate-in fade-in duration-150 ${
+        isEmbeddedMapOpen ? 'p-0 sm:p-2 overflow-hidden' : 'p-4 overflow-y-auto'
+      }`}
+    >
+      {isEmbeddedMapOpen ? (
+        /* TELA EXPANDIDA EM TELA CHEIA COM MAPA INTEGRADO (IN-APP EMBED) */
         <div
-          className={`w-full max-w-md my-auto rounded-[4px] border p-5 shadow-2xl space-y-4 font-['Poppins'] ${
-            isDark
-              ? 'bg-[#090D16] border-slate-800 text-white'
-              : 'bg-white border-slate-200 text-slate-900'
+          className={`w-full h-full sm:max-w-5xl sm:max-h-[96vh] sm:border sm:rounded-[4px] overflow-hidden shadow-2xl flex flex-col transition-colors ${
+            isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
           }`}
-          onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-2.5 min-w-0 flex-1">
-              {resolvedBrandLogo ? (
-                <img
-                  src={resolvedBrandLogo}
-                  alt={salonName}
-                  className="h-8 w-auto max-w-[96px] object-contain shrink-0 mt-0.5"
-                />
-              ) : (
-                <div
-                  style={{ backgroundColor: primaryColor || '#20C933' }}
-                  className="w-8 h-8 rounded-[4px] flex items-center justify-center shrink-0 text-white mt-0.5"
-                >
-                  <Calendar className="w-4 h-4 text-white" />
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <h3 className="text-sm font-extrabold leading-snug">
-                  Deseja realizar o agendamento?
+          {/* Cabeçalho da Tela Expandida do Mapa */}
+          <div
+            className={`px-3.5 py-2.5 border-b flex items-center justify-between gap-2 shrink-0 ${
+              isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+            }`}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setIsEmbeddedMapOpen(false);
+                }}
+                className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
+                  isDark ? 'bg-slate-800 text-slate-200 hover:text-white' : 'bg-slate-200 text-slate-700 hover:text-slate-900'
+                }`}
+                title="Voltar ao resumo da rota"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 text-emerald-500" />
+              </button>
+              <div className="min-w-0">
+                <h3 className="text-xs sm:text-sm font-extrabold font-['Poppins'] leading-snug truncate">
+                  Mapa da Rota • {TRANSPORT_MODE_META[transportMode].shortLabel}
                 </h3>
-                <p className={`text-[11px] leading-snug mt-0.5 break-words ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  {salonName}
-                </p>
               </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <a
+                href={transportMode === 'transit' ? transportLinks.googleMapsTransitUrl : transportLinks.googleMapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2.5 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold inline-flex items-center gap-1.5 transition cursor-pointer shadow-xs whitespace-nowrap"
+                title="Abrir no aplicativo externo do Google Maps"
+              >
+                <ExternalLink className="w-3 h-3 text-white shrink-0" />
+                <span className="text-white">Abrir Externo</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEmbeddedMapOpen(false);
+                  setIsRouteModalOpen(false);
+                  onClose?.();
+                }}
+                className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
+                  isDark ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-slate-200 text-slate-600 hover:text-slate-900'
+                }`}
+                title="Fechar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Topo Resumo + Troca Rápida de Modalidade (A pé, Bicicleta, Moto, Carro, Transp. Público) */}
+          <div
+            className={`px-3.5 py-2.5 border-b space-y-2 shrink-0 ${
+              isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}
+          >
+            <div className="grid grid-cols-5 gap-1.5">
+              {mapCompatibleModes.map((opt) => {
+                const isSelectedMode = transportMode === opt.key;
+                const ModeIcon = opt.Icon;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      setTransportMode(opt.key);
+                      setEtaMinutes(computeCalibratedEtaForMode(distanceKm, null, opt.key));
+                      const activeOrigin =
+                        originModalMode === 'custom_cep' && customCepInput.replace(/\D/g, '').length === 8
+                          ? customCepInput
+                          : addressQuery;
+                      runRouteCalculation(activeOrigin, salonDestQuery, opt.key, true);
+                    }}
+                    className={`py-1.5 px-1 rounded-[4px] font-bold text-[10px] sm:text-[11px] flex flex-col items-center justify-center gap-0.5 transition cursor-pointer text-center ${
+                      isSelectedMode
+                        ? 'bg-emerald-500 text-white shadow-xs'
+                        : isDark
+                        ? 'bg-slate-900 text-slate-300 hover:text-white'
+                        : 'bg-white text-slate-700 hover:text-slate-900'
+                    }`}
+                  >
+                    <ModeIcon className={`w-3.5 h-3.5 shrink-0 ${isSelectedMode ? 'text-white' : 'text-emerald-500'}`} />
+                    <span className={`leading-tight whitespace-nowrap truncate max-w-full ${isSelectedMode ? 'text-white' : ''}`}>
+                      {opt.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Faixa de Resumo Rápido da Rota */}
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] font-bold">
+              <div className="flex items-center gap-1.5 min-w-0 truncate">
+                <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span className="truncate">{resolvedAddressLabel}</span>
+                <span className="text-emerald-500 shrink-0">➔</span>
+                <span className="text-emerald-500 truncate">{salonName}</span>
+              </div>
+
+              <div className="flex items-center gap-2.5 shrink-0">
+                <span>{formattedDistanceComma} km</span>
+                <span>•</span>
+                <span>{formattedEtaHoursAndMinutes}</span>
+                <span>•</span>
+                <span>
+                  Saída máx. <strong className="text-emerald-500">{maxDepartureTimeFormatted}</strong>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Mapa Interativo Incorporado em Tela Cheia */}
+          <div className="relative flex-1 w-full min-h-[340px] bg-slate-900">
+            <iframe
+              key={`${transportMode}-${originCoords.lat}-${originCoords.lng}-${resolvedSalonCoords.lat}-${resolvedSalonCoords.lng}`}
+              title={`Mapa da Rota - ${TRANSPORT_MODE_META[transportMode].label}`}
+              src={transportLinks.googleMapsEmbedUrl}
+              className="w-full h-full border-0"
+              allowFullScreen
+              loading="eager"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </div>
+
+          {/* Rodapé Fixo de Ação */}
+          <div
+            className={`sticky bottom-0 z-20 px-3.5 py-2.5 border-t flex items-center justify-between gap-2 shrink-0 ${
+              isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                hapticLight();
+                setIsEmbeddedMapOpen(false);
+              }}
+              className={`py-2 px-3 rounded-[4px] font-bold text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-100' : 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+              }`}
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span>Voltar</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              {(transportMode === 'car' || transportMode === 'motorcycle') && (
+                <a
+                  href={transportLinks.wazeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`py-2 px-3 rounded-[4px] font-bold text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                    isDark ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-900 hover:bg-slate-800 text-white'
+                  }`}
+                >
+                  <Navigation className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span className="text-white">Waze</span>
+                  <ExternalLink className="w-3 h-3 text-emerald-400 shrink-0" />
+                </a>
+              )}
+
+              <a
+                href={transportMode === 'transit' ? transportLinks.googleMapsTransitUrl : transportLinks.googleMapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow-xs"
+              >
+                <MapPin className="w-3.5 h-3.5 text-white shrink-0" />
+                <span className="text-white">Abrir no Google Maps</span>
+                <ExternalLink className="w-3 h-3 text-white shrink-0" />
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* CARD COMPACTO PADRÃO: IR AGORA • ROTA & DESLOCAMENTO */
+        <div
+          className={`w-full max-w-md my-auto border rounded-[4px] overflow-hidden shadow-2xl flex flex-col max-h-[90vh] transition-colors ${
+            isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+          }`}
+        >
+          {/* Cabeçalho do Modal Próprio de Rota */}
+          <div className={`px-4 py-3 border-b flex items-center justify-between gap-2 ${
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+          }`}>
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setIsEmbeddedMapOpen(false);
+                  setIsRouteModalOpen(false);
+                  setIsPostConfirmChoiceModalOpen(true);
+                }}
+                className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
+                  isDark ? 'bg-slate-800 text-slate-200 hover:text-white' : 'bg-slate-200 text-slate-700 hover:text-slate-900'
+                }`}
+                title="Voltar"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 text-emerald-500" />
+              </button>
+              <h3 className="text-sm font-extrabold font-['Poppins'] leading-snug truncate">
+                Ir Agora • Rota & Deslocamento
+              </h3>
             </div>
             <button
               type="button"
-              onClick={() => setIsConfirmScheduleIntentModalOpen(false)}
+              onClick={() => {
+                setIsEmbeddedMapOpen(false);
+                setIsRouteModalOpen(false);
+                onClose?.();
+              }}
               className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
-                isDark
-                  ? 'bg-slate-800 text-slate-300 hover:text-white'
-                  : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                isDark ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-slate-200 text-slate-600 hover:text-slate-900'
               }`}
-              aria-label="Fechar"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <div
-            className={`p-3 rounded-[4px] flex items-center justify-between gap-3 ${
-              isDark ? 'bg-slate-900 text-slate-100' : 'bg-slate-100 text-slate-900'
-            }`}
-          >
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold leading-snug break-words">{pendingServiceForIntent.title}</p>
-              <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-medium mt-1">
-                <Clock className="w-3 h-3 text-emerald-500 shrink-0" />
-                <span>{pendingServiceForIntent.duration}</span>
-              </span>
+          {/* Corpo do Modal Próprio de Rota */}
+          <div className="p-4 space-y-3.5 overflow-y-auto no-scrollbar">
+            {/* Seletor com todas as 6 opções do Google Maps API: A pé, Bicicleta, Moto, Carro, Transporte Público, Aplicativo */}
+            {renderTransportSelectorGrid(true)}
+
+            {/* Card de Rota e Horário Máx. de Saída */}
+            <div className={`p-3.5 rounded-[4px] space-y-3 ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'}`}>
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-xs font-extrabold text-emerald-500 leading-snug break-words flex-1">
+                  {resolvedAddressLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    setIsEmbeddedMapOpen(false);
+                    setIsRouteModalOpen(false);
+                    setReturnToRouteModalAfterOrigin(true);
+                    setIsOriginModalOpen(true);
+                  }}
+                  className="px-2.5 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold inline-flex items-center gap-1.5 shrink-0 transition cursor-pointer shadow-xs whitespace-nowrap"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-white shrink-0" />
+                  <span className="text-white">Alterar origem</span>
+                </button>
+              </div>
+
+              <div className="space-y-1.5 font-bold text-xs">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>Distância de {formattedDistanceComma} km</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {renderModeIcon(transportMode, 'w-4 h-4 text-emerald-500 shrink-0')}
+                  <span>
+                    Trajeto de {formattedEtaHoursAndMinutes} ({TRANSPORT_MODE_META[transportMode].shortLabel})
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>
+                    Horário Máx. de saída <strong className="text-emerald-500">{maxDepartureTimeFormatted}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Botões de Ação Integrados ao Mapa In-App / Waze / Chamar App */}
+              <div className="pt-1 space-y-2">
+                {(transportMode === 'walking' || transportMode === 'bicycling' || transportMode === 'transit') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticMedium();
+                      setIsEmbeddedMapOpen(true);
+                    }}
+                    className="w-full py-3 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer text-center shadow-xs"
+                  >
+                    {renderModeIcon(transportMode, 'w-4 h-4 text-white shrink-0')}
+                    <span className="text-white">
+                      Mapa ({TRANSPORT_MODE_META[transportMode].shortLabel})
+                    </span>
+                  </button>
+                )}
+
+                {(transportMode === 'car' || transportMode === 'motorcycle') && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticMedium();
+                        setIsEmbeddedMapOpen(true);
+                      }}
+                      className="py-2.5 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer text-center shadow-xs"
+                    >
+                      <span className="w-6 h-6 rounded-[4px] bg-white/20 flex items-center justify-center shrink-0">
+                        <MapPin className="w-3.5 h-3.5 text-white shrink-0" />
+                      </span>
+                      <span className="text-white whitespace-nowrap">Mapa</span>
+                    </button>
+
+                    <a
+                      href={transportLinks.wazeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`py-2.5 px-2.5 rounded-[4px] font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer text-center shadow-xs ${
+                        isDark
+                          ? 'bg-slate-800 hover:bg-slate-700 text-white'
+                          : 'bg-slate-900 hover:bg-slate-800 text-white'
+                      }`}
+                    >
+                      <span className="w-6 h-6 rounded-[4px] bg-emerald-500 flex items-center justify-center shrink-0">
+                        <Navigation className="w-3.5 h-3.5 text-white shrink-0" />
+                      </span>
+                      <span className="text-white whitespace-nowrap">Waze</span>
+                      <ExternalLink className="w-3.5 h-3.5 text-emerald-400 shrink-0 ml-auto" />
+                    </a>
+                  </div>
+                )}
+
+                {transportMode === 'rideshare' && (
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticMedium();
+                        setIsRideAppOptionsOpen((prev) => !prev);
+                      }}
+                      className="w-full py-3 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer text-center shadow-xs"
+                    >
+                      <Smartphone className="w-4 h-4 text-white shrink-0" />
+                      <span className="text-white">Chamar App</span>
+                      <ChevronRight
+                        className={`w-4 h-4 text-white shrink-0 transition-transform ${
+                          isRideAppOptionsOpen ? 'rotate-90' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {isRideAppOptionsOpen && (
+                      <div className="space-y-1.5 pt-1 animate-in fade-in duration-150">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider block ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                          Escolha o aplicativo instalado no seu dispositivo:
+                        </span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <a
+                            href={transportLinks.uberUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="py-2.5 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center shadow-xs"
+                          >
+                            <Car className="w-4 h-4 text-white shrink-0" />
+                            <span className="text-white">Uber</span>
+                            <ExternalLink className="w-3.5 h-3.5 text-white shrink-0" />
+                          </a>
+
+                          <a
+                            href={transportLinks.app99Url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`py-2.5 px-2.5 rounded-[4px] font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center shadow-xs ${
+                              isDark
+                                ? 'bg-slate-800 hover:bg-slate-700 text-amber-400'
+                                : 'bg-slate-900 hover:bg-slate-800 text-amber-400'
+                            }`}
+                          >
+                            <Car className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span>99</span>
+                            <ExternalLink className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          </a>
+                        </div>
+
+                        <a
+                          href={transportLinks.nativeGeoIntentUrl}
+                          className={`w-full py-2.5 px-3 rounded-[4px] font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center ${
+                            isDark
+                              ? 'bg-slate-800 hover:bg-slate-700 text-slate-100'
+                              : 'bg-slate-200 hover:bg-slate-300 text-slate-900'
+                          }`}
+                        >
+                          <Smartphone className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                          <span>Outros Apps Instalados no Dispositivo</span>
+                          <ExternalLink className="w-3 h-3 text-emerald-500 shrink-0" />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-            <span className="text-sm font-black text-emerald-500 shrink-0">
-              R$ {pendingServiceForIntent.price.toFixed(0)}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5 pt-1">
-            <button
-              type="button"
-              onClick={() => {
-                hapticLight();
-                setIsConfirmScheduleIntentModalOpen(false);
-              }}
-              className={`py-3 px-3 rounded-[4px] font-bold text-xs transition cursor-pointer text-center ${
-                isDark
-                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                  : 'bg-slate-200 hover:bg-slate-300 text-slate-800'
-              }`}
-            >
-              Agora não
-            </button>
-
-            <button
-              type="button"
-              onClick={handleConfirmScheduleIntent}
-              style={{ backgroundColor: primaryColor || '#20C933' }}
-              className="py-3 px-3 rounded-[4px] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition hover:brightness-110 cursor-pointer text-center"
-            >
-              <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
-              <span className="text-white">Sim, agendar</span>
-            </button>
           </div>
         </div>
-      </div>
-    );
+      )}
+    </div>
+  );
 
   const authModalNode = (
     <SalonClientAuthModal
@@ -2727,9 +3399,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         if (pendingAuthActionRef.current === 'confirm_final') {
           handleConfirmFinal(true);
         } else {
-          const targetSrv = pendingServiceForIntent || initialService || selectedService;
+          const targetSrv = selectedService || initialService;
           if (targetSrv) {
-            proceedWithConfirmedServiceBooking(targetSrv);
+            proceedWithConfirmedServiceBooking(targetSrv, true);
           }
         }
       }}
@@ -2740,10 +3412,11 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     return (
       <>
         {bookingContent}
-        {confirmScheduleIntentModalNode}
         {beneficiaryModalNode}
         {originModalNode}
         {summaryModalNode}
+        {postConfirmChoiceModalNode}
+        {routeModalNode}
         {authModalNode}
       </>
     );
@@ -2754,10 +3427,11 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
         {bookingContent}
       </div>
-      {confirmScheduleIntentModalNode}
       {beneficiaryModalNode}
       {originModalNode}
       {summaryModalNode}
+      {postConfirmChoiceModalNode}
+      {routeModalNode}
       {authModalNode}
     </>
   );

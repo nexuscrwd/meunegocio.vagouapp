@@ -340,54 +340,45 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const isUserProRole = isSalonLoggedIn;
   const isActiveProAdmin = isOwnerOrManager;
 
-  // Identificação do estado de login do usuário (Exibe o ícone de avatar se logado; botão "Entrar" se não logado)
-  const [isUserLoggedInState, setIsUserLoggedInState] = useState<boolean>(() => {
+  // Verificação estrita de sessão ativa do usuário/cliente (sem considerar nomes soltos sem sessão)
+  const checkHasActiveSession = useCallback((): boolean => {
     try {
-      const activePartner = localStorage.getItem('vagou_active_partner');
-      const userEmail = localStorage.getItem('vagou_user_email');
-      const storedName = localStorage.getItem('vagou_user_name');
-      
-      if (activeRole !== 'guest' && activeRole !== 'loading') {
+      if ((activeRole !== 'guest' && activeRole !== 'loading') || isSalonLoggedIn) {
         return true;
       }
-      if (!!activePartner || !!userEmail) {
+      if (localStorage.getItem('vagou_is_superadmin') === 'true') {
         return true;
       }
-      if (storedName && storedName.trim() !== '' && storedName !== 'Usuário' && storedName !== 'Visitante') {
+      const rawClientSession = localStorage.getItem('vagou_client_session');
+      if (rawClientSession) {
+        try {
+          const parsed = JSON.parse(rawClientSession);
+          if (parsed && (parsed.id || parsed.clientId || parsed.email || parsed.username)) {
+            return true;
+          }
+        } catch {}
+      }
+      const authUserId = (localStorage.getItem('vagou_auth_user_id') || '').trim();
+      if (authUserId && !authUserId.startsWith('guest-')) {
         return true;
       }
-      if (userName && userName.trim() !== '' && userName !== 'Usuário' && userName !== 'Visitante') {
+      const userEmail = (localStorage.getItem('vagou_user_email') || '').trim();
+      const activePartner = (localStorage.getItem('vagou_active_partner') || '').trim();
+      if (userEmail || activePartner) {
         return true;
       }
       return false;
     } catch {
       return false;
     }
-  });
+  }, [activeRole, isSalonLoggedIn]);
+
+  // Identificação do estado de login do usuário (Exibe o ícone de avatar se logado; botão "Entrar" se não logado)
+  const [isUserLoggedInState, setIsUserLoggedInState] = useState<boolean>(() => checkHasActiveSession());
 
   useEffect(() => {
     const checkLoginState = () => {
-      try {
-        const activePartner = localStorage.getItem('vagou_active_partner');
-        const userEmail = localStorage.getItem('vagou_user_email');
-        const authUserId = localStorage.getItem('vagou_auth_user_id');
-        const clientSession = localStorage.getItem('vagou_client_session');
-        const storedName = localStorage.getItem('vagou_user_name');
-
-        const logged =
-          (activeRole !== 'guest' && activeRole !== 'loading') ||
-          isSalonLoggedIn ||
-          !!activePartner ||
-          !!userEmail ||
-          !!authUserId ||
-          !!clientSession ||
-          (!!storedName && storedName.trim() !== '' && storedName !== 'Usuário' && storedName !== 'Visitante') ||
-          (!!userName && userName.trim() !== '' && userName !== 'Usuário' && userName !== 'Visitante');
-
-        setIsUserLoggedInState(logged);
-      } catch {
-        setIsUserLoggedInState(false);
-      }
+      setIsUserLoggedInState(checkHasActiveSession());
     };
 
     checkLoginState();
@@ -397,7 +388,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       window.removeEventListener('storage', checkLoginState);
       window.removeEventListener('vagou:auth-updated', checkLoginState);
     };
-  }, [userName, isSalonLoggedIn, currentPersona, activeRole]);
+  }, [checkHasActiveSession, userName, isSalonLoggedIn, currentPersona, activeRole]);
 
   // Modo de visualização quando logado: 'ger' (Gerenciamento) ou 'pub' (Público / Visão do Cliente)
   const viewMode = isGerMode ? 'ger' : 'pub';
@@ -822,8 +813,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               id: member.id,
               name: member.name,
               role: member.role === 'admin' ? 'Dono / Gerente' : member.role === 'receptionist' ? 'Recepcionista' : 'Profissional',
-              avatar: member.avatarUrl,
-              avatarUrl: member.avatarUrl,
+              avatar: member.avatarUrl || member.avatar,
+              avatarUrl: member.avatarUrl || member.avatar,
+              specialties: Array.isArray(member.specialties) ? member.specialties : undefined,
               rating: 5.0
             }));
           }
@@ -1459,22 +1451,29 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
     try {
       localStorage.removeItem('vagou_auth_user_id');
+      localStorage.removeItem('vagou_client_id');
       localStorage.removeItem('vagou_active_partner');
       localStorage.removeItem('vagou_user_email');
       localStorage.removeItem('vagou_user_cpf');
       localStorage.removeItem('vagou_user_phone');
       localStorage.removeItem('vagou_user_avatar');
       localStorage.removeItem('vagou_user_name');
+      localStorage.removeItem('vagou_user_role');
+      localStorage.removeItem('vagou_is_superadmin');
       localStorage.removeItem('vagou_client_session');
       localStorage.removeItem('vagou_dashboard_user_role');
       localStorage.removeItem('vagou_dashboard_logged_pro_name');
     } catch {
       // ignore
     }
+    setCurrentUserName('Usuário');
+    setCurrentUserAvatarUrl('');
+    setIsUserLoggedInState(false);
     window.dispatchEvent(new CustomEvent('vagou:auth-updated'));
     setIsProfileDrawerOpen(false);
     setIsClientAuthModalOpen(false);
     setIsPublicPreviewMode(true);
+    setActiveTab((prev) => (prev === 'vagas' ? 'home' : prev));
   };
 
   // Solicitação de acesso a Gerenciar Estabelecimento (Protegido por RBAC)
@@ -1509,6 +1508,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const [bookingService, setBookingService] = useState<CatalogServiceItem | null>(null);
   const [bookingTrigger, setBookingTrigger] = useState<number>(0);
   const [skipDateStep, setSkipDateStep] = useState<boolean>(false);
+  const pendingBookingAuthRef = useRef<boolean>(false);
   const [activeBookingDraft, setActiveBookingDraft] = useState<BookingDraftItem | null>(() => getSavedBookingDraft());
   const [resumeDraftTarget, setResumeDraftTarget] = useState<BookingDraftItem | null>(null);
   const [activeSlideIndex, setActiveSlideIndex] = useState<number>(0);
@@ -1741,8 +1741,20 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       return;
     }
 
+    if (tab === 'vagas' && !isGerMode) {
+      if (!isUserLoggedInState && !checkHasActiveSession()) {
+        setBookingService(null);
+        pendingBookingAuthRef.current = true;
+        setIsClientAuthModalOpen(true);
+        return;
+      }
+      setBookingService(null);
+      setActiveTab('vagas');
+      return;
+    }
+
     setActiveTab(tab);
-  }, [isGerMode, isOwnerOrManager]);
+  }, [isGerMode, isOwnerOrManager, isUserLoggedInState, checkHasActiveSession]);
 
   // Catálogo completo de serviços conectado ao estado dinâmico gerenciável
   const filteredCatalogServices = useMemo(() => {
@@ -1763,14 +1775,23 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
   const handleOpenBooking = (srv?: CatalogServiceItem, directToTimeGrid = false, timeSlot?: string, dateIso?: string) => {
     setResumeDraftTarget(null);
-    setBookingService(srv || catalogServices[0]);
-    setBookingTrigger((prev) => prev + 1);
+    const chosenService = srv || catalogServices[0];
+    setBookingService(chosenService);
     setSkipDateStep(directToTimeGrid);
     setSelectedTimeSlotForBooking(timeSlot || null);
     if (dateIso) {
       setSelectedCalendarDateIso(dateIso);
     }
-    handleSelectTab('vagas');
+
+    // Bloqueio obrigatório: cliente pode navegar na vitrine, mas ao clicar em agendar deve fazer login ou cadastro
+    if (!isGerMode && !isUserLoggedInState && !checkHasActiveSession()) {
+      pendingBookingAuthRef.current = true;
+      setIsClientAuthModalOpen(true);
+      return;
+    }
+
+    setBookingTrigger((prev) => prev + 1);
+    setActiveTab('vagas');
   };
 
   // Slides de portfólio para o Slider da Página Inicial (Apresentação publicitária elegante e limpa)
@@ -1828,7 +1849,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     distanceKm?: number;
     etaMinutes?: number;
     prepBufferMinutes?: number;
-    transportMode?: 'driving' | 'motorcycle' | 'walking' | 'transit';
+    transportMode?: 'driving' | 'motorcycle' | 'walking' | 'bicycling' | 'transit';
     uiTransportMode?: TransportMode;
     maxDepartureTime?: string;
     originFormattedAddress?: string;
@@ -1849,14 +1870,15 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           if (s) rawClientSession = JSON.parse(s);
         } catch {}
 
-        const storedClientId = localStorage.getItem('vagou_client_id') || rawClientSession?.id || rawClientSession?.clientId || '';
+        const rawStoredClientId = (localStorage.getItem('vagou_client_id') || rawClientSession?.id || rawClientSession?.clientId || '').trim();
+        const storedClientId = rawStoredClientId.startsWith('guest-') ? '' : rawStoredClientId;
         const storedEmail = (localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || rawClientSession?.email || '').trim();
         const storedPhone = (localStorage.getItem('vagou_user_phone') || rawClientSession?.phone || bookingData.clientPhone || '').trim();
         const storedName = (localStorage.getItem('vagou_user_name') || rawClientSession?.name || currentUserName || 'Cliente').trim();
 
         if (!session?.user && !storedClientId && !storedEmail) {
           setIsClientAuthModalOpen(true);
-          return { success: false, error: 'Faça login para concluir o agendamento.' };
+          return { success: false, error: 'Faça login ou cadastre-se para realizar o agendamento.' };
         }
 
         // Garante linha do cliente em public.clients
@@ -1916,11 +1938,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         const finalClientName = bookingData.isDependentBooking && bookingData.dependentName
           ? bookingData.dependentName
           : (clientRow.name || storedName || currentUserName || 'Cliente');
-        const finalPhone = (bookingData.clientPhone || clientRow.phone || storedPhone || '').trim();
-
-        if (!finalPhone) {
-          return { success: false, error: 'Informe um telefone de contato.' };
-        }
+        const finalPhone = (bookingData.clientPhone || clientRow.phone || storedPhone || 'Não informado').trim();
 
         // Determina horário de início e fim
         const [h, m] = bookingData.timeSlot.split(':').map(Number);
@@ -2016,27 +2034,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           serviceCategory: (bookingData.service.category.toLowerCase().includes('barba') ? 'barba' : 'cabelo') as any,
         });
       }
-
-      setConfirmedBookingData({
-        protocolCode: `#${rawCode}`,
-        serviceTitle: bookingData.service.title,
-        professionalName: bookingData.professional,
-        salonName: bookingData.salonName,
-        dateTime: `${bookingData.dateFormatted} às ${bookingData.timeSlot}`,
-        totalPrice: bookingData.price,
-        address: bookingData.salonAddress,
-        distanceKm: bookingData.distanceKm,
-        etaMinutes: bookingData.etaMinutes,
-        maxDepartureTime:
-          bookingData.maxDepartureTime ||
-          formatMaxDepartureTime(bookingData.timeSlot, bookingData.etaMinutes ?? 15),
-        uiTransportMode: bookingData.uiTransportMode || 'car',
-        originFormattedAddress: bookingData.originFormattedAddress,
-        originLat: bookingData.originLat,
-        originLng: bookingData.originLng,
-        salonLat: bookingData.salonLat,
-        salonLng: bookingData.salonLng,
-      });
 
       // Salvar nos agendamentos do usuário para visualização em Minha Agenda (com dados BOL-020 + Dependente)
       try {
@@ -3266,7 +3263,12 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               onClick={() => {
                 hapticMedium();
                 setResumeDraftTarget({ ...activeBookingDraft });
-                handleSelectTab('vagas');
+                if (!isGerMode && !isUserLoggedInState && !checkHasActiveSession()) {
+                  pendingBookingAuthRef.current = true;
+                  setIsClientAuthModalOpen(true);
+                  return;
+                }
+                setActiveTab('vagas');
               }}
               className="px-2.5 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold transition cursor-pointer whitespace-nowrap"
             >
@@ -3616,7 +3618,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       {isClientAuthModalOpen && (
         <SalonClientAuthModal
           isOpen={isClientAuthModalOpen}
-          onClose={() => setIsClientAuthModalOpen(false)}
+          onClose={() => {
+            pendingBookingAuthRef.current = false;
+            setIsClientAuthModalOpen(false);
+          }}
           salonName={salonInfo.name}
           salonSlug={adminSettings.salonSlug || activeSubdomain || ''}
           salonLogo={activeLogo}
@@ -3625,10 +3630,18 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           primaryColor={adminSettings.accentColor || '#20C933'}
           secondaryColor={adminSettings.secondaryColor || ''}
           themeMode={isDark ? 'dark' : 'light'}
-          onAuthenticated={(_user, _role) => {
+          onAuthenticated={(user, _role) => {
+            setIsUserLoggedInState(true);
+            if (user?.name) {
+              setCurrentUserName(user.name);
+            }
             setIsClientAuthModalOpen(false);
-            if (bookingService) {
-              handleSelectTab('vagas');
+            if (pendingBookingAuthRef.current || bookingService || resumeDraftTarget) {
+              pendingBookingAuthRef.current = false;
+              if (bookingService) {
+                setBookingTrigger((prev) => prev + 1);
+              }
+              setActiveTab('vagas');
             }
           }}
         />

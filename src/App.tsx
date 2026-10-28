@@ -471,6 +471,8 @@ export const App: React.FC = () => {
         setUserAvatarUrl('');
         try {
           localStorage.removeItem('vagou_auth_user_id');
+          localStorage.removeItem('vagou_client_id');
+          localStorage.removeItem('vagou_client_session');
           localStorage.removeItem('vagou_user_name');
           localStorage.removeItem('vagou_user_email');
           localStorage.removeItem('vagou_user_cpf');
@@ -482,8 +484,22 @@ export const App: React.FC = () => {
       }
     });
 
+    const handleCustomAuthUpdated = () => {
+      try {
+        const savedName = localStorage.getItem('vagou_user_name') || '';
+        const savedAvatar = localStorage.getItem('vagou_user_avatar') || '';
+        setUserName(savedName);
+        setUserAvatarUrl(isValidAvatarUrlString(savedAvatar) ? savedAvatar.trim() : '');
+      } catch {
+        setUserName('');
+        setUserAvatarUrl('');
+      }
+    };
+    window.addEventListener('vagou:auth-updated', handleCustomAuthUpdated);
+
     return () => {
       authListener?.subscription.unsubscribe();
+      window.removeEventListener('vagou:auth-updated', handleCustomAuthUpdated);
     };
   }, []);
 

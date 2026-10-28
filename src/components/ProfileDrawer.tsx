@@ -2177,27 +2177,28 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   />
                 </div>
 
-                {/* Campo Telefone */}
-                <div className="space-y-1">
-                  <label className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-                    isDark ? 'text-slate-400' : 'text-slate-600'
-                  }`}>
-                    <Phone className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>Telefone / WhatsApp</span>
-                  </label>
-                  <input
-                    type="tel"
-                    value={profile.phone}
-                    disabled={!isEditing}
-                    onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                    required
-                    className={`w-full px-3 py-2.5 rounded text-xs border outline-hidden transition ${
-                      !isEditing
-                        ? isDark ? 'bg-slate-900/60 border-slate-800/60 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
-                        : isDark ? 'bg-slate-900 border-emerald-500 text-white focus:ring-1 focus:ring-emerald-500' : 'bg-white border-emerald-500 text-slate-900 focus:ring-1 focus:ring-emerald-500'
-                    }`}
-                  />
-                </div>
+                {/* Campo Telefone (Visível apenas fora do modo cliente) */}
+                {currentPersona !== 'cliente' && (
+                  <div className="space-y-1">
+                    <label className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                      isDark ? 'text-slate-400' : 'text-slate-600'
+                    }`}>
+                      <Phone className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>Telefone / WhatsApp</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={profile.phone}
+                      disabled={!isEditing}
+                      onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                      className={`w-full px-3 py-2.5 rounded text-xs border outline-hidden transition ${
+                        !isEditing
+                          ? isDark ? 'bg-slate-900/60 border-slate-800/60 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
+                          : isDark ? 'bg-slate-900 border-emerald-500 text-white focus:ring-1 focus:ring-emerald-500' : 'bg-white border-emerald-500 text-slate-900 focus:ring-1 focus:ring-emerald-500'
+                      }`}
+                    />
+                  </div>
+                )}
 
                 {/* Campo Endereço */}
                 <div className="space-y-1">

@@ -191,48 +191,106 @@ export async function checkUserSalonMembership(
     return { isMember: false, role: 'cliente' };
   }
 
-  if (!salonIdentifier || !salonIdentifier.trim()) {
-    return { isMember: false, role: 'cliente' };
-  }
-
-  const cleanIdent = salonIdentifier.trim().toLowerCase();
+  const cleanIdent = (salonIdentifier || '').trim().toLowerCase();
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanIdent);
   const isValidSlug = /^[a-z0-9-]+$/.test(cleanIdent);
 
-  if (!isUuid && !isValidSlug) {
-    return { isMember: false, role: 'cliente' };
-  }
-
   try {
-    let salonQuery = (supabase.from('salons') as any).select('*');
-    if (isUuid) {
-      salonQuery = salonQuery.eq('id', cleanIdent);
-    } else {
-      salonQuery = salonQuery.eq('slug', cleanIdent);
+    let salonRes: any = null;
+
+    if (cleanIdent && (isUuid || isValidSlug)) {
+      let salonQuery = (supabase.from('salons') as any).select('*');
+      if (isUuid) {
+        salonQuery = salonQuery.eq('id', cleanIdent);
+      } else {
+        salonQuery = salonQuery.eq('slug', cleanIdent);
+      }
+      const { data } = await salonQuery.maybeSingle();
+      if (data) salonRes = data;
     }
 
-    const { data: salonRes, error: salonErr } = await salonQuery.maybeSingle();
-    if (salonErr || !salonRes) {
-      if (salonErr) console.warn('Erro ao consultar salão por identificador:', salonErr.message);
-      return { isMember: false, role: 'cliente' };
+    // Fallback resiliente: busca parcial por slug/trade_name ou primeiro salão ativo (para ambiente preview/sem subdomínio)
+    if (!salonRes) {
+      const { data: allSalons } = await (supabase.from('salons') as any)
+        .select('*')
+        .order('created_at', { ascending: true })
+        .limit(20);
+
+      if (Array.isArray(allSalons) && allSalons.length > 0) {
+        if (cleanIdent) {
+          salonRes =
+            allSalons.find((s: any) => {
+              const sSlug = String(s.slug || '').toLowerCase();
+              const sNameSlug = String(s.trade_name || '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-|-$/g, '');
+              return (
+                (sSlug && (cleanIdent.includes(sSlug) || sSlug.includes(cleanIdent))) ||
+                (sNameSlug && (cleanIdent.includes(sNameSlug) || sNameSlug.includes(cleanIdent)))
+              );
+            }) || allSalons[0];
+        } else {
+          salonRes = allSalons.find((s: any) => s.is_active !== false) || allSalons[0];
+        }
+      }
     }
 
-    const targetSalonId = salonRes.id;
-    const targetSalonData = salonRes;
+    const targetSalonId = salonRes?.id;
+    const targetSalonData = salonRes || null;
     const cleanEmail = (userEmail || '').trim().toLowerCase();
 
-    // Coletar todos os IDs candidatos do usuário (auth.uid, clients.user_id, clients.id, profiles.id)
+    // Coletar todos os IDs candidatos do usuário (auth.uid, system_admins.id, clients.user_id, clients.id, profiles.id)
     const candidateIds = new Set<string>();
     if (userId && userId.trim()) {
       candidateIds.add(userId.trim());
     }
     let userCpfDigits = (userCpf || '').replace(/\D/g, '');
     let resolvedClientEmail = cleanEmail;
+    let isSuperadminMaster =
+      typeof window !== 'undefined' && localStorage.getItem('vagou_is_superadmin') === 'true';
+
+    // CAMADA 0: Soberania Absoluta do Criador do Sistema / Superadmin Master (public.system_admins)
+    try {
+      const { data: sysAdmins } = await (supabase.from('system_admins' as any) as any)
+        .select('id, username, email, cpf, phone_whatsapp, role, access_level, is_active')
+        .limit(50);
+
+      if (Array.isArray(sysAdmins)) {
+        const cleanUserNoAt = cleanEmail.replace(/^[@#&]+|[@#&]+$/g, '');
+        const matchedAdmin = sysAdmins.find((sa: any) => {
+          if (sa.is_active === false) return false;
+          const saId = String(sa.id || '').trim();
+          const saEmail = String(sa.email || '').trim().toLowerCase();
+          const saUser = String(sa.username || '').trim().toLowerCase();
+          const saUserNoAt = saUser.replace(/^[@#&]+|[@#&]+$/g, '');
+          const saCpf = String(sa.cpf || '').replace(/\D/g, '');
+
+          if (saId && candidateIds.has(saId)) return true;
+          if (cleanEmail && (saEmail === cleanEmail || saUser === cleanEmail || (cleanUserNoAt && saUserNoAt === cleanUserNoAt))) {
+            return true;
+          }
+          if (userCpfDigits && userCpfDigits.length === 11 && saCpf === userCpfDigits) {
+            return true;
+          }
+          return false;
+        });
+
+        if (matchedAdmin) {
+          isSuperadminMaster = true;
+          if (matchedAdmin.id) candidateIds.add(String(matchedAdmin.id));
+          if (matchedAdmin.email) resolvedClientEmail = String(matchedAdmin.email).trim().toLowerCase();
+          if (matchedAdmin.cpf && !userCpfDigits) {
+            userCpfDigits = String(matchedAdmin.cpf).replace(/\D/g, '');
+          }
+        }
+      }
+    } catch {}
 
     if (userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId.trim())) {
       try {
         const { data: clientById } = await (supabase.from('clients') as any)
-          .select('id, user_id, cpf, email')
+          .select('id, user_id, cpf, email, username, access_level')
           .or(`id.eq.${userId.trim()},user_id.eq.${userId.trim()}`)
           .limit(3);
         if (Array.isArray(clientById)) {
@@ -243,6 +301,10 @@ export async function checkUserSalonMembership(
             if (c?.email && (!resolvedClientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resolvedClientEmail))) {
               resolvedClientEmail = String(c.email).trim().toLowerCase();
             }
+            const cAccess = String(c?.access_level || '').toLowerCase();
+            if (cAccess.includes('superadmin') || cAccess.includes('administrador master')) {
+              isSuperadminMaster = true;
+            }
           }
         }
       } catch {}
@@ -252,7 +314,7 @@ export async function checkUserSalonMembership(
       try {
         const isRealEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
         const { data: clientRows } = await (supabase.from('clients') as any)
-          .select('id, user_id, cpf, email, username')
+          .select('id, user_id, cpf, email, username, access_level')
           .ilike(isRealEmail ? 'email' : 'username', cleanEmail)
           .limit(5);
         if (Array.isArray(clientRows)) {
@@ -262,6 +324,10 @@ export async function checkUserSalonMembership(
             if (c?.cpf && !userCpfDigits) userCpfDigits = String(c.cpf).replace(/\D/g, '');
             if (c?.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resolvedClientEmail)) {
               resolvedClientEmail = String(c.email).trim().toLowerCase();
+            }
+            const cAccess = String(c?.access_level || '').toLowerCase();
+            if (cAccess.includes('superadmin') || cAccess.includes('administrador master')) {
+              isSuperadminMaster = true;
             }
           }
         }
@@ -284,6 +350,25 @@ export async function checkUserSalonMembership(
       try {
         localStorage.setItem('vagou_user_cpf', userCpfDigits);
       } catch {}
+    }
+
+    // Se o usuário é Superadmin Master (system_admins ou access_level = 'Superadmin Master'), possui soberania irrestrita ('owner') em qualquer salão do ecossistema
+    if (isSuperadminMaster) {
+      try {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('vagou_is_superadmin', 'true');
+        }
+      } catch {}
+      return {
+        isMember: true,
+        role: 'owner',
+        salonId: targetSalonId,
+        salonData: targetSalonData,
+      };
+    }
+
+    if (!targetSalonData || !targetSalonId) {
+      return { isMember: false, role: 'cliente' };
     }
 
     // CAMADA 1: Checagem Direta de Dono em public.salons (owner_id, email, branding, owner_cpf)
@@ -1831,6 +1916,42 @@ export async function fetchUserProfileFromDb(identifier?: {
   let authMetaAvatar = '';
 
   try {
+    // 0. Procurar na tabela system_admins (Administradores Master / Superadmin Master)
+    try {
+      const { data: sysAdmins } = await (client.from('system_admins' as any) as any)
+        .select('*')
+        .limit(50);
+      if (Array.isArray(sysAdmins)) {
+        const cleanTermLower = (rawEmail || rawName || '').trim().toLowerCase();
+        const cleanTermNoAt = cleanTermLower.replace(/^[@#&]+|[@#&]+$/g, '');
+        const matchedAdmin = sysAdmins.find((sa: any) => {
+          const saId = String(sa.id || '').trim();
+          const saEmail = String(sa.email || '').trim().toLowerCase();
+          const saUser = String(sa.username || '').trim().toLowerCase();
+          const saUserNoAt = saUser.replace(/^[@#&]+|[@#&]+$/g, '');
+          const saName = String(sa.full_name || '').trim().toLowerCase();
+          const saCpf = String(sa.cpf || '').replace(/\D/g, '');
+          if (rawUserId && saId === rawUserId) return true;
+          if (rawClientId && saId === rawClientId) return true;
+          if (rawCpf && rawCpf.length === 11 && saCpf === rawCpf) return true;
+          if (cleanTermLower && (saEmail === cleanTermLower || saUser === cleanTermLower || saName === cleanTermLower || (cleanTermNoAt && saUserNoAt === cleanTermNoAt))) {
+            return true;
+          }
+          return false;
+        });
+        if (matchedAdmin) {
+          resolvedRole = 'professional';
+          resolvedId = matchedAdmin.id || resolvedId;
+          resolvedName = matchedAdmin.full_name || matchedAdmin.username || resolvedName;
+          resolvedEmail = matchedAdmin.email || resolvedEmail;
+          resolvedPhone = matchedAdmin.phone_whatsapp || matchedAdmin.phone_secondary || resolvedPhone;
+          if (isValidAvatarUrlString(matchedAdmin.avatar_url)) {
+            proAvatar = matchedAdmin.avatar_url.trim();
+          }
+        }
+      }
+    } catch {}
+
     // 1. Procurar na tabela clients (Fonte Soberana de Clientes e Fotos no Painel Admin / App)
     try {
       let matchedClients: any[] = [];
@@ -2115,6 +2236,23 @@ export async function updateUserProfileInDb(profile: {
     }
 
     const client = getDbClient() || supabase;
+
+    // 1.5 Atualizar tabela system_admins caso o usuário seja Administrador Master / Superadmin
+    try {
+      const adminUpdatePayload: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (cleanName) adminUpdatePayload.full_name = cleanName;
+      if (cleanPhone) adminUpdatePayload.phone_whatsapp = cleanPhone;
+      if (cleanCpf) adminUpdatePayload.cpf = cleanCpf;
+      if (hasValidAvatar) adminUpdatePayload.avatar_url = cleanAvatar;
+
+      if (storedUserId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storedUserId)) {
+        await (client.from('system_admins' as any) as any).update(adminUpdatePayload).eq('id', storedUserId);
+      } else if (cleanEmail) {
+        await (client.from('system_admins' as any) as any).update(adminUpdatePayload).ilike('email', cleanEmail);
+      }
+    } catch {}
 
     // 2. Atualizar tabela professionals (Unificada para Single Source of Truth)
     if (cleanEmail || cleanName) {

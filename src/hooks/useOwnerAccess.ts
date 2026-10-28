@@ -25,9 +25,9 @@ function cleanCpfDigits(val?: string | null): string {
   return (val || '').replace(/\D/g, '');
 }
 
-function readLocalAuthState(): { userId: string; email: string; cpf: string } {
+function readLocalAuthState(): { userId: string; email: string; cpf: string; isSuperadmin: boolean } {
   if (typeof window === 'undefined') {
-    return { userId: '', email: '', cpf: '' };
+    return { userId: '', email: '', cpf: '', isSuperadmin: false };
   }
   try {
     let clientSession: any = null;
@@ -37,6 +37,12 @@ function readLocalAuthState(): { userId: string; email: string; cpf: string } {
         clientSession = JSON.parse(rawClientSession);
       } catch {}
     }
+
+    const isSuperadmin =
+      localStorage.getItem('vagou_is_superadmin') === 'true' ||
+      Boolean(clientSession?.isSuperadmin) ||
+      String(clientSession?.accessLevel || '').toLowerCase().includes('superadmin') ||
+      String(clientSession?.role || '').toLowerCase() === 'superadmin';
 
     const userId = (
       localStorage.getItem('vagou_auth_user_id') ||
@@ -49,6 +55,7 @@ function readLocalAuthState(): { userId: string; email: string; cpf: string } {
       localStorage.getItem('vagou_user_email') ||
       localStorage.getItem('vagou_active_partner') ||
       clientSession?.email ||
+      clientSession?.username ||
       ''
     ).trim().toLowerCase();
 
@@ -58,9 +65,9 @@ function readLocalAuthState(): { userId: string; email: string; cpf: string } {
       ''
     );
 
-    return { userId, email, cpf };
+    return { userId, email, cpf, isSuperadmin };
   } catch {
-    return { userId: '', email: '', cpf: '' };
+    return { userId: '', email: '', cpf: '', isSuperadmin: false };
   }
 }
 
@@ -72,10 +79,13 @@ export function useOwnerAccess({
   userRoleProp,
 }: OwnerAccessParams): OwnerAccessResult {
   const [isOwner, setIsOwner] = useState<boolean>(() => {
-    return userRoleProp === 'owner' || userRoleProp === 'admin';
+    const local = readLocalAuthState();
+    return local.isSuperadmin || userRoleProp === 'owner' || userRoleProp === 'admin';
   });
   const [isManagerOrPro, setIsManagerOrPro] = useState<boolean>(() => {
+    const local = readLocalAuthState();
     return (
+      local.isSuperadmin ||
       userRoleProp === 'owner' ||
       userRoleProp === 'admin' ||
       userRoleProp === 'manager' ||
@@ -112,6 +122,15 @@ export function useOwnerAccess({
 
       setUserEmail(resolvedEmail);
       setUserCpf(resolvedCpf);
+
+      // 0. Soberania Absoluta para Superadmin Master (Criador do Sistema / Admin Master)
+      if (localAuth.isSuperadmin) {
+        setIsOwner(true);
+        setIsManagerOrPro(true);
+        setMatchedBy('salon_members');
+        setIsLoading(false);
+        return;
+      }
 
       if (!resolvedEmail && !resolvedId && !resolvedCpf) {
         setIsOwner(false);
