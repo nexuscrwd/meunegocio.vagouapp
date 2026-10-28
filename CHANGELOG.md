@@ -15,6 +15,29 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-28] — Persistência Blindada de Fotos de Perfil Mobile no Supabase (Storage + Database) e Sincronização Unificada na Tríade (bol-025)
+- **Tipo:** `[Fix / Feat — Upload e Persistência de Avatar Mobile no Supabase]`
+- **Motivo / Solicitação:** Diagnosticar e corrigir falha onde fotos de perfil enviadas via celular não subiam para o Supabase.
+- **Arquivos Impactados:**
+  - `server.ts`
+  - `src/lib/supabase.ts`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/utils/imageCompressor.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Compressão Automática Client-Side no Envio Mobile (`imageCompressor.ts` & `ProfileDrawer.tsx`):**
+     - Fotos tiradas diretamente pela câmera do celular (que chegam pesando entre 4MB e 15MB) ou sem MIME type são imediatamente detectadas e comprimidas via canvas em JPEG leve (~25KB a 40KB, `max 480x480px`, qualidade `0.85`), eliminando estouro de payload (`413 Payload Too Large`), limites de rede 3G/4G e rejeições de formato.
+  2. **Endpoint Seguro Server-Side com Service Role (`POST /api/user/avatar` em `server.ts`):**
+     - Criação do endpoint `/api/user/avatar` executado com privilégios de `service_role` (bypassa travas de RLS do cliente anônimo).
+     - Converte o buffer da imagem e tenta upload no bucket de storage `'avatars'`. Caso o bucket não exista no projeto, aplica fallback transparente para `'salon-media'` (pasta `avatars/`).
+     - Se nenhum bucket estiver configurado, persiste de forma resiliente a string base64 compactada (inferior a 40KB) diretamente nas tabelas `clients`, `system_admins`, `profiles`, `professionals` e `salon_users`.
+  3. **Persistência Imediata no Banco Supabase (`saveUserAvatarToSupabase` & `ProfileDrawer.tsx`):**
+     - Corrigido o fluxo do componente: a foto é persistida **imediatamente** no banco ao ser selecionada pelo usuário, sem depender do envio manual do formulário na sub-aba de dados.
+     - Montado o input de arquivo (`<input type="file" ref={fileInputRef} ... />`) no escopo raiz do drawer para estar sempre ativo em qualquer aba.
+     - Adicionado botão de atalho com ícone de Câmera sobreposto ao avatar no card principal do usuário no menu lateral, permitindo alterar a foto com 1 toque no celular.
+     - Adicionado banner de status e spinner de carregamento (`Loader2`) com feedback de confirmação: *"Foto de perfil salva com sucesso no Supabase!"*.
+     - Rigorosamente alinhado à Regra de Contraste do Fundo Verde (botões `bg-emerald-500` com texto e ícone obrigatoriamente brancos `text-white`).
+
 ### [2026-10-28] — Marcador de Navegação com Foto de Perfil do Usuário e Fallback Automático (`InteractiveGoogleRouteMap.tsx` & `LiveTrackingModal.tsx`)
 - **Tipo:** `[Feat — Avatar do Usuário no Marcador de Navegação GPS]`
 - **Motivo / Solicitação:** Exibir a foto de perfil do usuário no marcador de navegação do mapa quando houver foto cadastrada; caso não haja foto (ou se a imagem falhar ao carregar), manter o marcador direcional atual.

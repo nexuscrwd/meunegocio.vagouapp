@@ -3,9 +3,21 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
+import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+const DEFAULT_SUPABASE_URL = 'https://xemenxdhuoekytyhmgyt.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlbWVueGRodW9la3l0eWhtZ3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMDE2MzAsImV4cCI6MjEwNTc3NzYzMH0.P-q6bQspwuQNhub08hjWmsjLrugr3CVA1NIdznWJxuo';
+
+const getSupabaseServerClient = () => {
+  const sUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL).trim();
+  const sKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY).trim();
+  return createClient(sUrl, sKey, {
+    auth: { persistSession: false },
+  });
+};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -589,6 +601,199 @@ async function startServer() {
     }
 
     return res.status(404).json({ error: 'Não foi possível geocodificar o endereço informado' });
+  });
+
+  // 7. Endpoint Seguro de Upload e Sincronização de Avatar de Usuário (Tríade Sync — Mobile Resilient)
+  app.post('/api/user/avatar', async (req, res) => {
+    try {
+      const {
+        avatarData,
+        email,
+        cpf,
+        name,
+        phone,
+        clientId,
+        userId,
+      } = req.body || {};
+
+      if (!avatarData || typeof avatarData !== 'string') {
+        return res.status(400).json({ error: 'Nenhum dado de avatar fornecido' });
+      }
+
+      const cleanEmail = String(email || '').trim().toLowerCase();
+      const cleanName = String(name || '').trim();
+      const cleanPhone = String(phone || '').trim();
+      const cleanCpf = String(cpf || '').replace(/\D/g, '');
+      const storedClientId = String(clientId || '').trim();
+      const storedUserId = String(userId || '').trim();
+
+      const supabase = getSupabaseServerClient();
+      let resolvedAvatarUrl = avatarData;
+      let storagePublicUrl: string | null = null;
+
+      // Se for DataURL Base64, tentar subir no Supabase Storage primeiro
+      if (avatarData.startsWith('data:image/')) {
+        try {
+          const mimeMatch = avatarData.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+          if (mimeMatch) {
+            const mimeType = mimeMatch[1];
+            const base64Content = mimeMatch[2];
+            const buffer = Buffer.from(base64Content, 'base64');
+            const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
+            const cleanIdentifier = (cleanEmail || cleanCpf || storedClientId || 'user').replace(/[^a-zA-Z0-9-_]/g, '_');
+            const fileName = `${cleanIdentifier}-${Date.now()}.${ext}`;
+
+            // Tentativa A: Bucket 'avatars'
+            try {
+              const { data: upData, error: upErr } = await supabase.storage
+                .from('avatars')
+                .upload(fileName, buffer, { contentType: mimeType, upsert: true });
+
+              if (!upErr && upData?.path) {
+                const { data: pubData } = supabase.storage.from('avatars').getPublicUrl(upData.path);
+                if (pubData?.publicUrl) {
+                  storagePublicUrl = pubData.publicUrl;
+                  resolvedAvatarUrl = pubData.publicUrl;
+                }
+              }
+            } catch (b1Err) {
+              console.warn('[Avatar Upload] Falha no bucket avatars:', b1Err);
+            }
+
+            // Tentativa B: Fallback Bucket 'salon-media' (pasta avatars)
+            if (!storagePublicUrl) {
+              try {
+                const fallbackPath = `avatars/${fileName}`;
+                const { data: upData2, error: upErr2 } = await supabase.storage
+                  .from('salon-media')
+                  .upload(fallbackPath, buffer, { contentType: mimeType, upsert: true });
+
+                if (!upErr2 && upData2?.path) {
+                  const { data: pubData2 } = supabase.storage.from('salon-media').getPublicUrl(upData2.path);
+                  if (pubData2?.publicUrl) {
+                    storagePublicUrl = pubData2.publicUrl;
+                    resolvedAvatarUrl = pubData2.publicUrl;
+                  }
+                }
+              } catch (b2Err) {
+                console.warn('[Avatar Upload] Falha no bucket salon-media:', b2Err);
+              }
+            }
+          }
+        } catch (storageErr) {
+          console.warn('[Avatar Upload] Erro ao converter buffer para storage:', storageErr);
+        }
+      } else if (avatarData.startsWith('http://') || avatarData.startsWith('https://')) {
+        resolvedAvatarUrl = avatarData;
+        storagePublicUrl = avatarData;
+      }
+
+      const nowIso = new Date().toISOString();
+
+      // 1. Atualizar tabela system_admins
+      try {
+        const adminPayload: Record<string, any> = {
+          avatar_url: resolvedAvatarUrl,
+          updated_at: nowIso,
+        };
+        if (cleanName) adminPayload.full_name = cleanName;
+        if (cleanPhone) adminPayload.phone_whatsapp = cleanPhone;
+        if (cleanCpf) adminPayload.cpf = cleanCpf;
+
+        if (storedUserId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storedUserId)) {
+          await (supabase.from('system_admins' as any) as any).update(adminPayload).eq('id', storedUserId);
+        }
+        if (cleanEmail) {
+          await (supabase.from('system_admins' as any) as any).update(adminPayload).ilike('email', cleanEmail);
+        }
+        if (cleanCpf && cleanCpf.length === 11) {
+          await (supabase.from('system_admins' as any) as any).update(adminPayload).eq('cpf', cleanCpf);
+        }
+      } catch (err) {
+        console.warn('Aviso: Erro ao atualizar system_admins:', err);
+      }
+
+      // 2. Atualizar tabela clients
+      try {
+        const clientPayload: Record<string, any> = {
+          avatar_url: resolvedAvatarUrl,
+          updated_at: nowIso,
+        };
+        if (cleanName) clientPayload.name = cleanName;
+        if (cleanEmail) clientPayload.email = cleanEmail;
+        if (cleanPhone) clientPayload.phone = cleanPhone;
+        if (cleanCpf) clientPayload.cpf = cleanCpf;
+
+        let clientUpdated = false;
+        if (storedClientId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storedClientId)) {
+          const { error } = await (supabase.from('clients' as any) as any).update(clientPayload).eq('id', storedClientId);
+          if (!error) clientUpdated = true;
+        }
+        if (cleanCpf && cleanCpf.length === 11) {
+          const { error } = await (supabase.from('clients' as any) as any).update(clientPayload).eq('cpf', cleanCpf);
+          if (!error) clientUpdated = true;
+        }
+        if (cleanEmail) {
+          const { error } = await (supabase.from('clients' as any) as any).update(clientPayload).ilike('email', cleanEmail);
+          if (!error) clientUpdated = true;
+        }
+        if (!clientUpdated && (cleanEmail || cleanCpf || cleanName)) {
+          await (supabase.from('clients' as any) as any).insert({
+            name: cleanName || 'Cliente',
+            email: cleanEmail || null,
+            phone: cleanPhone || null,
+            cpf: cleanCpf || null,
+            avatar_url: resolvedAvatarUrl,
+            updated_at: nowIso,
+          });
+        }
+      } catch (err) {
+        console.warn('Aviso: Erro ao atualizar clients:', err);
+      }
+
+      // 3. Atualizar tabela profiles
+      try {
+        const profilePayload: Record<string, any> = {
+          avatar_url: resolvedAvatarUrl,
+          updated_at: nowIso,
+        };
+        if (cleanName) profilePayload.full_name = cleanName;
+        if (cleanPhone) profilePayload.phone_whatsapp = cleanPhone;
+        if (storedUserId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storedUserId)) {
+          await (supabase.from('profiles' as any) as any).update(profilePayload).eq('id', storedUserId);
+        }
+        if (cleanEmail) {
+          await (supabase.from('profiles' as any) as any).update(profilePayload).ilike('email', cleanEmail);
+        }
+      } catch (err) {
+        console.warn('Aviso: Erro ao atualizar profiles:', err);
+      }
+
+      // 4. Atualizar tabela professionals
+      try {
+        const proPayload: Record<string, any> = {
+          avatar_url: resolvedAvatarUrl,
+          updated_at: nowIso,
+        };
+        if (cleanName) proPayload.name = cleanName;
+        if (cleanPhone) proPayload.phone = cleanPhone;
+        if (cleanEmail) {
+          await (supabase.from('professionals' as any) as any).update(proPayload).ilike('email', cleanEmail);
+        }
+      } catch (err) {
+        console.warn('Aviso: Erro ao atualizar professionals:', err);
+      }
+
+      return res.json({
+        success: true,
+        avatarUrl: resolvedAvatarUrl,
+        storageUrl: storagePublicUrl,
+        persistedAt: nowIso,
+      });
+    } catch (err: any) {
+      console.error('[Avatar Sync API] Erro:', err);
+      return res.status(500).json({ error: err?.message || 'Falha ao salvar avatar no Supabase' });
+    }
   });
 
   // AI Structure & Screen Analysis endpoint

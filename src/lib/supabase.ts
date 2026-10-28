@@ -3444,28 +3444,185 @@ export async function updateSalonSpaceConfigInDb(
 }
 
 /**
- * Faz upload de imagem de avatar diretamente para o Supabase Storage bucket 'avatars' (Tríade Sync)
+ * Converte DataURL Base64 para Blob para upload eficiente no Supabase Storage
  */
-export async function uploadAvatarToSupabaseStorage(file: File, userIdOrEmail: string): Promise<string | null> {
+export function dataUrlToBlob(dataUrl: string): { blob: Blob; mimeType: string } | null {
+  try {
+    const parts = dataUrl.split(',');
+    if (parts.length < 2) return null;
+    const mimeMatch = parts[0].match(/:(.*?);/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const binary = atob(parts[1]);
+    const array = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      array[i] = binary.charCodeAt(i);
+    }
+    return { blob: new Blob([array], { type: mimeType }), mimeType };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Faz upload de imagem de avatar diretamente para o Supabase Storage (Tríade Sync)
+ * Suporta File, Blob ou DataURL Base64, com fallback de baldes (avatars -> salon-media) e privilégio de service_role
+ */
+export async function uploadAvatarToSupabaseStorage(
+  fileOrBase64: File | Blob | string,
+  userIdOrEmail: string
+): Promise<string | null> {
   if (!supabase || !isSupabaseConfigured) return null;
   try {
-    const fileExt = file.name.split('.').pop() || 'jpg';
-    const cleanId = userIdOrEmail.replace(/[^a-zA-Z0-9-_]/g, '_');
-    const fileName = `${cleanId}-${Date.now()}.${fileExt}`;
+    const client = getDbClient() || supabase;
+    const cleanId = (userIdOrEmail || 'user').replace(/[^a-zA-Z0-9-_]/g, '_');
+    const timestamp = Date.now();
 
-    const { data, error } = await supabase.storage
-      .from('avatars')
-      .upload(fileName, file, { contentType: file.type, upsert: true });
+    let uploadBlob: Blob;
+    let mimeType = 'image/jpeg';
+    let fileExt = 'jpg';
 
-    if (error || !data) {
-      console.warn('Aviso: Falha ao enviar avatar para Supabase Storage:', error);
-      return null;
+    if (typeof fileOrBase64 === 'string') {
+      if (fileOrBase64.startsWith('http://') || fileOrBase64.startsWith('https://')) {
+        return fileOrBase64;
+      }
+      const converted = dataUrlToBlob(fileOrBase64);
+      if (!converted) return null;
+      uploadBlob = converted.blob;
+      mimeType = converted.mimeType;
+      fileExt = mimeType.split('/')[1] || 'jpg';
+    } else {
+      uploadBlob = fileOrBase64;
+      mimeType = fileOrBase64.type || 'image/jpeg';
+      if ('name' in fileOrBase64 && typeof (fileOrBase64 as any).name === 'string') {
+        fileExt = (fileOrBase64 as any).name.split('.').pop() || 'jpg';
+      } else {
+        fileExt = mimeType.split('/')[1] || 'jpg';
+      }
     }
 
-    const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(data.path);
-    return publicData.publicUrl || null;
+    const fileName = `${cleanId}-${timestamp}.${fileExt}`;
+
+    // Tentativa 1: Bucket 'avatars'
+    try {
+      const { data, error } = await client.storage
+        .from('avatars')
+        .upload(fileName, uploadBlob, { contentType: mimeType, upsert: true });
+
+      if (!error && data?.path) {
+        const { data: publicData } = client.storage.from('avatars').getPublicUrl(data.path);
+        if (publicData?.publicUrl) {
+          return publicData.publicUrl;
+        }
+      }
+    } catch (bucket1Err) {
+      console.warn('Aviso: Falha no bucket avatars:', bucket1Err);
+    }
+
+    // Tentativa 2: Fallback no Bucket 'salon-media' (pasta avatars)
+    try {
+      const fallbackPath = `avatars/${fileName}`;
+      const { data, error } = await client.storage
+        .from('salon-media')
+        .upload(fallbackPath, uploadBlob, { contentType: mimeType, upsert: true });
+
+      if (!error && data?.path) {
+        const { data: publicData } = client.storage.from('salon-media').getPublicUrl(data.path);
+        if (publicData?.publicUrl) {
+          return publicData.publicUrl;
+        }
+      }
+    } catch (bucket2Err) {
+      console.warn('Aviso: Falha no bucket salon-media:', bucket2Err);
+    }
+
+    return null;
   } catch (err) {
     console.warn('Erro no upload de avatar para o Storage:', err);
     return null;
   }
+}
+
+/**
+ * Salva e sincroniza de ponta a ponta a foto de perfil do usuário no Supabase (Tríade Sync)
+ * 1. Chama a API do Backend POST /api/user/avatar (com privilégios de service_role e upload em bucket)
+ * 2. Fallback direto no client-side caso a rota esteja offline
+ * 3. Persiste em clients, system_admins, profiles e professionals simultaneamente
+ */
+export async function saveUserAvatarToSupabase(params: {
+  fileOrBase64: File | Blob | string;
+  email?: string;
+  cpf?: string;
+  name?: string;
+  phone?: string;
+  clientId?: string;
+  userId?: string;
+  type?: 'client' | 'pro' | 'admin';
+}): Promise<{ success: boolean; avatarUrl: string; source: 'server' | 'client_direct' | 'local_fallback' }> {
+  const cleanEmail = (params.email || (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_email') || '' : '')).trim().toLowerCase();
+  const cleanName = (params.name || (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_name') || '' : '')).trim();
+  const cleanPhone = (params.phone || (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_phone') || '' : '')).trim();
+  const cleanCpf = (params.cpf || (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_cpf') || '' : '')).replace(/\D/g, '');
+  const storedClientId = (params.clientId || (typeof window !== 'undefined' ? localStorage.getItem('vagou_client_id') || '' : '')).trim();
+  const storedUserId = (params.userId || (typeof window !== 'undefined' ? localStorage.getItem('vagou_auth_user_id') || '' : '')).trim();
+
+  let base64String = '';
+  if (typeof params.fileOrBase64 === 'string') {
+    base64String = params.fileOrBase64;
+  }
+
+  // Tentativa 1: POST /api/user/avatar (Service Role Server-Side Proxy)
+  if (base64String) {
+    try {
+      const res = await fetch('/api/user/avatar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          avatarData: base64String,
+          email: cleanEmail,
+          cpf: cleanCpf,
+          name: cleanName,
+          phone: cleanPhone,
+          clientId: storedClientId,
+          userId: storedUserId,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.avatarUrl) {
+          return { success: true, avatarUrl: data.avatarUrl, source: 'server' };
+        }
+      }
+    } catch (apiErr) {
+      console.warn('Aviso: Falha na API /api/user/avatar, tentando gravação direta no cliente:', apiErr);
+    }
+  }
+
+  // Tentativa 2: Gravação direta no Supabase Client-Side
+  try {
+    let resolvedUrl = base64String;
+    const identifier = cleanEmail || cleanCpf || storedClientId || cleanName || 'user';
+    const storageUrl = await uploadAvatarToSupabaseStorage(params.fileOrBase64, identifier);
+    if (isValidAvatarUrlString(storageUrl)) {
+      resolvedUrl = storageUrl.trim();
+    }
+
+    if (isValidAvatarUrlString(resolvedUrl)) {
+      await updateUserProfileInDb({
+        name: cleanName || 'Usuário',
+        email: cleanEmail,
+        phone: cleanPhone,
+        cpf: cleanCpf,
+        avatarUrl: resolvedUrl,
+        clientId: storedClientId,
+        userId: storedUserId,
+        type: params.type || 'client',
+      });
+      return { success: true, avatarUrl: resolvedUrl, source: 'client_direct' };
+    }
+  } catch (clientErr) {
+    console.error('Erro na gravação client-side do avatar:', clientErr);
+  }
+
+  return { success: false, avatarUrl: base64String || '', source: 'local_fallback' };
 }

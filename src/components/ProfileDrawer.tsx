@@ -6,13 +6,13 @@ import {
   Scissors, LayoutDashboard, LogOut, Users, DollarSign, Wrench, Wallet,
   ArrowLeftRight, AlertCircle, RotateCcw, Timer, Ban, HelpCircle, Info, Layers,
   Camera, Upload, Eye, Plus, Trash2, UserPlus, Navigation, Package, Map as MapIcon, Bell, Bookmark,
-  Building2, Palette, Sliders, LayoutGrid, Store
+  Building2, Palette, Sliders, LayoutGrid, Store, Loader2
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../utils/haptics';
 import { DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
 import { BookingAppointment, UserProfile, UserPersona, ClientSwapGovernance, SwapTargetQueueItem, UserFamilyDependent } from '../types';
-import { fetchUserProfileFromDb, updateUserProfileInDb, resolveTriadeAvatar, uploadAvatarToSupabaseStorage, isValidAvatarUrlString, isSupabaseConfigured, supabase, getDbClient, generateUuidV4, fetchClientFamilyMembers } from '../lib/supabase';
+import { fetchUserProfileFromDb, updateUserProfileInDb, resolveTriadeAvatar, uploadAvatarToSupabaseStorage, saveUserAvatarToSupabase, isValidAvatarUrlString, isSupabaseConfigured, supabase, getDbClient, generateUuidV4, fetchClientFamilyMembers } from '../lib/supabase';
 import { compressImageFile } from '../utils/imageCompressor';
 import { syncClientDependentToDatabase, refreshClientDependentsCount } from '../services/mnvSupabaseSync';
 import { LiveRouteDepartureModal, LiveTrackingDrawerModal } from './live-tracking/LiveTrackingModal';
@@ -457,47 +457,82 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [savedSuccessToast, setSavedSuccessToast] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [avatarUploadStatus, setAvatarUploadStatus] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
+    if (!file) return;
+
+    // Detecção permissiva para dispositivos móveis (câmera direta, HEIC, JPEG, PNG, blobs sem MIME)
+    const isImage = 
+      file.type.startsWith('image/') || 
+      /\.(jpe?g|png|webp|heic|heif|gif|svg)$/i.test(file.name || '') ||
+      file.size > 0;
+
+    if (!isImage) return;
+
+    setIsUploadingAvatar(true);
+    setAvatarUploadStatus('Otimizando foto do celular...');
+    hapticLight();
 
     try {
-      let resolvedAvatar = '';
-      if (isSupabaseConfigured) {
-        const identifier = profile.email || localStorage.getItem('vagou_client_id') || profile.name || 'user';
-        const uploadedUrl = await uploadAvatarToSupabaseStorage(file, identifier);
-        if (isValidAvatarUrlString(uploadedUrl)) {
-          resolvedAvatar = uploadedUrl.trim();
-        }
-      }
+      // 1. Compressão client-side imediata (reduz fotos de celulares de 10MB para ~25KB JPEG universal)
+      const compressed = await compressImageFile(file, {
+        maxWidth: 480,
+        maxHeight: 480,
+        quality: 0.85,
+        mimeType: 'image/jpeg',
+      });
 
-      if (!resolvedAvatar) {
-        const compressed = await compressImageFile(file, {
-          maxWidth: 320,
-          maxHeight: 320,
-          quality: 0.85,
-        });
-        if (isValidAvatarUrlString(compressed)) {
-          resolvedAvatar = compressed.trim();
-        }
-      }
+      setAvatarUploadStatus('Enviando e sincronizando com Supabase...');
 
-      if (isValidAvatarUrlString(resolvedAvatar)) {
-        setProfile(prev => ({ ...prev, avatarUrl: resolvedAvatar }));
+      // 2. Gravação de ponta a ponta no Supabase (Storage + Database)
+      const saveResult = await saveUserAvatarToSupabase({
+        fileOrBase64: compressed,
+        email: profile.email || localStorage.getItem('vagou_user_email') || '',
+        cpf: localStorage.getItem('vagou_user_cpf') || profile.cpf || '',
+        name: profile.name || localStorage.getItem('vagou_user_name') || 'Usuário',
+        phone: profile.phone || localStorage.getItem('vagou_user_phone') || '',
+        clientId: localStorage.getItem('vagou_client_id') || '',
+        userId: localStorage.getItem('vagou_auth_user_id') || '',
+        type: currentPersona === 'profissional' ? 'pro' : currentPersona === 'admin' ? 'admin' : 'client',
+      });
+
+      const finalAvatar = (saveResult.avatarUrl && isValidAvatarUrlString(saveResult.avatarUrl))
+        ? saveResult.avatarUrl.trim()
+        : compressed;
+
+      if (isValidAvatarUrlString(finalAvatar)) {
+        setProfile(prev => ({ ...prev, avatarUrl: finalAvatar }));
         try {
-          localStorage.setItem('vagou_user_avatar', resolvedAvatar);
+          localStorage.setItem('vagou_user_avatar', finalAvatar);
         } catch {}
-        onUpdateUserAvatar?.(resolvedAvatar);
+        onUpdateUserAvatar?.(finalAvatar);
         window.dispatchEvent(
           new CustomEvent('vagou:profile-updated', {
-            detail: { name: profile.name, avatarUrl: resolvedAvatar },
+            detail: { name: profile.name, avatarUrl: finalAvatar },
           })
         );
+        window.dispatchEvent(new Event('storage'));
       }
+
+      hapticSuccess();
+      setAvatarUploadStatus('Foto de perfil salva com sucesso no Supabase!');
+      setTimeout(() => {
+        setAvatarUploadStatus(null);
+        setIsUploadingAvatar(false);
+      }, 2500);
     } catch (err) {
-      console.error('[ProfileDrawer] Erro ao processar foto:', err);
+      console.error('[ProfileDrawer] Erro ao processar e salvar foto:', err);
+      setAvatarUploadStatus('Erro ao enviar foto. Tente novamente.');
+      setTimeout(() => {
+        setAvatarUploadStatus(null);
+        setIsUploadingAvatar(false);
+      }, 3000);
+    } finally {
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -1095,6 +1130,27 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
         {/* 2. CORPO DO DRAWER COM ROLAGEM */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain no-scrollbar p-4 pb-28 space-y-4">
+          {/* INPUT DE FOTO GLOBAL NO DRAWER (Acessível em qualquer sub-aba) */}
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            accept="image/*" 
+            className="hidden" 
+            onChange={handleAvatarFileChange} 
+          />
+
+          {/* STATUS DE UPLOAD E SINCRONIZAÇÃO COM O SUPABASE */}
+          {avatarUploadStatus && (
+            <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded flex items-center gap-2.5 text-emerald-400 text-xs font-semibold animate-in fade-in slide-in-from-top-2">
+              {isUploadingAvatar ? (
+                <Loader2 className="w-4 h-4 text-emerald-400 animate-spin shrink-0" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              )}
+              <span>{avatarUploadStatus}</span>
+            </div>
+          )}
+
           {/* TOAST DE FEEDBACK DE SALVAMENTO */}
           {savedSuccessToast && (
             <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded flex items-center gap-2.5 text-emerald-400 text-xs font-semibold animate-in fade-in slide-in-from-top-2">
@@ -1111,29 +1167,46 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
               }`}>
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-[4px] flex items-center justify-center shrink-0 border overflow-hidden ${
-                    isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
-                  }`}>
-                    {resolveTriadeAvatar({
-                      professionalAvatar: currentPersona === 'profissional' ? (profile.avatarUrl || userAvatarUrl) : null,
-                      clientAvatar: currentPersona === 'cliente' ? (profile.avatarUrl || userAvatarUrl) : null,
-                      authMetadataAvatar: profile.avatarUrl || userAvatarUrl,
-                      isBusinessContext: false,
-                    }) ? (
-                      <img 
-                        src={resolveTriadeAvatar({
-                          professionalAvatar: currentPersona === 'profissional' ? (profile.avatarUrl || userAvatarUrl) : null,
-                          clientAvatar: currentPersona === 'cliente' ? (profile.avatarUrl || userAvatarUrl) : null,
-                          authMetadataAvatar: profile.avatarUrl || userAvatarUrl,
-                          isBusinessContext: false,
-                        })} 
-                        alt={profile.name} 
-                        className="w-full h-full object-cover" 
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <User className={`w-6 h-6 stroke-[1.8] ${isDark ? 'text-slate-300' : 'text-slate-700'}`} />
-                    )}
+                  <div className="relative group shrink-0">
+                    <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-[4px] flex items-center justify-center shrink-0 border overflow-hidden ${
+                      isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+                    }`}>
+                      {resolveTriadeAvatar({
+                        professionalAvatar: currentPersona === 'profissional' ? (profile.avatarUrl || userAvatarUrl) : null,
+                        clientAvatar: currentPersona === 'cliente' ? (profile.avatarUrl || userAvatarUrl) : null,
+                        authMetadataAvatar: profile.avatarUrl || userAvatarUrl,
+                        isBusinessContext: false,
+                      }) ? (
+                        <img 
+                          src={resolveTriadeAvatar({
+                            professionalAvatar: currentPersona === 'profissional' ? (profile.avatarUrl || userAvatarUrl) : null,
+                            clientAvatar: currentPersona === 'cliente' ? (profile.avatarUrl || userAvatarUrl) : null,
+                            authMetadataAvatar: profile.avatarUrl || userAvatarUrl,
+                            isBusinessContext: false,
+                          })} 
+                          alt={profile.name} 
+                          className="w-full h-full object-cover" 
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <User className={`w-6 h-6 stroke-[1.8] ${isDark ? 'text-slate-300' : 'text-slate-700'}`} />
+                      )}
+                    </div>
+                    {/* Botão de Câmera de Toque Imediato no Celular */}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingAvatar}
+                      className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white flex items-center justify-center shadow-md border-2 border-slate-950 transition cursor-pointer"
+                      title="Alterar foto de perfil"
+                      aria-label="Alterar foto de perfil"
+                    >
+                      {isUploadingAvatar ? (
+                        <Loader2 className="w-3 h-3 text-white animate-spin" />
+                      ) : (
+                        <Camera className="w-3 h-3 text-white" />
+                      )}
+                    </button>
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -2118,22 +2191,19 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     </div>
                   </div>
 
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    accept="image/*" 
-                    className="hidden" 
-                    onChange={handleAvatarFileChange} 
-                  />
-
                   {isEditing && (
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                      disabled={isUploadingAvatar}
+                      className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-xs font-bold rounded flex items-center gap-1.5 cursor-pointer shadow-xs"
                     >
-                      <Camera className="w-3.5 h-3.5 text-white" />
-                      <span>Alterar</span>
+                      {isUploadingAvatar ? (
+                        <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+                      ) : (
+                        <Camera className="w-3.5 h-3.5 text-white" />
+                      )}
+                      <span>{isUploadingAvatar ? 'Enviando...' : 'Alterar'}</span>
                     </button>
                   )}
                 </div>

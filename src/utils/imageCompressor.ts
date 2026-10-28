@@ -12,14 +12,15 @@ export interface CompressOptions {
 }
 
 export function compressImageFile(
-  file: File,
+  file: File | Blob,
   options: CompressOptions = {}
 ): Promise<string> {
+  const fileType = 'type' in file ? file.type : '';
   const {
     maxWidth = 640,
     maxHeight = 640,
     quality = 0.85,
-    mimeType = file.type === 'image/png' || file.type === 'image/svg+xml' ? 'image/png' : 'image/webp',
+    mimeType = fileType === 'image/png' || fileType === 'image/svg+xml' ? 'image/png' : 'image/jpeg',
   } = options;
 
   return new Promise((resolve, reject) => {
