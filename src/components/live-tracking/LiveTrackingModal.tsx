@@ -35,6 +35,7 @@ import {
 import {
   computeGoogleDetailedRoute,
   GoogleComputedRouteResult,
+  snapAndReverseGeocodeGps,
 } from '../../services/googleMapsService';
 import { InteractiveGoogleRouteMap } from './InteractiveGoogleRouteMap';
 import { useTheme } from '../../context/ThemeContext';
@@ -43,6 +44,7 @@ import { hapticLight, hapticMedium, hapticSuccess } from '../../utils/haptics';
 interface LiveRouteDepartureModalProps {
   isOpen: boolean;
   appointment: BookingAppointment;
+  initialStep?: 'question' | 'in_app_map';
   isProfessionalDeliveryMode?: boolean;
   onClose: () => void;
   onUpdateAppointment?: (updated: BookingAppointment) => void;
@@ -63,6 +65,7 @@ function normalizeBookingTransportMode(mode?: TransportMode): BookingTransportMo
 export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = ({
   isOpen,
   appointment,
+  initialStep,
   isProfessionalDeliveryMode = false,
   onClose,
   onUpdateAppointment,
@@ -76,6 +79,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     appointment.tracking_status === 'arriving_5min';
 
   const [step, setStep] = useState<'question' | 'not_leaving' | 'cancel_reason' | 'in_app_map'>(() => {
+    if (initialStep) return initialStep;
     if (isAlreadySharing || isProfessionalDeliveryMode) return 'in_app_map';
     return 'question';
   });
@@ -90,14 +94,77 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
   const [cancelError, setCancelError] = useState<string>('');
 
   const [liveRouteData, setLiveRouteData] = useState<GoogleComputedRouteResult | null>(null);
+  const [deviceGpsOrigin, setDeviceGpsOrigin] = useState<{
+    lat: number;
+    lng: number;
+    address?: string;
+  } | null>(null);
 
   const anyApt = appointment as any;
   const appointmentKey = appointment.id || appointment.protocolCode || 'apt';
 
-  // Coordenadas fixas de origem e destino por agendamento (impede que mutações de telemetria recriem ou pisquem o mapa)
+  // Reconhece imediatamente a georreferência real do dispositivo ao iniciar a navegação ("Ir"),
+  // sobrescrevendo qualquer endereço diferente que tenha sido informado no momento do agendamento
+  useEffect(() => {
+    if (!isOpen || typeof navigator === 'undefined' || !navigator.geolocation) return;
+    let active = true;
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        if (!active) return;
+        const rawLat = pos.coords.latitude;
+        const rawLng = pos.coords.longitude;
+        setDeviceGpsOrigin((prev) => ({
+          lat: rawLat,
+          lng: rawLng,
+          address: prev?.address || 'Local Atual (GPS)',
+        }));
+
+        const snapped = await snapAndReverseGeocodeGps(rawLat, rawLng);
+        if (!active) return;
+        const finalLat = snapped?.lat ?? rawLat;
+        const finalLng = snapped?.lng ?? rawLng;
+        const finalAddress =
+          snapped?.formattedAddress || snapped?.streetName || 'Local Atual (GPS)';
+
+        setDeviceGpsOrigin({
+          lat: finalLat,
+          lng: finalLng,
+          address: finalAddress,
+        });
+
+        syncAppointmentAcrossStorageAndDb(
+          appointment,
+          {
+            client_lat: finalLat,
+            client_lng: finalLng,
+            ...(snapped?.streetName ? { current_street_name: snapped.streetName } : {}),
+            ...(step === 'in_app_map' ? { tracking_status: 'live_sharing' } : {}),
+          },
+          onUpdateAppointment
+        );
+      },
+      () => {},
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 8000,
+      }
+    );
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, appointmentKey]);
+
+  // Coordenadas efetivas: prioriza a georreferência real do dispositivo (deviceGpsOrigin) sobre o endereço antigo do agendamento
   const stableCoords = useMemo(() => {
-    const oLat = Number(anyApt.originLat ?? appointment.client_lat ?? -23.5505);
-    const oLng = Number(anyApt.originLng ?? appointment.client_lng ?? -46.6333);
+    const oLat = Number(
+      deviceGpsOrigin?.lat ?? anyApt.originLat ?? appointment.client_lat ?? -23.5505
+    );
+    const oLng = Number(
+      deviceGpsOrigin?.lng ?? anyApt.originLng ?? appointment.client_lng ?? -46.6333
+    );
     const dLat = Number(anyApt.salonLat ?? -23.5592);
     const dLng = Number(anyApt.salonLng ?? -46.6589);
     return {
@@ -106,7 +173,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
       destLat: Number.isFinite(dLat) ? dLat : -23.5592,
       destLng: Number.isFinite(dLng) ? dLng : -46.6589,
     };
-  }, [appointmentKey]);
+  }, [appointmentKey, deviceGpsOrigin?.lat, deviceGpsOrigin?.lng]);
 
   const { secondsUntilNextPing } = useLiveRouteTracker({
     appointment,
@@ -133,22 +200,25 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
   }, [liveRouteData, fallbackMetrics]);
 
   const clientOriginAddress = useMemo(() => {
+    if (deviceGpsOrigin?.address) {
+      return deviceGpsOrigin.address;
+    }
     return (
       anyApt.originFormattedAddress ||
       anyApt.origin_formatted_address ||
       (typeof window !== 'undefined'
         ? localStorage.getItem('vagou_user_address') ||
           localStorage.getItem('vagou_user_cep') ||
-          'Endereço de Saída do Cliente'
-        : 'Endereço de Saída do Cliente')
+          'Local Atual (GPS)'
+        : 'Local Atual (GPS)')
     );
-  }, [appointmentKey]);
+  }, [appointmentKey, deviceGpsOrigin?.address]);
 
   const salonDestAddress = useMemo(() => {
     return appointment.address || appointment.salonName || 'Estabelecimento';
   }, [appointment.address, appointment.salonName]);
 
-  // Busca Rota Real seguindo a malha viária (Routes API v2 + Fallback Viário)
+  // Busca Rota Real seguindo a malha viária a partir da localização atual do dispositivo
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
@@ -156,7 +226,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     computeGoogleDetailedRoute({
       originLat: stableCoords.originLat,
       originLng: stableCoords.originLng,
-      originAddress: clientOriginAddress,
+      originAddress: deviceGpsOrigin ? undefined : clientOriginAddress,
       destLat: stableCoords.destLat,
       destLng: stableCoords.destLng,
       destAddress: salonDestAddress,
@@ -178,21 +248,22 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     stableCoords.destLng,
     clientOriginAddress,
     salonDestAddress,
+    Boolean(deviceGpsOrigin),
   ]);
 
   const transportLinks = useMemo(() => {
     const anyApt = appointment as any;
     return buildTransportDeepLinks({
       originAddress: clientOriginAddress,
-      originLat: appointment.client_lat ?? anyApt.originLat,
-      originLng: appointment.client_lng ?? anyApt.originLng,
+      originLat: stableCoords.originLat,
+      originLng: stableCoords.originLng,
       salonName: appointment.salonName,
       salonAddress: salonDestAddress,
       salonLat: anyApt.salonLat,
       salonLng: anyApt.salonLng,
       transportMode: bookingTransportMode,
     });
-  }, [appointment, clientOriginAddress, salonDestAddress, bookingTransportMode]);
+  }, [appointment, clientOriginAddress, salonDestAddress, bookingTransportMode, stableCoords.originLat, stableCoords.originLng]);
 
   if (!isOpen) return null;
 
@@ -242,8 +313,8 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
         distance_km: metrics.distanceKm,
         delay_minutes: 0,
         active_adversity: null,
-        client_lat: appointment.client_lat ?? -23.5614,
-        client_lng: appointment.client_lng ?? -46.6558,
+        client_lat: stableCoords.originLat,
+        client_lng: stableCoords.originLng,
       },
       onUpdateAppointment
     );
@@ -477,6 +548,13 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
               destLat={stableCoords.destLat}
               destLng={stableCoords.destLng}
               destLabel={appointment.salonName || salonDestAddress}
+              userAvatarUrl={
+                anyApt.clientAvatar ||
+                anyApt.avatar_url ||
+                (typeof window !== 'undefined'
+                  ? localStorage.getItem('vagou_user_avatar') || ''
+                  : '')
+              }
               routeData={liveRouteData}
               initialDistanceKm={metrics.distanceKm}
               initialEtaMinutes={metrics.etaMinutes}
@@ -987,13 +1065,65 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
   );
   const transportMode: TransportMode = appointment.transport_mode || 'driving';
   const [liveRouteData, setLiveRouteData] = useState<GoogleComputedRouteResult | null>(null);
+  const [deviceGpsOrigin, setDeviceGpsOrigin] = useState<{
+    lat: number;
+    lng: number;
+    address?: string;
+  } | null>(null);
 
   const anyApt = appointment as any;
   const drawerAppointmentKey = appointment.id || appointment.protocolCode || 'drawer-apt';
 
+  useEffect(() => {
+    if (
+      !isOpen ||
+      viewerRole !== 'client' ||
+      typeof navigator === 'undefined' ||
+      !navigator.geolocation
+    ) {
+      return;
+    }
+    let active = true;
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        if (!active) return;
+        const rawLat = pos.coords.latitude;
+        const rawLng = pos.coords.longitude;
+        setDeviceGpsOrigin((prev) => ({
+          lat: rawLat,
+          lng: rawLng,
+          address: prev?.address || 'Local Atual (GPS)',
+        }));
+
+        const snapped = await snapAndReverseGeocodeGps(rawLat, rawLng);
+        if (!active) return;
+        setDeviceGpsOrigin({
+          lat: snapped?.lat ?? rawLat,
+          lng: snapped?.lng ?? rawLng,
+          address: snapped?.formattedAddress || snapped?.streetName || 'Local Atual (GPS)',
+        });
+      },
+      () => {},
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 8000,
+      }
+    );
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, viewerRole, drawerAppointmentKey]);
+
   const stableDrawerCoords = useMemo(() => {
-    const oLat = Number(anyApt.originLat ?? appointment.client_lat ?? -23.5505);
-    const oLng = Number(anyApt.originLng ?? appointment.client_lng ?? -46.6333);
+    const oLat = Number(
+      deviceGpsOrigin?.lat ?? anyApt.originLat ?? appointment.client_lat ?? -23.5505
+    );
+    const oLng = Number(
+      deviceGpsOrigin?.lng ?? anyApt.originLng ?? appointment.client_lng ?? -46.6333
+    );
     const dLat = Number(anyApt.salonLat ?? -23.5592);
     const dLng = Number(anyApt.salonLng ?? -46.6589);
     return {
@@ -1002,7 +1132,7 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
       destLat: Number.isFinite(dLat) ? dLat : -23.5592,
       destLng: Number.isFinite(dLng) ? dLng : -46.6589,
     };
-  }, [drawerAppointmentKey]);
+  }, [drawerAppointmentKey, deviceGpsOrigin?.lat, deviceGpsOrigin?.lng]);
 
   const { secondsUntilNextPing } = useLiveRouteTracker({
     appointment,
@@ -1013,16 +1143,19 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
   const bookingTransportMode = normalizeBookingTransportMode(transportMode);
 
   const clientOriginAddress = useMemo(() => {
+    if (deviceGpsOrigin?.address) {
+      return deviceGpsOrigin.address;
+    }
     return (
       anyApt.originFormattedAddress ||
       anyApt.origin_formatted_address ||
       (typeof window !== 'undefined'
         ? localStorage.getItem('vagou_user_address') ||
           localStorage.getItem('vagou_user_cep') ||
-          'Endereço de Saída do Cliente'
-        : 'Endereço de Saída do Cliente')
+          'Local Atual (GPS)'
+        : 'Local Atual (GPS)')
     );
-  }, [drawerAppointmentKey]);
+  }, [drawerAppointmentKey, deviceGpsOrigin?.address]);
 
   const salonDestAddress = useMemo(() => {
     return appointment.address || appointment.salonName || 'Estabelecimento';
@@ -1035,7 +1168,7 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
     computeGoogleDetailedRoute({
       originLat: stableDrawerCoords.originLat,
       originLng: stableDrawerCoords.originLng,
-      originAddress: clientOriginAddress,
+      originAddress: deviceGpsOrigin ? undefined : clientOriginAddress,
       destLat: stableDrawerCoords.destLat,
       destLng: stableDrawerCoords.destLng,
       destAddress: salonDestAddress,
@@ -1058,6 +1191,7 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
     stableDrawerCoords.destLng,
     clientOriginAddress,
     salonDestAddress,
+    Boolean(deviceGpsOrigin),
   ]);
 
   const transportLinks = useMemo(() => {
@@ -1269,6 +1403,13 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
             destLat={stableDrawerCoords.destLat}
             destLng={stableDrawerCoords.destLng}
             destLabel={appointment.salonName || salonDestAddress}
+            userAvatarUrl={
+              anyApt.clientAvatar ||
+              anyApt.avatar_url ||
+              (typeof window !== 'undefined'
+                ? localStorage.getItem('vagou_user_avatar') || ''
+                : '')
+            }
             routeData={liveRouteData}
             initialDistanceKm={liveRouteData?.distanceKm ?? appointment.distance_km ?? 3.2}
             initialEtaMinutes={liveRouteData?.etaMinutes ?? appointment.eta_minutes ?? 14}

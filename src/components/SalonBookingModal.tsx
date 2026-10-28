@@ -4,7 +4,7 @@ import {
   Scissors, ArrowLeft, AlertCircle,
   Check, Video, Images, Plus, Navigation, MapPin, Search,
   Sun, Sunset, Moon, Bookmark, RotateCcw, Loader2, Car, Home,
-  Bike, Bus, Smartphone, ExternalLink, Footprints, CalendarPlus
+  Bike, Bus, Smartphone, ExternalLink, Footprints
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured, fetchClientFamilyMembers, generateUuidV4 } from '../lib/supabase';
 import { syncClientDependentToDatabase } from '../services/mnvSupabaseSync';
@@ -22,7 +22,6 @@ import {
   TransportMode,
   TRANSPORT_MODE_META,
   buildTransportDeepLinks,
-  buildGoogleCalendarEventUrl,
   formatMaxDepartureTime,
   computeCalibratedEtaForMode,
 } from '../utils/bookingSlots';
@@ -32,6 +31,7 @@ import {
   computeGoogleDetailedRoute,
   fetchGoogleModalRouteMatrix,
   searchGooglePlacesSuggestions,
+  snapAndReverseGeocodeGps,
   GoogleComputedRouteResult,
   GooglePlaceSuggestion,
   ModalMatrixMap,
@@ -65,6 +65,7 @@ interface SalonBookingModalProps {
   initialDateIso?: string;
   preSelectedProfessionalName?: string;
   onDraftSaved?: (draft: BookingDraftItem | null) => void;
+  onNavigateToAgenda?: () => void;
   onBeneficiaryState?: (state: {
     isDependentBooking: boolean;
     dependentName: string;
@@ -131,6 +132,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   initialDateIso,
   preSelectedProfessionalName,
   onDraftSaved,
+  onNavigateToAgenda,
   onBeneficiaryState,
   onConfirmAppointment,
 }) => {
@@ -215,10 +217,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   });
   const [returnToSummaryAfterBeneficiary, setReturnToSummaryAfterBeneficiary] = useState<boolean>(false);
 
-  // Modal Simples de Origem ("Saindo de Casa" vs "Outro Local" com cálculo de distância e sugestão de dia/horário propício)
+  // Modal Simples de Origem ("Local Atual GPS" vs "Saindo de Casa" vs "Outro Local" com cálculo de distância e sugestão de dia/horário propício)
   const [isOriginModalOpen, setIsOriginModalOpen] = useState<boolean>(false);
   const [originModalMode, setOriginModalMode] = useState<'choice' | 'custom_cep'>('choice');
-  const [originType, setOriginType] = useState<'home' | 'other'>('home');
+  const [originType, setOriginType] = useState<'gps' | 'home' | 'other'>('gps');
   const [customCepInput, setCustomCepInput] = useState('');
   const [hasCalculatedCustomCep, setHasCalculatedCustomCep] = useState(false);
   const [returnToRouteModalAfterOrigin, setReturnToRouteModalAfterOrigin] = useState(false);
@@ -846,6 +848,97 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     }
   };
 
+  const handleDetectDeviceGpsOrigin = async () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setOriginType('home');
+      const savedHomeOrigin =
+        localStorage.getItem('vagou_user_cep') ||
+        localStorage.getItem('vagou_user_address') ||
+        localStorage.getItem('vagou_client_test_address') ||
+        '08235-770';
+      setAddressQuery(savedHomeOrigin);
+      await runRouteCalculation(
+        savedHomeOrigin,
+        salonDestQuery,
+        transportMode,
+        returnToRouteModalAfterOrigin
+      );
+      return;
+    }
+
+    setOriginType('gps');
+    setIsCalculatingRoute(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const rawLat = pos.coords.latitude;
+          const rawLng = pos.coords.longitude;
+          const snapped = await snapAndReverseGeocodeGps(rawLat, rawLng);
+          const finalLat = snapped?.lat ?? rawLat;
+          const finalLng = snapped?.lng ?? rawLng;
+          const finalLabel =
+            snapped?.formattedAddress || snapped?.streetName || 'Local Atual (GPS)';
+
+          setOriginCoords({ lat: finalLat, lng: finalLng });
+          setResolvedAddressLabel(finalLabel);
+          setAddressQuery(finalLabel);
+
+          const routeRes = await computeGoogleDetailedRoute({
+            originLat: finalLat,
+            originLng: finalLng,
+            destLat: resolvedSalonCoords.lat,
+            destLng: resolvedSalonCoords.lng,
+            destAddress: salonAddress || resolvedSalonAddressLabel || salonName,
+            mode: transportMode,
+          });
+
+          if (routeRes) {
+            setDistanceKm(routeRes.distanceKm);
+            setEtaMinutes(routeRes.etaMinutes);
+            setLiveRouteData(routeRes);
+          } else {
+            await runRouteCalculation(
+              finalLabel,
+              salonDestQuery,
+              transportMode,
+              returnToRouteModalAfterOrigin
+            );
+          }
+        } finally {
+          setIsCalculatingRoute(false);
+        }
+      },
+      async () => {
+        setOriginType('home');
+        const savedHomeOrigin =
+          localStorage.getItem('vagou_user_cep') ||
+          localStorage.getItem('vagou_user_address') ||
+          localStorage.getItem('vagou_client_test_address') ||
+          '08235-770';
+        setAddressQuery(savedHomeOrigin);
+        await runRouteCalculation(
+          savedHomeOrigin,
+          salonDestQuery,
+          transportMode,
+          returnToRouteModalAfterOrigin
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 8000,
+      }
+    );
+  };
+
+  // Reconhecer automaticamente o local atual do dispositivo (GPS) ao abrir o modal "De onde você vai sair?"
+  useEffect(() => {
+    if (isOriginModalOpen && originModalMode === 'choice' && originType === 'gps') {
+      handleDetectDeviceGpsOrigin();
+    }
+  }, [isOriginModalOpen]);
+
   const handleCalculateCustomCep = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const cleanCep = customCepInput.trim();
@@ -1211,12 +1304,16 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         return;
       }
 
-      // Limpar rascunho pré-salvo após confirmação oficial no banco e abrir o Modal de Pergunta ("Pôr na Agenda" | "Ir Agora")
+      // Após terminar o cadastro/confirmação, não exibe "Ir Agora" — direciona exclusivamente para a Agenda
       saveBookingDraft(null);
       onDraftSaved?.(null);
       setIsSummaryModalOpen(false);
-      setIsPostConfirmChoiceModalOpen(true);
       hapticSuccess();
+      if (onNavigateToAgenda) {
+        onNavigateToAgenda();
+      } else {
+        setIsPostConfirmChoiceModalOpen(true);
+      }
     } catch (err: any) {
       setBookingErrorMessage(err?.message || 'Falha ao realizar agendamento.');
     } finally {
@@ -2439,7 +2536,25 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
 
         {originModalMode === 'choice' ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  hapticMedium();
+                  await handleDetectDeviceGpsOrigin();
+                }}
+                className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
+                  originType === 'gps'
+                    ? 'bg-emerald-500 border-emerald-500 text-white'
+                    : isDark
+                    ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-emerald-500/50'
+                    : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
+                }`}
+              >
+                <Navigation className={`w-4 h-4 shrink-0 ${originType === 'gps' ? 'text-white' : 'text-emerald-500'}`} />
+                <span className={`leading-tight whitespace-nowrap ${originType === 'gps' ? 'text-white' : ''}`}>Local Atual</span>
+              </button>
+
               <button
                 type="button"
                 onClick={async () => {
@@ -2453,7 +2568,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   setAddressQuery(savedHomeOrigin);
                   await runRouteCalculation(savedHomeOrigin, salonDestQuery, transportMode, returnToRouteModalAfterOrigin);
                 }}
-                className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
+                className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
                   originType === 'home'
                     ? 'bg-emerald-500 border-emerald-500 text-white'
                     : isDark
@@ -2461,8 +2576,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
                 }`}
               >
-                <Home className={`w-5 h-5 shrink-0 ${originType === 'home' ? 'text-white' : 'text-emerald-500'}`} />
-                <span className={`leading-tight ${originType === 'home' ? 'text-white' : ''}`}>Saindo de Casa</span>
+                <Home className={`w-4 h-4 shrink-0 ${originType === 'home' ? 'text-white' : 'text-emerald-500'}`} />
+                <span className={`leading-tight whitespace-nowrap ${originType === 'home' ? 'text-white' : ''}`}>Saindo de Casa</span>
               </button>
 
               <button
@@ -2472,7 +2587,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   setOriginType('other');
                   setOriginModalMode('custom_cep');
                 }}
-                className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
+                className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
                   originType === 'other'
                     ? 'bg-emerald-500 border-emerald-500 text-white'
                     : isDark
@@ -2480,14 +2595,20 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
                 }`}
               >
-                <MapPin className={`w-5 h-5 shrink-0 ${originType === 'other' ? 'text-white' : 'text-emerald-500'}`} />
-                <span className={`leading-tight ${originType === 'other' ? 'text-white' : ''}`}>Outro Local</span>
+                <MapPin className={`w-4 h-4 shrink-0 ${originType === 'other' ? 'text-white' : 'text-emerald-500'}`} />
+                <span className={`leading-tight whitespace-nowrap ${originType === 'other' ? 'text-white' : ''}`}>Outro Local</span>
               </button>
             </div>
 
-            {originType === 'home' && (
+            {(originType === 'gps' || originType === 'home') && (
               <>
                 <div className={`p-3 rounded-[4px] space-y-1.5 text-xs font-bold ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'}`}>
+                  <div className="flex items-center gap-1.5 text-emerald-500 truncate">
+                    <Navigation className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span className="truncate">
+                      {isCalculatingRoute ? 'Reconhecendo localização do dispositivo...' : resolvedAddressLabel}
+                    </span>
+                  </div>
                   <div className="flex items-center gap-1.5">
                     <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                     <span>Distância de {formattedDistanceComma} km</span>
@@ -2996,21 +3117,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   );
 
   // ============================================================================
-  // MODAL PÓS-CONFIRMAÇÃO 1: PERGUNTA "PÔR NA AGENDA" OU "IR AGORA"
+  // MODAL PÓS-CONFIRMAÇÃO 1: DIRECIONAMENTO PARA AGENDA (SEM "IR AGORA")
   // ============================================================================
-  const googleCalendarUrl = useMemo(() => {
-    if (!selectedService || !selectedTimeSlot) return '#';
-    return buildGoogleCalendarEventUrl({
-      serviceTitle: selectedService.title,
-      salonName,
-      salonAddress: salonAddress || salonCep,
-      professionalName: selectedProfessional === 'any' ? resolvedProfessionalName : selectedProfessional,
-      dateIso: selectedDateIso,
-      timeSlot: selectedTimeSlot,
-      durationStr: selectedService.duration,
-    });
-  }, [selectedService, selectedTimeSlot, salonName, salonAddress, salonCep, selectedProfessional, resolvedProfessionalName, selectedDateIso]);
-
   const postConfirmChoiceModalNode = isPostConfirmChoiceModalOpen && selectedService && selectedTimeSlot && (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
       <div
@@ -3046,38 +3154,23 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           </button>
         </div>
 
-        {/* Botões da Pergunta: "Pôr na Agenda" vs "Ir Agora" */}
-        <div className="grid grid-cols-2 gap-2.5">
-          <a
-            href={googleCalendarUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => {
-              hapticMedium();
-              setIsPostConfirmChoiceModalOpen(false);
-              onClose?.();
-            }}
-            className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
-              isDark
-                ? 'bg-slate-900 border-slate-800 text-slate-100 hover:border-emerald-500/60'
-                : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/60'
-            }`}
-          >
-            <CalendarPlus className="w-5 h-5 text-emerald-500 shrink-0" />
-            <span className="leading-tight">Pôr na Agenda</span>
-          </a>
-
+        {/* Botão Único Pós-Cadastro/Confirmação: Vai exclusivamente para a Agenda (Sem "Ir Agora") */}
+        <div className="pt-1 sticky bottom-0 z-20">
           <button
             type="button"
             onClick={() => {
               hapticMedium();
               setIsPostConfirmChoiceModalOpen(false);
-              setIsRouteModalOpen(true);
+              if (onNavigateToAgenda) {
+                onNavigateToAgenda();
+              } else {
+                onClose?.();
+              }
             }}
-            className="p-3.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 border border-emerald-500 text-white font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer shadow-xs"
+            className="w-full py-3 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
           >
-            <Navigation className="w-5 h-5 text-white shrink-0" />
-            <span className="leading-tight text-white">Ir Agora</span>
+            <Calendar className="w-4 h-4 text-white shrink-0" />
+            <span className="text-white uppercase tracking-wider">Ir para Agenda</span>
           </button>
         </div>
       </div>

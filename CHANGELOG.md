@@ -15,6 +15,50 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-28] — Marcador de Navegação com Foto de Perfil do Usuário e Fallback Automático (`InteractiveGoogleRouteMap.tsx` & `LiveTrackingModal.tsx`)
+- **Tipo:** `[Feat — Avatar do Usuário no Marcador de Navegação GPS]`
+- **Motivo / Solicitação:** Exibir a foto de perfil do usuário no marcador de navegação do mapa quando houver foto cadastrada; caso não haja foto (ou se a imagem falhar ao carregar), manter o marcador direcional atual.
+- **Arquivos Impactados:**
+  - `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
+  - `src/components/live-tracking/LiveTrackingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Atualizado `createDirectionalUserMarkerElement(avatarUrl)` para verificar se o usuário possui foto válida (`isValidAvatarUrlString` via `userAvatarUrl`, `vagou_user_avatar` ou `vagou_user_profile`).
+  2. Quando há foto de perfil, o marcador renderiza a foto circular (`32x32px` com anel Emerald `#10b981`) sempre na vertical (`0°` fora do `.vagou-nav-rotor` para que o rosto nunca fique de cabeça para baixo), enquanto o cone de visão e a ponteira frontal giram ao redor acompanhando a bússola e a rota.
+  3. Quando não há foto cadastrada (ou em `img.onerror`), o componente exibe automaticamente o marcador direcional padrão (disco Emerald com seta frontal branca).
+
+### [2026-10-28] — Eliminação do Erro `DIRECTIONS_ROUTE: REQUEST_DENIED` com Uso Exclusivo da Google Routes API v2 (`/api/geo/route`) + OSRM (`InteractiveGoogleRouteMap.tsx`)
+- **Tipo:** `[Fix — Google Routes API v2 vs Legacy DirectionsService]`
+- **Motivo / Solicitação:** Corrigir o erro `MapsRequestError: DIRECTIONS_ROUTE: REQUEST_DENIED (Directions Service: This API key is not authorized to use this service or API)` disparado pelo método legado `google.maps.DirectionsService` no navegador quando a chave do projeto Google Cloud utiliza a nova **Routes API (v2)**.
+- **Arquivos Impactados:**
+  - `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Substituídas as chamadas legadas a `new gmaps.DirectionsService()` em `fetchBrowserRoadGeometry` e `recalculateRoadFromRealGpsIfNeeded` pela chamada ao endpoint `POST /api/geo/route` (que consome a **Google Routes API v2** `https://routes.googleapis.com/directions/v2:computeRoutes` com cabeçalho `Referer` + fallback automático para malha viária real OSRM).
+
+### [2026-10-28] — Botão `"Ir"` na Agenda do Menu, Redirecionamento Exclusivo para Agenda Pós-Cadastro e Georreferência Real do Dispositivo na Partida (`ProfileDrawer.tsx`, `UserAppointmentsView.tsx`, `SalonBookingModal.tsx`, `LiveTrackingModal.tsx` & `InteractiveGoogleRouteMap.tsx`)
+- **Tipo:** `[Fix / Feat — Fluxo de Agendamento, Agenda & Georreferência Real GPS]`
+- **Motivo / Solicitação:**
+  1. Adicionar botão com legenda **`"Ir"`** no card de agendamento que consta na Agenda do menu;
+  2. Reconhecer o local atual do dispositivo (GPS) ao escolher o local de partida no agendamento (`"Local Atual"`) e ao iniciar a navegação;
+  3. Após finalizar o cadastro/confirmação do agendamento, não exibir a opção `"Ir Agora"` — direcionar exclusivamente para a **Agenda**;
+  4. Quando o usuário clicar em **`"Ir"`** na Agenda partindo de um local diferente de onde havia informado antes no agendamento, identificar imediatamente a georreferência real do dispositivo, posicionar o marcador no local exato onde o usuário está e recalcular a rota viária a partir dali.
+- **Arquivos Impactados:**
+  - `server.ts`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/UserAppointmentsView.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/live-tracking/LiveTrackingModal.tsx`
+  - `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
+  - `src/App.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Botão `"Ir"` na Agenda (`ProfileDrawer.tsx` & `UserAppointmentsView.tsx`):** Adicionado botão de destaque com legenda **`"Ir"`** (`bg-emerald-500 text-white`) que abre diretamente o mapa de navegação ao vivo (`initialStep="in_app_map"`).
+  2. **Pós-Confirmação Direto para a Agenda (`SalonBookingModal.tsx` & `SalonProfileView.tsx`):** Removida a opção `"Ir Agora"` após o término do agendamento; ao confirmar a vaga, o usuário é levado diretamente para sua **Agenda** (`onNavigateToAgenda`).
+  3. **Opção `"Local Atual"` no Agendamento (`SalonBookingModal.tsx`):** O modal `"De onde você vai sair?"` reconhece automaticamente a localização atual do dispositivo via `navigator.geolocation.getCurrentPosition` + `/api/maps/snap-and-reverse`.
+  4. **Sobrescrita Automática por Georreferência Real ao Clicar em `"Ir"` (`LiveTrackingModal.tsx` & `InteractiveGoogleRouteMap.tsx`):** Mesmo que o usuário tenha informado outro endereço no momento do agendamento, ao clicar em **`"Ir"`** na Agenda o app captura imediatamente a coordenada GPS exata do aparelho (`getCurrentPosition` + `watchPosition`), posiciona o marcador exatamente onde o usuário está e recalcula a malha viária (`computeGoogleDetailedRoute` / `/api/geo/route` / `OSRM`) a partir da sua posição real.
+
 ### [2026-10-28] — Navegação com Bússola do Celular, Câmera Auto-Follow (Marcador Sempre Visível) e Vetor Look-Ahead Mostrando Sempre o Caminho Adiante (`InteractiveGoogleRouteMap.tsx`)
 - **Tipo:** `[Feat / Compass Heading-Up, Camera Auto-Follow & Forward Look-Ahead]`
 - **Motivo / Solicitação:** Ajustar o mapa de navegação em tempo real para:

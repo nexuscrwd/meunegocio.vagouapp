@@ -348,9 +348,7 @@ async function startServer() {
   // 5. Roads API (nearestRoads) + Geocoding API (Reverse Geocode) for Live GPS Snap-to-Road
   app.get('/api/maps/snap-and-reverse', async (req, res) => {
     const mapsKey = getMapsApiKey();
-    if (!mapsKey) {
-      return res.status(503).json({ error: 'VITE_GOOGLE_MAPS_API_KEY not configured' });
-    }
+    const reqReferer = String(req.headers.referer || req.headers.origin || '');
 
     try {
       const rawLat = Number(req.query.lat);
@@ -361,51 +359,108 @@ async function startServer() {
 
       let snappedLat = rawLat;
       let snappedLng = rawLng;
+      const gHeaders: Record<string, string> = {};
+      if (reqReferer) gHeaders['Referer'] = reqReferer;
 
       // Step A: Snap to nearest road via Roads API
-      try {
-        const roadsRes = await fetch(
-          `https://roads.googleapis.com/v1/nearestRoads?points=${rawLat},${rawLng}&key=${mapsKey}`
-        );
-        if (roadsRes.ok) {
-          const roadsData = await roadsRes.json();
-          const firstPoint = roadsData?.snappedPoints?.[0]?.location;
-          if (
-            firstPoint &&
-            typeof firstPoint.latitude === 'number' &&
-            typeof firstPoint.longitude === 'number'
-          ) {
-            snappedLat = firstPoint.latitude;
-            snappedLng = firstPoint.longitude;
+      if (mapsKey) {
+        try {
+          const roadsRes = await fetch(
+            `https://roads.googleapis.com/v1/nearestRoads?points=${rawLat},${rawLng}&key=${encodeURIComponent(mapsKey)}`,
+            { headers: gHeaders }
+          );
+          if (roadsRes.ok) {
+            const roadsData = await roadsRes.json();
+            const firstPoint = roadsData?.snappedPoints?.[0]?.location;
+            if (
+              firstPoint &&
+              typeof firstPoint.latitude === 'number' &&
+              typeof firstPoint.longitude === 'number'
+            ) {
+              snappedLat = firstPoint.latitude;
+              snappedLng = firstPoint.longitude;
+            }
           }
-        }
-      } catch {}
+        } catch {}
+      }
 
-      // Step B: Reverse Geocode snapped coordinate to get street name
+      // Step B: Reverse Geocode snapped coordinate to get street name (Camada 1: Google Geocoding API)
       let streetName = '';
       let formattedAddress = '';
-      try {
-        const geoRes = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${snappedLat},${snappedLng}&language=pt-BR&key=${mapsKey}`
-        );
-        if (geoRes.ok) {
-          const geoData = await geoRes.json();
-          const firstResult = geoData?.results?.[0];
-          if (firstResult) {
-            formattedAddress = firstResult.formatted_address || '';
-            const routeComp = (firstResult.address_components || []).find(
-              (c: any) => Array.isArray(c.types) && c.types.includes('route')
-            );
-            streetName = routeComp?.short_name || routeComp?.long_name || formattedAddress.split(',')[0] || '';
+      if (mapsKey) {
+        try {
+          const geoRes = await fetch(
+            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${snappedLat},${snappedLng}&language=pt-BR&key=${encodeURIComponent(mapsKey)}`,
+            { headers: gHeaders }
+          );
+          if (geoRes.ok) {
+            const geoData = await geoRes.json();
+            const firstResult = geoData?.results?.[0];
+            if (firstResult) {
+              formattedAddress = firstResult.formatted_address || '';
+              const routeComp = (firstResult.address_components || []).find(
+                (c: any) => Array.isArray(c.types) && c.types.includes('route')
+              );
+              streetName =
+                routeComp?.short_name ||
+                routeComp?.long_name ||
+                formattedAddress.split(',')[0] ||
+                '';
+            }
           }
-        }
-      } catch {}
+        } catch {}
+      }
+
+      // Step C: Fallback Reverse Geocode via Nominatim OpenStreetMap
+      if (!formattedAddress) {
+        try {
+          const nomRes = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(
+              snappedLat
+            )}&lon=${encodeURIComponent(snappedLng)}&zoom=18&addressdetails=1`,
+            {
+              headers: {
+                'User-Agent': 'VagouAppTriade/1.0 (https://vagou.app)',
+                'Accept-Language': 'pt-BR',
+              },
+            }
+          );
+          if (nomRes.ok) {
+            const nomData = await nomRes.json();
+            const addr = nomData?.address || {};
+            const road =
+              addr.road ||
+              addr.pedestrian ||
+              addr.suburb ||
+              addr.neighbourhood ||
+              '';
+            const num = addr.house_number ? `, ${addr.house_number}` : '';
+            const neighborhood = addr.suburb || addr.neighbourhood || addr.quarter || '';
+            const city = addr.city || addr.town || addr.municipality || '';
+            const state = addr.state_code || addr.state || '';
+            const postcode = addr.postcode || '';
+            streetName = streetName || (road ? `${road}${num}` : 'Local Atual (GPS)');
+            formattedAddress =
+              [
+                road ? `${road}${num}` : '',
+                neighborhood,
+                city,
+                state,
+                postcode,
+              ]
+                .filter(Boolean)
+                .join(' - ') ||
+              nomData?.display_name ||
+              'Local Atual (GPS)';
+          }
+        } catch {}
+      }
 
       return res.json({
         lat: snappedLat,
         lng: snappedLng,
-        streetName: streetName || 'Via em deslocamento',
-        formattedAddress,
+        streetName: streetName || 'Local Atual (GPS)',
+        formattedAddress: formattedAddress || 'Local Atual (GPS)',
       });
     } catch (err: any) {
       return res.status(500).json({ error: err?.message || 'Erro no snap-and-reverse' });

@@ -548,11 +548,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                           className="flex-1 py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-98 whitespace-nowrap shadow-xs"
                         >
                           <Navigation className="w-3.5 h-3.5 text-white shrink-0" />
-                          <span className="text-white">
-                            {item.tracking_status === 'live_sharing' || item.tracking_status === 'arriving_5min'
-                              ? 'Gerenciar Rota Ao Vivo (10s)'
-                              : 'Estou a Caminho / Traçar Rota'}
-                          </span>
+                          <span className="text-white">Ir</span>
                         </button>
 
                         {(item.tracking_status === 'live_sharing' || item.tracking_status === 'arriving_5min') && (
@@ -682,6 +678,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
           <LiveRouteDepartureModal
             isOpen={Boolean(departureModalApt)}
             appointment={departureModalApt}
+            initialStep="in_app_map"
             onClose={() => setDepartureModalApt(null)}
             onUpdateAppointment={handleSingleAppointmentUpdate}
             onCancelWithReason={(proto, reason) => {

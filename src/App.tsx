@@ -162,11 +162,21 @@ export const App: React.FC = () => {
           .then((dbRows) => {
             if (Array.isArray(dbRows) && dbRows.length > 0) {
               const mappedDb = dbRows.map((r) => mapDbAppointmentToBookingAppointment(r));
-              setAppointments((currentLocal) => {
-                const dbMap = new Map(mappedDb.map((a) => [a.protocolCode, a]));
-                const merged = [...mappedDb];
+              setAppointments((currentLocal: BookingAppointment[]) => {
+                const localMap = new Map<string, BookingAppointment>(
+                  currentLocal.map((l) => [String(l.protocolCode || '').replace(/^#/, ''), l])
+                );
+                const merged = mappedDb.map((dbApt) => {
+                  const cleanKey = String(dbApt.protocolCode || '').replace(/^#/, '');
+                  const loc = localMap.get(cleanKey);
+                  return loc ? { ...loc, ...dbApt } : dbApt;
+                });
+                const dbSet = new Set(
+                  mappedDb.map((a) => String(a.protocolCode || '').replace(/^#/, ''))
+                );
                 currentLocal.forEach((loc) => {
-                  if (!dbMap.has(loc.protocolCode)) {
+                  const cleanKey = String(loc.protocolCode || '').replace(/^#/, '');
+                  if (!dbSet.has(cleanKey)) {
                     merged.push(loc);
                   }
                 });

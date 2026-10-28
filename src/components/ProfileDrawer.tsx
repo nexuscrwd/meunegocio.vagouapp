@@ -42,6 +42,7 @@ interface ProfileDrawerProps {
   onUpdateAppointments?: (appointments: BookingAppointment[]) => void;
   onNavigateToUserAppointments?: () => void;
   onNavigateToUserDashboard?: () => void;
+  initialSubTab?: 'menu' | 'agenda' | 'dados' | 'dependentes' | 'config';
 }
 
 const DEFAULT_SWAP_GOVERNANCE: ClientSwapGovernance = {
@@ -151,14 +152,21 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   onUpdateAppointments,
   onNavigateToUserAppointments,
   onNavigateToUserDashboard,
+  initialSubTab = 'menu',
 }) => {
   const { isDark, toggleTheme } = useTheme();
-  const [activeSubTab, setActiveSubTab] = useState<'menu' | 'agenda' | 'dados' | 'dependentes' | 'config'>('menu');
+  const [activeSubTab, setActiveSubTab] = useState<'menu' | 'agenda' | 'dados' | 'dependentes' | 'config'>(initialSubTab);
   const [drawerDepartureApt, setDrawerDepartureApt] = useState<BookingAppointment | null>(null);
   const [drawerLiveViewState, setDrawerLiveViewState] = useState<{
     appointment: BookingAppointment;
     initialTab: 'timeline' | 'map';
   } | null>(null);
+
+  useEffect(() => {
+    if (isOpen && initialSubTab) {
+      setActiveSubTab(initialSubTab);
+    }
+  }, [isOpen, initialSubTab]);
 
   // Estado do Chat Interno no App
   const [isAppChatOpen, setIsAppChatOpen] = useState(false);
@@ -1407,8 +1415,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       id="menu-option-minha-agenda-client"
                       onClick={() => {
                         hapticLight();
-                        onClose();
                         if (onNavigateToUserAppointments) {
+                          onClose();
                           onNavigateToUserAppointments();
                         } else {
                           setActiveSubTab('agenda');
@@ -1967,14 +1975,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                                 hapticLight();
                                 setDrawerDepartureApt(item);
                               }}
-                              className="py-2 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-extrabold flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer whitespace-nowrap"
+                              className="py-2 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-extrabold flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer whitespace-nowrap"
                             >
                               <Navigation className="w-3.5 h-3.5 text-white shrink-0" />
-                              <span className="text-white">
-                                {item.tracking_status === 'live_sharing' || item.tracking_status === 'arriving_5min'
-                                  ? 'Rota Ao Vivo (10s)'
-                                  : 'Estou a Caminho'}
-                              </span>
+                              <span className="text-white">Ir</span>
                             </button>
 
                             <button
@@ -1986,7 +1990,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                               className="py-2 px-2.5 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[11px] font-bold flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer whitespace-nowrap"
                             >
                               <Package className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                              <span>Linha Shopee</span>
+                              <span>Itinerário</span>
                             </button>
                           </div>
 
@@ -2031,6 +2035,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 <LiveRouteDepartureModal
                   isOpen={Boolean(drawerDepartureApt)}
                   appointment={drawerDepartureApt}
+                  initialStep="in_app_map"
                   onClose={() => setDrawerDepartureApt(null)}
                   onUpdateAppointment={(updated) => {
                     const nextList = appointments.map((a) =>

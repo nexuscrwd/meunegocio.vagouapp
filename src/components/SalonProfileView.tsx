@@ -205,6 +205,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 }) => {
   const { isDark, theme, setTheme, accentColor, setAccentColor: setAccentColorContext } = useTheme();
   const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState<boolean>(false);
+  const [profileDrawerInitialTab, setProfileDrawerInitialTab] = useState<'menu' | 'agenda' | 'dados' | 'dependentes' | 'config'>('menu');
   const [isClientAuthModalOpen, setIsClientAuthModalOpen] = useState<boolean>(false);
   const [currentUserName, setCurrentUserName] = useState<string>(userName);
   const [currentUserAvatarUrl, setCurrentUserAvatarUrl] = useState<string>(() => {
@@ -2059,7 +2060,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           prep_buffer_minutes: bookingData.prepBufferMinutes ?? 15,
           transport_mode: bookingData.transportMode || 'driving',
           selected_route_summary: bookingData.selectedRouteSummary,
-        };
+          ...(bookingData.originLat ? { originLat: bookingData.originLat, client_lat: bookingData.originLat } : {}),
+          ...(bookingData.originLng ? { originLng: bookingData.originLng, client_lng: bookingData.originLng } : {}),
+          ...(bookingData.salonLat ? { salonLat: bookingData.salonLat } : {}),
+          ...(bookingData.salonLng ? { salonLng: bookingData.salonLng } : {}),
+          ...(bookingData.originFormattedAddress ? { originFormattedAddress: bookingData.originFormattedAddress } : {}),
+          ...(bookingData.maxDepartureTime ? { maxDepartureTime: bookingData.maxDepartureTime } : {}),
+        } as BookingAppointment;
         const updatedApts = [newRecord, ...savedList];
         localStorage.setItem('vagou_user_appointments', JSON.stringify(updatedApts));
         setAppointmentsList(updatedApts);
@@ -2882,6 +2889,14 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     setBookingOpenModalFn(() => state.openBeneficiaryModal);
                   }}
                   onDraftSaved={(draft) => setActiveBookingDraft(draft)}
+                  onNavigateToAgenda={() => {
+                    if (onNavigateToUserAppointments) {
+                      onNavigateToUserAppointments();
+                    } else {
+                      setProfileDrawerInitialTab('agenda');
+                      setIsProfileDrawerOpen(true);
+                    }
+                  }}
                   onConfirmAppointment={handleConfirmSchedule}
                 />
               </div>
@@ -3572,7 +3587,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       {/* Drawer do Perfil do Usuário com Menus, Dados Privados, Agenda e Configurações */}
       <ProfileDrawer
         isOpen={isProfileDrawerOpen}
-        onClose={() => setIsProfileDrawerOpen(false)}
+        initialSubTab={profileDrawerInitialTab}
+        onClose={() => {
+          setIsProfileDrawerOpen(false);
+          setProfileDrawerInitialTab('menu');
+        }}
         userName={currentUserName}
         userAvatarUrl={currentUserAvatarUrl}
         onUpdateUserName={(newName) => setCurrentUserName(newName)}
