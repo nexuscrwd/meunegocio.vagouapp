@@ -637,3 +637,123 @@ INSERT INTO public.appointments (
     '15:15:00',
     'CONFIRMADO'
 );
+
+-- =============================================================================
+-- CONVERGÊNCIA GEODÉSICA & ENDEREÇO COMPLETO DA TRÍADE (BOL-023 / BOL-024)
+-- Colunas físicas address, street_number, complement, neighborhood, city, state,
+-- cep, cpf/owner_cpf, latitude, longitude, formatted_address e google_place_id
+-- em salons, clients, professionals, profiles e salon_users
+-- =============================================================================
+ALTER TABLE IF EXISTS public.salons
+  ADD COLUMN IF NOT EXISTS address text,
+  ADD COLUMN IF NOT EXISTS street_number text,
+  ADD COLUMN IF NOT EXISTS complement text,
+  ADD COLUMN IF NOT EXISTS neighborhood text,
+  ADD COLUMN IF NOT EXISTS city text,
+  ADD COLUMN IF NOT EXISTS state text,
+  ADD COLUMN IF NOT EXISTS cep text,
+  ADD COLUMN IF NOT EXISTS owner_cpf text,
+  ADD COLUMN IF NOT EXISTS latitude double precision,
+  ADD COLUMN IF NOT EXISTS longitude double precision,
+  ADD COLUMN IF NOT EXISTS formatted_address text,
+  ADD COLUMN IF NOT EXISTS google_place_id text;
+
+ALTER TABLE IF EXISTS public.clients
+  ADD COLUMN IF NOT EXISTS cpf text,
+  ADD COLUMN IF NOT EXISTS address text,
+  ADD COLUMN IF NOT EXISTS street_number text,
+  ADD COLUMN IF NOT EXISTS complement text,
+  ADD COLUMN IF NOT EXISTS neighborhood text,
+  ADD COLUMN IF NOT EXISTS city text,
+  ADD COLUMN IF NOT EXISTS state text,
+  ADD COLUMN IF NOT EXISTS cep text,
+  ADD COLUMN IF NOT EXISTS latitude double precision,
+  ADD COLUMN IF NOT EXISTS longitude double precision,
+  ADD COLUMN IF NOT EXISTS formatted_address text,
+  ADD COLUMN IF NOT EXISTS google_place_id text;
+
+ALTER TABLE IF EXISTS public.professionals
+  ADD COLUMN IF NOT EXISTS cpf text,
+  ADD COLUMN IF NOT EXISTS address text,
+  ADD COLUMN IF NOT EXISTS street_number text,
+  ADD COLUMN IF NOT EXISTS complement text,
+  ADD COLUMN IF NOT EXISTS neighborhood text,
+  ADD COLUMN IF NOT EXISTS city text,
+  ADD COLUMN IF NOT EXISTS state text,
+  ADD COLUMN IF NOT EXISTS cep text,
+  ADD COLUMN IF NOT EXISTS latitude double precision,
+  ADD COLUMN IF NOT EXISTS longitude double precision,
+  ADD COLUMN IF NOT EXISTS formatted_address text,
+  ADD COLUMN IF NOT EXISTS google_place_id text;
+
+ALTER TABLE IF EXISTS public.profiles
+  ADD COLUMN IF NOT EXISTS cpf text,
+  ADD COLUMN IF NOT EXISTS address text,
+  ADD COLUMN IF NOT EXISTS street_number text,
+  ADD COLUMN IF NOT EXISTS complement text,
+  ADD COLUMN IF NOT EXISTS neighborhood text,
+  ADD COLUMN IF NOT EXISTS city text,
+  ADD COLUMN IF NOT EXISTS state text,
+  ADD COLUMN IF NOT EXISTS cep text,
+  ADD COLUMN IF NOT EXISTS latitude double precision,
+  ADD COLUMN IF NOT EXISTS longitude double precision,
+  ADD COLUMN IF NOT EXISTS formatted_address text,
+  ADD COLUMN IF NOT EXISTS google_place_id text;
+
+ALTER TABLE IF EXISTS public.salon_users
+  ADD COLUMN IF NOT EXISTS cpf text,
+  ADD COLUMN IF NOT EXISTS address text,
+  ADD COLUMN IF NOT EXISTS street_number text,
+  ADD COLUMN IF NOT EXISTS complement text,
+  ADD COLUMN IF NOT EXISTS neighborhood text,
+  ADD COLUMN IF NOT EXISTS city text,
+  ADD COLUMN IF NOT EXISTS state text,
+  ADD COLUMN IF NOT EXISTS cep text,
+  ADD COLUMN IF NOT EXISTS latitude double precision,
+  ADD COLUMN IF NOT EXISTS longitude double precision,
+  ADD COLUMN IF NOT EXISTS formatted_address text,
+  ADD COLUMN IF NOT EXISTS google_place_id text;
+
+CREATE INDEX IF NOT EXISTS idx_salons_owner_cpf ON public.salons(owner_cpf);
+CREATE INDEX IF NOT EXISTS idx_salons_coords ON public.salons(latitude, longitude);
+CREATE INDEX IF NOT EXISTS idx_clients_cpf ON public.clients(cpf);
+CREATE INDEX IF NOT EXISTS idx_professionals_cpf ON public.professionals(cpf);
+CREATE INDEX IF NOT EXISTS idx_profiles_cpf ON public.profiles(cpf);
+
+-- Trigger de Sincronização Cruzada de Endereço e Coordenadas por CPF na Tríade
+CREATE OR REPLACE FUNCTION public.fn_sync_triade_geo_by_cpf()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  clean_cpf TEXT;
+BEGIN
+  clean_cpf := regexp_replace(COALESCE(NEW.cpf, ''), '\D', '', 'g');
+  IF length(clean_cpf) = 11 AND (NEW.latitude IS NOT NULL AND NEW.longitude IS NOT NULL) THEN
+    IF TG_TABLE_NAME <> 'clients' AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='clients') THEN
+      UPDATE public.clients
+      SET latitude = NEW.latitude,
+          longitude = NEW.longitude,
+          formatted_address = COALESCE(NEW.formatted_address, formatted_address),
+          google_place_id = COALESCE(NEW.google_place_id, google_place_id)
+      WHERE regexp_replace(COALESCE(cpf, ''), '\D', '', 'g') = clean_cpf
+        AND (latitude IS DISTINCT FROM NEW.latitude OR longitude IS DISTINCT FROM NEW.longitude);
+    END IF;
+
+    IF TG_TABLE_NAME <> 'profiles' AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='profiles') THEN
+      UPDATE public.profiles
+      SET latitude = NEW.latitude,
+          longitude = NEW.longitude,
+          formatted_address = COALESCE(NEW.formatted_address, formatted_address),
+          google_place_id = COALESCE(NEW.google_place_id, google_place_id)
+      WHERE regexp_replace(COALESCE(cpf, ''), '\D', '', 'g') = clean_cpf
+        AND (latitude IS DISTINCT FROM NEW.latitude OR longitude IS DISTINCT FROM NEW.longitude);
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+NOTIFY pgrst, 'reload schema';
+

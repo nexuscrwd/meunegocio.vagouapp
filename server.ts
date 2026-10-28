@@ -47,8 +47,8 @@ async function startServer() {
     });
   });
 
-  // 2. Routes API v2 — computeRoutes (Real route, polyline, and turn-by-turn steps)
-  app.post('/api/maps/compute-route', async (req, res) => {
+  // 2. Routes API v2 — computeRoutes + /api/geo/route (Real route, polyline, and turn-by-turn steps)
+  app.post(['/api/maps/compute-route', '/api/geo/route'], async (req, res) => {
     const mapsKey = getMapsApiKey();
     const {
       originLat,
@@ -410,6 +410,130 @@ async function startServer() {
     } catch (err: any) {
       return res.status(500).json({ error: err?.message || 'Erro no snap-and-reverse' });
     }
+  });
+
+  // 6. Geocodificação em 3 Camadas (/api/geo/geocode: Google Geocoding API com Referer ➔ Nominatim ➔ BrasilAPI v2)
+  app.post('/api/geo/geocode', async (req, res) => {
+    const mapsKey = getMapsApiKey();
+    const {
+      address = '',
+      streetNumber = '',
+      neighborhood = '',
+      city = '',
+      state = 'SP',
+      cep = '',
+    } = req.body || {};
+
+    const cleanCep = String(cep || '').replace(/\D/g, '');
+    const queryParts = [
+      address ? `${address}${streetNumber ? `, ${streetNumber}` : ''}` : '',
+      neighborhood,
+      city,
+      state,
+      cleanCep ? `${cleanCep.slice(0, 5)}-${cleanCep.slice(5, 8)}` : '',
+      'Brasil',
+    ]
+      .map((p) => String(p || '').trim())
+      .filter(Boolean);
+    const fullQuery = queryParts.join(', ');
+    const reqReferer = String(req.headers.referer || req.headers.origin || '');
+
+    // Camada 1: Google Geocoding API (com cabeçalho Referer encaminhado)
+    if (mapsKey && fullQuery) {
+      try {
+        const headers: Record<string, string> = {};
+        if (reqReferer) headers['Referer'] = reqReferer;
+
+        const geoRes = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+            fullQuery
+          )}&language=pt-BR&region=br&key=${encodeURIComponent(mapsKey)}`,
+          { headers }
+        );
+        if (geoRes.ok) {
+          const geoData = await geoRes.json();
+          const first = geoData?.results?.[0];
+          const loc = first?.geometry?.location;
+          if (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number') {
+            return res.json({
+              lat: loc.lat,
+              lng: loc.lng,
+              formattedAddress: first.formatted_address || fullQuery,
+              googlePlaceId: first.place_id || '',
+              source: 'google_geocoding',
+            });
+          }
+        }
+      } catch {}
+    }
+
+    // Camada 2: Nominatim OpenStreetMap
+    if (fullQuery) {
+      try {
+        const nomRes = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(
+            fullQuery
+          )}`,
+          {
+            headers: {
+              'User-Agent': 'VagouAppTriade/1.0 (https://vagou.app)',
+              'Accept-Language': 'pt-BR',
+            },
+          }
+        );
+        if (nomRes.ok) {
+          const nomData = await nomRes.json();
+          const firstNom = Array.isArray(nomData) ? nomData[0] : null;
+          if (firstNom && firstNom.lat && firstNom.lon) {
+            return res.json({
+              lat: Number(firstNom.lat),
+              lng: Number(firstNom.lon),
+              formattedAddress: firstNom.display_name || fullQuery,
+              googlePlaceId: '',
+              source: 'nominatim',
+            });
+          }
+        }
+      } catch {}
+    }
+
+    // Camada 3: BrasilAPI v2 (CEP com coordenadas)
+    if (cleanCep.length === 8) {
+      try {
+        const brRes = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanCep}`);
+        if (brRes.ok) {
+          const brData = await brRes.json();
+          const coords = brData?.location?.coordinates;
+          const lat = Number(coords?.latitude);
+          const lng = Number(coords?.longitude);
+          if (!Number.isNaN(lat) && !Number.isNaN(lng) && lat !== 0 && lng !== 0) {
+            return res.json({
+              lat,
+              lng,
+              formattedAddress: [
+                brData.street || address,
+                streetNumber,
+                brData.neighborhood || neighborhood,
+                brData.city || city,
+                brData.state || state,
+                cleanCep,
+              ]
+                .filter(Boolean)
+                .join(', '),
+              street: brData.street || address,
+              neighborhood: brData.neighborhood || neighborhood,
+              city: brData.city || city,
+              state: brData.state || state,
+              cep: cleanCep,
+              googlePlaceId: '',
+              source: 'brasilapi_v2',
+            });
+          }
+        }
+      } catch {}
+    }
+
+    return res.status(404).json({ error: 'Não foi possível geocodificar o endereço informado' });
   });
 
   // AI Structure & Screen Analysis endpoint

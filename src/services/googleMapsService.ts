@@ -203,7 +203,7 @@ export async function computeGoogleDetailedRoute(params: {
 }): Promise<GoogleComputedRouteResult | null> {
   try {
     const travelMode = toGoogleTravelMode(params.mode);
-    const res = await fetch('/api/maps/compute-route', {
+    const res = await fetch('/api/geo/route', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -361,3 +361,34 @@ export async function snapAndReverseGeocodeGps(
     return null;
   }
 }
+
+/**
+ * Geocodificação em 3 Camadas (/api/geo/geocode: Google Geocoding API com Referer ➔ Nominatim ➔ BrasilAPI v2)
+ */
+export async function geocodeAddressThreeLayers(params: {
+  address?: string;
+  streetNumber?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  cep?: string;
+}): Promise<{
+  lat: number;
+  lng: number;
+  formattedAddress: string;
+  googlePlaceId?: string;
+  source: string;
+} | null> {
+  try {
+    const res = await fetch('/api/geo/geocode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+

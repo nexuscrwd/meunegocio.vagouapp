@@ -661,3 +661,184 @@ export async function fetchSalonUtilitiesFromDatabase(salonId: string): Promise<
 
   return null;
 }
+
+// ============================================================================
+// 5. BLINDAGEM PGRST204 (safeSupabaseWrite) & PROPAGAÇÃO CRUZADA POR CPF (BOL-024)
+// ============================================================================
+
+/**
+ * Intercepta automaticamente falhas PGRST204 / 42703 do PostgREST (caso alguma coluna
+ * ainda não exista no cache de schema), remove apenas a coluna ausente e reexecuta a gravação.
+ */
+export async function safeSupabaseWrite(
+  tableName: string,
+  operation: 'insert' | 'update' | 'upsert',
+  payload: Record<string, any>,
+  options?: {
+    matchFilter?: Record<string, any>;
+    onConflict?: string;
+    selectSingle?: boolean;
+  }
+): Promise<{ data: any; error: any; strippedColumns: string[] }> {
+  const client = getDbClient() || supabase;
+  if (!client) {
+    return {
+      data: null,
+      error: new Error('Cliente Supabase indisponível'),
+      strippedColumns: [],
+    };
+  }
+
+  const workingPayload: Record<string, any> = { ...payload };
+  const strippedColumns: string[] = [];
+
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      let query: any = (client.from(tableName as any) as any);
+      if (operation === 'insert') {
+        query = query.insert(workingPayload);
+      } else if (operation === 'upsert') {
+        query = query.upsert(
+          workingPayload,
+          options?.onConflict ? { onConflict: options.onConflict } : undefined
+        );
+      } else {
+        query = query.update(workingPayload);
+        if (options?.matchFilter) {
+          query = query.match(options.matchFilter);
+        }
+      }
+
+      if (options?.selectSingle) {
+        query = query.select().maybeSingle();
+      }
+
+      const { data, error } = await query;
+      if (!error) {
+        return { data, error: null, strippedColumns };
+      }
+
+      const errMsg = String(error.message || error.details || '');
+      const isMissingCol =
+        error.code === 'PGRST204' ||
+        error.code === '42703' ||
+        errMsg.includes('Could not find the') ||
+        errMsg.includes('does not exist');
+
+      if (!isMissingCol) {
+        return { data, error, strippedColumns };
+      }
+
+      const matchCol =
+        errMsg.match(/Could not find the '([^']+)' column/i) ||
+        errMsg.match(/column "([^"]+)" of relation/i) ||
+        errMsg.match(/column ([a-zA-Z0-9_]+) does not exist/i);
+
+      const offendingCol = matchCol?.[1];
+      if (offendingCol && offendingCol in workingPayload) {
+        delete workingPayload[offendingCol];
+        strippedColumns.push(offendingCol);
+        continue;
+      }
+
+      return { data, error, strippedColumns };
+    } catch (err: any) {
+      return { data: null, error: err, strippedColumns };
+    }
+  }
+
+  return {
+    data: null,
+    error: new Error('Limite de tentativas excedido em safeSupabaseWrite'),
+    strippedColumns,
+  };
+}
+
+/**
+ * Propagação Cruzada de Endereço e Coordenadas GPS por CPF/E-mail (syncAddressAndCoordsAcrossCpfTables)
+ * Propaga address, street_number, complement, neighborhood, city, state, cep,
+ * latitude, longitude, formatted_address e google_place_id entre salons, clients,
+ * professionals, profiles e salon_users vinculados ao mesmo CPF.
+ */
+export async function syncAddressAndCoordsAcrossCpfTables(params: {
+  cpf?: string | null;
+  email?: string | null;
+  address?: string | null;
+  street_number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+  cep?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  formatted_address?: string | null;
+  google_place_id?: string | null;
+}): Promise<{ updatedTables: string[] }> {
+  const client = getDbClient() || supabase;
+  if (!client) return { updatedTables: [] };
+
+  const cleanCpf = String(params.cpf || '').replace(/\D/g, '');
+  const cleanEmail = String(params.email || '').trim().toLowerCase();
+  if (cleanCpf.length !== 11 && !cleanEmail) {
+    return { updatedTables: [] };
+  }
+
+  const geoPayload: Record<string, any> = {};
+  if (params.address !== undefined && params.address !== null) geoPayload.address = params.address;
+  if (params.street_number !== undefined && params.street_number !== null) geoPayload.street_number = params.street_number;
+  if (params.complement !== undefined && params.complement !== null) geoPayload.complement = params.complement;
+  if (params.neighborhood !== undefined && params.neighborhood !== null) geoPayload.neighborhood = params.neighborhood;
+  if (params.city !== undefined && params.city !== null) geoPayload.city = params.city;
+  if (params.state !== undefined && params.state !== null) geoPayload.state = params.state;
+  if (params.cep !== undefined && params.cep !== null) geoPayload.cep = params.cep;
+  if (typeof params.latitude === 'number' && !Number.isNaN(params.latitude)) geoPayload.latitude = params.latitude;
+  if (typeof params.longitude === 'number' && !Number.isNaN(params.longitude)) geoPayload.longitude = params.longitude;
+  if (params.formatted_address) geoPayload.formatted_address = params.formatted_address;
+  if (params.google_place_id) geoPayload.google_place_id = params.google_place_id;
+
+  if (Object.keys(geoPayload).length === 0) {
+    return { updatedTables: [] };
+  }
+
+  const updatedTables: string[] = [];
+  const formattedCpf =
+    cleanCpf.length === 11
+      ? `${cleanCpf.slice(0, 3)}.${cleanCpf.slice(3, 6)}.${cleanCpf.slice(6, 9)}-${cleanCpf.slice(9, 11)}`
+      : '';
+
+  const targetTables: Array<{ table: string; cpfCol: string }> = [
+    { table: 'salons', cpfCol: 'owner_cpf' },
+    { table: 'clients', cpfCol: 'cpf' },
+    { table: 'professionals', cpfCol: 'cpf' },
+    { table: 'profiles', cpfCol: 'cpf' },
+    { table: 'salon_users', cpfCol: 'cpf' },
+  ];
+
+  await Promise.all(
+    targetTables.map(async ({ table, cpfCol }) => {
+      try {
+        if (cleanCpf.length === 11) {
+          const r1 = await safeSupabaseWrite(table, 'update', geoPayload, {
+            matchFilter: { [cpfCol]: cleanCpf },
+          });
+          if (!r1.error) updatedTables.push(`${table}(${cpfCol}:digits)`);
+
+          if (formattedCpf) {
+            await safeSupabaseWrite(table, 'update', geoPayload, {
+              matchFilter: { [cpfCol]: formattedCpf },
+            });
+          }
+        } else if (cleanEmail) {
+          const rEmail = await safeSupabaseWrite(table, 'update', geoPayload, {
+            matchFilter: { email: cleanEmail },
+          });
+          if (!rEmail.error) updatedTables.push(`${table}(email)`);
+        }
+      } catch {}
+    })
+  );
+
+  return { updatedTables };
+}
+

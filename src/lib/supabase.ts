@@ -883,24 +883,91 @@ export async function syncSalonDataToSupabase(salonData: {
       payload.owner_id = salonData.ownerUserId;
     }
 
-    let { data, error } = await (supabase.from('salons') as any).upsert(payload, { onConflict: 'slug' }).select().single();
+    const client = getDbClient() || supabase;
+    let workingPayload: Record<string, any> = { ...payload };
+    let data: any = null;
+    let error: any = null;
 
-    if (error && (error.message?.includes('column') || error.code === '42703' || error.code === 'PGRST204')) {
-      const fallbackPayload = { ...payload };
-      delete fallbackPayload.favicon_url;
-      delete fallbackPayload.slogan;
-      delete fallbackPayload.brand_font;
-      delete fallbackPayload.owner_cpf;
-      delete fallbackPayload.pix_key;
-      delete fallbackPayload.pix_keys;
-      const retry = await (supabase.from('salons') as any).upsert(fallbackPayload, { onConflict: 'slug' }).select().single();
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const res = await (client.from('salons') as any)
+        .upsert(workingPayload, { onConflict: 'slug' })
+        .select()
+        .single();
+      data = res.data;
+      error = res.error;
+      if (!error) break;
+
+      const errMsg = String(error.message || error.details || '');
+      const isMissingCol =
+        error.code === 'PGRST204' ||
+        error.code === '42703' ||
+        errMsg.includes('Could not find the') ||
+        errMsg.includes('column');
+      if (!isMissingCol) break;
+
+      const matchCol =
+        errMsg.match(/Could not find the '([^']+)' column/i) ||
+        errMsg.match(/column "([^"]+)" of relation/i) ||
+        errMsg.match(/column ([a-zA-Z0-9_]+) does not exist/i);
+      const offendingCol = matchCol?.[1];
+      if (offendingCol && offendingCol in workingPayload) {
+        delete workingPayload[offendingCol];
+        continue;
+      }
+
+      delete workingPayload.favicon_url;
+      delete workingPayload.slogan;
+      delete workingPayload.brand_font;
+      delete workingPayload.owner_cpf;
+      delete workingPayload.pix_key;
+      delete workingPayload.pix_keys;
+      const retry = await (client.from('salons') as any)
+        .upsert(workingPayload, { onConflict: 'slug' })
+        .select()
+        .single();
       data = retry.data;
       error = retry.error;
+      break;
     }
 
     if (error) {
       console.warn('Erro ao sincronizar salão no Supabase:', error.message);
       return { success: false, error: error.message, mode: 'supabase' as const };
+    }
+
+    // Propagação Cruzada de Endereço e Coordenadas GPS por CPF/E-mail (bol-024)
+    const cleanCpf = resolvedOwnerCpf.replace(/\D/g, '');
+    if (cleanCpf.length === 11 || salonData.email) {
+      const geoSyncPayload: Record<string, any> = {
+        address: salonData.address || undefined,
+        neighborhood: salonData.neighborhood || undefined,
+        city: salonData.city || undefined,
+        state: salonData.state || 'SP',
+        cep: salonData.postalCode || undefined,
+        latitude: salonData.latitude,
+        longitude: salonData.longitude,
+        formatted_address: [
+          salonData.address,
+          salonData.neighborhood,
+          salonData.city,
+          salonData.state || 'SP',
+          salonData.postalCode,
+        ]
+          .filter(Boolean)
+          .join(', '),
+      };
+      const tables = ['clients', 'professionals', 'profiles', 'salon_users'];
+      for (const tbl of tables) {
+        try {
+          if (cleanCpf.length === 11) {
+            await (client.from(tbl as any) as any).update(geoSyncPayload).eq('cpf', cleanCpf);
+          } else if (salonData.email) {
+            await (client.from(tbl as any) as any)
+              .update(geoSyncPayload)
+              .ilike('email', salonData.email.trim());
+          }
+        } catch {}
+      }
     }
 
     return { success: true, data, mode: 'supabase' as const };

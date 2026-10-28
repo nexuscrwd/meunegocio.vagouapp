@@ -15,6 +15,25 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-28] — Integração Completa do Comunicado Inter-Projetos `admvapp` (`bol-023` & `bol-024`): Persistência Blindada `safeSupabaseWrite`, Propagação por CPF (`syncAddressAndCoordsAcrossCpfTables`), Geocodificação em 3 Camadas (`/api/geo/geocode`), `InteractiveGoogleRouteMap` e Migração SQL Master (`NOTIFY pgrst, 'reload schema'`)
+- **Tipo:** `[Feat / Tríade Sync bol-023 & bol-024]`
+- **Motivo / Solicitação:** Integrar integralmente o Comunicado Técnico Oficial do `admvapp` (`bol-023 / bol-024`) no `mnvapp`:
+  1. **Migração SQL Idempotente Completa (`supabase_master_convergence_20261023.sql` & `supabase/schema.sql`):** Adição das colunas `address`, `street_number`, `complement`, `neighborhood`, `city`, `state`, `cep`, `cpf`/`owner_cpf`, `latitude (double precision)`, `longitude (double precision)`, `formatted_address` e `google_place_id` nas tabelas `salons`, `clients`, `professionals`, `profiles` e `salon_users`, além dos índices `idx_salons_owner_cpf`, `idx_salons_coords`, `idx_clients_cpf`, `idx_professionals_cpf`, `idx_profiles_cpf`, `idx_salon_users_cpf` e `NOTIFY pgrst, 'reload schema';`;
+  2. **Blindagem `safeSupabaseWrite` (`src/services/mnvSupabaseSync.ts` & `src/lib/supabase.ts`):** Interceptação automática de falhas `PGRST204` / `42703` do PostgREST, removendo apenas a coluna ausente do payload e reexecutando a gravação imediatamente;
+  3. **Propagação Cruzada por CPF (`syncAddressAndCoordsAcrossCpfTables`):** Ao atualizar o endereço ou pino GPS de um gestor, profissional, cliente ou estabelecimento, propaga endereço e coordenadas (`latitude`, `longitude`, `formatted_address`, `google_place_id`) para todos os registros vinculados ao mesmo CPF/e-mail;
+  4. **Geocodificação em 3 Camadas (`POST /api/geo/geocode` em `server.ts` & `geocodeAddressThreeLayers` em `src/services/googleMapsService.ts`):** Resolução em cascata via Google Geocoding API (com header `Referer`) ➔ Nominatim OpenStreetMap ➔ BrasilAPI v2;
+  5. **Mapa Viário Real sem Flickering (`InteractiveGoogleRouteMap.tsx` + `POST /api/geo/route`):** Alinhado ao `bol-023` com `useEffect([sdkReady, isDark])`, atualização imperativa com throttle `>= 20m` ou `15s`, `stableCoords` e polilinha viária em 3 camadas (`/api/geo/route` Routes API v2 ➔ `google.maps.DirectionsService` ➔ `OSRM`).
+- **Arquivos Impactados:**
+  - `server.ts`
+  - `src/services/googleMapsService.ts`
+  - `src/services/mnvSupabaseSync.ts`
+  - `src/lib/supabase.ts`
+  - `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
+  - `src/components/admin/InteractiveGoogleRouteMap.tsx`
+  - `supabase/schema.sql`
+  - `supabase_master_convergence_20261023.sql`
+  - `CHANGELOG.md`
+
 ### [2026-10-28] — Correção Definitiva de Flickering (Tela Piscando) no Mapa e Fim da Rota em Linha Reta (Geometria Viária Real por Ruas)
 - **Tipo:** `[Fix / Map Flickering & Real Road Network Geometry]`
 - **Motivo / Solicitação:** Avaliar e corrigir dois problemas identificados na seção do mapa:
