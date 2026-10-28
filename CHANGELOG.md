@@ -15,6 +15,20 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-28] — Navegação com Bússola do Celular, Câmera Auto-Follow (Marcador Sempre Visível) e Vetor Look-Ahead Mostrando Sempre o Caminho Adiante (`InteractiveGoogleRouteMap.tsx`)
+- **Tipo:** `[Feat / Compass Heading-Up, Camera Auto-Follow & Forward Look-Ahead]`
+- **Motivo / Solicitação:** Ajustar o mapa de navegação em tempo real para:
+  1. Acompanhar a bússola do celular (`deviceorientationabsolute` / `webkitCompassHeading`);
+  2. Manter o marcador sempre visível na tela enquanto o mapa se move automaticamente (`moveCamera` / `panTo` com pausa inteligente de 6s caso o usuário arraste a tela manualmente);
+  3. Mostrar sempre o caminho adiante e corrigir a orientação do marcador para nunca apontar para trás enquanto o usuário caminha ou dirige para frente.
+- **Arquivos Impactados:**
+  - `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Câmera Auto-Follow com Projeção Look-Ahead (`projectPointAhead` + `syncCameraAndMarkerOrientation`):** A câmera do Google Maps acompanha continuamente o usuário projetando o centro da tela ~65 metros à frente na direção do deslocamento (`zoom: 17.5`, `tilt: 45`, `heading`), mantendo o marcador sempre visível no terço inferior da tela e liberando ~70% do visor para mostrar o caminho adiante.
+  2. **Vetor de Rota à Frente (`findForwardRouteBearingAndRemainingPath`) & Trava Anti-Inversão:** O cálculo de azimute busca os próximos vértices à frente na polilinha da rota (`>= 35m` adiante) combinados com o curso GPS e a bússola (`deviceorientationabsolute` / `webkitCompassHeading`), aparando dinamicamente o trecho já percorrido e impedindo que leituras magnéticas invertidas façam o marcador andar de costas.
+  3. **Marcador Direcional com Cone de Visão Frontal (`createDirectionalUserMarkerElement`):** Substituído o ponto estático por um disco de navegação com seta frontal branca (`▲`) e feixe translúcido Emerald apontando sempre para o caminho à frente.
+
 ### [2026-10-28] — Integração Completa do Comunicado Inter-Projetos `admvapp` (`bol-023` & `bol-024`): Persistência Blindada `safeSupabaseWrite`, Propagação por CPF (`syncAddressAndCoordsAcrossCpfTables`), Geocodificação em 3 Camadas (`/api/geo/geocode`), `InteractiveGoogleRouteMap` e Migração SQL Master (`NOTIFY pgrst, 'reload schema'`)
 - **Tipo:** `[Feat / Tríade Sync bol-023 & bol-024]`
 - **Motivo / Solicitação:** Integrar integralmente o Comunicado Técnico Oficial do `admvapp` (`bol-023 / bol-024`) no `mnvapp`:
