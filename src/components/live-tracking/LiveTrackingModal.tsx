@@ -8,18 +8,12 @@ import {
   CheckCircle2,
   X,
   RefreshCw,
-  Car,
-  Bike,
-  Bus,
-  Footprints,
   Bell,
   Map as MapIcon,
   ChevronRight,
-  FastForward,
   Home,
   Sparkles,
   ArrowLeft,
-  ExternalLink,
 } from 'lucide-react';
 import {
   BookingAppointment,
@@ -35,17 +29,15 @@ import {
 } from '../../hooks/useLiveRouteTracker';
 import {
   buildTransportDeepLinks,
-  formatMaxDepartureTime,
   TransportMode as BookingTransportMode,
   TRANSPORT_MODE_META,
 } from '../../utils/bookingSlots';
 import {
   computeGoogleDetailedRoute,
-  fetchGoogleModalRouteMatrix,
   GoogleComputedRouteResult,
-  ModalMatrixMap,
 } from '../../services/googleMapsService';
 import { InteractiveGoogleRouteMap } from './InteractiveGoogleRouteMap';
+import { useTheme } from '../../context/ThemeContext';
 import { hapticLight, hapticMedium, hapticSuccess } from '../../utils/haptics';
 
 interface LiveRouteDepartureModalProps {
@@ -68,19 +60,6 @@ function normalizeBookingTransportMode(mode?: TransportMode): BookingTransportMo
   return 'car';
 }
 
-const MAP_COMPATIBLE_MODES: Array<{
-  key: BookingTransportMode;
-  trackingKey: TransportMode;
-  label: string;
-  Icon: React.FC<{ className?: string }>;
-}> = [
-  { key: 'walking', trackingKey: 'walking', label: 'A pé', Icon: Footprints },
-  { key: 'bicycling', trackingKey: 'bicycling', label: 'Bicicleta', Icon: Bike },
-  { key: 'motorcycle', trackingKey: 'motorcycle', label: 'Moto', Icon: Navigation },
-  { key: 'car', trackingKey: 'driving', label: 'Carro', Icon: Car },
-  { key: 'transit', trackingKey: 'transit', label: 'Transp. Público', Icon: Bus },
-];
-
 export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = ({
   isOpen,
   appointment,
@@ -90,6 +69,8 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
   onCancelWithReason,
   onRequestReschedule,
 }) => {
+  const { isDark } = useTheme();
+
   const isAlreadySharing =
     appointment.tracking_status === 'live_sharing' ||
     appointment.tracking_status === 'arriving_5min';
@@ -100,21 +81,20 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
   });
 
   const [activeViewTab, setActiveViewTab] = useState<'map' | 'timeline'>('map');
-  const [isNavigating, setIsNavigating] = useState<boolean>(isAlreadySharing);
-
-  const [transportMode, setTransportMode] = useState<TransportMode>(
-    appointment.transport_mode || 'driving'
+  const [hasReachedDestination, setHasReachedDestination] = useState<boolean>(
+    appointment.tracking_status === 'arrived'
   );
+
+  const transportMode: TransportMode = appointment.transport_mode || 'driving';
   const [cancelReason, setCancelReason] = useState<string>('');
   const [cancelError, setCancelError] = useState<string>('');
 
   const [liveRouteData, setLiveRouteData] = useState<GoogleComputedRouteResult | null>(null);
-  const [modalMatrix, setModalMatrix] = useState<ModalMatrixMap>({});
 
-  const { secondsUntilNextPing, advanceRouteStep, reportAdversity } = useLiveRouteTracker({
+  const { secondsUntilNextPing } = useLiveRouteTracker({
     appointment,
     onUpdateAppointment,
-    autoTickEnabled: isOpen && (isAlreadySharing || isNavigating),
+    autoTickEnabled: isOpen && (isAlreadySharing || step === 'in_app_map'),
   });
 
   const selectedRoute = GOOGLE_MAPS_ROUTE_OPTIONS[0];
@@ -126,21 +106,14 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
   );
 
   const metrics = useMemo(() => {
-    const matrixEntry = modalMatrix[bookingTransportMode];
     if (liveRouteData) {
       return {
         distanceKm: liveRouteData.distanceKm,
         etaMinutes: liveRouteData.etaMinutes,
       };
     }
-    if (matrixEntry) {
-      return {
-        distanceKm: matrixEntry.distanceKm,
-        etaMinutes: matrixEntry.etaMinutes,
-      };
-    }
     return fallbackMetrics;
-  }, [liveRouteData, modalMatrix, bookingTransportMode, fallbackMetrics]);
+  }, [liveRouteData, fallbackMetrics]);
 
   const clientOriginAddress = useMemo(() => {
     const anyApt = appointment as any;
@@ -159,7 +132,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     return appointment.address || appointment.salonName || 'Estabelecimento';
   }, [appointment]);
 
-  // Busca Rota Real (Routes API v2) + Matriz Simultânea dos 5 Modais
+  // Busca Rota Real (Routes API v2)
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
@@ -177,7 +150,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
       if (!active || !res) return;
       setLiveRouteData(res);
 
-      // Se ainda não tiver checkpoints reais salvos ou mudou de modal, atualiza com as ruas reais da Routes API v2
       if (res.checkpoints.length > 0) {
         syncAppointmentAcrossStorageAndDb(
           appointment,
@@ -190,19 +162,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
           },
           onUpdateAppointment
         );
-      }
-    });
-
-    fetchGoogleModalRouteMatrix({
-      originLat: appointment.client_lat ?? anyApt.originLat,
-      originLng: appointment.client_lng ?? anyApt.originLng,
-      originAddress: clientOriginAddress,
-      destLat: anyApt.salonLat,
-      destLng: anyApt.salonLng,
-      destAddress: salonDestAddress,
-    }).then((matrix) => {
-      if (active && matrix) {
-        setModalMatrix(matrix);
       }
     });
 
@@ -225,10 +184,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     });
   }, [appointment, clientOriginAddress, salonDestAddress, bookingTransportMode]);
 
-  const maxDepartureTimeFormatted = useMemo(() => {
-    return formatMaxDepartureTime(appointment.time || '10:00', metrics.etaMinutes);
-  }, [appointment.time, metrics.etaMinutes]);
-
   if (!isOpen) return null;
 
   const prepBuffer = appointment.prep_buffer_minutes ?? 15;
@@ -249,7 +204,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     onClose();
   };
 
-  const handleStartInAppMapRoute = (autoActivateNavigation = false) => {
+  const handleStartInAppMapRoute = () => {
     hapticSuccess();
     const nowClock = formatCurrentClockTime();
     const initialCheckpoints: LiveRouteCheckpoint[] =
@@ -270,7 +225,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
         tracking_status: nextStatus,
         transport_mode: transportMode,
         selected_route_summary: liveRouteData?.description || selectedRoute.summary,
-        route_polyline: liveRouteData?. decodedPath || selectedRoute.polyline,
+        route_polyline: liveRouteData?.decodedPath || selectedRoute.polyline,
         current_street_name: initialCheckpoints[0]?.street || selectedRoute.streets[0].street,
         route_checkpoints: initialCheckpoints,
         eta_minutes: metrics.etaMinutes,
@@ -283,9 +238,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
       onUpdateAppointment
     );
 
-    if (autoActivateNavigation) {
-      setIsNavigating(true);
-    }
     setActiveViewTab('map');
     setStep('in_app_map');
   };
@@ -354,7 +306,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
       },
       onUpdateAppointment
     );
-    setIsNavigating(false);
     onClose();
   };
 
@@ -370,11 +321,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
           timestamp: idx === 0 ? formatCurrentClockTime(0) : undefined,
         }));
 
-  const activeStepIndex = useMemo(() => {
-    const idx = checkpoints.findIndex((c) => c.status === 'current');
-    return idx >= 0 ? idx : 0;
-  }, [checkpoints]);
-
   const destinationLabel =
     appointment.service_location_type === 'home_delivery'
       ? appointment.address || 'Residência do Cliente'
@@ -382,16 +328,24 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
 
   const anyApt = appointment as any;
 
-  // SE ESTIVER NA TELA EXPANDIDA DE MAPA IN-APP + LINHA DO TEMPO
+  // SE ESTIVER NA TELA EXPANDIDA DE MAPA IN-APP + ITINERÁRIO
   if (step === 'in_app_map') {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-2 bg-black/85 backdrop-blur-xs overflow-hidden animate-in fade-in duration-150">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-2 bg-black/80 backdrop-blur-xs overflow-hidden animate-in fade-in duration-150">
         <div
-          className="w-full h-full sm:max-w-5xl sm:max-h-[96vh] bg-slate-950 sm:border sm:border-slate-800 sm:rounded-[4px] text-white shadow-2xl flex flex-col overflow-hidden"
+          className={`w-full h-full sm:max-w-5xl sm:max-h-[96vh] sm:border sm:rounded-[4px] shadow-2xl flex flex-col overflow-hidden transition-colors ${
+            isDark
+              ? 'bg-slate-950 border-slate-800 text-white'
+              : 'bg-white border-slate-200 text-slate-900'
+          }`}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Cabeçalho da Tela Expandida */}
-          <div className="px-3.5 py-2.5 border-b border-slate-800 bg-slate-900 flex items-center justify-between gap-2 shrink-0">
+          {/* 1. Cabeçalho Principal (Sem botão Abrir Externo) */}
+          <div
+            className={`px-3.5 py-2.5 border-b flex items-center justify-between gap-2 shrink-0 ${
+              isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+            }`}
+          >
             <div className="flex items-center gap-2 min-w-0">
               <button
                 type="button"
@@ -399,53 +353,67 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                   hapticLight();
                   setStep('question');
                 }}
-                className="w-7 h-7 rounded-[4px] bg-slate-800 text-slate-200 hover:text-white flex items-center justify-center transition cursor-pointer shrink-0"
+                className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
+                  isDark
+                    ? 'bg-slate-800 text-slate-200 hover:text-white'
+                    : 'bg-slate-200 text-slate-700 hover:text-slate-900'
+                }`}
                 title="Voltar"
               >
                 <ArrowLeft className="w-3.5 h-3.5 text-emerald-500" />
               </button>
               <div className="min-w-0">
-                <h3 className="text-xs sm:text-sm font-extrabold font-['Poppins'] leading-snug text-white truncate">
-                  Mapa da Rota • {TRANSPORT_MODE_META[bookingTransportMode].shortLabel}
+                <h3 className="text-xs sm:text-sm font-extrabold font-['Poppins'] leading-snug truncate">
+                  {appointment.salonName || 'Mapa da Rota'}
                 </h3>
-                <p className="text-[10px] font-mono text-slate-400 truncate">
+                <p
+                  className={`text-[10px] font-mono truncate ${
+                    isDark ? 'text-slate-400' : 'text-slate-500'
+                  }`}
+                >
                   {appointment.protocolCode} • {appointment.serviceTitle || appointment.service} às{' '}
                   {appointment.time || '10:00'}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
-              <a
-                href={
-                  bookingTransportMode === 'transit'
-                    ? transportLinks.googleMapsTransitUrl
-                    : transportLinks.googleMapsUrl
-                }
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-2.5 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold inline-flex items-center gap-1.5 transition cursor-pointer shadow-xs whitespace-nowrap"
-                title="Abrir no aplicativo externo do Google Maps"
-              >
-                <ExternalLink className="w-3 h-3 text-white shrink-0" />
-                <span className="text-white">Abrir Externo</span>
-              </a>
-
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-7 h-7 rounded-[4px] bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer shrink-0"
-                title="Fechar"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
+                isDark
+                  ? 'bg-slate-800 text-slate-300 hover:text-white'
+                  : 'bg-slate-200 text-slate-600 hover:text-slate-900'
+              }`}
+              title="Fechar"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
-          {/* Barra Superior: Alternador de Abas (Mapa ⇄ Linha do Tempo) + Modalidades + Resumo */}
-          <div className="px-3.5 py-2.5 border-b border-slate-800 bg-slate-950 space-y-2 shrink-0">
-            {/* Abas: Mapa vs Linha do Tempo */}
-            <div className="grid grid-cols-2 gap-1.5 p-1 rounded-[4px] bg-slate-900">
+          {/* 2. Sub-cabeçalho com o Endereço de Destino (Somente isso) */}
+          <div
+            className={`px-3.5 py-2 border-b flex items-center gap-2 shrink-0 ${
+              isDark
+                ? 'bg-slate-950 border-slate-800 text-slate-200'
+                : 'bg-slate-50 border-slate-200 text-slate-700'
+            }`}
+          >
+            <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+            <span className="text-xs font-bold truncate">{salonDestAddress}</span>
+          </div>
+
+          {/* 3. Abas de Modo de Visualização: "Mapa" e "Itinerário" */}
+          <div
+            className={`px-3.5 py-2 border-b shrink-0 ${
+              isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
+            }`}
+          >
+            <div
+              className={`grid grid-cols-2 gap-1.5 p-1 rounded-[4px] ${
+                isDark ? 'bg-slate-900' : 'bg-slate-100'
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => {
@@ -455,10 +423,16 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                 className={`py-2 px-2.5 rounded-[3px] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
                   activeViewTab === 'map'
                     ? 'bg-emerald-500 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white'
+                    : isDark
+                    ? 'text-slate-300 hover:text-white'
+                    : 'text-slate-700 hover:text-slate-900'
                 }`}
               >
-                <MapIcon className={`w-3.5 h-3.5 shrink-0 ${activeViewTab === 'map' ? 'text-white' : 'text-emerald-500'}`} />
+                <MapIcon
+                  className={`w-3.5 h-3.5 shrink-0 ${
+                    activeViewTab === 'map' ? 'text-white' : 'text-emerald-500'
+                  }`}
+                />
                 <span className={activeViewTab === 'map' ? 'text-white' : ''}>Mapa</span>
               </button>
 
@@ -471,85 +445,22 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                 className={`py-2 px-2.5 rounded-[3px] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
                   activeViewTab === 'timeline'
                     ? 'bg-emerald-500 text-white shadow-xs'
-                    : 'text-slate-300 hover:text-white'
+                    : isDark
+                    ? 'text-slate-300 hover:text-white'
+                    : 'text-slate-700 hover:text-slate-900'
                 }`}
               >
-                <Clock className={`w-3.5 h-3.5 shrink-0 ${activeViewTab === 'timeline' ? 'text-white' : 'text-emerald-500'}`} />
-                <span className={activeViewTab === 'timeline' ? 'text-white' : ''}>Linha do Tempo</span>
+                <Clock
+                  className={`w-3.5 h-3.5 shrink-0 ${
+                    activeViewTab === 'timeline' ? 'text-white' : 'text-emerald-500'
+                  }`}
+                />
+                <span className={activeViewTab === 'timeline' ? 'text-white' : ''}>Itinerário</span>
               </button>
-            </div>
-
-            {/* Seletor Rápido de Modalidade com Tempos Reais (Routes API v2 Matrix) */}
-            <div className="grid grid-cols-5 gap-1.5">
-              {MAP_COMPATIBLE_MODES.map((opt) => {
-                const isSelectedMode = bookingTransportMode === opt.key;
-                const ModeIcon = opt.Icon;
-                const matrixItem = modalMatrix[opt.key];
-                return (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => {
-                      hapticLight();
-                      setTransportMode(opt.trackingKey);
-                      const nextMetrics =
-                        matrixItem || getAdjustedRouteMetrics(selectedRoute, opt.trackingKey);
-                      syncAppointmentAcrossStorageAndDb(
-                        appointment,
-                        {
-                          transport_mode: opt.trackingKey,
-                          eta_minutes: nextMetrics.etaMinutes,
-                          distance_km: nextMetrics.distanceKm,
-                        },
-                        onUpdateAppointment
-                      );
-                    }}
-                    className={`py-1.5 px-1 rounded-[4px] font-bold text-[10px] sm:text-[11px] flex flex-col items-center justify-center gap-0.5 transition cursor-pointer text-center ${
-                      isSelectedMode
-                        ? 'bg-emerald-500 text-white shadow-xs'
-                        : 'bg-slate-900 text-slate-300 hover:text-white'
-                    }`}
-                  >
-                    <ModeIcon className={`w-3.5 h-3.5 shrink-0 ${isSelectedMode ? 'text-white' : 'text-emerald-500'}`} />
-                    <span className={`leading-tight whitespace-nowrap truncate max-w-full ${isSelectedMode ? 'text-white' : ''}`}>
-                      {opt.label}
-                    </span>
-                    {matrixItem && (
-                      <span
-                        className={`text-[9px] font-mono tabular-nums leading-none ${
-                          isSelectedMode ? 'text-white' : 'text-emerald-400'
-                        }`}
-                      >
-                        {matrixItem.etaMinutes}m
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Faixa de Resumo Rápido da Rota */}
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] font-bold text-slate-200">
-              <div className="flex items-center gap-1.5 min-w-0 truncate">
-                <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                <span className="truncate">{clientOriginAddress}</span>
-                <span className="text-emerald-500 shrink-0">➔</span>
-                <span className="text-emerald-500 truncate">{appointment.salonName}</span>
-              </div>
-
-              <div className="flex items-center gap-2.5 shrink-0">
-                <span>{metrics.distanceKm} km</span>
-                <span>•</span>
-                <span>~{metrics.etaMinutes} min</span>
-                <span>•</span>
-                <span>
-                  Saída máx. <strong className="text-emerald-500">{maxDepartureTimeFormatted}</strong>
-                </span>
-              </div>
             </div>
           </div>
 
-          {/* Conteúdo Principal: Aba Mapa (Interactive Google Maps In-App sem caixa branca) vs Aba Linha do Tempo */}
+          {/* 4. Conteúdo Principal: Aba Mapa Limpo vs Aba Itinerário */}
           {activeViewTab === 'map' ? (
             <InteractiveGoogleRouteMap
               originLat={appointment.client_lat ?? anyApt.originLat ?? -23.5505}
@@ -559,16 +470,9 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
               destLng={anyApt.salonLng ?? -46.4795}
               destLabel={appointment.salonName || salonDestAddress}
               routeData={liveRouteData}
-              activeStepIndex={activeStepIndex}
-              isNavigating={isNavigating}
+              initialDistanceKm={metrics.distanceKm}
+              initialEtaMinutes={metrics.etaMinutes}
               fallbackEmbedUrl={transportLinks.googleMapsEmbedUrl}
-              onStartNavigation={() => {
-                setIsNavigating(true);
-                handleStartInAppMapRoute(true);
-              }}
-              onAdvanceStep={() => {
-                advanceRouteStep();
-              }}
               onLiveGpsUpdate={(lat, lng, snappedStreet) => {
                 const currentEta = appointment.eta_minutes ?? metrics.etaMinutes;
                 syncAppointmentAcrossStorageAndDb(
@@ -582,86 +486,13 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                   onUpdateAppointment
                 );
               }}
-              onArriveAtDestination={handleMarkArrived}
+              onDestinationReachedChange={(reached) => {
+                setHasReachedDestination(reached);
+              }}
             />
           ) : (
             <div className="flex-1 w-full overflow-y-auto p-4 space-y-4 text-xs">
-              {/* Resumo de Telemetria em Tempo Real */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="p-2.5 rounded-[4px] bg-slate-900">
-                  <span className="text-[9.5px] uppercase text-slate-400 block">ETA Chegada</span>
-                  <span className="text-sm font-mono tabular-nums font-black text-emerald-400 block mt-0.5">
-                    {appointment.tracking_status === 'arrived'
-                      ? 'Chegou'
-                      : `${appointment.eta_minutes ?? metrics.etaMinutes} min (${formatCurrentClockTime(
-                          appointment.eta_minutes ?? metrics.etaMinutes
-                        )})`}
-                  </span>
-                </div>
-
-                <div className="p-2.5 rounded-[4px] bg-slate-900">
-                  <span className="text-[9.5px] uppercase text-slate-400 block">Distância</span>
-                  <span className="text-sm font-mono tabular-nums font-bold text-white block mt-0.5">
-                    {appointment.distance_km ?? metrics.distanceKm} km
-                  </span>
-                </div>
-
-                <div className="p-2.5 rounded-[4px] bg-slate-900">
-                  <span className="text-[9.5px] uppercase text-slate-400 block">Ping GPS</span>
-                  <span className="text-sm font-mono tabular-nums font-bold text-emerald-400 block mt-0.5">
-                    a cada {secondsUntilNextPing}s
-                  </span>
-                </div>
-              </div>
-
-              {/* Botões de 1 Toque: Radar de Adversidades de Trânsito */}
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Imprevisto no caminho? Avise em 1 toque:
-                </span>
-                <div className="grid grid-cols-3 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hapticMedium();
-                      reportAdversity('traffic', 'Trânsito inesperado', 6);
-                    }}
-                    className="p-2 rounded-[4px] bg-slate-900 hover:bg-slate-800 text-amber-300 text-[10px] font-bold transition cursor-pointer flex flex-col items-center gap-1 active:scale-95"
-                  >
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Trânsito</span>
-                    <span className="font-mono tabular-nums text-[9.5px] text-amber-400">+6 min</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hapticMedium();
-                      reportAdversity('roadwork', 'Obra / Bloqueio na via', 8);
-                    }}
-                    className="p-2 rounded-[4px] bg-slate-900 hover:bg-slate-800 text-amber-300 text-[10px] font-bold transition cursor-pointer flex flex-col items-center gap-1 active:scale-95"
-                  >
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Obra na Via</span>
-                    <span className="font-mono tabular-nums text-[9.5px] text-amber-400">+8 min</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hapticMedium();
-                      reportAdversity('parking', 'Procurando vaga', 4);
-                    }}
-                    className="p-2 rounded-[4px] bg-slate-900 hover:bg-slate-800 text-amber-300 text-[10px] font-bold transition cursor-pointer flex flex-col items-center gap-1 active:scale-95"
-                  >
-                    <Car className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Estacionando</span>
-                    <span className="font-mono tabular-nums text-[9.5px] text-amber-400">+4 min</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Sequência da Linha do Tempo (Gerada pela Routes API v2) */}
+              {/* Sequência do Itinerário */}
               <div className="space-y-1 pt-1">
                 {/* Ponto Inicial */}
                 <div className="flex items-start gap-3 pb-3">
@@ -673,14 +504,18 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-emerald-400">
-                        Partida Confirmada • {clientOriginAddress}
+                      <span className="text-xs font-bold text-emerald-500">
+                        Saída • {clientOriginAddress}
                       </span>
-                      <span className="text-[10px] font-mono tabular-nums text-slate-400">
+                      <span
+                        className={`text-[10px] font-mono tabular-nums ${
+                          isDark ? 'text-slate-400' : 'text-slate-500'
+                        }`}
+                      >
                         {checkpoints[0]?.timestamp || formatCurrentClockTime(-2)}
                       </span>
                     </div>
-                    <p className="text-[10.5px] text-slate-400">
+                    <p className={`text-[10.5px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                       Modalidade: {TRANSPORT_MODE_META[bookingTransportMode].label}
                     </p>
                   </div>
@@ -690,7 +525,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                 {checkpoints.map((cp, index) => {
                   const isPassed = cp.status === 'passed';
                   const isCurrent = cp.status === 'current';
-                  const hasAdversity = Boolean(cp.adversity);
 
                   return (
                     <div key={`${cp.street}-${index}`} className="flex items-start gap-3 pb-3">
@@ -704,14 +538,26 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                             <Navigation className="w-2.5 h-2.5 text-white" />
                           </div>
                         ) : (
-                          <div className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-slate-500 shrink-0">
-                            <span className="w-2 h-2 rounded-full bg-slate-600" />
+                          <div
+                            className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                              isDark ? 'bg-slate-800 text-slate-500' : 'bg-slate-200 text-slate-500'
+                            }`}
+                          >
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                isDark ? 'bg-slate-600' : 'bg-slate-400'
+                              }`}
+                            />
                           </div>
                         )}
                         {index < checkpoints.length && (
                           <div
                             className={`w-0.5 h-8 mt-1 ${
-                              isPassed ? 'bg-emerald-500/60' : 'bg-slate-800'
+                              isPassed
+                                ? 'bg-emerald-500/60'
+                                : isDark
+                                ? 'bg-slate-800'
+                                : 'bg-slate-200'
                             }`}
                           />
                         )}
@@ -722,38 +568,30 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                           <span
                             className={`text-xs font-bold leading-snug ${
                               isCurrent
-                                ? 'text-white'
+                                ? isDark
+                                  ? 'text-white'
+                                  : 'text-slate-900'
                                 : isPassed
-                                ? 'text-slate-300'
+                                ? isDark
+                                  ? 'text-slate-300'
+                                  : 'text-slate-700'
                                 : 'text-slate-500'
                             }`}
                           >
-                            {isPassed
-                              ? `Concluído: ${cp.street}`
-                              : isCurrent
-                              ? `Agora: ${cp.street}`
-                              : `Próximo: ${cp.street}`}
+                            {cp.street}
                           </span>
-                          <span className="text-[10px] font-mono tabular-nums text-slate-400 shrink-0">
+                          <span
+                            className={`text-[10px] font-mono tabular-nums shrink-0 ${
+                              isDark ? 'text-slate-400' : 'text-slate-500'
+                            }`}
+                          >
                             {cp.timestamp || cp.distanceText || ''}
                           </span>
                         </div>
 
                         {isCurrent && (
-                          <div className="flex items-center gap-2 text-[10.5px] text-emerald-400 font-semibold">
+                          <div className="flex items-center gap-2 text-[10.5px] text-emerald-500 font-semibold">
                             <span>Em deslocamento • Atualizado há {10 - secondsUntilNextPing}s</span>
-                          </div>
-                        )}
-
-                        {hasAdversity && cp.adversity && (
-                          <div className="p-2 rounded-[4px] bg-amber-500/15 text-amber-300 text-[10.5px] flex items-center justify-between">
-                            <span className="flex items-center gap-1.5 font-bold">
-                              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                              <span>{cp.adversity.label}</span>
-                            </span>
-                            <span className="font-mono tabular-nums font-black text-amber-400">
-                              +{cp.adversity.addedMinutes} min
-                            </span>
                           </div>
                         )}
                       </div>
@@ -766,9 +604,11 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                   <div className="flex flex-col items-center">
                     <div
                       className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
-                        appointment.tracking_status === 'arrived'
+                        appointment.tracking_status === 'arrived' || hasReachedDestination
                           ? 'bg-emerald-500 text-white'
-                          : 'bg-slate-800 text-slate-400'
+                          : isDark
+                          ? 'bg-slate-800 text-slate-400'
+                          : 'bg-slate-200 text-slate-600'
                       }`}
                     >
                       {appointment.service_location_type === 'home_delivery' ? (
@@ -782,14 +622,16 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                     <div className="flex items-center justify-between">
                       <span
                         className={`text-xs font-bold ${
-                          appointment.tracking_status === 'arrived'
-                            ? 'text-emerald-400'
-                            : 'text-slate-300'
+                          appointment.tracking_status === 'arrived' || hasReachedDestination
+                            ? 'text-emerald-500'
+                            : isDark
+                            ? 'text-slate-300'
+                            : 'text-slate-800'
                         }`}
                       >
                         Chegada: {destinationLabel}
                       </span>
-                      <span className="text-[10px] font-mono tabular-nums text-emerald-400 font-bold">
+                      <span className="text-[10px] font-mono tabular-nums text-emerald-500 font-bold">
                         Atendimento às {appointment.time || '10:00'}
                       </span>
                     </div>
@@ -799,77 +641,23 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
             </div>
           )}
 
-          {/* Rodapé Fixo de Ação (sticky bottom-0 z-20) */}
-          <div className="sticky bottom-0 z-20 px-3.5 py-2.5 border-t border-slate-800 bg-slate-900 flex items-center justify-between gap-2 shrink-0">
-            <div className="flex items-center gap-1.5">
-              {!isNavigating ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    hapticMedium();
-                    setIsNavigating(true);
-                    handleStartInAppMapRoute(true);
-                  }}
-                  className="py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow-xs"
-                >
-                  <Navigation className="w-3.5 h-3.5 text-white shrink-0" />
-                  <span className="text-white">Iniciar Trajeto</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleMarkArrived}
-                  className="py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow-xs"
-                >
-                  <Check className="w-3.5 h-3.5 text-white shrink-0 stroke-[2.5]" />
-                  <span className="text-white">Cheguei ao Destino</span>
-                </button>
-              )}
-
+          {/* 5. Rodapé Fixo Abaixo do Mapa: Apenas o Botão "Cheguei" (aparece quando o usuário chega ao destino) */}
+          {hasReachedDestination && (
+            <div
+              className={`sticky bottom-0 z-20 px-3.5 py-2.5 border-t shrink-0 ${
+                isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+              }`}
+            >
               <button
                 type="button"
-                onClick={() => {
-                  hapticLight();
-                  advanceRouteStep();
-                }}
-                className="py-2 px-2.5 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[11px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap"
-                title="Avançar para a próxima rua da rota"
+                onClick={handleMarkArrived}
+                className="w-full py-2.5 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs uppercase tracking-wider inline-flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
               >
-                <FastForward className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>+10s</span>
+                <Check className="w-4 h-4 text-white shrink-0 stroke-[2.5]" />
+                <span className="text-white">Cheguei</span>
               </button>
             </div>
-
-            <div className="flex items-center gap-2">
-              {(bookingTransportMode === 'car' || bookingTransportMode === 'motorcycle') && (
-                <a
-                  href={transportLinks.wazeUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="py-2 px-3 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
-                >
-                  <Navigation className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span className="text-white">Waze</span>
-                  <ExternalLink className="w-3 h-3 text-emerald-400 shrink-0" />
-                </a>
-              )}
-
-              <a
-                href={
-                  bookingTransportMode === 'transit'
-                    ? transportLinks.googleMapsTransitUrl
-                    : transportLinks.googleMapsUrl
-                }
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow-xs"
-              >
-                <MapPin className="w-3.5 h-3.5 text-white shrink-0" />
-                <span className="text-white">Google Maps</span>
-                <ExternalLink className="w-3 h-3 text-white shrink-0" />
-              </a>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     );
@@ -881,22 +669,34 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-slate-950 border-t sm:border border-slate-800 rounded-t-2xl sm:rounded-[6px] text-white shadow-2xl flex flex-col max-h-[92vh] overflow-hidden"
+        className={`w-full max-w-md border-t sm:border rounded-t-2xl sm:rounded-[6px] shadow-2xl flex flex-col max-h-[92vh] overflow-hidden transition-colors ${
+          isDark
+            ? 'bg-slate-950 border-slate-800 text-white'
+            : 'bg-white border-slate-200 text-slate-900'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabeçalho Compacto */}
-        <div className="px-4 py-3 border-b border-slate-800 bg-slate-900/90 flex items-center justify-between shrink-0">
+        <div
+          className={`px-4 py-3 border-b flex items-center justify-between shrink-0 ${
+            isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-100 border-slate-200'
+          }`}
+        >
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-7 h-7 rounded-[4px] bg-emerald-500 flex items-center justify-center text-white shrink-0">
               <Navigation className="w-3.5 h-3.5 text-white" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider font-['Poppins'] text-white truncate">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider font-['Poppins'] truncate">
                 {isProfessionalDeliveryMode
                   ? 'Deslocamento Delivery Ao Vivo'
                   : 'Radar Estou a Caminho'}
               </h3>
-              <p className="text-[10px] font-mono text-slate-400 truncate">
+              <p
+                className={`text-[10px] font-mono truncate ${
+                  isDark ? 'text-slate-400' : 'text-slate-500'
+                }`}
+              >
                 {appointment.protocolCode} • {appointment.serviceTitle || appointment.service} às{' '}
                 {appointment.time || '14:30'}
               </p>
@@ -906,7 +706,9 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-[4px] text-slate-400 hover:text-white cursor-pointer"
+            className={`p-1.5 rounded-[4px] cursor-pointer ${
+              isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
+            }`}
           >
             <X className="w-4 h-4" />
           </button>
@@ -917,7 +719,11 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
           {/* PASSO 1: PERGUNTA PRÉ-PARTIDA (ETA + 15 MIN) */}
           {step === 'question' && (
             <div className="space-y-4">
-              <div className="p-3.5 rounded-[4px] bg-slate-900 space-y-2">
+              <div
+                className={`p-3.5 rounded-[4px] space-y-2 ${
+                  isDark ? 'bg-slate-900' : 'bg-slate-100'
+                }`}
+              >
                 <div className="flex items-center justify-between gap-2">
                   <span className="px-2 py-0.5 rounded-[3px] bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
                     <Clock className="w-3 h-3 text-white shrink-0" />
@@ -925,17 +731,17 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                       Alerta Pré-Partida (ETA + {prepBuffer}m)
                     </span>
                   </span>
-                  <span className="text-[11px] font-mono tabular-nums font-bold text-emerald-400 shrink-0">
+                  <span className="text-[11px] font-mono tabular-nums font-bold text-emerald-500 shrink-0">
                     ~{metrics.etaMinutes} min de rota
                   </span>
                 </div>
 
-                <h4 className="text-sm font-extrabold text-white font-['Poppins'] leading-snug pt-1">
+                <h4 className="text-sm font-extrabold font-['Poppins'] leading-snug pt-1">
                   Faltam {totalPreAlertMinutes} min para o seu horário ({appointment.time || '14:30'}). Você já está de partida?
                 </h4>
 
-                <p className="text-[11px] text-slate-400">
-                  Destino: <strong className="text-slate-200">{appointment.salonName}</strong> (
+                <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  Destino: <strong>{appointment.salonName}</strong> (
                   <span className="font-mono tabular-nums">{metrics.distanceKm} km</span>)
                 </p>
               </div>
@@ -947,17 +753,25 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                     hapticLight();
                     setStep('not_leaving');
                   }}
-                  className="py-3 px-3 rounded-[4px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs transition cursor-pointer flex flex-col items-center justify-center gap-1 active:scale-98"
+                  className={`py-3 px-3 rounded-[4px] border font-bold text-xs transition cursor-pointer flex flex-col items-center justify-center gap-1 active:scale-98 ${
+                    isDark
+                      ? 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-200'
+                      : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+                  }`}
                 >
                   <span>Ainda Não</span>
-                  <span className="text-[9.5px] font-normal text-slate-400">
+                  <span
+                    className={`text-[9.5px] font-normal ${
+                      isDark ? 'text-slate-400' : 'text-slate-500'
+                    }`}
+                  >
                     Vou atrasar ou remarcar
                   </span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => handleStartInAppMapRoute(false)}
+                  onClick={handleStartInAppMapRoute}
                   className="py-3 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs transition cursor-pointer flex flex-col items-center justify-center gap-1 active:scale-98 shadow-sm"
                 >
                   <span className="text-white flex items-center gap-1">
@@ -965,7 +779,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                     Sim, estou saindo
                   </span>
                   <span className="text-[9.5px] font-normal text-white">
-                    Abrir Mapa e Linha do Tempo
+                    Abrir Mapa e Itinerário
                   </span>
                 </button>
               </div>
@@ -975,14 +789,25 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
           {/* PASSO 1B: RESPONDEU "NÃO" -> VAI COMPARECER OU NÃO? */}
           {step === 'not_leaving' && (
             <div className="space-y-3.5">
-              <div className="p-3.5 rounded-[4px] bg-slate-900 space-y-1.5">
-                <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+              <div
+                className={`p-3.5 rounded-[4px] space-y-1.5 ${
+                  isDark ? 'bg-slate-900' : 'bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 text-amber-500 font-bold text-xs">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
                   <span>Atenção ao tempo de deslocamento</span>
                 </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  O trajeto até <strong className="text-white">{appointment.salonName}</strong> leva cerca de{' '}
-                  <strong className="text-emerald-400 font-mono tabular-nums">{metrics.etaMinutes} min</strong>. Você ainda vai comparecer hoje?
+                <p
+                  className={`text-[11px] leading-relaxed ${
+                    isDark ? 'text-slate-300' : 'text-slate-700'
+                  }`}
+                >
+                  O trajeto até <strong>{appointment.salonName}</strong> leva cerca de{' '}
+                  <strong className="text-emerald-500 font-mono tabular-nums">
+                    {metrics.etaMinutes} min
+                  </strong>
+                  . Você ainda vai comparecer hoje?
                 </p>
               </div>
 
@@ -1002,13 +827,17 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                 <button
                   type="button"
                   onClick={handleConfirmReschedule}
-                  className="w-full py-2.5 px-3 rounded-[4px] bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold text-xs transition cursor-pointer flex items-center justify-between active:scale-98"
+                  className={`w-full py-2.5 px-3 rounded-[4px] font-bold text-xs transition cursor-pointer flex items-center justify-between active:scale-98 ${
+                    isDark
+                      ? 'bg-slate-900 hover:bg-slate-800 text-amber-300'
+                      : 'bg-amber-50 hover:bg-amber-100 text-amber-800'
+                  }`}
                 >
                   <span className="flex items-center gap-2">
-                    <RefreshCw className="w-4 h-4 text-amber-400" />
+                    <RefreshCw className="w-4 h-4 text-amber-500" />
                     <span>Não consigo agora • Remanejar Horário</span>
                   </span>
-                  <ChevronRight className="w-4 h-4 text-amber-400" />
+                  <ChevronRight className="w-4 h-4 text-amber-500" />
                 </button>
 
                 <button
@@ -1017,13 +846,17 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                     hapticLight();
                     setStep('cancel_reason');
                   }}
-                  className="w-full py-2.5 px-3 rounded-[4px] bg-slate-900 hover:bg-slate-800 text-rose-400 font-bold text-xs transition cursor-pointer flex items-center justify-between active:scale-98"
+                  className={`w-full py-2.5 px-3 rounded-[4px] font-bold text-xs transition cursor-pointer flex items-center justify-between active:scale-98 ${
+                    isDark
+                      ? 'bg-slate-900 hover:bg-slate-800 text-rose-400'
+                      : 'bg-rose-50 hover:bg-rose-100 text-rose-700'
+                  }`}
                 >
                   <span className="flex items-center gap-2">
-                    <X className="w-4 h-4 text-rose-400" />
+                    <X className="w-4 h-4 text-rose-500" />
                     <span>Não vou comparecer • Cancelar Vaga</span>
                   </span>
-                  <ChevronRight className="w-4 h-4 text-rose-400" />
+                  <ChevronRight className="w-4 h-4 text-rose-500" />
                 </button>
               </div>
             </div>
@@ -1033,10 +866,10 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
           {step === 'cancel_reason' && (
             <div className="space-y-3">
               <div className="space-y-1">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-rose-400 block">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-rose-500 block">
                   Motivo do Cancelamento (Obrigatório) *
                 </label>
-                <p className="text-[10.5px] text-slate-400">
+                <p className={`text-[10.5px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                   Avise o estabelecimento para liberar imediatamente a cadeira no Radar Vagou.
                 </p>
               </div>
@@ -1059,7 +892,9 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                     className={`px-2.5 py-1 rounded-[4px] text-[10.5px] font-semibold transition cursor-pointer ${
                       cancelReason === preset
                         ? 'bg-emerald-500 text-white font-bold'
-                        : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
+                        : isDark
+                        ? 'bg-slate-900 text-slate-300 hover:bg-slate-800'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
                   >
                     <span className={cancelReason === preset ? 'text-white' : ''}>{preset}</span>
@@ -1075,11 +910,15 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                   setCancelError('');
                 }}
                 placeholder="Digite o motivo do cancelamento..."
-                className="w-full px-3 py-2 rounded-[4px] bg-slate-900 border border-slate-800 text-white text-xs outline-hidden focus:border-rose-500"
+                className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden focus:border-rose-500 ${
+                  isDark
+                    ? 'bg-slate-900 border-slate-800 text-white'
+                    : 'bg-slate-50 border-slate-300 text-slate-900'
+                }`}
               />
 
               {cancelError && (
-                <p className="text-[11px] font-bold text-rose-400">{cancelError}</p>
+                <p className="text-[11px] font-bold text-rose-500">{cancelError}</p>
               )}
             </div>
           )}
@@ -1087,11 +926,17 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
 
         {/* Rodapé Fixo de Ação (Regra Inegociável sticky bottom-0 z-20) */}
         {step === 'cancel_reason' && (
-          <div className="p-3.5 border-t border-slate-800 bg-slate-950/95 sticky bottom-0 z-20 flex items-center gap-2">
+          <div
+            className={`p-3.5 border-t sticky bottom-0 z-20 flex items-center gap-2 ${
+              isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-slate-100 border-slate-200'
+            }`}
+          >
             <button
               type="button"
               onClick={() => setStep('not_leaving')}
-              className="py-2.5 px-3 rounded-[4px] bg-slate-900 text-slate-300 text-xs font-bold cursor-pointer"
+              className={`py-2.5 px-3 rounded-[4px] text-xs font-bold cursor-pointer ${
+                isDark ? 'bg-slate-900 text-slate-300' : 'bg-slate-200 text-slate-700'
+              }`}
             >
               Voltar
             </button>
@@ -1127,20 +972,19 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
   onClose,
   onUpdateAppointment,
 }) => {
+  const { isDark } = useTheme();
   const [activeTab, setActiveTab] = useState<'timeline' | 'map'>(initialTab);
-  const [isNavigating, setIsNavigating] = useState<boolean>(true);
-  const [transportMode, setTransportMode] = useState<TransportMode>(
-    appointment.transport_mode || 'driving'
+  const [hasReachedDestination, setHasReachedDestination] = useState<boolean>(
+    appointment.tracking_status === 'arrived'
   );
+  const transportMode: TransportMode = appointment.transport_mode || 'driving';
   const [liveRouteData, setLiveRouteData] = useState<GoogleComputedRouteResult | null>(null);
-  const [modalMatrix, setModalMatrix] = useState<ModalMatrixMap>({});
 
-  const { secondsUntilNextPing, isLiveActive, advanceRouteStep, reportAdversity } =
-    useLiveRouteTracker({
-      appointment,
-      onUpdateAppointment,
-      autoTickEnabled: isOpen,
-    });
+  const { secondsUntilNextPing } = useLiveRouteTracker({
+    appointment,
+    onUpdateAppointment,
+    autoTickEnabled: isOpen,
+  });
 
   const bookingTransportMode = normalizeBookingTransportMode(transportMode);
 
@@ -1180,19 +1024,6 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
       }
     });
 
-    fetchGoogleModalRouteMatrix({
-      originLat: appointment.client_lat ?? anyApt.originLat,
-      originLng: appointment.client_lng ?? anyApt.originLng,
-      originAddress: clientOriginAddress,
-      destLat: anyApt.salonLat,
-      destLng: anyApt.salonLng,
-      destAddress: salonDestAddress,
-    }).then((matrix) => {
-      if (active && matrix) {
-        setModalMatrix(matrix);
-      }
-    });
-
     return () => {
       active = false;
     };
@@ -1226,8 +1057,6 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
           timestamp: idx <= 1 ? formatCurrentClockTime(idx === 0 ? -4 : 0) : undefined,
         }));
 
-  const activeStepIndex = checkpoints.findIndex((c) => c.status === 'current');
-
   const isArriving5Min =
     appointment.tracking_status === 'arriving_5min' ||
     ((appointment.eta_minutes ?? 12) <= 5 && (appointment.eta_minutes ?? 12) > 0);
@@ -1244,59 +1073,89 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
 
   const anyApt = appointment as any;
 
+  const handleMarkArrived = () => {
+    hapticSuccess();
+    const nowClock = formatCurrentClockTime();
+    const completedCheckpoints: LiveRouteCheckpoint[] = checkpoints.map((c) => ({
+      ...c,
+      status: 'passed',
+      timestamp: c.timestamp || nowClock,
+    }));
+
+    syncAppointmentAcrossStorageAndDb(
+      appointment,
+      {
+        tracking_status: 'arrived',
+        route_checkpoints: completedCheckpoints,
+        eta_minutes: 0,
+        distance_km: 0,
+        active_adversity: null,
+      },
+      onUpdateAppointment
+    );
+    onClose();
+  };
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-2 bg-black/85 backdrop-blur-xs overflow-hidden animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-2 bg-black/80 backdrop-blur-xs overflow-hidden animate-in fade-in"
       onClick={onClose}
     >
       <div
-        className="w-full h-full sm:max-w-5xl sm:max-h-[96vh] bg-slate-950 sm:border sm:border-slate-800 sm:rounded-[4px] text-white shadow-2xl flex flex-col overflow-hidden"
+        className={`w-full h-full sm:max-w-5xl sm:max-h-[96vh] sm:border sm:rounded-[4px] shadow-2xl flex flex-col overflow-hidden transition-colors ${
+          isDark
+            ? 'bg-slate-950 border-slate-800 text-white'
+            : 'bg-white border-slate-200 text-slate-900'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Topo da Tela Expandida */}
-        <div className="px-3.5 py-2.5 border-b border-slate-800 bg-slate-900 flex items-center justify-between gap-2 shrink-0">
+        {/* 1. Cabeçalho Principal (Sem botão Abrir Externo) */}
+        <div
+          className={`px-3.5 py-2.5 border-b flex items-center justify-between gap-2 shrink-0 ${
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+          }`}
+        >
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-7 h-7 rounded-[4px] bg-emerald-500 flex items-center justify-center text-white shrink-0">
               <Navigation className="w-3.5 h-3.5 text-white" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h3 className="text-xs sm:text-sm font-extrabold uppercase tracking-wider font-['Poppins'] text-white truncate">
-                  {actorLabel} • {TRANSPORT_MODE_META[bookingTransportMode].shortLabel}
-                </h3>
-                <span className="px-1.5 py-0.5 rounded-[3px] bg-emerald-500 text-white text-[9px] font-mono tabular-nums font-black shrink-0">
-                  10s
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-400 truncate">
+              <h3 className="text-xs sm:text-sm font-extrabold uppercase tracking-wider font-['Poppins'] truncate">
+                {actorLabel}
+              </h3>
+              <p
+                className={`text-[10px] truncate ${
+                  isDark ? 'text-slate-400' : 'text-slate-500'
+                }`}
+              >
                 {appointment.salonName} • Atendimento às {appointment.time || '10:00'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            <a
-              href={
-                bookingTransportMode === 'transit'
-                  ? transportLinks.googleMapsTransitUrl
-                  : transportLinks.googleMapsUrl
-              }
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-2.5 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold inline-flex items-center gap-1.5 transition cursor-pointer shadow-xs whitespace-nowrap"
-            >
-              <ExternalLink className="w-3 h-3 text-white shrink-0" />
-              <span className="text-white">Abrir Externo</span>
-            </a>
+          <button
+            type="button"
+            onClick={onClose}
+            className={`w-7 h-7 rounded-[4px] flex items-center justify-center cursor-pointer shrink-0 ${
+              isDark
+                ? 'bg-slate-800 text-slate-300 hover:text-white'
+                : 'bg-slate-200 text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
 
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-7 h-7 rounded-[4px] bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center cursor-pointer shrink-0"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+        {/* 2. Sub-cabeçalho com o Endereço de Destino (Somente isso) */}
+        <div
+          className={`px-3.5 py-2 border-b flex items-center gap-2 shrink-0 ${
+            isDark
+              ? 'bg-slate-950 border-slate-800 text-slate-200'
+              : 'bg-slate-50 border-slate-200 text-slate-700'
+          }`}
+        >
+          <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+          <span className="text-xs font-bold truncate">{salonDestAddress}</span>
         </div>
 
         {/* Alerta Automático de Chegada Iminente (ETA <= 5 min) */}
@@ -1316,9 +1175,17 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
           </div>
         )}
 
-        {/* Alternador no Topo: Mapa ⇄ Linha do Tempo + Troca Rápida de Modalidade */}
-        <div className="px-3.5 py-2.5 bg-slate-950 border-b border-slate-800 space-y-2 shrink-0">
-          <div className="grid grid-cols-2 gap-1.5 p-1 rounded-[4px] bg-slate-900">
+        {/* 3. Abas de Modo de Visualização: "Mapa" e "Itinerário" */}
+        <div
+          className={`px-3.5 py-2 border-b shrink-0 ${
+            isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
+          }`}
+        >
+          <div
+            className={`grid grid-cols-2 gap-1.5 p-1 rounded-[4px] ${
+              isDark ? 'bg-slate-900' : 'bg-slate-100'
+            }`}
+          >
             <button
               type="button"
               onClick={() => {
@@ -1328,13 +1195,17 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
               className={`py-2 px-2.5 rounded-[3px] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
                 activeTab === 'map'
                   ? 'bg-emerald-500 text-white shadow-xs'
-                  : 'text-slate-300 hover:text-white'
+                  : isDark
+                  ? 'text-slate-300 hover:text-white'
+                  : 'text-slate-700 hover:text-slate-900'
               }`}
             >
-              <MapIcon className={`w-3.5 h-3.5 shrink-0 ${activeTab === 'map' ? 'text-white' : 'text-emerald-500'}`} />
-              <span className={activeTab === 'map' ? 'text-white' : ''}>
-                Mapa
-              </span>
+              <MapIcon
+                className={`w-3.5 h-3.5 shrink-0 ${
+                  activeTab === 'map' ? 'text-white' : 'text-emerald-500'
+                }`}
+              />
+              <span className={activeTab === 'map' ? 'text-white' : ''}>Mapa</span>
             </button>
 
             <button
@@ -1346,55 +1217,22 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
               className={`py-2 px-2.5 rounded-[3px] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
                 activeTab === 'timeline'
                   ? 'bg-emerald-500 text-white shadow-xs'
-                  : 'text-slate-300 hover:text-white'
+                  : isDark
+                  ? 'text-slate-300 hover:text-white'
+                  : 'text-slate-700 hover:text-slate-900'
               }`}
             >
-              <Clock className={`w-3.5 h-3.5 shrink-0 ${activeTab === 'timeline' ? 'text-white' : 'text-emerald-500'}`} />
-              <span className={activeTab === 'timeline' ? 'text-white' : ''}>
-                Linha do Tempo
-              </span>
+              <Clock
+                className={`w-3.5 h-3.5 shrink-0 ${
+                  activeTab === 'timeline' ? 'text-white' : 'text-emerald-500'
+                }`}
+              />
+              <span className={activeTab === 'timeline' ? 'text-white' : ''}>Itinerário</span>
             </button>
-          </div>
-
-          <div className="grid grid-cols-5 gap-1.5">
-            {MAP_COMPATIBLE_MODES.map((opt) => {
-              const isSelectedMode = bookingTransportMode === opt.key;
-              const ModeIcon = opt.Icon;
-              const matrixItem = modalMatrix[opt.key];
-              return (
-                <button
-                  key={opt.key}
-                  type="button"
-                  onClick={() => {
-                    hapticLight();
-                    setTransportMode(opt.trackingKey);
-                  }}
-                  className={`py-1.5 px-1 rounded-[4px] font-bold text-[10px] sm:text-[11px] flex flex-col items-center justify-center gap-0.5 transition cursor-pointer text-center ${
-                    isSelectedMode
-                      ? 'bg-emerald-500 text-white shadow-xs'
-                      : 'bg-slate-900 text-slate-300 hover:text-white'
-                  }`}
-                >
-                  <ModeIcon className={`w-3.5 h-3.5 shrink-0 ${isSelectedMode ? 'text-white' : 'text-emerald-500'}`} />
-                  <span className={`leading-tight whitespace-nowrap truncate max-w-full ${isSelectedMode ? 'text-white' : ''}`}>
-                    {opt.label}
-                  </span>
-                  {matrixItem && (
-                    <span
-                      className={`text-[9px] font-mono tabular-nums leading-none ${
-                        isSelectedMode ? 'text-white' : 'text-emerald-400'
-                      }`}
-                    >
-                      {matrixItem.etaMinutes}m
-                    </span>
-                  )}
-                </button>
-              );
-            })}
           </div>
         </div>
 
-        {/* Conteúdo Principal: Aba Mapa (Interactive Google Maps In-App) vs Aba Linha do Tempo */}
+        {/* 4. Conteúdo Principal: Aba Mapa Limpo vs Aba Itinerário */}
         {activeTab === 'map' ? (
           <InteractiveGoogleRouteMap
             originLat={appointment.client_lat ?? anyApt.originLat ?? -23.5505}
@@ -1404,42 +1242,13 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
             destLng={anyApt.salonLng ?? -46.4795}
             destLabel={appointment.salonName || salonDestAddress}
             routeData={liveRouteData}
-            activeStepIndex={Math.max(0, activeStepIndex)}
-            isNavigating={isNavigating}
+            initialDistanceKm={appointment.distance_km ?? 3.2}
+            initialEtaMinutes={appointment.eta_minutes ?? 14}
             fallbackEmbedUrl={transportLinks.googleMapsEmbedUrl}
-            onStartNavigation={() => setIsNavigating(true)}
-            onAdvanceStep={() => advanceRouteStep()}
+            onDestinationReachedChange={(reached) => setHasReachedDestination(reached)}
           />
         ) : (
           <div className="p-4 overflow-y-auto space-y-4 text-xs flex-1">
-            {/* Resumo de Telemetria em Tempo Real */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="p-2.5 rounded-[4px] bg-slate-900">
-                <span className="text-[9.5px] uppercase text-slate-400 block">ETA Chegada</span>
-                <span className="text-sm font-mono tabular-nums font-black text-emerald-400 block mt-0.5">
-                  {appointment.tracking_status === 'arrived'
-                    ? 'Chegou'
-                    : `${appointment.eta_minutes ?? 12} min (${formatCurrentClockTime(appointment.eta_minutes ?? 12)})`}
-                </span>
-              </div>
-
-              <div className="p-2.5 rounded-[4px] bg-slate-900">
-                <span className="text-[9.5px] uppercase text-slate-400 block">Distância</span>
-                <span className="text-sm font-mono tabular-nums font-bold text-white block mt-0.5">
-                  {appointment.tracking_status === 'arrived'
-                    ? '0.0 km'
-                    : `${appointment.distance_km ?? 2.4} km`}
-                </span>
-              </div>
-
-              <div className="p-2.5 rounded-[4px] bg-slate-900">
-                <span className="text-[9.5px] uppercase text-slate-400 block">Atualização</span>
-                <span className="text-sm font-mono tabular-nums font-bold text-emerald-400 block mt-0.5">
-                  {isLiveActive ? `a cada ${secondsUntilNextPing}s` : 'Concluído'}
-                </span>
-              </div>
-            </div>
-
             <div className="space-y-1 pt-1">
               {/* Ponto Inicial */}
               <div className="flex items-start gap-3 pb-3">
@@ -1451,16 +1260,17 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-emerald-400">
-                      Partida Confirmada • Rota Iniciada
+                    <span className="text-xs font-bold text-emerald-500">
+                      Saída • {clientOriginAddress}
                     </span>
-                    <span className="text-[10px] font-mono tabular-nums text-slate-400">
+                    <span
+                      className={`text-[10px] font-mono tabular-nums ${
+                        isDark ? 'text-slate-400' : 'text-slate-500'
+                      }`}
+                    >
                       {checkpoints[0]?.timestamp || formatCurrentClockTime(-6)}
                     </span>
                   </div>
-                  <p className="text-[10.5px] text-slate-400">
-                    Saída: {clientOriginAddress}
-                  </p>
                 </div>
               </div>
 
@@ -1468,7 +1278,6 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
               {checkpoints.map((cp, index) => {
                 const isPassed = cp.status === 'passed';
                 const isCurrent = cp.status === 'current';
-                const hasAdversity = Boolean(cp.adversity);
 
                 return (
                   <div key={`${cp.street}-${index}`} className="flex items-start gap-3 pb-3">
@@ -1482,14 +1291,26 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                           <Navigation className="w-2.5 h-2.5 text-white" />
                         </div>
                       ) : (
-                        <div className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-slate-500 shrink-0">
-                          <span className="w-2 h-2 rounded-full bg-slate-600" />
+                        <div
+                          className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                            isDark ? 'bg-slate-800 text-slate-500' : 'bg-slate-200 text-slate-500'
+                          }`}
+                        >
+                          <span
+                            className={`w-2 h-2 rounded-full ${
+                              isDark ? 'bg-slate-600' : 'bg-slate-400'
+                            }`}
+                          />
                         </div>
                       )}
                       {index < checkpoints.length && (
                         <div
                           className={`w-0.5 h-8 mt-1 ${
-                            isPassed ? 'bg-emerald-500/60' : 'bg-slate-800'
+                            isPassed
+                              ? 'bg-emerald-500/60'
+                              : isDark
+                              ? 'bg-slate-800'
+                              : 'bg-slate-200'
                           }`}
                         />
                       )}
@@ -1500,38 +1321,30 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                         <span
                           className={`text-xs font-bold leading-snug ${
                             isCurrent
-                              ? 'text-white'
+                              ? isDark
+                                ? 'text-white'
+                                : 'text-slate-900'
                               : isPassed
-                              ? 'text-slate-300'
+                              ? isDark
+                                ? 'text-slate-300'
+                                : 'text-slate-700'
                               : 'text-slate-500'
                           }`}
                         >
-                          {isPassed
-                            ? `Concluído: ${cp.street}`
-                            : isCurrent
-                            ? `Agora: ${cp.street}`
-                            : `Próximo: ${cp.street}`}
+                          {cp.street}
                         </span>
-                        <span className="text-[10px] font-mono tabular-nums text-slate-400 shrink-0">
+                        <span
+                          className={`text-[10px] font-mono tabular-nums shrink-0 ${
+                            isDark ? 'text-slate-400' : 'text-slate-500'
+                          }`}
+                        >
                           {cp.timestamp || cp.distanceText || ''}
                         </span>
                       </div>
 
                       {isCurrent && (
-                        <div className="flex items-center gap-2 text-[10.5px] text-emerald-400 font-semibold">
-                          <span>Velocidade normal • Atualizado há {10 - secondsUntilNextPing}s</span>
-                        </div>
-                      )}
-
-                      {hasAdversity && cp.adversity && (
-                        <div className="p-2 rounded-[4px] bg-amber-500/15 text-amber-300 text-[10.5px] flex items-center justify-between">
-                          <span className="flex items-center gap-1.5 font-bold">
-                            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                            <span>{cp.adversity.label}</span>
-                          </span>
-                          <span className="font-mono tabular-nums font-black text-amber-400">
-                            +{cp.adversity.addedMinutes} min
-                          </span>
+                        <div className="flex items-center gap-2 text-[10.5px] text-emerald-500 font-semibold">
+                          <span>Em deslocamento • Atualizado há {10 - secondsUntilNextPing}s</span>
                         </div>
                       )}
                     </div>
@@ -1544,9 +1357,11 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                 <div className="flex flex-col items-center">
                   <div
                     className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
-                      appointment.tracking_status === 'arrived'
+                      appointment.tracking_status === 'arrived' || hasReachedDestination
                         ? 'bg-emerald-500 text-white'
-                        : 'bg-slate-800 text-slate-400'
+                        : isDark
+                        ? 'bg-slate-800 text-slate-400'
+                        : 'bg-slate-200 text-slate-600'
                     }`}
                   >
                     {appointment.service_location_type === 'home_delivery' ? (
@@ -1560,14 +1375,16 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                   <div className="flex items-center justify-between">
                     <span
                       className={`text-xs font-bold ${
-                        appointment.tracking_status === 'arrived'
-                          ? 'text-emerald-400'
-                          : 'text-slate-300'
+                        appointment.tracking_status === 'arrived' || hasReachedDestination
+                          ? 'text-emerald-500'
+                          : isDark
+                          ? 'text-slate-300'
+                          : 'text-slate-800'
                       }`}
                     >
                       Chegada: {destinationLabel}
                     </span>
-                    <span className="text-[10px] font-mono tabular-nums text-emerald-400 font-bold">
+                    <span className="text-[10px] font-mono tabular-nums text-emerald-500 font-bold">
                       ETA {formatCurrentClockTime(appointment.eta_minutes ?? 12)}
                     </span>
                   </div>
@@ -1577,57 +1394,23 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
           </div>
         )}
 
-        {/* Rodapé Fixo de Ação */}
-        <div className="p-3.5 border-t border-slate-800 bg-slate-900 sticky bottom-0 z-20 flex items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-1.5">
+        {/* 5. Rodapé Fixo Abaixo do Mapa: Apenas o Botão "Cheguei" (aparece quando chega ao destino) */}
+        {hasReachedDestination && (
+          <div
+            className={`p-3.5 border-t sticky bottom-0 z-20 shrink-0 ${
+              isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+            }`}
+          >
             <button
               type="button"
-              onClick={() => {
-                hapticLight();
-                advanceRouteStep();
-              }}
-              className="py-2 px-2.5 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[11px] font-bold cursor-pointer flex items-center gap-1 whitespace-nowrap"
+              onClick={handleMarkArrived}
+              className="w-full py-2.5 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-extrabold uppercase tracking-wider inline-flex items-center justify-center gap-2 cursor-pointer"
             >
-              <FastForward className="w-3.5 h-3.5 text-emerald-400" />
-              <span>+10s Rua</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                hapticMedium();
-                reportAdversity('traffic', 'Trânsito na via', 6);
-              }}
-              className="py-2 px-2.5 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-amber-400 text-[11px] font-bold cursor-pointer flex items-center gap-1 whitespace-nowrap"
-            >
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-              <span>+6m Trânsito</span>
+              <Check className="w-4 h-4 text-white shrink-0 stroke-[2.5]" />
+              <span className="text-white">Cheguei</span>
             </button>
           </div>
-
-          <div className="flex items-center gap-2">
-            {(bookingTransportMode === 'car' || bookingTransportMode === 'motorcycle') && (
-              <a
-                href={transportLinks.wazeUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-2 px-3 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
-              >
-                <Navigation className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span className="text-white">Waze</span>
-                <ExternalLink className="w-3 h-3 text-emerald-400 shrink-0" />
-              </a>
-            )}
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="py-2 px-3.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-extrabold uppercase tracking-wider cursor-pointer"
-            >
-              <span className="text-white">Fechar</span>
-            </button>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

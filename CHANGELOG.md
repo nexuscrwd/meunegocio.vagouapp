@@ -15,6 +15,24 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-28] — Refinamento Visual do Mapa de Rota: Sincronização com Tema Claro/Escuro, Sub-Cabeçalho Exclusivo de Destino, Abas "Mapa" e "Itinerário", Contagem Regressiva Alpha (km + HH:MM) e Rodapé Limpo com Botão "Cheguei"
+- **Tipo:** `[Refactor / Clean Map UI & Theme Synchronization]`
+- **Motivo / Solicitação:** Ajustar a seção de mapa de rota para:
+  1. Obedecer rigorosamente à cor do tema atual do app (`useTheme` — Modo Claro e Modo Escuro);
+  2. Exibir abaixo do cabeçalho principal um sub-cabeçalho contendo somente o endereço de destino;
+  3. Exibir abaixo do sub-cabeçalho as abas de modo de visualização **"Mapa"** e **"Itinerário"**;
+  4. Exibir no canto inferior direito do mapa duas informações regressivas (`km` e `HH:MM`) em cor Alpha translúcida conforme o usuário se aproxima ou se distancia do destino final;
+  5. Manter o mapa limpo (sem botões flutuantes, HUD ou controles extras) e exibir no rodapé abaixo do mapa apenas o botão **"Cheguei"** quando o usuário chegar ao destino.
+- **Arquivos Impactados:**
+  - `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
+  - `src/components/live-tracking/LiveTrackingModal.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Sincronização de Tema Claro/Escuro (`useTheme`):** Aplicado `isDark` em `LiveRouteDepartureModal`, `LiveTrackingDrawerModal`, `SalonBookingModal` e `InteractiveGoogleRouteMap` (`colorScheme: isDark ? 'DARK' : 'LIGHT'`).
+  2. **Sub-Cabeçalho Exclusivo + Abas "Mapa" e "Itinerário":** Removida a barra de 5 modais da tela expandida do mapa e inserido o sub-cabeçalho minimalista com apenas o endereço de destino, seguido pelas abas `Mapa` e `Itinerário`.
+  3. **Indicador Alpha Regressivo (`km` e `HH:MM`) e Botão "Cheguei":** Removidos todos os controles flutuantes sobre o mapa (`zoomControl: false`, sem card HUD, sem botões Waze/Google Maps/+10s/Abrir Externo). Adicionado indicador translúcido (`backdrop-blur-[2px]`, texto/fundo com canal Alpha) no canto inferior direito do mapa exibindo `km` restantes e `HH:MM` regressivo em tempo real, acionando `onDestinationReachedChange(true)` ao atingir o destino para exibir exclusivamente o botão `Cheguei` no rodapé fixo (`sticky bottom-0 z-20`).
+
 ### [2026-10-28] — Implantação Completa da Suíte Google Maps Platform (Cockpit GPS In-App com Botão "Iniciar Trajeto", Linha do Tempo Real via Routes API v2, Matriz Simultânea dos 5 Modais, Autocomplete Places API New v1 e Snap-to-Road via Roads API)
 - **Tipo:** `[Feat / Google Maps Platform Full Suite Integration]`
 - **Motivo / Solicitação:** Implantar todas as 5 melhorias avançadas baseadas nas 11 APIs habilitadas no Google Cloud Console (`VITE_GOOGLE_MAPS_API_KEY`):
