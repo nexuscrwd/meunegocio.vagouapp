@@ -165,15 +165,35 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     const oLng = Number(
       deviceGpsOrigin?.lng ?? anyApt.originLng ?? appointment.client_lng ?? -46.6333
     );
-    const dLat = Number(anyApt.salonLat ?? -23.5592);
-    const dLng = Number(anyApt.salonLng ?? -46.6589);
+
+    const routeDestPt =
+      liveRouteData?.decodedPath && liveRouteData.decodedPath.length > 2
+        ? liveRouteData.decodedPath[liveRouteData.decodedPath.length - 1]
+        : null;
+
+    const dLat = Number(
+      routeDestPt?.lat ??
+      anyApt.salonLat ??
+      anyApt.salon_lat ??
+      anyApt.destLat ??
+      anyApt.latitude ??
+      -23.5592
+    );
+    const dLng = Number(
+      routeDestPt?.lng ??
+      anyApt.salonLng ??
+      anyApt.salon_lng ??
+      anyApt.destLng ??
+      anyApt.longitude ??
+      -46.6589
+    );
     return {
       originLat: Number.isFinite(oLat) ? oLat : -23.5505,
       originLng: Number.isFinite(oLng) ? oLng : -46.6333,
       destLat: Number.isFinite(dLat) ? dLat : -23.5592,
       destLng: Number.isFinite(dLng) ? dLng : -46.6589,
     };
-  }, [appointmentKey, deviceGpsOrigin?.lat, deviceGpsOrigin?.lng]);
+  }, [appointmentKey, deviceGpsOrigin?.lat, deviceGpsOrigin?.lng, liveRouteData]);
 
   const { secondsUntilNextPing } = useLiveRouteTracker({
     appointment,
@@ -1124,15 +1144,35 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
     const oLng = Number(
       deviceGpsOrigin?.lng ?? anyApt.originLng ?? appointment.client_lng ?? -46.6333
     );
-    const dLat = Number(anyApt.salonLat ?? -23.5592);
-    const dLng = Number(anyApt.salonLng ?? -46.6589);
+
+    const routeDestPt =
+      liveRouteData?.decodedPath && liveRouteData.decodedPath.length > 2
+        ? liveRouteData.decodedPath[liveRouteData.decodedPath.length - 1]
+        : null;
+
+    const dLat = Number(
+      routeDestPt?.lat ??
+      anyApt.salonLat ??
+      anyApt.salon_lat ??
+      anyApt.destLat ??
+      anyApt.latitude ??
+      -23.5592
+    );
+    const dLng = Number(
+      routeDestPt?.lng ??
+      anyApt.salonLng ??
+      anyApt.salon_lng ??
+      anyApt.destLng ??
+      anyApt.longitude ??
+      -46.6589
+    );
     return {
       originLat: Number.isFinite(oLat) ? oLat : -23.5505,
       originLng: Number.isFinite(oLng) ? oLng : -46.6333,
       destLat: Number.isFinite(dLat) ? dLat : -23.5592,
       destLng: Number.isFinite(dLng) ? dLng : -46.6589,
     };
-  }, [drawerAppointmentKey, deviceGpsOrigin?.lat, deviceGpsOrigin?.lng]);
+  }, [drawerAppointmentKey, deviceGpsOrigin?.lat, deviceGpsOrigin?.lng, liveRouteData]);
 
   const { secondsUntilNextPing } = useLiveRouteTracker({
     appointment,

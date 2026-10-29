@@ -1,4 +1,7 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { Compass, Navigation } from 'lucide-react';
 import {
   GoogleComputedRouteResult,
   loadGoogleMapsJsSdk,
@@ -20,7 +23,7 @@ interface InteractiveGoogleRouteMapProps {
   routeData: GoogleComputedRouteResult | null;
   initialDistanceKm: number;
   initialEtaMinutes: number;
-  fallbackEmbedUrl: string;
+  fallbackEmbedUrl?: string;
   onLiveGpsUpdate?: (lat: number, lng: number, snappedStreetName?: string) => void;
   onDestinationReachedChange?: (reached: boolean) => void;
 }
@@ -55,9 +58,6 @@ function computeRoadDistanceKm(
   return Number((straightKm * 1.35).toFixed(1));
 }
 
-/**
- * Calcula o azimute (bearing) em graus [0..360) do ponto 1 para o ponto 2 (0° = Norte, 90° = Leste)
- */
 function computeBearingDeg(
   lat1: number,
   lng1: number,
@@ -76,10 +76,6 @@ function computeBearingDeg(
   return (theta + 360) % 360;
 }
 
-/**
- * Projeta uma coordenada `distanceKm` à frente na direção `bearingDeg` (Look-Ahead Offset)
- * para manter o marcador no terço inferior e exibir sempre o caminho adiante na tela.
- */
 function projectPointAhead(
   lat: number,
   lng: number,
@@ -109,25 +105,15 @@ function projectPointAhead(
   };
 }
 
-/**
- * Interpolação circular suave entre dois ângulos [0..360) evitando giros bruscos no limite 359° -> 0°
- */
 function smoothAngleDeg(currentDeg: number, targetDeg: number, factor = 0.3): number {
   const diff = ((((targetDeg - currentDeg) % 360) + 540) % 360) - 180;
   return (currentDeg + diff * factor + 360) % 360;
 }
 
-/**
- * Menor diferença absoluta entre dois ângulos [0..180]
- */
 function angleDiffDeg(a: number, b: number): number {
   return Math.abs(((((a - b) % 360) + 540) % 360) - 180);
 }
 
-/**
- * Encontra o ponto mais próximo na polilinha da rota e calcula o vetor apontando SEMPRE
- * para frente rumo aos próximos vértices da rota (Look-Ahead Vector), evitando apontar para trás.
- */
 function findForwardRouteBearingAndRemainingPath(
   userLat: number,
   userLng: number,
@@ -158,7 +144,6 @@ function findForwardRouteBearingAndRemainingPath(
     }
   }
 
-  // Busca um vértice pelo menos 35 metros à frente na rota para garantir orientação firme para frente
   let lookAheadIdx = Math.min(closestIdx + 1, roadPath.length - 1);
   for (let j = closestIdx + 1; j < roadPath.length; j++) {
     const dAhead = computeHaversineKm(
@@ -184,9 +169,6 @@ function findForwardRouteBearingAndRemainingPath(
   };
 }
 
-/**
- * Formata minutos restantes no padrão regressivo HH:MM (ex.: 14 min -> "00:14", 75 min -> "01:15")
- */
 function formatCountdownHhMm(totalMinutes: number): string {
   const safeMin = Math.max(0, Math.round(totalMinutes));
   const hours = Math.floor(safeMin / 60);
@@ -209,9 +191,6 @@ function createPinBadge(bgHex: string, textHex: string, labelText: string): HTML
   return el;
 }
 
-/**
- * Resolve a foto real de perfil do usuário (prop ou localStorage), ignorando placeholders/cliparts.
- */
 function resolveActiveUserAvatarUrl(propAvatarUrl?: string): string {
   if (isValidAvatarUrlString(propAvatarUrl)) {
     return propAvatarUrl.trim();
@@ -231,12 +210,6 @@ function resolveActiveUserAvatarUrl(propAvatarUrl?: string): string {
   return '';
 }
 
-/**
- * Cria o marcador direcional de navegação:
- * - Se houver foto de perfil válida (`avatarUrl`), exibe a foto circular do usuário sempre em pé (0°)
- *   no centro com borda Emerald + cone de visão e ponteira direcional girando ao redor no `.vagou-nav-rotor`.
- * - Se não houver foto (ou se a imagem falhar no carregamento), exibe o marcador direcional padrão (disco verde com seta branca).
- */
 function createDirectionalUserMarkerElement(avatarUrl?: string): {
   container: HTMLDivElement;
   rotor: HTMLDivElement;
@@ -251,7 +224,6 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
   container.style.alignItems = 'center';
   container.style.justifyContent = 'center';
   container.style.pointerEvents = 'none';
-  container.style.transform = 'translateY(28px)'; // Alinha o centro do marcador exatamente na coordenada GPS
 
   const rotor = document.createElement('div');
   rotor.className = 'vagou-nav-rotor';
@@ -264,7 +236,6 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
   rotor.style.transition = 'transform 180ms linear';
   rotor.style.transformOrigin = '50% 50%';
 
-  // Cone translúcido de visão à frente (sempre aponta para o topo 0° do rotor)
   const visionCone = document.createElement('div');
   visionCone.style.position = 'absolute';
   visionCone.style.top = '-15px';
@@ -277,7 +248,6 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
   visionCone.style.clipPath = 'polygon(0% 0%, 100% 0%, 62% 100%, 38% 100%)';
   visionCone.style.borderRadius = '50% 50% 0 0';
 
-  // Disco padrão de navegação com seta apontando para frente (usado quando não há foto ou como fallback de erro)
   const defaultPuck = document.createElement('div');
   defaultPuck.style.position = 'relative';
   defaultPuck.style.width = '24px';
@@ -290,7 +260,6 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
   defaultPuck.style.alignItems = 'center';
   defaultPuck.style.justifyContent = 'center';
 
-  // Seta frontal branca apontando estritamente para cima (0°)
   const arrow = document.createElement('div');
   arrow.style.width = '0';
   arrow.style.height = '0';
@@ -304,7 +273,6 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
   rotor.appendChild(defaultPuck);
 
   if (hasValidPhoto && avatarUrl) {
-    // Ponteira direcional frontal que gira junto com o cone na borda externa da foto
     const directionTip = document.createElement('div');
     directionTip.style.position = 'absolute';
     directionTip.style.top = '3px';
@@ -318,7 +286,6 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
     directionTip.style.filter = 'drop-shadow(0 -1px 2px rgba(255,255,255,0.95))';
     rotor.appendChild(directionTip);
 
-    // Moldura circular da foto de perfil (mantida fora do rotor para que o rosto nunca fique de cabeça para baixo)
     const avatarBadge = document.createElement('div');
     avatarBadge.style.position = 'absolute';
     avatarBadge.style.width = '32px';
@@ -342,7 +309,6 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
     img.style.objectFit = 'cover';
     img.style.display = 'block';
     img.onerror = () => {
-      // Fallback automático para o marcador atual caso a URL da foto falhe ao carregar
       avatarBadge.style.display = 'none';
       directionTip.style.display = 'none';
       defaultPuck.style.display = 'flex';
@@ -369,7 +335,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   routeData,
   initialDistanceKm,
   initialEtaMinutes,
-  fallbackEmbedUrl,
   onLiveGpsUpdate,
   onDestinationReachedChange,
 }) => {
@@ -380,38 +345,54 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   );
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const outerPolylineRef = useRef<any>(null);
-  const innerPolylineRef = useRef<any>(null);
-  const originMarkerRef = useRef<any>(null);
-  const destMarkerRef = useRef<any>(null);
-  const liveUserMarkerRef = useRef<any>(null);
-  const liveUserRotorRef = useRef<HTMLDivElement | null>(null);
 
+  // Engine: 'google' ou 'leaflet'
+  const [activeEngine, setActiveEngine] = useState<'google' | 'leaflet'>('leaflet');
+  const [isFollowingGps, setIsFollowingGps] = useState<boolean>(true);
+
+  // Instâncias Google Maps
+  const gmapRef = useRef<any>(null);
+  const gmapOuterPolylineRef = useRef<any>(null);
+  const gmapInnerPolylineRef = useRef<any>(null);
+  const gmapOriginMarkerRef = useRef<any>(null);
+  const gmapDestMarkerRef = useRef<any>(null);
+  const gmapUserMarkerRef = useRef<any>(null);
+
+  // Instâncias Leaflet
+  const leafletMapRef = useRef<L.Map | null>(null);
+  const leafletOuterPolylineRef = useRef<L.Polyline | null>(null);
+  const leafletInnerPolylineRef = useRef<L.Polyline | null>(null);
+  const leafletOriginMarkerRef = useRef<L.Marker | null>(null);
+  const leafletDestMarkerRef = useRef<L.Marker | null>(null);
+  const leafletUserMarkerRef = useRef<L.Marker | null>(null);
+
+  // Elementos HTML do marcador direcional (rotor e avatar)
+  const userMarkerRotorRef = useRef<HTMLDivElement | null>(null);
+
+  // Estado de Rota e Rastreamento
   const roadPathRef = useRef<Array<{ lat: number; lng: number }>>([]);
   const lastFittedKeyRef = useRef<string>('');
   const lastGpsFixRef = useRef<{ lat: number; lng: number; ts: number } | null>(null);
   const lastSnappedApiTsRef = useRef<number>(0);
-  const hasActiveGpsFollowRef = useRef<boolean>(false);
+  const hasActiveGpsFollowRef = useRef<boolean>(true);
   const userManualPanUntilRef = useRef<number>(0);
 
-  // Heading unificado (Fusão: Vetor da Rota à Frente + Curso GPS + Bússola do Celular)
   const forwardHeadingRef = useRef<number>(
     computeBearingDeg(originLat, originLng, destLat, destLng)
   );
   const routeLookAheadBearingRef = useRef<number>(
     computeBearingDeg(originLat, originLng, destLat, destLng)
   );
-  const liveUserPosRef = useRef<{ lat: number; lng: number } | null>(null);
+  const liveUserPosRef = useRef<{ lat: number; lng: number }>({
+    lat: originLat,
+    lng: originLng,
+  });
 
   const onLiveGpsUpdateRef = useRef(onLiveGpsUpdate);
   onLiveGpsUpdateRef.current = onLiveGpsUpdate;
 
   const onDestinationReachedRef = useRef(onDestinationReachedChange);
   onDestinationReachedRef.current = onDestinationReachedChange;
-
-  const [sdkReady, setSdkReady] = useState<boolean>(false);
-  const [sdkFailed, setSdkFailed] = useState<boolean>(false);
 
   const baseDistanceKm = routeData?.distanceKm ?? initialDistanceKm ?? 3.2;
   const baseEtaMinutes = routeData?.etaMinutes ?? initialEtaMinutes ?? 14;
@@ -431,232 +412,322 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   }, [hasReachedDestination]);
 
   /**
-   * Atualiza de forma imperativa a rotação do marcador e a câmera do mapa (Heading-Up + Look-Ahead)
-   * garantindo que o marcador NUNCA saia da tela e sempre mostre o caminho adiante.
+   * Atualização imperativa de posição e rotação em ambos os motores
    */
-  const syncCameraAndMarkerOrientation = (
-    userLat: number,
-    userLng: number,
-    headingDeg: number,
-    shouldPanCamera: boolean
-  ) => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
+  const syncPositionAndOrientation = useCallback(
+    (userLat: number, userLng: number, headingDeg: number, shouldPanCamera: boolean) => {
+      liveUserPosRef.current = { lat: userLat, lng: userLng };
 
-    // 1. Move o marcador do usuário para a coordenada atual
-    if (liveUserMarkerRef.current) {
-      liveUserMarkerRef.current.position = { lat: userLat, lng: userLng };
-    }
+      // 1. Projeta o centro da câmera ~65 metros à frente na direção do movimento (Look-Ahead Uber)
+      const lookAheadCenter = projectPointAhead(userLat, userLng, headingDeg, 0.065);
+      const isManualPan = Date.now() < userManualPanUntilRef.current;
 
-    // 2. Projeta o centro da câmera ~65 metros à frente na direção do movimento/rota
-    // Isso mantém o marcador no terço inferior da tela e libera 70% da tela para o caminho adiante!
-    const lookAheadCenter = projectPointAhead(userLat, userLng, headingDeg, 0.065);
-
-    if (shouldPanCamera && Date.now() >= userManualPanUntilRef.current) {
-      try {
-        const currentZoom = typeof map.getZoom === 'function' ? map.getZoom() : 17;
-        const targetZoom = !currentZoom || currentZoom < 17 ? 17.5 : currentZoom;
-
-        if (typeof map.moveCamera === 'function') {
-          map.moveCamera({
-            center: lookAheadCenter,
-            zoom: targetZoom,
-            heading: headingDeg,
-            tilt: 45,
-          });
-        } else if (typeof map.panTo === 'function') {
-          map.panTo(lookAheadCenter);
+      // 2. Atualiza motor Google Maps se ativo
+      if (activeEngine === 'google' && gmapRef.current) {
+        const map = gmapRef.current;
+        if (gmapUserMarkerRef.current) {
+          gmapUserMarkerRef.current.position = { lat: userLat, lng: userLng };
         }
-      } catch {
-        try {
-          map.panTo(lookAheadCenter);
-        } catch {}
-      }
-    }
-
-    // 3. Ajusta a rotação do marcador em relação ao heading efetivo do mapa
-    // Se o mapa vetorial girou a câmera para `headingDeg`, mapHeading === headingDeg -> seta aponta 0° (para cima na tela).
-    // Se o mapa estiver em modo 2D sem girar o canvas, mapHeading === 0 -> seta gira para `headingDeg` apontando para a rua à frente!
-    const currentMapHeading =
-      typeof map.getHeading === 'function' ? Number(map.getHeading() || 0) : 0;
-    const relativeRotorDeg = (headingDeg - currentMapHeading + 360) % 360;
-
-    if (liveUserRotorRef.current) {
-      liveUserRotorRef.current.style.transform = `rotate(${relativeRotorDeg.toFixed(1)}deg)`;
-    }
-  };
-
-  // 1. Carrega Google Maps JS SDK apenas uma vez
-  useEffect(() => {
-    let mounted = true;
-    loadGoogleMapsJsSdk().then((loaded) => {
-      if (!mounted) return;
-      if (loaded) {
-        setSdkReady(true);
-      } else {
-        setSdkFailed(true);
-      }
-    });
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  // 2. Inicializa a instância do Google Map APENAS quando o SDK fica pronto ou o tema muda (ZERO piscar!)
-  useEffect(() => {
-    if (!sdkReady || !mapContainerRef.current) return;
-    const gmaps = (window as any).google?.maps;
-    if (!gmaps) return;
-
-    const initialHeading = computeBearingDeg(originLat, originLng, destLat, destLng);
-    forwardHeadingRef.current = initialHeading;
-    routeLookAheadBearingRef.current = initialHeading;
-
-    const map = new gmaps.Map(mapContainerRef.current, {
-      center: { lat: originLat, lng: originLng },
-      zoom: 16,
-      heading: initialHeading,
-      tilt: 45,
-      mapId: 'DEMO_MAP_ID',
-      colorScheme: isDark ? 'DARK' : 'LIGHT',
-      disableDefaultUI: true,
-      zoomControl: false,
-      mapTypeControl: false,
-      streetViewControl: false,
-      fullscreenControl: false,
-      rotateControl: false,
-      gestureHandling: 'greedy',
-      internalUsageAttributionIds: ['gmp_mcp_codeassist_v1_aistudio'],
-    });
-
-    mapInstanceRef.current = map;
-
-    // Se o usuário arrastar manualmente o mapa, pausa o auto-follow por 6s e depois retoma sozinho
-    map.addListener('dragstart', () => {
-      userManualPanUntilRef.current = Date.now() + 6000;
-    });
-
-    // Solicita permissão de bússola no iOS 13+ no primeiro toque no mapa
-    const requestIosCompassOnTouch = () => {
-      const DevOrient = (window as any).DeviceOrientationEvent;
-      if (DevOrient && typeof DevOrient.requestPermission === 'function') {
-        DevOrient.requestPermission().catch(() => {});
-      }
-    };
-    const containerEl = mapContainerRef.current;
-    containerEl.addEventListener('touchstart', requestIosCompassOnTouch, {
-      once: true,
-      passive: true,
-    });
-
-    outerPolylineRef.current = new gmaps.Polyline({
-      path: [],
-      geodesic: true,
-      strokeColor: '#064e3b',
-      strokeOpacity: 0.78,
-      strokeWeight: 8,
-      map,
-    });
-
-    innerPolylineRef.current = new gmaps.Polyline({
-      path: [],
-      geodesic: true,
-      strokeColor: '#10b981',
-      strokeOpacity: 1.0,
-      strokeWeight: 5,
-      map,
-    });
-
-    const AdvancedMarker = gmaps.marker?.AdvancedMarkerElement;
-    if (AdvancedMarker) {
-      originMarkerRef.current = new AdvancedMarker({
-        map,
-        position: { lat: originLat, lng: originLng },
-        title: originLabel,
-        content: createPinBadge(
-          isDark ? '#0f172a' : '#ffffff',
-          isDark ? '#ffffff' : '#0f172a',
-          'Saída'
-        ),
-      });
-
-      destMarkerRef.current = new AdvancedMarker({
-        map,
-        position: { lat: destLat, lng: destLng },
-        title: destLabel,
-        content: createPinBadge('#10b981', '#ffffff', destLabel.slice(0, 22)),
-      });
-
-      // Inicializa o marcador direcional (com foto do usuário se disponível, ou marcador padrão caso contrário)
-      const { container, rotor } = createDirectionalUserMarkerElement(effectiveUserAvatar);
-      liveUserRotorRef.current = rotor;
-      liveUserMarkerRef.current = new AdvancedMarker({
-        map,
-        position: liveUserPosRef.current || { lat: originLat, lng: originLng },
-        title: 'Sua Posição',
-        content: container,
-      });
-    }
-
-    lastFittedKeyRef.current = '';
-
-    return () => {
-      containerEl.removeEventListener('touchstart', requestIosCompassOnTouch);
-    };
-  }, [sdkReady, isDark]);
-
-  // 2.1 Atualiza o conteúdo do marcador imperativamente caso a foto de perfil mude (sem recriar o mapa)
-  useEffect(() => {
-    if (!liveUserMarkerRef.current) return;
-    const { container, rotor } = createDirectionalUserMarkerElement(effectiveUserAvatar);
-    liveUserRotorRef.current = rotor;
-    liveUserMarkerRef.current.content = container;
-  }, [effectiveUserAvatar]);
-
-  // 3. Atualiza a geometria da rota (Polilinha Seguindo as Ruas Reais) sem recriar o mapa
-  useEffect(() => {
-    if (!sdkReady || !mapInstanceRef.current) return;
-    const gmaps = (window as any).google?.maps;
-    if (!gmaps) return;
-
-    let cancelled = false;
-    const map = mapInstanceRef.current;
-
-    const applyRoadPathToMap = (roadPath: Array<{ lat: number; lng: number }>) => {
-      if (cancelled || !roadPath || roadPath.length < 2) return;
-
-      const startPt = roadPath[0];
-      const endPt = roadPath[roadPath.length - 1];
-
-      // Se o GPS real do dispositivo já foi identificado em um local diferente (> 35m) da origem antiga de roadPath,
-      // ignora polilinhas obsoletas que partiriam do endereço antigo do agendamento
-      if (liveUserPosRef.current) {
-        const distFromPathStartMeters =
-          computeHaversineKm(
-            liveUserPosRef.current.lat,
-            liveUserPosRef.current.lng,
-            startPt.lat,
-            startPt.lng
-          ) * 1000;
-        if (distFromPathStartMeters > 60 && roadPathRef.current.length > 2) {
-          const currentPathStart = roadPathRef.current[0];
-          const currentPathDistMeters =
-            computeHaversineKm(
-              liveUserPosRef.current.lat,
-              liveUserPosRef.current.lng,
-              currentPathStart.lat,
-              currentPathStart.lng
-            ) * 1000;
-          if (currentPathDistMeters <= 60) {
-            return;
+        if (shouldPanCamera && !isManualPan) {
+          try {
+            const currentZoom = typeof map.getZoom === 'function' ? map.getZoom() : 17;
+            const targetZoom = !currentZoom || currentZoom < 17 ? 17.5 : currentZoom;
+            if (typeof map.moveCamera === 'function') {
+              map.moveCamera({
+                center: lookAheadCenter,
+                zoom: targetZoom,
+                heading: headingDeg,
+                tilt: 45,
+              });
+            } else if (typeof map.panTo === 'function') {
+              map.panTo(lookAheadCenter);
+            }
+          } catch {
+            try {
+              map.panTo(lookAheadCenter);
+            } catch {}
           }
         }
+        const currentMapHeading =
+          typeof map.getHeading === 'function' ? Number(map.getHeading() || 0) : 0;
+        const relativeRotorDeg = (headingDeg - currentMapHeading + 360) % 360;
+        if (userMarkerRotorRef.current) {
+          userMarkerRotorRef.current.style.transform = `rotate(${relativeRotorDeg.toFixed(1)}deg)`;
+        }
       }
 
+      // 3. Atualiza motor Leaflet se ativo
+      if (activeEngine === 'leaflet' && leafletMapRef.current) {
+        const lmap = leafletMapRef.current;
+        if (leafletUserMarkerRef.current) {
+          leafletUserMarkerRef.current.setLatLng([userLat, userLng]);
+        }
+        if (shouldPanCamera && !isManualPan) {
+          try {
+            lmap.panTo([lookAheadCenter.lat, lookAheadCenter.lng], {
+              animate: true,
+              duration: 0.45,
+            });
+          } catch {}
+        }
+        if (userMarkerRotorRef.current) {
+          userMarkerRotorRef.current.style.transform = `rotate(${headingDeg.toFixed(1)}deg)`;
+        }
+      }
+    },
+    [activeEngine]
+  );
+
+  /**
+   * Recentraliza a câmera no usuário imediatamente (botão de mira)
+   */
+  const handleRecenterGps = () => {
+    hapticLight();
+    userManualPanUntilRef.current = 0;
+    setIsFollowingGps(true);
+    hasActiveGpsFollowRef.current = true;
+    const pos = liveUserPosRef.current;
+    syncPositionAndOrientation(pos.lat, pos.lng, forwardHeadingRef.current, true);
+  };
+
+  /**
+   * Inicialização do Motor Leaflet
+   */
+  const initLeafletEngine = useCallback(() => {
+    if (!mapContainerRef.current) return;
+    if (leafletMapRef.current) {
+      leafletMapRef.current.remove();
+      leafletMapRef.current = null;
+    }
+
+    const initialPos = liveUserPosRef.current;
+    const lmap = L.map(mapContainerRef.current, {
+      center: [initialPos.lat, initialPos.lng],
+      zoom: 16.5,
+      zoomControl: false,
+      attributionControl: false,
+    });
+
+    // Camada de Tiles de alta performance: CartoDB Dark Matter para modo escuro ou CartoDB Voyager para claro
+    const tileUrl = isDark
+      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+
+    L.tileLayer(tileUrl, {
+      subdomains: 'abcd',
+      maxZoom: 19,
+    }).addTo(lmap);
+
+    // Linha viária externa e interna
+    const outerPoly = L.polyline([], {
+      color: '#064e3b',
+      weight: 8,
+      opacity: 0.85,
+      lineCap: 'round',
+      lineJoin: 'round',
+    }).addTo(lmap);
+
+    const innerPoly = L.polyline([], {
+      color: '#10b981',
+      weight: 5,
+      opacity: 1.0,
+      lineCap: 'round',
+      lineJoin: 'round',
+    }).addTo(lmap);
+
+    leafletOuterPolylineRef.current = outerPoly;
+    leafletInnerPolylineRef.current = innerPoly;
+
+    // Marcador de Saída
+    const originIcon = L.divIcon({
+      html: createPinBadge(
+        isDark ? '#0f172a' : '#ffffff',
+        isDark ? '#ffffff' : '#0f172a',
+        'Saída'
+      ),
+      className: 'vagou-leaflet-badge',
+      iconSize: [60, 24],
+      iconAnchor: [30, 12],
+    });
+    leafletOriginMarkerRef.current = L.marker([originLat, originLng], {
+      icon: originIcon,
+    }).addTo(lmap);
+
+    // Marcador de Destino
+    const destIcon = L.divIcon({
+      html: createPinBadge('#10b981', '#ffffff', destLabel.slice(0, 22)),
+      className: 'vagou-leaflet-badge',
+      iconSize: [120, 24],
+      iconAnchor: [60, 12],
+    });
+    leafletDestMarkerRef.current = L.marker([destLat, destLng], {
+      icon: destIcon,
+    }).addTo(lmap);
+
+    // Marcador Direcional do Usuário (com foto ou disco direcional)
+    const { container, rotor } = createDirectionalUserMarkerElement(effectiveUserAvatar);
+    userMarkerRotorRef.current = rotor;
+    const userDivIcon = L.divIcon({
+      html: container,
+      className: 'vagou-leaflet-user-puck',
+      iconSize: [56, 56],
+      iconAnchor: [28, 28],
+    });
+    leafletUserMarkerRef.current = L.marker([initialPos.lat, initialPos.lng], {
+      icon: userDivIcon,
+      zIndexOffset: 1000,
+    }).addTo(lmap);
+
+    // Pausa do auto-follow caso o usuário interaja manualmente
+    lmap.on('dragstart', () => {
+      userManualPanUntilRef.current = Date.now() + 6000;
+      setIsFollowingGps(false);
+    });
+
+    leafletMapRef.current = lmap;
+    setActiveEngine('leaflet');
+
+    // Se já houver geometria viária calculada, aplica imediatamente no Leaflet
+    if (roadPathRef.current.length >= 2) {
+      const latlngs = roadPathRef.current.map((p) => [p.lat, p.lng] as [number, number]);
+      outerPoly.setLatLngs(latlngs);
+      innerPoly.setLatLngs(latlngs);
+      const bounds = L.latLngBounds(latlngs);
+      lmap.fitBounds(bounds, { padding: [40, 40] });
+    }
+  }, [isDark, originLat, originLng, destLat, destLabel, effectiveUserAvatar]);
+
+  /**
+   * Tenta carregar o Google Maps JS SDK; se falhar ou demorar > 1.8s, ativa imediatamente o Leaflet
+   */
+  useEffect(() => {
+    let active = true;
+
+    const timer = setTimeout(() => {
+      if (active && activeEngine !== 'google') {
+        initLeafletEngine();
+      }
+    }, 1800);
+
+    loadGoogleMapsJsSdk().then((ok) => {
+      if (!active) return;
+      clearTimeout(timer);
+      const gmaps = (window as any).google?.maps;
+      if (ok && gmaps?.Map && mapContainerRef.current) {
+        try {
+          if (leafletMapRef.current) {
+            leafletMapRef.current.remove();
+            leafletMapRef.current = null;
+          }
+
+          const initialHeading = computeBearingDeg(originLat, originLng, destLat, destLng);
+          forwardHeadingRef.current = initialHeading;
+          routeLookAheadBearingRef.current = initialHeading;
+
+          const map = new gmaps.Map(mapContainerRef.current, {
+            center: { lat: originLat, lng: originLng },
+            zoom: 16.5,
+            heading: initialHeading,
+            tilt: 45,
+            mapId: 'DEMO_MAP_ID',
+            colorScheme: isDark ? 'DARK' : 'LIGHT',
+            disableDefaultUI: true,
+            zoomControl: false,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: false,
+            rotateControl: false,
+            gestureHandling: 'greedy',
+            internalUsageAttributionIds: ['gmp_mcp_codeassist_v1_aistudio'],
+          });
+
+          gmapRef.current = map;
+
+          map.addListener('dragstart', () => {
+            userManualPanUntilRef.current = Date.now() + 6000;
+            setIsFollowingGps(false);
+          });
+
+          gmapOuterPolylineRef.current = new gmaps.Polyline({
+            path: [],
+            geodesic: true,
+            strokeColor: '#064e3b',
+            strokeOpacity: 0.85,
+            strokeWeight: 8,
+            map,
+          });
+
+          gmapInnerPolylineRef.current = new gmaps.Polyline({
+            path: [],
+            geodesic: true,
+            strokeColor: '#10b981',
+            strokeOpacity: 1.0,
+            strokeWeight: 5,
+            map,
+          });
+
+          const AdvancedMarker = gmaps.marker?.AdvancedMarkerElement;
+          if (AdvancedMarker) {
+            gmapOriginMarkerRef.current = new AdvancedMarker({
+              map,
+              position: { lat: originLat, lng: originLng },
+              title: originLabel,
+              content: createPinBadge(
+                isDark ? '#0f172a' : '#ffffff',
+                isDark ? '#ffffff' : '#0f172a',
+                'Saída'
+              ),
+            });
+
+            gmapDestMarkerRef.current = new AdvancedMarker({
+              map,
+              position: { lat: destLat, lng: destLng },
+              title: destLabel,
+              content: createPinBadge('#10b981', '#ffffff', destLabel.slice(0, 22)),
+            });
+
+            const { container, rotor } = createDirectionalUserMarkerElement(effectiveUserAvatar);
+            userMarkerRotorRef.current = rotor;
+            gmapUserMarkerRef.current = new AdvancedMarker({
+              map,
+              position: liveUserPosRef.current,
+              title: 'Sua Posição',
+              content: container,
+            });
+          }
+
+          setActiveEngine('google');
+          return;
+        } catch (e) {
+          console.warn('[Vagou GPS] Falha ao inicializar Google Maps JS. Ativando Leaflet...', e);
+          initLeafletEngine();
+        }
+      } else {
+        initLeafletEngine();
+      }
+    });
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove();
+        leafletMapRef.current = null;
+      }
+    };
+  }, [isDark, initLeafletEngine, originLat, originLng, destLat, destLabel, originLabel, effectiveUserAvatar]);
+
+  /**
+   * Atualização de polilinha viária sem recriar os mapas
+   */
+  const applyRoadGeometry = useCallback(
+    (roadPath: Array<{ lat: number; lng: number }>) => {
+      if (!roadPath || roadPath.length < 2) return;
       roadPathRef.current = roadPath;
 
-      // Usa SEMPRE a coordenada real do dispositivo (liveUserPosRef) se já detectada
-      const currentPos = liveUserPosRef.current || startPt;
+      const currentPos = liveUserPosRef.current;
+      const endPt = roadPath[roadPath.length - 1];
+
       const { forwardBearingDeg, remainingPath } =
         findForwardRouteBearingAndRemainingPath(
           currentPos.lat,
@@ -669,75 +740,78 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       routeLookAheadBearingRef.current = forwardBearingDeg;
       forwardHeadingRef.current = forwardBearingDeg;
 
-      const activePath = hasActiveGpsFollowRef.current ? remainingPath : roadPath;
+      // Google Maps
+      if (gmapOuterPolylineRef.current) {
+        gmapOuterPolylineRef.current.setPath(remainingPath);
+      }
+      if (gmapInnerPolylineRef.current) {
+        gmapInnerPolylineRef.current.setPath(remainingPath);
+      }
+      if (gmapOriginMarkerRef.current) {
+        gmapOriginMarkerRef.current.position = currentPos;
+      }
+      if (gmapDestMarkerRef.current) {
+        gmapDestMarkerRef.current.position = endPt;
+      }
 
-      if (outerPolylineRef.current) {
-        outerPolylineRef.current.setPath(activePath);
-      }
-      if (innerPolylineRef.current) {
-        innerPolylineRef.current.setPath(activePath);
-      }
-
-      if (originMarkerRef.current) {
-        originMarkerRef.current.position = currentPos;
-      }
-      if (destMarkerRef.current) {
-        destMarkerRef.current.position = endPt;
-        destMarkerRef.current.content = createPinBadge(
-          '#10b981',
-          '#ffffff',
-          destLabel.slice(0, 22)
+      // Leaflet
+      if (leafletOuterPolylineRef.current) {
+        leafletOuterPolylineRef.current.setLatLngs(
+          remainingPath.map((p) => [p.lat, p.lng] as [number, number])
         );
       }
-
-      if (liveUserMarkerRef.current) {
-        liveUserMarkerRef.current.position = currentPos;
+      if (leafletInnerPolylineRef.current) {
+        leafletInnerPolylineRef.current.setLatLngs(
+          remainingPath.map((p) => [p.lat, p.lng] as [number, number])
+        );
+      }
+      if (leafletOriginMarkerRef.current) {
+        leafletOriginMarkerRef.current.setLatLng([currentPos.lat, currentPos.lng]);
+      }
+      if (leafletDestMarkerRef.current) {
+        leafletDestMarkerRef.current.setLatLng([endPt.lat, endPt.lng]);
       }
 
-      // Orienta imediatamente o marcador para o caminho à frente na rota
-      syncCameraAndMarkerOrientation(
-        currentPos.lat,
-        currentPos.lng,
-        forwardBearingDeg,
-        hasActiveGpsFollowRef.current
-      );
+      syncPositionAndOrientation(currentPos.lat, currentPos.lng, forwardBearingDeg, true);
 
-      // Só faz fitBounds geral antes do usuário começar a se deslocar com GPS ativo
-      const routeFitKey = `${currentPos.lat.toFixed(3)},${currentPos.lng.toFixed(3)}->${endPt.lat.toFixed(3)},${endPt.lng.toFixed(3)}:${roadPath.length > 2 ? 'road' : 'init'}`;
+      // Ajuste inicial de bounds (apenas na carga inicial da rota)
+      const routeFitKey = `${currentPos.lat.toFixed(3)},${currentPos.lng.toFixed(3)}->${endPt.lat.toFixed(3)},${endPt.lng.toFixed(3)}`;
       if (!hasActiveGpsFollowRef.current && lastFittedKeyRef.current !== routeFitKey) {
         lastFittedKeyRef.current = routeFitKey;
-        const bounds = new gmaps.LatLngBounds();
-        roadPath.forEach((pt) => bounds.extend(pt));
-        map.fitBounds(bounds, { top: 44, right: 40, bottom: 64, left: 40 });
+        if (gmapRef.current && (window as any).google?.maps?.LatLngBounds) {
+          const bounds = new (window as any).google.maps.LatLngBounds();
+          roadPath.forEach((pt) => bounds.extend(pt));
+          gmapRef.current.fitBounds(bounds, { top: 40, right: 35, bottom: 60, left: 35 });
+        }
+        if (leafletMapRef.current) {
+          const bounds = L.latLngBounds(roadPath.map((p) => [p.lat, p.lng]));
+          leafletMapRef.current.fitBounds(bounds, { padding: [40, 40] });
+        }
       }
-    };
+    },
+    [syncPositionAndOrientation]
+  );
 
-    const effectiveOriginLat = liveUserPosRef.current?.lat ?? originLat;
-    const effectiveOriginLng = liveUserPosRef.current?.lng ?? originLng;
+  /**
+   * Busca da geometria viária real via backend Google Routes API v2 com fallback OSRM
+   */
+  useEffect(() => {
+    let active = true;
 
-    if (routeData?.decodedPath && routeData.decodedPath.length > 2) {
-      const firstPt = routeData.decodedPath[0];
-      const deltaFromEffectiveMeters =
-        computeHaversineKm(
-          effectiveOriginLat,
-          effectiveOriginLng,
-          firstPt.lat,
-          firstPt.lng
-        ) * 1000;
-      // Só usa routeData.decodedPath diretamente se ela partir do mesmo local (<= 50m) onde o usuário realmente está
-      if (deltaFromEffectiveMeters <= 50) {
-        applyRoadPathToMap(routeData.decodedPath);
-        return;
+    const fetchRoadGeometry = async () => {
+      const startLat = liveUserPosRef.current.lat;
+      const startLng = liveUserPosRef.current.lng;
+
+      if (routeData?.decodedPath && routeData.decodedPath.length > 2) {
+        const firstPt = routeData.decodedPath[0];
+        const distFromGps = computeHaversineKm(startLat, startLng, firstPt.lat, firstPt.lng) * 1000;
+        if (distFromGps <= 60) {
+          applyRoadGeometry(routeData.decodedPath);
+          return;
+        }
       }
-    }
 
-    const fetchRoadGeometryPoints = async (
-      startLat: number,
-      startLng: number,
-      endLat: number,
-      endLng: number
-    ): Promise<Array<{ lat: number; lng: number }>> => {
-      // Camada 1: Google Routes API v2 via Backend (/api/geo/route com Referer + fallback OSRM server-side)
+      // Camada 1: Backend /api/geo/route (Google Routes API v2)
       try {
         const routeRes = await fetch('/api/geo/route', {
           method: 'POST',
@@ -745,146 +819,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
           body: JSON.stringify({
             originLat: startLat,
             originLng: startLng,
-            destLat: endLat,
-            destLng: endLng,
-            travelMode: 'DRIVE',
-          }),
-        });
-        if (routeRes.ok) {
-          const routeJson = await routeRes.json();
-          const encoded = routeJson?.routes?.[0]?.polyline?.encodedPolyline;
-          if (encoded) {
-            const pts = decodeGooglePolyline(encoded);
-            if (pts.length > 2) return pts;
-          }
-        }
-      } catch {}
-
-      // Camada 2: Fallback Viário Direto OSRM no Browser
-      try {
-        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=polyline`;
-        const res = await fetch(osrmUrl);
-        if (res.ok) {
-          const data = await res.json();
-          const encoded = data?.routes?.[0]?.geometry;
-          if (encoded) {
-            const pts = decodeGooglePolyline(encoded);
-            if (pts.length > 2) return pts;
-          }
-        }
-      } catch {}
-
-      return [];
-    };
-
-    const fetchBrowserRoadGeometry = async () => {
-      const pts = await fetchRoadGeometryPoints(
-        effectiveOriginLat,
-        effectiveOriginLng,
-        destLat,
-        destLng
-      );
-      if (pts.length > 2) {
-        applyRoadPathToMap(pts);
-      }
-    };
-
-    fetchBrowserRoadGeometry();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [sdkReady, isDark, routeData, originLat, originLng, destLat, destLng, destLabel]);
-
-  // 4. Bússola do Celular (DeviceOrientation API: webkitCompassHeading / deviceorientationabsolute)
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    let lastCompassUpdateTs = 0;
-
-    const handleOrientation = (event: any) => {
-      const now = Date.now();
-      if (now - lastCompassUpdateTs < 120) return; // ~8 fps suave sem sobrecarregar GPU
-
-      let rawCompassHeading: number | null = null;
-
-      // iOS: webkitCompassHeading (0..360 relativo ao Norte verdadeiro/magnético)
-      if (
-        typeof event.webkitCompassHeading === 'number' &&
-        !Number.isNaN(event.webkitCompassHeading)
-      ) {
-        rawCompassHeading = event.webkitCompassHeading;
-      } else if (typeof event.alpha === 'number' && !Number.isNaN(event.alpha)) {
-        // Android / Padrão W3C: alpha mede rotação anti-horária, converte-se com (360 - alpha)
-        const screenAngle =
-          typeof window.screen?.orientation?.angle === 'number'
-            ? window.screen.orientation.angle
-            : 0;
-        rawCompassHeading = (360 - event.alpha + screenAngle + 360) % 360;
-      }
-
-      if (rawCompassHeading === null) return;
-      lastCompassUpdateTs = now;
-
-      // Trava Anti-Inversão (Nunca apontar para trás quando alinhado à rota):
-      const routeForward = routeLookAheadBearingRef.current;
-      const diffToRoute = angleDiffDeg(rawCompassHeading, routeForward);
-      const targetHeading =
-        diffToRoute > 135 && hasActiveGpsFollowRef.current
-          ? routeForward
-          : rawCompassHeading;
-
-      const nextHeading = smoothAngleDeg(forwardHeadingRef.current, targetHeading, 0.25);
-      if (angleDiffDeg(nextHeading, forwardHeadingRef.current) < 1.5) return;
-
-      forwardHeadingRef.current = nextHeading;
-      const pos = liveUserPosRef.current || { lat: originLat, lng: originLng };
-      syncCameraAndMarkerOrientation(
-        pos.lat,
-        pos.lng,
-        nextHeading,
-        hasActiveGpsFollowRef.current
-      );
-    };
-
-    window.addEventListener('deviceorientationabsolute' as any, handleOrientation, true);
-    window.addEventListener('deviceorientation', handleOrientation, true);
-
-    return () => {
-      window.removeEventListener(
-        'deviceorientationabsolute' as any,
-        handleOrientation,
-        true
-      );
-      window.removeEventListener('deviceorientation', handleOrientation, true);
-    };
-  }, [originLat, originLng]);
-
-  // 5. Reconhecimento Imediato da Georreferência Real do Dispositivo + Rastreamento GPS Contínuo
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
-
-    const avgMinutesPerKm =
-      baseDistanceKm > 0 ? baseEtaMinutes / baseDistanceKm : 4.2;
-
-    // Recalcula a malha viária real quando o usuário parte de um local diferente do cadastrado no agendamento
-    const recalculateRoadFromRealGpsIfNeeded = async (gpsLat: number, gpsLng: number) => {
-      const currentStart = roadPathRef.current[0];
-      const distFromStartMeters = currentStart
-        ? computeHaversineKm(gpsLat, gpsLng, currentStart.lat, currentStart.lng) * 1000
-        : 9999;
-
-      if (distFromStartMeters <= 35 && roadPathRef.current.length > 2) {
-        return;
-      }
-
-      try {
-        const routeRes = await fetch('/api/geo/route', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            originLat: gpsLat,
-            originLng: gpsLng,
             destLat,
             destLng,
             travelMode: 'DRIVE',
@@ -893,59 +827,109 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         if (routeRes.ok) {
           const routeJson = await routeRes.json();
           const encoded = routeJson?.routes?.[0]?.polyline?.encodedPolyline;
-          if (encoded) {
+          if (encoded && active) {
             const pts = decodeGooglePolyline(encoded);
             if (pts.length > 2) {
-              roadPathRef.current = pts;
-              const { forwardBearingDeg, remainingPath } =
-                findForwardRouteBearingAndRemainingPath(
-                  gpsLat,
-                  gpsLng,
-                  pts,
-                  destLat,
-                  destLng
-                );
-              routeLookAheadBearingRef.current = forwardBearingDeg;
-              forwardHeadingRef.current = forwardBearingDeg;
-              outerPolylineRef.current?.setPath(remainingPath);
-              innerPolylineRef.current?.setPath(remainingPath);
-              syncCameraAndMarkerOrientation(gpsLat, gpsLng, forwardBearingDeg, true);
+              applyRoadGeometry(pts);
               return;
             }
           }
         }
       } catch {}
 
+      // Camada 2: Fallback Viário OSRM Direto no Browser
       try {
-        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${gpsLng},${gpsLat};${destLng},${destLat}?overview=full&geometries=polyline`;
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${destLng},${destLat}?overview=full&geometries=polyline`;
         const res = await fetch(osrmUrl);
-        if (res.ok) {
+        if (res.ok && active) {
           const data = await res.json();
           const encoded = data?.routes?.[0]?.geometry;
           if (encoded) {
             const pts = decodeGooglePolyline(encoded);
             if (pts.length > 2) {
-              roadPathRef.current = pts;
-              const { forwardBearingDeg, remainingPath } =
-                findForwardRouteBearingAndRemainingPath(
-                  gpsLat,
-                  gpsLng,
-                  pts,
-                  destLat,
-                  destLng
-                );
-              routeLookAheadBearingRef.current = forwardBearingDeg;
-              forwardHeadingRef.current = forwardBearingDeg;
-              outerPolylineRef.current?.setPath(remainingPath);
-              innerPolylineRef.current?.setPath(remainingPath);
-              syncCameraAndMarkerOrientation(gpsLat, gpsLng, forwardBearingDeg, true);
+              applyRoadGeometry(pts);
+              return;
             }
           }
         }
       } catch {}
+
+      // Linha reta como fallback mínimo
+      if (active) {
+        applyRoadGeometry([
+          { lat: startLat, lng: startLng },
+          { lat: destLat, lng: destLng },
+        ]);
+      }
     };
 
-    const handleDevicePositionFix = async (pos: GeolocationPosition, isInitialFix = false) => {
+    fetchRoadGeometry();
+
+    return () => {
+      active = false;
+    };
+  }, [routeData, destLat, destLng, applyRoadGeometry]);
+
+  /**
+   * Bússola do Celular (DeviceOrientation: iOS + Android)
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let lastCompassTs = 0;
+
+    const handleOrientation = (event: any) => {
+      const now = Date.now();
+      if (now - lastCompassTs < 120) return;
+
+      let rawHeading: number | null = null;
+      if (
+        typeof event.webkitCompassHeading === 'number' &&
+        !Number.isNaN(event.webkitCompassHeading)
+      ) {
+        rawHeading = event.webkitCompassHeading;
+      } else if (typeof event.alpha === 'number' && !Number.isNaN(event.alpha)) {
+        const screenAngle =
+          typeof window.screen?.orientation?.angle === 'number'
+            ? window.screen.orientation.angle
+            : 0;
+        rawHeading = (360 - event.alpha + screenAngle + 360) % 360;
+      }
+
+      if (rawHeading === null) return;
+      lastCompassTs = now;
+
+      // Trava anti-inversão ao longo da rota
+      const routeForward = routeLookAheadBearingRef.current;
+      const diffToRoute = angleDiffDeg(rawHeading, routeForward);
+      const targetHeading =
+        diffToRoute > 135 && hasActiveGpsFollowRef.current ? routeForward : rawHeading;
+
+      const nextHeading = smoothAngleDeg(forwardHeadingRef.current, targetHeading, 0.25);
+      if (angleDiffDeg(nextHeading, forwardHeadingRef.current) < 1.5) return;
+
+      forwardHeadingRef.current = nextHeading;
+      const pos = liveUserPosRef.current;
+      syncPositionAndOrientation(pos.lat, pos.lng, nextHeading, hasActiveGpsFollowRef.current);
+    };
+
+    window.addEventListener('deviceorientationabsolute' as any, handleOrientation, true);
+    window.addEventListener('deviceorientation', handleOrientation, true);
+
+    return () => {
+      window.removeEventListener('deviceorientationabsolute' as any, handleOrientation, true);
+      window.removeEventListener('deviceorientation', handleOrientation, true);
+    };
+  }, [syncPositionAndOrientation]);
+
+  /**
+   * Rastreamento GPS ao vivo (navigator.geolocation.watchPosition) com acompanhamento estilo Uber
+   */
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+
+    const avgMinutesPerKm = baseDistanceKm > 0 ? baseEtaMinutes / baseDistanceKm : 4.2;
+
+    const handleGpsFix = async (pos: GeolocationPosition, isInitial = false) => {
       const rawLat = pos.coords.latitude;
       const rawLng = pos.coords.longitude;
       const gpsCourse = pos.coords.heading;
@@ -957,23 +941,16 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         ? computeHaversineKm(prev.lat, prev.lng, rawLat, rawLng) * 1000
         : 9999;
 
-      if (!isInitialFix && prev && movedMeters < 3 && now - prev.ts < 2500) {
+      if (!isInitial && prev && movedMeters < 3 && now - prev.ts < 2500) {
         return;
       }
 
       hasActiveGpsFollowRef.current = true;
-      liveUserPosRef.current = { lat: rawLat, lng: rawLng };
+      setIsFollowingGps(true);
       lastGpsFixRef.current = { lat: rawLat, lng: rawLng, ts: now };
+      liveUserPosRef.current = { lat: rawLat, lng: rawLng };
 
-      // Posiciona o marcador de Saída e o marcador do usuário exatamente onde o dispositivo está
-      if (originMarkerRef.current && isInitialFix) {
-        originMarkerRef.current.position = { lat: rawLat, lng: rawLng };
-      }
-
-      // Se o usuário partiu de um endereço diferente do informado antes, recalcula a rota a partir do GPS real
-      recalculateRoadFromRealGpsIfNeeded(rawLat, rawLng);
-
-      // 1. Calcula o vetor da rota à frente (Look-Ahead) e apara a polilinha já percorrida
+      // 1. Calcula vetor da rota à frente e apara a polilinha percorrida
       const { forwardBearingDeg, remainingPath } =
         findForwardRouteBearingAndRemainingPath(
           rawLat,
@@ -985,13 +962,22 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       routeLookAheadBearingRef.current = forwardBearingDeg;
 
       if (remainingPath.length >= 2) {
-        outerPolylineRef.current?.setPath(remainingPath);
-        innerPolylineRef.current?.setPath(remainingPath);
+        if (gmapOuterPolylineRef.current) gmapOuterPolylineRef.current.setPath(remainingPath);
+        if (gmapInnerPolylineRef.current) gmapInnerPolylineRef.current.setPath(remainingPath);
+        if (leafletOuterPolylineRef.current) {
+          leafletOuterPolylineRef.current.setLatLngs(
+            remainingPath.map((p) => [p.lat, p.lng] as [number, number])
+          );
+        }
+        if (leafletInnerPolylineRef.current) {
+          leafletInnerPolylineRef.current.setLatLngs(
+            remainingPath.map((p) => [p.lat, p.lng] as [number, number])
+          );
+        }
       }
 
-      // 2. Determina o heading frontal verdadeiro
+      // 2. Determina o heading do usuário
       let resolvedHeading = forwardBearingDeg;
-
       if (
         typeof gpsCourse === 'number' &&
         !Number.isNaN(gpsCourse) &&
@@ -1016,76 +1002,50 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         0.45
       );
 
-      // 3. Move o marcador para a georreferência exata e centraliza a câmera com Look-Ahead
-      syncCameraAndMarkerOrientation(
-        rawLat,
-        rawLng,
-        forwardHeadingRef.current,
-        true
-      );
+      // 3. Move o marcador e centraliza a câmera com Look-Ahead
+      syncPositionAndOrientation(rawLat, rawLng, forwardHeadingRef.current, true);
 
-      // 4. Atualiza km e HH:MM regressivos com base na localização exata do dispositivo
+      // 4. Atualiza km e minutos restantes em tempo real
       const liveDistKm = computeRoadDistanceKm(rawLat, rawLng, destLat, destLng);
       if (liveDistKm <= 250) {
         setRemainingDistanceKm(liveDistKm);
         const nextMin =
-          liveDistKm <= 0.15
-            ? 0
-            : Math.max(1, Math.round(liveDistKm * avgMinutesPerKm));
+          liveDistKm <= 0.15 ? 0 : Math.max(1, Math.round(liveDistKm * avgMinutesPerKm));
         setRemainingMinutes(nextMin);
       }
 
-      // 5. Snap-to-Road na API do servidor com throttle de 15s (ou imediato no primeiro fix)
-      if (isInitialFix || now - lastSnappedApiTsRef.current >= 15000) {
+      // 5. Snap-to-Road via backend com throttle de 15s
+      if (isInitial || now - lastSnappedApiTsRef.current >= 15000) {
         lastSnappedApiTsRef.current = now;
         const snapped = await snapAndReverseGeocodeGps(rawLat, rawLng);
         if (snapped) {
           liveUserPosRef.current = { lat: snapped.lat, lng: snapped.lng };
-          if (originMarkerRef.current && isInitialFix) {
-            originMarkerRef.current.position = { lat: snapped.lat, lng: snapped.lng };
-          }
-          syncCameraAndMarkerOrientation(
-            snapped.lat,
-            snapped.lng,
-            forwardHeadingRef.current,
-            true
-          );
-          onLiveGpsUpdateRef.current?.(
-            snapped.lat,
-            snapped.lng,
-            snapped.streetName
-          );
+          syncPositionAndOrientation(snapped.lat, snapped.lng, forwardHeadingRef.current, true);
+          onLiveGpsUpdateRef.current?.(snapped.lat, snapped.lng, snapped.streetName);
           return;
         }
         onLiveGpsUpdateRef.current?.(rawLat, rawLng);
       }
     };
 
-    // Captura imediata da georreferência exata do dispositivo assim que a navegação inicia
+    // Fix imediato de geolocalização ao abrir o mapa
     navigator.geolocation.getCurrentPosition(
-      (pos) => handleDevicePositionFix(pos, true),
+      (pos) => handleGpsFix(pos, true),
       () => {},
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 8000,
-      }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 }
     );
 
+    // Watch contínuo de alta precisão
     const watchId = navigator.geolocation.watchPosition(
-      (pos) => handleDevicePositionFix(pos, false),
+      (pos) => handleGpsFix(pos, false),
       () => {},
-      {
-        enableHighAccuracy: true,
-        maximumAge: 2000,
-        timeout: 10000,
-      }
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
     );
 
     return () => {
       navigator.geolocation.clearWatch(watchId);
     };
-  }, [destLat, destLng, baseDistanceKm, baseEtaMinutes]);
+  }, [destLat, destLng, baseDistanceKm, baseEtaMinutes, syncPositionAndOrientation]);
 
   const formattedKm = useMemo(
     () => remainingDistanceKm.toFixed(1).replace('.', ','),
@@ -1100,26 +1060,33 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   return (
     <div
       className={`relative flex-1 w-full h-full min-h-[340px] overflow-hidden flex flex-col ${
-        isDark ? 'bg-slate-900' : 'bg-slate-100'
+        isDark ? 'bg-slate-950' : 'bg-slate-100'
       }`}
     >
-      {/* SUPERFÍCIE DO MAPA LIMPO */}
-      {!sdkFailed ? (
-        <div
-          ref={mapContainerRef}
-          className="w-full flex-1 min-h-[340px]"
-          style={{ minHeight: '340px', height: '100%' }}
-        />
-      ) : (
-        <iframe
-          title={`Mapa da Rota - ${destLabel}`}
-          src={fallbackEmbedUrl}
-          className="w-full flex-1 min-h-[340px] border-0"
-          allowFullScreen
-          loading="eager"
-          referrerPolicy="no-referrer-when-downgrade"
-        />
+      {/* SUPERFÍCIE INTERATIVA ÚNICA DO MAPA (LEAFLET OU GOOGLE MAPS JS VETORIAL) */}
+      <div
+        ref={mapContainerRef}
+        className="w-full flex-1 min-h-[340px] z-0"
+        style={{ minHeight: '340px', height: '100%' }}
+      />
+
+      {/* BOTÃO FLUTUANTE RECENTRALIZAR NO GPS ESTILO UBER (APARECE QUANDO O USUÁRIO ARRASTA O MAPA) */}
+      {!isFollowingGps && (
+        <button
+          type="button"
+          onClick={handleRecenterGps}
+          className="absolute top-3 right-3 z-10 px-3 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg active:scale-95 transition cursor-pointer"
+        >
+          <Navigation className="w-3.5 h-3.5 text-white animate-pulse" />
+          <span className="text-white">Recentralizar</span>
+        </button>
       )}
+
+      {/* INDICADOR DISCRETO DO MOTOR ATIVO */}
+      <div className="absolute top-3 left-3 z-10 pointer-events-none flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] bg-black/50 backdrop-blur-xs text-[9.5px] font-mono text-emerald-400 font-bold">
+        <Compass className="w-3 h-3 text-emerald-400 animate-spin-slow" />
+        <span>GPS AO VIVO</span>
+      </div>
 
       {/* CANTO INFERIOR DIREITO DO MAPA: KM RESTANTE E HH:MM REGRESSIVO COM COR ALPHA TRANSLÚCIDA */}
       <button
@@ -1135,7 +1102,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
               nextKm <= 0.15 ? 0 : Math.max(1, Math.round(baseEtaMinutes * ratio))
             );
 
-            // Simula avanço ao longo dos vértices reais da rota mantendo câmera e seta para frente
+            // Simula avanço suave ao longo da rota
             const path = roadPathRef.current;
             if (path.length > 2) {
               const progress = Math.min(0.95, Math.max(0.05, 1 - ratio));
@@ -1145,36 +1112,24 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
               );
               const simPt = path[idx];
               hasActiveGpsFollowRef.current = true;
+              setIsFollowingGps(true);
               liveUserPosRef.current = simPt;
-              const { forwardBearingDeg, remainingPath } =
-                findForwardRouteBearingAndRemainingPath(
-                  simPt.lat,
-                  simPt.lng,
-                  path,
-                  destLat,
-                  destLng
-                );
-              routeLookAheadBearingRef.current = forwardBearingDeg;
-              forwardHeadingRef.current = forwardBearingDeg;
-              outerPolylineRef.current?.setPath(remainingPath);
-              innerPolylineRef.current?.setPath(remainingPath);
-              syncCameraAndMarkerOrientation(
+              const { forwardBearingDeg } = findForwardRouteBearingAndRemainingPath(
                 simPt.lat,
                 simPt.lng,
-                forwardBearingDeg,
-                true
+                path,
+                destLat,
+                destLng
               );
+              syncPositionAndOrientation(simPt.lat, simPt.lng, forwardBearingDeg, true);
             }
           } else {
             setRemainingDistanceKm(baseDistanceKm);
             setRemainingMinutes(baseEtaMinutes);
-            hasActiveGpsFollowRef.current = false;
             if (roadPathRef.current.length >= 2) {
               const startPt = roadPathRef.current[0];
               liveUserPosRef.current = startPt;
-              outerPolylineRef.current?.setPath(roadPathRef.current);
-              innerPolylineRef.current?.setPath(roadPathRef.current);
-              syncCameraAndMarkerOrientation(
+              syncPositionAndOrientation(
                 startPt.lat,
                 startPt.lng,
                 routeLookAheadBearingRef.current,
@@ -1186,19 +1141,19 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         title="Distância e tempo restantes até o destino (toque para simular aproximação)"
         className={`absolute bottom-3 right-3 z-10 px-3 py-1.5 rounded-[4px] backdrop-blur-[2px] flex items-baseline gap-3 select-none cursor-pointer transition ${
           isDark
-            ? 'bg-slate-950/40 text-white/75'
-            : 'bg-white/50 text-slate-900/75'
+            ? 'bg-slate-950/50 text-white/80 border border-slate-800/40'
+            : 'bg-white/60 text-slate-900/80 border border-slate-200/50'
         }`}
       >
         <div className="flex items-baseline gap-1">
-          <span className="text-lg sm:text-xl font-black font-mono tabular-nums tracking-tight opacity-85">
+          <span className="text-lg sm:text-xl font-black font-mono tabular-nums tracking-tight opacity-90">
             {formattedKm}
           </span>
-          <span className="text-[11px] font-extrabold uppercase opacity-70">km</span>
+          <span className="text-[11px] font-extrabold uppercase opacity-75">km</span>
         </div>
 
         <div className="flex items-baseline gap-1">
-          <span className="text-lg sm:text-xl font-black font-mono tabular-nums tracking-tight text-emerald-500/80">
+          <span className="text-lg sm:text-xl font-black font-mono tabular-nums tracking-tight text-emerald-400">
             {formattedHhMm}
           </span>
         </div>

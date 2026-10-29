@@ -92,10 +92,43 @@ export async function loadGoogleMapsJsSdk(): Promise<boolean> {
     if ((window as any).google?.maps?.Map) return true;
 
     return new Promise<boolean>((resolve) => {
+      let resolved = false;
+      const safeResolve = (val: boolean) => {
+        if (!resolved) {
+          resolved = true;
+          resolve(val);
+        }
+      };
+
+      // Se o Google rejeitar a chave por restrição de referrer ou API desabilitada, gm_authFailure é disparado
+      (window as any).gm_authFailure = () => {
+        console.warn('[Vagou GPS] Google Maps JS auth failure: chave restrita ou domínio não autorizado.');
+        safeResolve(false);
+      };
+
+      const checkReady = () => {
+        const gmaps = (window as any).google?.maps;
+        if (gmaps?.Map) {
+          safeResolve(true);
+          return true;
+        }
+        return false;
+      };
+
+      if (checkReady()) return;
+
       const existing = document.getElementById('vagou-google-maps-sdk') as HTMLScriptElement | null;
       if (existing) {
-        existing.addEventListener('load', () => resolve(Boolean((window as any).google?.maps?.Map)));
-        existing.addEventListener('error', () => resolve(false));
+        // Script já adicionado: aguarda inicialização dos módulos internos do Maps
+        const startTime = Date.now();
+        const poll = setInterval(() => {
+          if (checkReady()) {
+            clearInterval(poll);
+          } else if (Date.now() - startTime > 2500) {
+            clearInterval(poll);
+            safeResolve(false);
+          }
+        }, 60);
         return;
       }
 
@@ -106,9 +139,29 @@ export async function loadGoogleMapsJsSdk(): Promise<boolean> {
       )}&v=weekly&language=pt-BR&region=BR&libraries=marker`;
       script.async = true;
       script.defer = true;
-      script.onload = () => resolve(Boolean((window as any).google?.maps?.Map));
-      script.onerror = () => resolve(false);
+
+      script.onload = () => {
+        if (checkReady()) return;
+        const startTime = Date.now();
+        const poll = setInterval(() => {
+          if (checkReady()) {
+            clearInterval(poll);
+          } else if (Date.now() - startTime > 2000) {
+            clearInterval(poll);
+            safeResolve(false);
+          }
+        }, 50);
+      };
+
+      script.onerror = () => safeResolve(false);
       document.head.appendChild(script);
+
+      // Timeout de segurança para não prender a interface caso a rede congele
+      setTimeout(() => {
+        if (!resolved) {
+          safeResolve(Boolean((window as any).google?.maps?.Map));
+        }
+      }, 3500);
     });
   })();
 

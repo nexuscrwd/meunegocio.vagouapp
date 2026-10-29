@@ -15,6 +15,21 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-28] — Navegação GPS Interativa com Motor Híbrido Resiliente (Leaflet + Google Maps) e Acompanhamento Estilo Uber (bol-026)
+- **Tipo:** `[Fix / Feat — Navegação GPS Ao Vivo Resiliente]`
+- **Motivo / Solicitação:** Ao clicar em "Ir" no agendamento do aeroporto para testar a navegação via celular, o app exibia um `<iframe>` estático do Google Maps sem rastreamento GPS e sem acompanhamento estilo Uber.
+- **Arquivos Impactados:**
+  - `src/services/googleMapsService.ts`
+  - `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
+  - `src/components/live-tracking/LiveTrackingModal.tsx`
+  - `package.json`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Eliminação Definitiva do Fallback Estático em `<iframe>`:** O componente `InteractiveGoogleRouteMap` nunca mais exibe `<iframe>` estático. Em seu lugar, foi implementado o motor de navegação interativo baseado em Leaflet com tiles de alta resolução (CartoDB Dark Matter para o Dark Theme do Vagou e CartoDB Voyager para o Light Theme).
+  2. **Carregamento Resiliente do SDK Google Maps (`googleMapsService.ts`):** Tratamento de `window.gm_authFailure` caso a chave do Google Maps Platform tenha restrições de domínio para subdomínios wildcard (*.vagouapp.com), com polling seguro e fallback instantâneo para o motor Leaflet sem travar a interface.
+  3. **Acompanhamento Estilo Uber em Tempo Real:** Rastreamento contínuo via `navigator.geolocation.watchPosition` com precisão de alta frequência, cálculo de Look-Ahead (~65m à frente na direção do trajeto) mantendo o usuário no terço inferior da tela, projeção de rota viária em duas camadas (`#064e3b` e `#10b981`), rotação suave da ponteira/cone de visão com bússola do celular, e botão flutuante de "Recentralizar" caso o usuário arraste o mapa manualmente.
+  4. **Resolução de Coordenadas de Destino em `LiveTrackingModal.tsx`:** Atualizado o cálculo das coordenadas de destino para extrair a coordenada exata da rota calculada (`decodedPath[decodedPath.length - 1]`) ou dos novos campos de latitude/longitude do estabelecimento e agendamento.
+
 ### [2026-10-28] — Persistência Blindada de Fotos de Perfil Mobile no Supabase (Storage + Database) e Sincronização Unificada na Tríade (bol-025)
 - **Tipo:** `[Fix / Feat — Upload e Persistência de Avatar Mobile no Supabase]`
 - **Motivo / Solicitação:** Diagnosticar e corrigir falha onde fotos de perfil enviadas via celular não subiam para o Supabase.
