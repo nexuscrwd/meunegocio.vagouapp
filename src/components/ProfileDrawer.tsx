@@ -16,6 +16,7 @@ import { fetchUserProfileFromDb, updateUserProfileInDb, resolveTriadeAvatar, upl
 import { compressImageFile } from '../utils/imageCompressor';
 import { syncClientDependentToDatabase, refreshClientDependentsCount } from '../services/mnvSupabaseSync';
 import { LiveRouteDepartureModal, LiveTrackingDrawerModal } from './live-tracking/LiveTrackingModal';
+import { RouteSimulatorModal } from './live-tracking/RouteSimulatorModal';
 import { getSavedBookingDraft, saveBookingDraft, BookingDraftItem } from '../utils/bookingSlots';
 
 interface ProfileDrawerProps {
@@ -161,6 +162,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     appointment: BookingAppointment;
     initialTab: 'timeline' | 'map';
   } | null>(null);
+  const [isRouteSimulatorOpen, setIsRouteSimulatorOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen && initialSubTab) {
@@ -1515,6 +1517,39 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
                     </button>
 
+                    {/* Trajeto (Simulador GPS / Teste Provisório) */}
+                    <button
+                      type="button"
+                      id="menu-option-trajeto-simulador"
+                      onClick={() => {
+                        hapticLight();
+                        setIsRouteSimulatorOpen(true);
+                      }}
+                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark 
+                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
+                          : 'bg-white hover:bg-emerald-50/50 border-slate-200 text-slate-900 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                          <Navigation className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold font-['Poppins'] flex items-center gap-1.5">
+                            <span>Trajeto</span>
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                              Teste
+                            </span>
+                          </div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Inserir partida e destino para testar navegação GPS
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                    </button>
+
                     {/* Conta Família & Dependentes */}
                     <button
                       type="button"
@@ -2102,27 +2137,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     </div>
                   );
                 })
-              )}
-
-              {drawerDepartureApt && (
-                <LiveRouteDepartureModal
-                  isOpen={Boolean(drawerDepartureApt)}
-                  appointment={drawerDepartureApt}
-                  initialStep="in_app_map"
-                  onClose={() => setDrawerDepartureApt(null)}
-                  onUpdateAppointment={(updated) => {
-                    const nextList = appointments.map((a) =>
-                      a.protocolCode === updated.protocolCode ? { ...a, ...updated } : a
-                    );
-                    setAppointments(nextList);
-                    if (onUpdateAppointments) onUpdateAppointments(nextList);
-                    setDrawerDepartureApt(updated);
-                  }}
-                  onOpenLiveViewer={(apt, tab) => {
-                    setDrawerDepartureApt(null);
-                    setDrawerLiveViewState({ appointment: apt, initialTab: tab });
-                  }}
-                />
               )}
 
               {drawerLiveViewState && (
@@ -3149,6 +3163,40 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
             )}
           </div>
         </div>
+      )}
+
+      {/* MODAL PROVISÓRIO DE TESTE DE TRAJETO GPS */}
+      {isRouteSimulatorOpen && (
+        <RouteSimulatorModal
+          isOpen={isRouteSimulatorOpen}
+          onClose={() => setIsRouteSimulatorOpen(false)}
+          onStartRoute={(testAppointment) => {
+            setIsRouteSimulatorOpen(false);
+            setDrawerDepartureApt(testAppointment);
+          }}
+        />
+      )}
+
+      {/* TELA DE NAVEGAÇÃO AO VIVO (INTERACTIVE ROUTE MAP) DISPARADA PELO TESTE OU AGENDA */}
+      {drawerDepartureApt && (
+        <LiveRouteDepartureModal
+          isOpen={Boolean(drawerDepartureApt)}
+          appointment={drawerDepartureApt}
+          initialStep="in_app_map"
+          onClose={() => setDrawerDepartureApt(null)}
+          onUpdateAppointment={(updated) => {
+            const nextList = appointments.map((a) =>
+              a.protocolCode === updated.protocolCode ? { ...a, ...updated } : a
+            );
+            setAppointments(nextList);
+            if (onUpdateAppointments) onUpdateAppointments(nextList);
+            setDrawerDepartureApt(updated);
+          }}
+          onOpenLiveViewer={(apt, tab) => {
+            setDrawerDepartureApt(null);
+            setDrawerLiveViewState({ appointment: apt, initialTab: tab });
+          }}
+        />
       )}
     </div>
   );

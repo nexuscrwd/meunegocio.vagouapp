@@ -31,6 +31,7 @@ import {
   LiveRouteDepartureModal,
   LiveTrackingDrawerModal,
 } from './live-tracking/LiveTrackingModal';
+import { RouteSimulatorModal } from './live-tracking/RouteSimulatorModal';
 import { syncAppointmentAcrossStorageAndDb } from '../hooks/useLiveRouteTracker';
 import { getSavedBookingDraft, saveBookingDraft, BookingDraftItem } from '../utils/bookingSlots';
 
@@ -121,6 +122,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
     initialTab: 'timeline' | 'map';
   } | null>(null);
   const [savedDraft, setSavedDraft] = useState<BookingDraftItem | null>(() => getSavedBookingDraft());
+  const [isRouteSimulatorOpen, setIsRouteSimulatorOpen] = useState<boolean>(false);
 
   const handleSingleAppointmentUpdate = (updated: BookingAppointment) => {
     const nextList = appointments.map((apt) =>
@@ -264,7 +266,19 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5">
-          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-[4px] ${
+          <button
+            type="button"
+            onClick={() => {
+              hapticLight();
+              setIsRouteSimulatorOpen(true);
+            }}
+            className="px-2.5 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95"
+            title="Simulador de Trajeto GPS (Teste)"
+          >
+            <Navigation className="w-3.5 h-3.5 text-white" />
+            <span className="text-white">Trajeto</span>
+          </button>
+          <span className={`text-[11px] font-bold px-2 py-1 rounded-[4px] ${
             isDark ? 'bg-slate-900 border border-slate-800' : 'bg-slate-100 border border-slate-200'
           }`}>
             {clientAppointments.length} Ativos
@@ -696,6 +710,18 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
             onOpenLiveViewer={(apt, tab) => {
               setDepartureModalApt(null);
               setDrawerViewerState({ appointment: apt, initialTab: tab });
+            }}
+          />
+        )}
+
+        {/* MODAL PROVISÓRIO DE TESTE DE TRAJETO GPS */}
+        {isRouteSimulatorOpen && (
+          <RouteSimulatorModal
+            isOpen={isRouteSimulatorOpen}
+            onClose={() => setIsRouteSimulatorOpen(false)}
+            onStartRoute={(testAppointment) => {
+              setIsRouteSimulatorOpen(false);
+              setDepartureModalApt(testAppointment);
             }}
           />
         )}

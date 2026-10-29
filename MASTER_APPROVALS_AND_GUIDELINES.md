@@ -163,6 +163,21 @@ O `SalonProfileView.tsx` é a peça central da experiência do salão dentro do 
 2. **Nível 2 (Carrossel de Fotos):** Galeria horizontal com fotos do corte/serviço, contador de fotos e gestos de swipe.
 3. **Nível 3 (Vídeo Vertical / Story):** Vídeo em loop de 5 segundos com som ativável, experiência imersiva inspirada em reels/stories de redes sociais (`RadarStoryModal.tsx`).
 
+### C. Padrão Oficial do HUD de Navegação GPS Ativa (Turn-by-Turn Estilo Uber / Waze)
+Consolidado e aprovado como padrão definitivo de interface de navegação e mobilidade da Tríade Vagou:
+1. **Cartão Superior Flutuante (`absolute top-2.5 left-2.5 right-2.5 z-20`):**
+   - **Ícone de Manobra em Destaque:** Quadrado verde vibrante (`w-9 h-9 rounded-[4px] bg-emerald-500`) com ícone direcional branco puro (`ArrowUp`, `CornerUpRight`, `CornerUpLeft`, `RotateCcw`) com traço reforçado (`stroke-[2.5]`).
+   - **Instrução & Distância:** Distância para a próxima manobra (`font-extrabold text-emerald-400 font-mono`) e nome da via (`text-xs font-black truncate`).
+   - **Atalhos Rápidos de Cockpit:** Botões compactos com respiro perfeito `[Waze ↗]` e `[Maps ↗]` com bordas translúcidas (`border-cyan-500/30`, `border-emerald-500/30`) e transição ativa para espelhamento veicular.
+2. **Superfície do Mapa com Câmera Look-Ahead:**
+   - Câmera dinâmica projetando o centro ~65 metros à frente na rota, mantendo o usuário posicionado no terço inferior da tela para visão ampla do trajeto.
+   - Marcador com foto de perfil do usuário sempre vertical (`0°`) com anel esmeralda (`34px`) + cone de visão translúcido e ponteira girando com a rota e a bússola do celular.
+   - Polilinha viária dupla: glow escuro externo de ancoragem (`#064e3b`, 8px) + via esmeralda ativa interna (`#10b981`, 5px).
+3. **Cockpit Inferior de Telemetria:**
+   - **Velocímetro Digital (`bottom-3 left-3`):** Painel compacto com velocidade real em `km/h` + badge com bússola pulsante `GPS ATIVO`.
+   - **HUD Regressivo (`bottom-3 right-3`):** Placa com sombra e efeito glass (`backdrop-blur-md`) exibindo distância restante em km (`font-mono`) e tempo restante (`HH:MM`) em verde esmeralda.
+   - **Botão Flutuante de Recentralizar:** Surge com animação pulsante caso o usuário arraste o mapa manualmente, permitindo voltar ao modo de acompanhamento ativo com 1 toque.
+
 ---
 
 ## 🗄️ 6. Banco de Dados Relacional & Schema SQL (Supabase / PostgreSQL)

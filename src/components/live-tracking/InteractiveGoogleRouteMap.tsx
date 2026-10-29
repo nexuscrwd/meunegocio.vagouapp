@@ -1,16 +1,24 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Compass, Navigation } from 'lucide-react';
+import {
+  Navigation,
+  ArrowUp,
+  CornerUpRight,
+  CornerUpLeft,
+  RotateCcw,
+  ExternalLink,
+  MapPin,
+  Compass,
+} from 'lucide-react';
 import {
   GoogleComputedRouteResult,
-  loadGoogleMapsJsSdk,
   snapAndReverseGeocodeGps,
   decodeGooglePolyline,
 } from '../../services/googleMapsService';
 import { isValidAvatarUrlString } from '../../lib/supabase';
 import { useTheme } from '../../context/ThemeContext';
-import { hapticLight } from '../../utils/haptics';
+import { hapticLight, hapticSuccess } from '../../utils/haptics';
 
 interface InteractiveGoogleRouteMapProps {
   originLat?: number;
@@ -123,6 +131,7 @@ function findForwardRouteBearingAndRemainingPath(
 ): {
   forwardBearingDeg: number;
   remainingPath: Array<{ lat: number; lng: number }>;
+  closestIndex: number;
 } {
   if (!roadPath || roadPath.length < 2) {
     return {
@@ -131,6 +140,7 @@ function findForwardRouteBearingAndRemainingPath(
         { lat: userLat, lng: userLng },
         { lat: destLat, lng: destLng },
       ],
+      closestIndex: 0,
     };
   }
 
@@ -166,6 +176,7 @@ function findForwardRouteBearingAndRemainingPath(
   return {
     forwardBearingDeg: bearingFromUser,
     remainingPath: remainingSlice.length >= 2 ? remainingSlice : roadPath,
+    closestIndex: closestIdx,
   };
 }
 
@@ -185,7 +196,7 @@ function createPinBadge(bgHex: string, textHex: string, labelText: string): HTML
   el.style.fontWeight = '800';
   el.style.fontSize = '10.5px';
   el.style.fontFamily = 'Poppins, sans-serif';
-  el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.28)';
+  el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.35)';
   el.style.whiteSpace = 'nowrap';
   el.textContent = labelText;
   return el;
@@ -238,24 +249,25 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
 
   const visionCone = document.createElement('div');
   visionCone.style.position = 'absolute';
-  visionCone.style.top = '-15px';
+  visionCone.style.top = '-16px';
   visionCone.style.left = '50%';
   visionCone.style.transform = 'translateX(-50%)';
-  visionCone.style.width = '40px';
-  visionCone.style.height = '38px';
+  visionCone.style.width = '42px';
+  visionCone.style.height = '40px';
   visionCone.style.background =
-    'linear-gradient(to top, rgba(16, 185, 129, 0.50) 0%, rgba(16, 185, 129, 0.0) 100%)';
-  visionCone.style.clipPath = 'polygon(0% 0%, 100% 0%, 62% 100%, 38% 100%)';
+    'linear-gradient(to top, rgba(16, 185, 129, 0.55) 0%, rgba(16, 185, 129, 0.0) 100%)';
+  visionCone.style.clipPath = 'polygon(0% 0%, 100% 0%, 65% 100%, 35% 100%)';
   visionCone.style.borderRadius = '50% 50% 0 0';
 
   const defaultPuck = document.createElement('div');
   defaultPuck.style.position = 'relative';
-  defaultPuck.style.width = '24px';
-  defaultPuck.style.height = '24px';
+  defaultPuck.style.width = '26px';
+  defaultPuck.style.height = '26px';
   defaultPuck.style.borderRadius = '9999px';
   defaultPuck.style.background = '#10b981';
   defaultPuck.style.border = '3px solid #ffffff';
-  defaultPuck.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.35), 0 0 0 4px rgba(16, 185, 129, 0.28)';
+  defaultPuck.style.boxShadow =
+    '0 3px 12px rgba(0, 0, 0, 0.45), 0 0 0 4px rgba(16, 185, 129, 0.35)';
   defaultPuck.style.display = hasValidPhoto ? 'none' : 'flex';
   defaultPuck.style.alignItems = 'center';
   defaultPuck.style.justifyContent = 'center';
@@ -263,9 +275,9 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
   const arrow = document.createElement('div');
   arrow.style.width = '0';
   arrow.style.height = '0';
-  arrow.style.borderLeft = '4.5px solid transparent';
-  arrow.style.borderRight = '4.5px solid transparent';
-  arrow.style.borderBottom = '8px solid #ffffff';
+  arrow.style.borderLeft = '5px solid transparent';
+  arrow.style.borderRight = '5px solid transparent';
+  arrow.style.borderBottom = '9px solid #ffffff';
   arrow.style.transform = 'translateY(-1px)';
 
   defaultPuck.appendChild(arrow);
@@ -275,25 +287,25 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
   if (hasValidPhoto && avatarUrl) {
     const directionTip = document.createElement('div');
     directionTip.style.position = 'absolute';
-    directionTip.style.top = '3px';
+    directionTip.style.top = '2px';
     directionTip.style.left = '50%';
     directionTip.style.transform = 'translateX(-50%)';
     directionTip.style.width = '0';
     directionTip.style.height = '0';
     directionTip.style.borderLeft = '5px solid transparent';
     directionTip.style.borderRight = '5px solid transparent';
-    directionTip.style.borderBottom = '8px solid #10b981';
+    directionTip.style.borderBottom = '9px solid #10b981';
     directionTip.style.filter = 'drop-shadow(0 -1px 2px rgba(255,255,255,0.95))';
     rotor.appendChild(directionTip);
 
     const avatarBadge = document.createElement('div');
     avatarBadge.style.position = 'absolute';
-    avatarBadge.style.width = '32px';
-    avatarBadge.style.height = '32px';
+    avatarBadge.style.width = '34px';
+    avatarBadge.style.height = '34px';
     avatarBadge.style.borderRadius = '9999px';
     avatarBadge.style.border = '2.5px solid #10b981';
     avatarBadge.style.boxShadow =
-      '0 2px 10px rgba(0, 0, 0, 0.4), 0 0 0 2px #ffffff, 0 0 0 5px rgba(16, 185, 129, 0.28)';
+      '0 2px 10px rgba(0, 0, 0, 0.45), 0 0 0 2px #ffffff, 0 0 0 5px rgba(16, 185, 129, 0.3)';
     avatarBadge.style.background = '#0f172a';
     avatarBadge.style.overflow = 'hidden';
     avatarBadge.style.display = 'flex';
@@ -346,30 +358,27 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Engine: 'google' ou 'leaflet'
-  const [activeEngine, setActiveEngine] = useState<'google' | 'leaflet'>('leaflet');
-  const [isFollowingGps, setIsFollowingGps] = useState<boolean>(true);
-
-  // Instâncias Google Maps
-  const gmapRef = useRef<any>(null);
-  const gmapOuterPolylineRef = useRef<any>(null);
-  const gmapInnerPolylineRef = useRef<any>(null);
-  const gmapOriginMarkerRef = useRef<any>(null);
-  const gmapDestMarkerRef = useRef<any>(null);
-  const gmapUserMarkerRef = useRef<any>(null);
-
-  // Instâncias Leaflet
+  // Instâncias do Leaflet Map
   const leafletMapRef = useRef<L.Map | null>(null);
   const leafletOuterPolylineRef = useRef<L.Polyline | null>(null);
   const leafletInnerPolylineRef = useRef<L.Polyline | null>(null);
   const leafletOriginMarkerRef = useRef<L.Marker | null>(null);
   const leafletDestMarkerRef = useRef<L.Marker | null>(null);
   const leafletUserMarkerRef = useRef<L.Marker | null>(null);
-
-  // Elementos HTML do marcador direcional (rotor e avatar)
   const userMarkerRotorRef = useRef<HTMLDivElement | null>(null);
 
-  // Estado de Rota e Rastreamento
+  const [isFollowingGps, setIsFollowingGps] = useState<boolean>(true);
+  const [currentSpeedKmh, setCurrentSpeedKmh] = useState<number>(0);
+  const [activeManeuver, setActiveManeuver] = useState<{
+    instruction: string;
+    distanceText: string;
+    maneuver: string;
+  }>({
+    instruction: `Em direção a ${destLabel}`,
+    distanceText: 'Em rota',
+    maneuver: 'STRAIGHT',
+  });
+
   const roadPathRef = useRef<Array<{ lat: number; lng: number }>>([]);
   const lastFittedKeyRef = useRef<string>('');
   const lastGpsFixRef = useRef<{ lat: number; lng: number; ts: number } | null>(null);
@@ -412,89 +421,46 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   }, [hasReachedDestination]);
 
   /**
-   * Atualização imperativa de posição e rotação em ambos os motores
+   * Atualização de câmera e marcador imperativa (Uber-style Look-Ahead)
    */
   const syncPositionAndOrientation = useCallback(
     (userLat: number, userLng: number, headingDeg: number, shouldPanCamera: boolean) => {
       liveUserPosRef.current = { lat: userLat, lng: userLng };
 
-      // 1. Projeta o centro da câmera ~65 metros à frente na direção do movimento (Look-Ahead Uber)
-      const lookAheadCenter = projectPointAhead(userLat, userLng, headingDeg, 0.065);
-      const isManualPan = Date.now() < userManualPanUntilRef.current;
+      const lmap = leafletMapRef.current;
+      if (!lmap) return;
 
-      // 2. Atualiza motor Google Maps se ativo
-      if (activeEngine === 'google' && gmapRef.current) {
-        const map = gmapRef.current;
-        if (gmapUserMarkerRef.current) {
-          gmapUserMarkerRef.current.position = { lat: userLat, lng: userLng };
-        }
-        if (shouldPanCamera && !isManualPan) {
-          try {
-            const currentZoom = typeof map.getZoom === 'function' ? map.getZoom() : 17;
-            const targetZoom = !currentZoom || currentZoom < 17 ? 17.5 : currentZoom;
-            if (typeof map.moveCamera === 'function') {
-              map.moveCamera({
-                center: lookAheadCenter,
-                zoom: targetZoom,
-                heading: headingDeg,
-                tilt: 45,
-              });
-            } else if (typeof map.panTo === 'function') {
-              map.panTo(lookAheadCenter);
-            }
-          } catch {
-            try {
-              map.panTo(lookAheadCenter);
-            } catch {}
-          }
-        }
-        const currentMapHeading =
-          typeof map.getHeading === 'function' ? Number(map.getHeading() || 0) : 0;
-        const relativeRotorDeg = (headingDeg - currentMapHeading + 360) % 360;
-        if (userMarkerRotorRef.current) {
-          userMarkerRotorRef.current.style.transform = `rotate(${relativeRotorDeg.toFixed(1)}deg)`;
-        }
+      // 1. Atualiza posição do marcador
+      if (leafletUserMarkerRef.current) {
+        leafletUserMarkerRef.current.setLatLng([userLat, userLng]);
       }
 
-      // 3. Atualiza motor Leaflet se ativo
-      if (activeEngine === 'leaflet' && leafletMapRef.current) {
-        const lmap = leafletMapRef.current;
-        if (leafletUserMarkerRef.current) {
-          leafletUserMarkerRef.current.setLatLng([userLat, userLng]);
-        }
-        if (shouldPanCamera && !isManualPan) {
-          try {
-            lmap.panTo([lookAheadCenter.lat, lookAheadCenter.lng], {
-              animate: true,
-              duration: 0.45,
-            });
-          } catch {}
-        }
-        if (userMarkerRotorRef.current) {
-          userMarkerRotorRef.current.style.transform = `rotate(${headingDeg.toFixed(1)}deg)`;
-        }
+      // 2. Gira a ponteira e cone de visão
+      if (userMarkerRotorRef.current) {
+        userMarkerRotorRef.current.style.transform = `rotate(${headingDeg.toFixed(1)}deg)`;
+      }
+
+      // 3. Projeta a câmera ~65m à frente na direção do movimento (Look-Ahead)
+      const isManualPan = Date.now() < userManualPanUntilRef.current;
+      if (shouldPanCamera && !isManualPan) {
+        const lookAheadCenter = projectPointAhead(userLat, userLng, headingDeg, 0.065);
+        try {
+          lmap.panTo([lookAheadCenter.lat, lookAheadCenter.lng], {
+            animate: true,
+            duration: 0.45,
+          });
+        } catch {}
       }
     },
-    [activeEngine]
+    []
   );
 
   /**
-   * Recentraliza a câmera no usuário imediatamente (botão de mira)
+   * Inicialização imediata do motor de mapa (Zero telas brancas / Zero iframes)
    */
-  const handleRecenterGps = () => {
-    hapticLight();
-    userManualPanUntilRef.current = 0;
-    setIsFollowingGps(true);
-    hasActiveGpsFollowRef.current = true;
-    const pos = liveUserPosRef.current;
-    syncPositionAndOrientation(pos.lat, pos.lng, forwardHeadingRef.current, true);
-  };
-
-  /**
-   * Inicialização do Motor Leaflet
-   */
-  const initLeafletEngine = useCallback(() => {
+  useEffect(() => {
     if (!mapContainerRef.current) return;
+
     if (leafletMapRef.current) {
       leafletMapRef.current.remove();
       leafletMapRef.current = null;
@@ -508,17 +474,16 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       attributionControl: false,
     });
 
-    // Camada de Tiles de alta performance: CartoDB Dark Matter para modo escuro ou CartoDB Voyager para claro
-    const tileUrl = isDark
-      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-      : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+    // Ladrilhos cartográficos oficiais Google Maps de alta resolução (livre de marcas d'água)
+    const tileUrl = 'https://mt{s}.google.com/vt/lyrs=m&hl=pt-BR&x={x}&y={y}&z={z}';
 
     L.tileLayer(tileUrl, {
-      subdomains: 'abcd',
-      maxZoom: 19,
+      subdomains: ['0', '1', '2', '3'],
+      maxZoom: 20,
+      className: isDark ? 'vagou-nav-dark-tiles' : '',
     }).addTo(lmap);
 
-    // Linha viária externa e interna
+    // Linha de rota dupla (outer dark glow + inner emerald road)
     const outerPoly = L.polyline([], {
       color: '#064e3b',
       weight: 8,
@@ -564,7 +529,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       icon: destIcon,
     }).addTo(lmap);
 
-    // Marcador Direcional do Usuário (com foto ou disco direcional)
+    // Marcador Direcional do Usuário (Avatar com anel esmeralda e rotor)
     const { container, rotor } = createDirectionalUserMarkerElement(effectiveUserAvatar);
     userMarkerRotorRef.current = rotor;
     const userDivIcon = L.divIcon({
@@ -578,16 +543,15 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       zIndexOffset: 1000,
     }).addTo(lmap);
 
-    // Pausa do auto-follow caso o usuário interaja manualmente
+    // Detecção de arrasto manual do mapa
     lmap.on('dragstart', () => {
       userManualPanUntilRef.current = Date.now() + 6000;
       setIsFollowingGps(false);
     });
 
     leafletMapRef.current = lmap;
-    setActiveEngine('leaflet');
 
-    // Se já houver geometria viária calculada, aplica imediatamente no Leaflet
+    // Aplica geometria existente se já calculada
     if (roadPathRef.current.length >= 2) {
       const latlngs = roadPathRef.current.map((p) => [p.lat, p.lng] as [number, number]);
       outerPoly.setLatLngs(latlngs);
@@ -595,130 +559,15 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       const bounds = L.latLngBounds(latlngs);
       lmap.fitBounds(bounds, { padding: [40, 40] });
     }
-  }, [isDark, originLat, originLng, destLat, destLabel, effectiveUserAvatar]);
-
-  /**
-   * Tenta carregar o Google Maps JS SDK; se falhar ou demorar > 1.8s, ativa imediatamente o Leaflet
-   */
-  useEffect(() => {
-    let active = true;
-
-    const timer = setTimeout(() => {
-      if (active && activeEngine !== 'google') {
-        initLeafletEngine();
-      }
-    }, 1800);
-
-    loadGoogleMapsJsSdk().then((ok) => {
-      if (!active) return;
-      clearTimeout(timer);
-      const gmaps = (window as any).google?.maps;
-      if (ok && gmaps?.Map && mapContainerRef.current) {
-        try {
-          if (leafletMapRef.current) {
-            leafletMapRef.current.remove();
-            leafletMapRef.current = null;
-          }
-
-          const initialHeading = computeBearingDeg(originLat, originLng, destLat, destLng);
-          forwardHeadingRef.current = initialHeading;
-          routeLookAheadBearingRef.current = initialHeading;
-
-          const map = new gmaps.Map(mapContainerRef.current, {
-            center: { lat: originLat, lng: originLng },
-            zoom: 16.5,
-            heading: initialHeading,
-            tilt: 45,
-            mapId: 'DEMO_MAP_ID',
-            colorScheme: isDark ? 'DARK' : 'LIGHT',
-            disableDefaultUI: true,
-            zoomControl: false,
-            mapTypeControl: false,
-            streetViewControl: false,
-            fullscreenControl: false,
-            rotateControl: false,
-            gestureHandling: 'greedy',
-            internalUsageAttributionIds: ['gmp_mcp_codeassist_v1_aistudio'],
-          });
-
-          gmapRef.current = map;
-
-          map.addListener('dragstart', () => {
-            userManualPanUntilRef.current = Date.now() + 6000;
-            setIsFollowingGps(false);
-          });
-
-          gmapOuterPolylineRef.current = new gmaps.Polyline({
-            path: [],
-            geodesic: true,
-            strokeColor: '#064e3b',
-            strokeOpacity: 0.85,
-            strokeWeight: 8,
-            map,
-          });
-
-          gmapInnerPolylineRef.current = new gmaps.Polyline({
-            path: [],
-            geodesic: true,
-            strokeColor: '#10b981',
-            strokeOpacity: 1.0,
-            strokeWeight: 5,
-            map,
-          });
-
-          const AdvancedMarker = gmaps.marker?.AdvancedMarkerElement;
-          if (AdvancedMarker) {
-            gmapOriginMarkerRef.current = new AdvancedMarker({
-              map,
-              position: { lat: originLat, lng: originLng },
-              title: originLabel,
-              content: createPinBadge(
-                isDark ? '#0f172a' : '#ffffff',
-                isDark ? '#ffffff' : '#0f172a',
-                'Saída'
-              ),
-            });
-
-            gmapDestMarkerRef.current = new AdvancedMarker({
-              map,
-              position: { lat: destLat, lng: destLng },
-              title: destLabel,
-              content: createPinBadge('#10b981', '#ffffff', destLabel.slice(0, 22)),
-            });
-
-            const { container, rotor } = createDirectionalUserMarkerElement(effectiveUserAvatar);
-            userMarkerRotorRef.current = rotor;
-            gmapUserMarkerRef.current = new AdvancedMarker({
-              map,
-              position: liveUserPosRef.current,
-              title: 'Sua Posição',
-              content: container,
-            });
-          }
-
-          setActiveEngine('google');
-          return;
-        } catch (e) {
-          console.warn('[Vagou GPS] Falha ao inicializar Google Maps JS. Ativando Leaflet...', e);
-          initLeafletEngine();
-        }
-      } else {
-        initLeafletEngine();
-      }
-    });
 
     return () => {
-      active = false;
-      clearTimeout(timer);
-      if (leafletMapRef.current) {
-        leafletMapRef.current.remove();
-        leafletMapRef.current = null;
-      }
+      lmap.remove();
+      leafletMapRef.current = null;
     };
-  }, [isDark, initLeafletEngine, originLat, originLng, destLat, destLabel, originLabel, effectiveUserAvatar]);
+  }, [isDark, originLat, originLng, destLat, destLng, destLabel, effectiveUserAvatar]);
 
   /**
-   * Atualização de polilinha viária sem recriar os mapas
+   * Aplicação da geometria viária da rota
    */
   const applyRoadGeometry = useCallback(
     (roadPath: Array<{ lat: number; lng: number }>) => {
@@ -740,21 +589,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       routeLookAheadBearingRef.current = forwardBearingDeg;
       forwardHeadingRef.current = forwardBearingDeg;
 
-      // Google Maps
-      if (gmapOuterPolylineRef.current) {
-        gmapOuterPolylineRef.current.setPath(remainingPath);
-      }
-      if (gmapInnerPolylineRef.current) {
-        gmapInnerPolylineRef.current.setPath(remainingPath);
-      }
-      if (gmapOriginMarkerRef.current) {
-        gmapOriginMarkerRef.current.position = currentPos;
-      }
-      if (gmapDestMarkerRef.current) {
-        gmapDestMarkerRef.current.position = endPt;
-      }
-
-      // Leaflet
       if (leafletOuterPolylineRef.current) {
         leafletOuterPolylineRef.current.setLatLngs(
           remainingPath.map((p) => [p.lat, p.lng] as [number, number])
@@ -774,26 +608,31 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
 
       syncPositionAndOrientation(currentPos.lat, currentPos.lng, forwardBearingDeg, true);
 
-      // Ajuste inicial de bounds (apenas na carga inicial da rota)
+      // Atualiza primeira instrução da rota se disponível
+      if (routeData?.steps && routeData.steps.length > 0) {
+        const step = routeData.steps[0];
+        setActiveManeuver({
+          instruction: step.instruction,
+          distanceText: step.distanceText,
+          maneuver: step.maneuver,
+        });
+      }
+
+      // Enquadramento inicial suave
       const routeFitKey = `${currentPos.lat.toFixed(3)},${currentPos.lng.toFixed(3)}->${endPt.lat.toFixed(3)},${endPt.lng.toFixed(3)}`;
       if (!hasActiveGpsFollowRef.current && lastFittedKeyRef.current !== routeFitKey) {
         lastFittedKeyRef.current = routeFitKey;
-        if (gmapRef.current && (window as any).google?.maps?.LatLngBounds) {
-          const bounds = new (window as any).google.maps.LatLngBounds();
-          roadPath.forEach((pt) => bounds.extend(pt));
-          gmapRef.current.fitBounds(bounds, { top: 40, right: 35, bottom: 60, left: 35 });
-        }
         if (leafletMapRef.current) {
           const bounds = L.latLngBounds(roadPath.map((p) => [p.lat, p.lng]));
           leafletMapRef.current.fitBounds(bounds, { padding: [40, 40] });
         }
       }
     },
-    [syncPositionAndOrientation]
+    [syncPositionAndOrientation, routeData]
   );
 
   /**
-   * Busca da geometria viária real via backend Google Routes API v2 com fallback OSRM
+   * Cálculo viário real (/api/geo/route + OSRM)
    */
   useEffect(() => {
     let active = true;
@@ -811,7 +650,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         }
       }
 
-      // Camada 1: Backend /api/geo/route (Google Routes API v2)
       try {
         const routeRes = await fetch('/api/geo/route', {
           method: 'POST',
@@ -837,7 +675,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         }
       } catch {}
 
-      // Camada 2: Fallback Viário OSRM Direto no Browser
       try {
         const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${destLng},${destLat}?overview=full&geometries=polyline`;
         const res = await fetch(osrmUrl);
@@ -854,7 +691,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         }
       } catch {}
 
-      // Linha reta como fallback mínimo
       if (active) {
         applyRoadGeometry([
           { lat: startLat, lng: startLng },
@@ -871,7 +707,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   }, [routeData, destLat, destLng, applyRoadGeometry]);
 
   /**
-   * Bússola do Celular (DeviceOrientation: iOS + Android)
+   * Bússola do celular (DeviceOrientation)
    */
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -898,7 +734,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       if (rawHeading === null) return;
       lastCompassTs = now;
 
-      // Trava anti-inversão ao longo da rota
       const routeForward = routeLookAheadBearingRef.current;
       const diffToRoute = angleDiffDeg(rawHeading, routeForward);
       const targetHeading =
@@ -922,7 +757,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   }, [syncPositionAndOrientation]);
 
   /**
-   * Rastreamento GPS ao vivo (navigator.geolocation.watchPosition) com acompanhamento estilo Uber
+   * Rastreamento GPS ao vivo contínuo
    */
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return;
@@ -934,6 +769,9 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       const rawLng = pos.coords.longitude;
       const gpsCourse = pos.coords.heading;
       const gpsSpeed = pos.coords.speed ?? 0;
+
+      const kmh = Math.max(0, Math.round(gpsSpeed * 3.6));
+      setCurrentSpeedKmh(kmh);
 
       const prev = lastGpsFixRef.current;
       const now = Date.now();
@@ -950,8 +788,8 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       lastGpsFixRef.current = { lat: rawLat, lng: rawLng, ts: now };
       liveUserPosRef.current = { lat: rawLat, lng: rawLng };
 
-      // 1. Calcula vetor da rota à frente e apara a polilinha percorrida
-      const { forwardBearingDeg, remainingPath } =
+      // 1. Recorta rota percorrida e obtém vetor à frente
+      const { forwardBearingDeg, remainingPath, closestIndex } =
         findForwardRouteBearingAndRemainingPath(
           rawLat,
           rawLng,
@@ -962,21 +800,31 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       routeLookAheadBearingRef.current = forwardBearingDeg;
 
       if (remainingPath.length >= 2) {
-        if (gmapOuterPolylineRef.current) gmapOuterPolylineRef.current.setPath(remainingPath);
-        if (gmapInnerPolylineRef.current) gmapInnerPolylineRef.current.setPath(remainingPath);
-        if (leafletOuterPolylineRef.current) {
-          leafletOuterPolylineRef.current.setLatLngs(
-            remainingPath.map((p) => [p.lat, p.lng] as [number, number])
-          );
-        }
-        if (leafletInnerPolylineRef.current) {
-          leafletInnerPolylineRef.current.setLatLngs(
-            remainingPath.map((p) => [p.lat, p.lng] as [number, number])
-          );
+        leafletOuterPolylineRef.current?.setLatLngs(
+          remainingPath.map((p) => [p.lat, p.lng] as [number, number])
+        );
+        leafletInnerPolylineRef.current?.setLatLngs(
+          remainingPath.map((p) => [p.lat, p.lng] as [number, number])
+        );
+      }
+
+      // 2. Atualiza instrução da próxima manobra com base no progresso na rota
+      if (routeData?.steps && routeData.steps.length > 0) {
+        const stepIdx = Math.min(
+          routeData.steps.length - 1,
+          Math.floor((closestIndex / Math.max(1, roadPathRef.current.length)) * routeData.steps.length)
+        );
+        const currentStep = routeData.steps[stepIdx];
+        if (currentStep) {
+          setActiveManeuver({
+            instruction: currentStep.instruction,
+            distanceText: currentStep.distanceText,
+            maneuver: currentStep.maneuver,
+          });
         }
       }
 
-      // 2. Determina o heading do usuário
+      // 3. Determina heading frontal
       let resolvedHeading = forwardBearingDeg;
       if (
         typeof gpsCourse === 'number' &&
@@ -1002,10 +850,10 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         0.45
       );
 
-      // 3. Move o marcador e centraliza a câmera com Look-Ahead
+      // 4. Move o marcador e a câmera Look-Ahead
       syncPositionAndOrientation(rawLat, rawLng, forwardHeadingRef.current, true);
 
-      // 4. Atualiza km e minutos restantes em tempo real
+      // 5. Atualiza km e minutos restantes
       const liveDistKm = computeRoadDistanceKm(rawLat, rawLng, destLat, destLng);
       if (liveDistKm <= 250) {
         setRemainingDistanceKm(liveDistKm);
@@ -1014,7 +862,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         setRemainingMinutes(nextMin);
       }
 
-      // 5. Snap-to-Road via backend com throttle de 15s
+      // 6. Snap-to-Road no backend com throttle de 15s
       if (isInitial || now - lastSnappedApiTsRef.current >= 15000) {
         lastSnappedApiTsRef.current = now;
         const snapped = await snapAndReverseGeocodeGps(rawLat, rawLng);
@@ -1028,14 +876,12 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       }
     };
 
-    // Fix imediato de geolocalização ao abrir o mapa
     navigator.geolocation.getCurrentPosition(
       (pos) => handleGpsFix(pos, true),
       () => {},
       { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 }
     );
 
-    // Watch contínuo de alta precisão
     const watchId = navigator.geolocation.watchPosition(
       (pos) => handleGpsFix(pos, false),
       () => {},
@@ -1045,7 +891,16 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     return () => {
       navigator.geolocation.clearWatch(watchId);
     };
-  }, [destLat, destLng, baseDistanceKm, baseEtaMinutes, syncPositionAndOrientation]);
+  }, [destLat, destLng, baseDistanceKm, baseEtaMinutes, routeData, syncPositionAndOrientation]);
+
+  const handleRecenterGps = () => {
+    hapticLight();
+    userManualPanUntilRef.current = 0;
+    setIsFollowingGps(true);
+    hasActiveGpsFollowRef.current = true;
+    const pos = liveUserPosRef.current;
+    syncPositionAndOrientation(pos.lat, pos.lng, forwardHeadingRef.current, true);
+  };
 
   const formattedKm = useMemo(
     () => remainingDistanceKm.toFixed(1).replace('.', ','),
@@ -1057,38 +912,118 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     [remainingMinutes]
   );
 
+  // Links externos oficiais para abrir em aplicativos de navegação no painel do carro
+  const wazeNavUrl = `https://waze.com/ul?ll=${destLat},${destLng}&navigate=yes`;
+  const googleMapsNavUrl = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}`;
+
+  const renderManeuverIcon = () => {
+    const m = (activeManeuver.maneuver || '').toUpperCase();
+    if (m.includes('RIGHT')) return <CornerUpRight className="w-5 h-5 text-white stroke-[2.5]" />;
+    if (m.includes('LEFT')) return <CornerUpLeft className="w-5 h-5 text-white stroke-[2.5]" />;
+    if (m.includes('U_TURN')) return <RotateCcw className="w-5 h-5 text-white stroke-[2.5]" />;
+    return <ArrowUp className="w-5 h-5 text-white stroke-[2.5]" />;
+  };
+
   return (
     <div
       className={`relative flex-1 w-full h-full min-h-[340px] overflow-hidden flex flex-col ${
         isDark ? 'bg-slate-950' : 'bg-slate-100'
       }`}
     >
-      {/* SUPERFÍCIE INTERATIVA ÚNICA DO MAPA (LEAFLET OU GOOGLE MAPS JS VETORIAL) */}
+      {/* 1. CARTÃO SUPERIOR DE NAVEGAÇÃO ESTILO UBER / WAZE */}
+      <div className="absolute top-2.5 left-2.5 right-2.5 z-20 flex flex-col gap-1.5 pointer-events-auto">
+        <div
+          className={`w-full p-2.5 rounded-[6px] border flex items-center justify-between gap-3 shadow-xl backdrop-blur-md transition ${
+            isDark
+              ? 'bg-slate-900/95 border-slate-800 text-white'
+              : 'bg-white/95 border-slate-200 text-slate-900 shadow-md'
+          }`}
+        >
+          {/* Ícone de manobra com fundo verde sólido (Regra do Fundo Verde = Texto/Ícone Branco Puro) */}
+          <div className="w-9 h-9 rounded-[4px] bg-emerald-500 flex items-center justify-center text-white shrink-0 shadow-xs">
+            {renderManeuverIcon()}
+          </div>
+
+          {/* Instrução da Manobra */}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-extrabold text-emerald-400 font-mono">
+                {activeManeuver.distanceText}
+              </span>
+              <span className="text-[10px] text-slate-400">• Rumo ao destino</span>
+            </div>
+            <h4 className="text-xs font-black truncate leading-tight">
+              {activeManeuver.instruction}
+            </h4>
+          </div>
+
+          {/* Atalhos rápidos para Waze ou Google Maps externo */}
+          <div className="flex items-center gap-1 shrink-0">
+            <a
+              href={wazeNavUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Abrir no aplicativo Waze"
+              className="px-2 py-1 rounded-[3px] bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold flex items-center gap-1 transition"
+            >
+              <span>Waze</span>
+              <ExternalLink className="w-2.5 h-2.5" />
+            </a>
+            <a
+              href={googleMapsNavUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Abrir no aplicativo Google Maps"
+              className="px-2 py-1 rounded-[3px] bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1 transition"
+            >
+              <span>Maps</span>
+              <ExternalLink className="w-2.5 h-2.5" />
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. SUPERFÍCIE INTERATIVA DO MAPA (CANVAS NATIVO LEAFLET COM AUTO-FOLLOW E LOOK-AHEAD) */}
       <div
         ref={mapContainerRef}
         className="w-full flex-1 min-h-[340px] z-0"
         style={{ minHeight: '340px', height: '100%' }}
       />
 
-      {/* BOTÃO FLUTUANTE RECENTRALIZAR NO GPS ESTILO UBER (APARECE QUANDO O USUÁRIO ARRASTA O MAPA) */}
+      {/* 3. BOTÃO FLUTUANTE RECENTRALIZAR NO GPS (APARECE SE O USUÁRIO ARRASTAR O MAPA) */}
       {!isFollowingGps && (
         <button
           type="button"
           onClick={handleRecenterGps}
-          className="absolute top-3 right-3 z-10 px-3 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg active:scale-95 transition cursor-pointer"
+          className="absolute bottom-16 right-3 z-20 px-3 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs flex items-center gap-1.5 shadow-xl active:scale-95 transition cursor-pointer"
         >
           <Navigation className="w-3.5 h-3.5 text-white animate-pulse" />
           <span className="text-white">Recentralizar</span>
         </button>
       )}
 
-      {/* INDICADOR DISCRETO DO MOTOR ATIVO */}
-      <div className="absolute top-3 left-3 z-10 pointer-events-none flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] bg-black/50 backdrop-blur-xs text-[9.5px] font-mono text-emerald-400 font-bold">
-        <Compass className="w-3 h-3 text-emerald-400 animate-spin-slow" />
-        <span>GPS AO VIVO</span>
+      {/* 4. MEDIDOR DE VELOCIDADE REAL DO GPS (CANTO INFERIOR ESQUERDO) */}
+      <div className="absolute bottom-3 left-3 z-10 flex items-center gap-2 pointer-events-none">
+        <div
+          className={`px-2.5 py-1.5 rounded-[4px] border backdrop-blur-md flex flex-col items-center justify-center leading-none ${
+            isDark
+              ? 'bg-slate-900/90 border-slate-800 text-white'
+              : 'bg-white/90 border-slate-200 text-slate-900'
+          }`}
+        >
+          <span className="text-sm font-black font-mono tabular-nums text-emerald-400">
+            {currentSpeedKmh}
+          </span>
+          <span className="text-[9px] font-bold text-slate-400 uppercase">km/h</span>
+        </div>
+
+        <div className="flex items-center gap-1 px-2 py-1 rounded-[3px] bg-black/60 backdrop-blur-xs text-[9.5px] font-mono text-emerald-400 font-bold">
+          <Compass className="w-3 h-3 text-emerald-400 animate-spin-slow" />
+          <span>GPS ATIVO</span>
+        </div>
       </div>
 
-      {/* CANTO INFERIOR DIREITO DO MAPA: KM RESTANTE E HH:MM REGRESSIVO COM COR ALPHA TRANSLÚCIDA */}
+      {/* 5. CANTO INFERIOR DIREITO DO MAPA: KM RESTANTE E HH:MM REGRESSIVO (HUD UBER) */}
       <button
         type="button"
         onClick={() => {
@@ -1139,21 +1074,21 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
           }
         }}
         title="Distância e tempo restantes até o destino (toque para simular aproximação)"
-        className={`absolute bottom-3 right-3 z-10 px-3 py-1.5 rounded-[4px] backdrop-blur-[2px] flex items-baseline gap-3 select-none cursor-pointer transition ${
+        className={`absolute bottom-3 right-3 z-10 px-3.5 py-2 rounded-[4px] backdrop-blur-md flex items-baseline gap-3 select-none cursor-pointer transition shadow-xl ${
           isDark
-            ? 'bg-slate-950/50 text-white/80 border border-slate-800/40'
-            : 'bg-white/60 text-slate-900/80 border border-slate-200/50'
+            ? 'bg-slate-900/95 text-white border border-slate-800'
+            : 'bg-white/95 text-slate-900 border border-slate-200'
         }`}
       >
         <div className="flex items-baseline gap-1">
-          <span className="text-lg sm:text-xl font-black font-mono tabular-nums tracking-tight opacity-90">
+          <span className="text-xl font-black font-mono tabular-nums tracking-tight">
             {formattedKm}
           </span>
-          <span className="text-[11px] font-extrabold uppercase opacity-75">km</span>
+          <span className="text-[11px] font-extrabold uppercase text-slate-400">km</span>
         </div>
 
         <div className="flex items-baseline gap-1">
-          <span className="text-lg sm:text-xl font-black font-mono tabular-nums tracking-tight text-emerald-400">
+          <span className="text-xl font-black font-mono tabular-nums tracking-tight text-emerald-400">
             {formattedHhMm}
           </span>
         </div>

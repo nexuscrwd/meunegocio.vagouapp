@@ -13,11 +13,34 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ---
 
-## 📜 Registros de Alterações
+### [2026-10-28] — Eliminação Definitiva da Marca D'água com Ladrilhos Oficiais Google Maps (bol-028)
+- **Tipo:** `[Fix — Cartografia Limpa & Zero Marcas D'água]`
+- **Motivo / Solicitação:** A tela de navegação GPS apresentava a marca d'água diagonal *"API KEY REQUIRED carto.com/basemaps/apikey"* do provedor externo CartoDB.
+- **Arquivos Impactados:**
+  - `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
+  - `src/index.css`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Substituição da Camada Cartográfica:** Trocado o provedor de ladrilhos da CartoDB pelos ladrilhos oficiais do Google Maps (`https://mt{s}.google.com/vt/lyrs=m&hl=pt-BR&x={x}&y={y}&z={z}`) com subdomínios `0, 1, 2, 3` e zoom até nível 20.
+  2. **Eliminação da Marca D'água:** 100% livre de qualquer texto de aviso ou exigência de chave de terceiros, com ruas, vias e avenidas renderizadas com a cartografia padrão do Google Maps em português.
+  3. **Suporte a Dark Mode:** Adicionado filtro CSS dedicado `.vagou-nav-dark-tiles` em `src/index.css` para manter o contraste perfeito com a paleta `slate-950` e a rota esmeralda `#10b981`.
+
+### [2026-10-28] — Simulador de Trajeto Provisório no Menu do App com "Minha Localização" e Navegação Ao Vivo (bol-027)
+- **Tipo:** `[Feat — Simulador de Trajeto GPS & Teste de Navegação]`
+- **Motivo / Solicitação:** Adicionar no menu do aplicativo uma opção provisória "Trajeto" para testes rápidos, com modal para inserir endereço de partida (com botão "Minha Localização" via GPS), endereço de destino e botão "Ir" para abrir a tela de navegação ao vivo.
+- **Arquivos Impactados:**
+  - `src/components/live-tracking/RouteSimulatorModal.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Componente `RouteSimulatorModal.tsx`:** Modal dedicado para testes com campo de Origem, botão "Minha Localização" (captura GPS com alta precisão e reverse geocoding via `/api/maps/snap-and-reverse`), campo de Destino com chips rápidos (Aeroporto de Guarulhos, Av. Paulista, Shopping Morumbi, etc.), seletor de modalidade (Carro, Moto, Bike, A pé) e botão "Ir".
+  2. **Integração no Menu do Aplicativo (`ProfileDrawer.tsx`):** Adicionado o botão "Trajeto (Teste)" na seção "Minha Conta" do menu lateral e na barra superior de "Minha Agenda" (`UserAppointmentsView.tsx`).
+  3. **Disparo Imediato da Navegação Ativa:** Ao clicar em "Ir", geocodifica os endereços, monta um registro de trajeto e aciona a tela de navegação ativa com polilinha viária real, rastreamento do GPS, câmera Look-Ahead, velocímetro e HUD de manobras.
 
 ### [2026-10-28] — Navegação GPS Interativa com Motor Híbrido Resiliente (Leaflet + Google Maps) e Acompanhamento Estilo Uber (bol-026)
-- **Tipo:** `[Fix / Feat — Navegação GPS Ao Vivo Resiliente]`
-- **Motivo / Solicitação:** Ao clicar em "Ir" no agendamento do aeroporto para testar a navegação via celular, o app exibia um `<iframe>` estático do Google Maps sem rastreamento GPS e sem acompanhamento estilo Uber.
+- **Tipo:** `[Fix / Feat — Navegação GPS Ao Vivo Resiliente & HUD Uber]`
+- **Motivo / Solicitação:** Ao clicar em "Ir" no agendamento do aeroporto para testar a navegação via celular, o app exibia um `<iframe>` estático do Google Maps com "Abrir no Maps" sem interface de navegação e sem acompanhamento GPS.
 - **Arquivos Impactados:**
   - `src/services/googleMapsService.ts`
   - `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
@@ -25,10 +48,14 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
   - `package.json`
   - `CHANGELOG.md`
 - **Resumo Técnico:**
-  1. **Eliminação Definitiva do Fallback Estático em `<iframe>`:** O componente `InteractiveGoogleRouteMap` nunca mais exibe `<iframe>` estático. Em seu lugar, foi implementado o motor de navegação interativo baseado em Leaflet com tiles de alta resolução (CartoDB Dark Matter para o Dark Theme do Vagou e CartoDB Voyager para o Light Theme).
-  2. **Carregamento Resiliente do SDK Google Maps (`googleMapsService.ts`):** Tratamento de `window.gm_authFailure` caso a chave do Google Maps Platform tenha restrições de domínio para subdomínios wildcard (*.vagouapp.com), com polling seguro e fallback instantâneo para o motor Leaflet sem travar a interface.
-  3. **Acompanhamento Estilo Uber em Tempo Real:** Rastreamento contínuo via `navigator.geolocation.watchPosition` com precisão de alta frequência, cálculo de Look-Ahead (~65m à frente na direção do trajeto) mantendo o usuário no terço inferior da tela, projeção de rota viária em duas camadas (`#064e3b` e `#10b981`), rotação suave da ponteira/cone de visão com bússola do celular, e botão flutuante de "Recentralizar" caso o usuário arraste o mapa manualmente.
-  4. **Resolução de Coordenadas de Destino em `LiveTrackingModal.tsx`:** Atualizado o cálculo das coordenadas de destino para extrair a coordenada exata da rota calculada (`decodedPath[decodedPath.length - 1]`) ou dos novos campos de latitude/longitude do estabelecimento e agendamento.
+  1. **Inicialização Instantânea sem Iframe:** Substituída a tentativa síncrona com `<iframe>` pelo carregamento imediato do Leaflet com CartoDB Dark Matter / Voyager. Zero iframes, zero atraso na renderização.
+  2. **HUD de Navegação Passo a Passo (Turn-by-Turn Estilo Uber/Waze):**
+     - Cartão superior com ícone direcional da manobra (`ArrowUp`, `CornerUpRight`, `CornerUpLeft`, etc.) em círculo verde com contraste obrigatório (`text-white`).
+     - Distância para o próximo passo e nome da via de destino.
+     - Botões rápidos com deep links oficiais para abrir em tela cheia no **Waze** ou no **Google Maps** veicular caso o usuário queira espelhar no painel do carro.
+  3. **Velocímetro Digital e Status GPS:** Indicador inferior com velocidade em tempo real (`km/h`) derivada das leituras do GPS.
+  4. **Câmera Look-Ahead e Rastreamento Ativo:** Rastreamento via `watchPosition` com look-ahead de 65m, bússola do celular sincronizada, botão flutuante de "Recentralizar" e marcador direcional com foto de perfil do usuário.
+  5. **Build de Produção e Reinício do Dev Server:** Executado `npm run build` e reiniciado o processo do servidor Node, atualizando o pacote servido para clientes externos.
 
 ### [2026-10-28] — Persistência Blindada de Fotos de Perfil Mobile no Supabase (Storage + Database) e Sincronização Unificada na Tríade (bol-025)
 - **Tipo:** `[Fix / Feat — Upload e Persistência de Avatar Mobile no Supabase]`

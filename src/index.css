@@ -183,3 +183,9 @@ html.dark body {
   min-height: 48px;
   min-width: 48px;
 }
+
+/* Ladrilhos do mapa de navegação adaptados ao tema escuro */
+.vagou-nav-dark-tiles {
+  filter: invert(92%) hue-rotate(180deg) brightness(85%) contrast(95%);
+}
+
