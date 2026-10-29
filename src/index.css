@@ -184,8 +184,23 @@ html.dark body {
   min-width: 48px;
 }
 
-/* Ladrilhos do mapa de navegação adaptados ao tema escuro */
-.vagou-nav-dark-tiles {
-  filter: invert(92%) hue-rotate(180deg) brightness(85%) contrast(95%);
+/* Camada de tiles do mapa de navegação: filtro no pane inteiro evita linhas/costuras entre tiles */
+.vagou-map-dark .leaflet-tile-pane {
+  filter: invert(92%) hue-rotate(180deg) brightness(87%) contrast(95%);
+}
+
+.leaflet-container {
+  background-color: #0b0f17 !important;
+}
+
+html:not(.dark) .leaflet-container {
+  background-color: #e2e8f0 !important;
+}
+
+.leaflet-container img.leaflet-tile {
+  outline: 1px solid transparent;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  image-rendering: -webkit-optimize-contrast;
 }
 

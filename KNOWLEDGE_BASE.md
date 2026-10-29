@@ -228,3 +228,9 @@ Os 3 projetos independentes da Tríade possuem repositórios versionados e sober
 ### C. Padrão de Loading Limpo (Bolinha Girando Sem Legenda) & Rótulos Sem Ambiguidade:
 - **Animação de Carregamento Sem Texto:** Enquanto o endereço do `Local Atual` (GPS reverse geocode) ou cálculo de rota estiver sendo processado, exibir exclusivamente o ícone giratório `<Loader2 className="... animate-spin" />` centralizado, sem legendas redundantes como *"Carregando..."* ou *"Reconhecendo localização..."*.
 - **Rótulos Diretos de Origem:** Dentro de janelas que perguntam *"De onde você vai sair?"*, utilizar botões objetivos: **`Local Atual`**, **`De Casa`** (nunca o redundante *"Saindo de Casa"*) e **`Outro Local`**.
+
+### D. Navegação Vertical Course-Up ("Frente p/ Cima"), Map-Matching Ortogonal & Zero Costuras de Tiles:
+- **Course-Up Vertical (`isCourseUp`):** O palco do Leaflet (`w-[164%] h-[164%] inset-[-32%]`) gira por `-mapBearingDeg` (azimute da via à frente), garantindo que o sentido de deslocamento aponte sempre para **CIMA (`0°` vertical)** e a avenida deslize suavemente de cima para baixo conforme o usuário avança. Fotos de avatar e badges usam `rotate(var(--map-counter-rotate, 0deg))` para permanecerem sempre em pé.
+- **Estabilização Anti-Tremor & Map-Matching Ortogonal:** O evento `deviceorientation` (bússola) jamais aciona `lmap.panTo`. A posição do usuário é projetada ortogonalmente sobre o segmento viário mais próximo (`<= 55m`) e o azimute é extraído ao longo da própria polilinha da via (~45m à frente), eliminando oscilações laterais do GPS.
+- **Zero Linhas/Costuras entre Tiles:** Proibido usar zoom fracionado (`16.5`) ou filtro CSS `invert()` em elementos `.leaflet-tile` individuais. Utilizar sempre zoom inteiro (`zoom: 17`, `zoomSnap: 1`) e aplicar o filtro escuro no contêiner `.vagou-map-dark .leaflet-tile-pane` inteiro.
+

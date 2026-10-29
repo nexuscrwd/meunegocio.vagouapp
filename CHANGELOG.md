@@ -13,6 +13,20 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ---
 
+### [2026-10-29] — Navegação Vertical Course-Up (Frente p/ Cima), Map-Matching Ortogonal, Estabilização Zero Tremor e Eliminação de Linhas entre Tiles (bol-030)
+- **Tipo:** `[Fix / Feat — Navegação Vertical Course-Up, Estabilização Anti-Tremor & Renderização Sem Costuras]`
+- **Motivo / Solicitação:** Análise do vídeo enviado pelo usuário mostrando: (1) o mapa tremendo/solto dentro do frame; (2) linhas/traços de grade aparecendo nos blocos do mapa; e (3) o ícone de navegação descendo contra o sentido ao caminhar/dirigir para frente (rumo Sul na Av. Natália Zarif), além da necessidade de girar o mapa na vertical.
+- **Arquivos Impactados:**
+  - `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
+  - `src/index.css`
+  - `KNOWLEDGE_BASE.md`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Modo Navegação Vertical Course-Up ("Frente p/ Cima") + Giro de 2 Dedos:** O estágio do mapa (`164% x 164%` centralizado em `inset-[-32%]`) gira automaticamente por `-roadBearingDeg`, alinhando a via à frente **sempre na vertical para CIMA (`0°` no topo da tela)**. Conforme o usuário avança, a rua desliza suavemente na vertical de cima para baixo enquanto a seta direcional aponta para cima. A foto do avatar e os selos (`Saída` / `Destino`) recebem contra-rotação automática (`--map-counter-rotate`) para permanecerem sempre na horizontal (`0°`).
+  2. **Controlador de Gestos Rotacionado (1 Dedo Pan + 2 Dedos Giro/Zoom + Botão Bússola):** Adicionado suporte a giro livre com 2 dedos, arrasto com 1 dedo corrigido pela matriz de rotação do mapa (`cos/sin`) e botão rápido **`Frente p/ Cima` / `Norte Fixo`** abaixo do cartão de manobra.
+  3. **Estabilização Absoluta Zero Tremor:** Removida a chamada de `lmap.panTo` de dentro do listener `deviceorientation` (que disparava 8 vezes por segundo com o ruído do magnetômetro e fazia o mapa chacoalhar). Implementado **Map-Matching Ortogonal Contínuo** (`findForwardRouteBearingAndRemainingPath`), projetando a posição do usuário diretamente sobre o eixo central da polilinha da rua e calculando o azimute (`bearing`) pelos segmentos da própria via (~45m à frente), eliminando 100% da oscilação lateral do GPS.
+  4. **Eliminação Total de Linhas/Traços entre Tiles (`src/index.css`):** Substituído o zoom fracionado (`16.5` ➔ `17` inteiro com `zoomSnap: 1`) e movido o filtro de tema escuro das imagens individuais `.leaflet-tile` para o contêiner único `.vagou-map-dark .leaflet-tile-pane` com `outline: 1px solid transparent` e `backface-visibility: hidden`, extinguindo as costuras subpixel na GPU mobile.
+
 ### [2026-10-28] — Engenharia GIS Blindada (Zero Linha Reta + Multi-CDN Tiles), Spinner Limpo Sem Legenda e Correção Semântica "De Casa" (bol-029)
 - **Tipo:** `[Fix / Refactor — GIS Georreferência Blindada, Zero Linha Reta & Síntese UX]`
 - **Motivo / Solicitação:** Eliminar definitivamente o fallback de linha reta no mapa e falhas de carregamento de tiles, exibir apenas a animação giratória (bolinha girando sem legenda "Carregando...") enquanto o endereço do local atual é resolvido, e corrigir a ambiguidade do botão *"Saindo de Casa"* para **"De Casa"** na janela *"De onde você vai sair?"*.
