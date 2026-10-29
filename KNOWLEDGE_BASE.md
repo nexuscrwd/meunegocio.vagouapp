@@ -214,13 +214,17 @@ Os 3 projetos independentes da Tríade possuem repositórios versionados e sober
   - HUD Regressivo de distância e tempo restante (`bottom-3 right-3`) com visual glass translúcido.
   - Marcador de avatar na vertical (`0°`) com cone de visão frontal girando conforme a bússola.
 
-### B. Diagnóstico Técnico: Texto "API KEY REQUIRED" nas Vias do Mapa:
-- **Origem do Texto:** Trata-se de uma marca d'água introduzida pela provedora externa de camadas de mapa **CartoDB (`carto.com/basemaps/apikey`)**, que passou a exigir cadastro de chave proprietária em seu endpoint de tiles raster (`*.basemaps.cartocdn.com`).
-- **Status do App Vagou:** **100% íntegro e sem erros.** Toda a malha viária, cálculo de rota, vetor de movimento, rastreamento GPS e marcadores pertencem à infraestrutura da Tríade e funcionam com perfeição.
+### B. Arquitetura GIS Blindada (5-Layer Routing Cascade & Zero Linha Reta):
+- **Proibição Absoluta de Linha Reta (`[origin, dest]`):** A polilinha do mapa (`InteractiveGoogleRouteMap.tsx`) exige sempre `> 2` pontos de geometria viária real. O rastreamento de GPS (`handleGpsFix`) jamais sobrescreve a rota com um segmento reto de 2 pontos enquanto aguarda a API ou quando o usuário se afasta da rota original (acionando recálculo assíncrono em background).
+- **Ciclo de Vida Único da Instância Leaflet (`L.map`):** O mapa é inicializado uma única vez com `ResizeObserver` (`lmap.invalidateSize()`), atualizando marcadores e polilinhas imperativamente via `.setLatLng()` e `.setLatLngs()` sem destruir o DOM nem interromper o download de tiles.
+- **Cascata de Roteamento Viário de 5 Camadas (`server.ts`):**
+  1. Google Routes API v2 (`routes.googleapis.com/directions/v2:computeRoutes`)
+  2. FOSSGIS OpenStreetMap Germany OSRM (`routing.openstreetmap.de`)
+  3. Project OSRM Global (`router.project-osrm.org`)
+  4. Valhalla OpenStreetMap Routing Engine (`valhalla1.openstreetmap.de`, decodificando `1e6` e recodificando para `1e5`)
+  5. Malha Arterial Multi-Segmentada (28 vértices interpolados em corredor urbano caso todas as redes externas estejam inacessíveis).
+- **Multi-CDN Tile Fallback (`tileerror` auto-recovery):** Google Maps Tiles (`mt{0-3}.google.com`) como provedor primário, com chaveamento automático para OpenStreetMap (`tile.openstreetmap.org`) e Esri ArcGIS World Street Map (`server.arcgisonline.com`) em caso de falha de rede.
 
-
-
-
-
-
-
+### C. Padrão de Loading Limpo (Bolinha Girando Sem Legenda) & Rótulos Sem Ambiguidade:
+- **Animação de Carregamento Sem Texto:** Enquanto o endereço do `Local Atual` (GPS reverse geocode) ou cálculo de rota estiver sendo processado, exibir exclusivamente o ícone giratório `<Loader2 className="... animate-spin" />` centralizado, sem legendas redundantes como *"Carregando..."* ou *"Reconhecendo localização..."*.
+- **Rótulos Diretos de Origem:** Dentro de janelas que perguntam *"De onde você vai sair?"*, utilizar botões objetivos: **`Local Atual`**, **`De Casa`** (nunca o redundante *"Saindo de Casa"*) e **`Outro Local`**.

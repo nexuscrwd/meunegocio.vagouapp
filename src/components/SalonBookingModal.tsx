@@ -1779,9 +1779,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               title="Alterar endereço de partida"
             >
               <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <span className="truncate font-bold">
-                {originType === 'home' ? 'Saindo de Casa' : resolvedAddressLabel} ({distanceKm.toFixed(1).replace('.', ',')} km)
-              </span>
+              {isCalculatingRoute ? (
+                <Loader2 className="w-3.5 h-3.5 text-emerald-500 animate-spin shrink-0" />
+              ) : (
+                <span className="truncate font-bold">
+                  {originType === 'home' ? 'De Casa' : resolvedAddressLabel} ({distanceKm.toFixed(1).replace('.', ',')} km)
+                </span>
+              )}
             </button>
 
             {propitiousSuggestion && (
@@ -2577,7 +2581,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 }`}
               >
                 <Home className={`w-4 h-4 shrink-0 ${originType === 'home' ? 'text-white' : 'text-emerald-500'}`} />
-                <span className={`leading-tight whitespace-nowrap ${originType === 'home' ? 'text-white' : ''}`}>Saindo de Casa</span>
+                <span className={`leading-tight whitespace-nowrap ${originType === 'home' ? 'text-white' : ''}`}>De Casa</span>
               </button>
 
               <button
@@ -2602,27 +2606,33 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
 
             {(originType === 'gps' || originType === 'home') && (
               <>
-                <div className={`p-3 rounded-[4px] space-y-1.5 text-xs font-bold ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'}`}>
-                  <div className="flex items-center gap-1.5 text-emerald-500 truncate">
-                    <Navigation className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                    <span className="truncate">
-                      {isCalculatingRoute ? 'Reconhecendo localização do dispositivo...' : resolvedAddressLabel}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                    <span>Distância de {formattedDistanceComma} km</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {renderModeIcon(transportMode)}
-                    <span>Trajeto de {formattedEtaHoursAndMinutes}</span>
-                  </div>
-                  {propitiousSuggestion && !returnToRouteModalAfterOrigin && (
-                    <div className="flex items-center gap-1.5 text-emerald-500 pt-1">
-                      <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                      <span>
-                        Dia e horário mais propício: <strong>{propitiousSuggestion.shortDate} às {propitiousSuggestion.timeSlot}</strong>
-                      </span>
+                <div className={`p-3 rounded-[4px] text-xs font-bold ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'}`}>
+                  {isCalculatingRoute ? (
+                    <div className="py-4 flex items-center justify-center">
+                      <Loader2 className="w-5 h-5 text-emerald-500 animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-emerald-500 truncate">
+                        <Navigation className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span className="truncate">{resolvedAddressLabel}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span>Distância de {formattedDistanceComma} km</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {renderModeIcon(transportMode)}
+                        <span>Trajeto de {formattedEtaHoursAndMinutes}</span>
+                      </div>
+                      {propitiousSuggestion && !returnToRouteModalAfterOrigin && (
+                        <div className="flex items-center gap-1.5 text-emerald-500 pt-1">
+                          <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                          <span>
+                            Dia e horário mais propício: <strong>{propitiousSuggestion.shortDate} às {propitiousSuggestion.timeSlot}</strong>
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2772,17 +2782,21 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               </div>
             )}
 
-            <p className={`text-xs leading-relaxed font-bold break-words ${
-              hasCalculatedCustomCep && !isCalculatingRoute
-                ? isDark ? 'text-emerald-400' : 'text-emerald-700'
-                : isDark ? 'text-slate-400' : 'text-slate-500'
-            }`}>
-              {isCalculatingRoute
-                ? 'Calculando distância e melhor horário...'
-                : hasCalculatedCustomCep && resolvedAddressLabel
-                ? resolvedAddressLabel
-                : 'Informe o CEP ou Cidade/Estado acima.'}
-            </p>
+            {isCalculatingRoute ? (
+              <div className="py-3 flex items-center justify-center">
+                <Loader2 className="w-5 h-5 text-emerald-500 animate-spin" />
+              </div>
+            ) : (
+              <p className={`text-xs leading-relaxed font-bold break-words ${
+                hasCalculatedCustomCep
+                  ? isDark ? 'text-emerald-400' : 'text-emerald-700'
+                  : isDark ? 'text-slate-400' : 'text-slate-500'
+              }`}>
+                {hasCalculatedCustomCep && resolvedAddressLabel
+                  ? resolvedAddressLabel
+                  : 'Informe o CEP ou Cidade/Estado acima.'}
+              </p>
+            )}
 
             {hasCalculatedCustomCep && !isCalculatingRoute && (
               <div className={`p-3 rounded-[4px] space-y-1.5 text-xs font-bold ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'}`}>

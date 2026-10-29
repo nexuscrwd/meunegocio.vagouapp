@@ -10,6 +10,7 @@ import {
   Sparkles,
   Loader2,
   CheckCircle2,
+  Home,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
@@ -33,9 +34,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
 }) => {
   const { isDark } = useTheme();
 
-  const [originAddress, setOriginAddress] = useState<string>(
-    defaultOriginAddress || 'Minha Localização (GPS)'
-  );
+  const [originAddress, setOriginAddress] = useState<string>(defaultOriginAddress || '');
   const [originCoords, setOriginCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const [destAddress, setDestAddress] = useState<string>(
@@ -48,26 +47,48 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
-  // Tenta obter o GPS real do dispositivo imediatamente ao abrir
+  // Obtém o GPS real do dispositivo imediatamente ao abrir, exibindo a bolinha girando sem texto de carregando
   useEffect(() => {
     if (!isOpen) return;
+    let active = true;
 
     if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      setIsLocatingOrigin(true);
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
+          if (!active) return;
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
           setOriginCoords({ lat, lng });
 
           const snapped = await snapAndReverseGeocodeGps(lat, lng);
+          if (!active) return;
           if (snapped?.formattedAddress || snapped?.streetName) {
             setOriginAddress(snapped.formattedAddress || snapped.streetName);
+          } else {
+            setOriginAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+          }
+          setIsLocatingOrigin(false);
+        },
+        () => {
+          if (!active) return;
+          setIsLocatingOrigin(false);
+          if (!originAddress) {
+            const saved =
+              localStorage.getItem('vagou_user_address') ||
+              localStorage.getItem('vagou_user_cep') ||
+              'Av. Paulista, 1000 - São Paulo, SP';
+            setOriginAddress(saved);
           }
         },
-        () => {},
         { enableHighAccuracy: true, timeout: 6000 }
       );
     }
+
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -80,11 +101,11 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
     }
 
     setIsLocatingOrigin(true);
+    setOriginAddress('');
     setErrorMessage('');
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        setIsLocatingOrigin(false);
         hapticSuccess();
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
@@ -94,8 +115,9 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
         if (snapped?.formattedAddress || snapped?.streetName) {
           setOriginAddress(snapped.formattedAddress || snapped.streetName);
         } else {
-          setOriginAddress(`Local Atual (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+          setOriginAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
         }
+        setIsLocatingOrigin(false);
       },
       (err) => {
         setIsLocatingOrigin(false);
@@ -107,6 +129,18 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
       },
       { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 }
     );
+  };
+
+  const handleUseHomeAddress = () => {
+    hapticLight();
+    setErrorMessage('');
+    const savedHome =
+      localStorage.getItem('vagou_user_address') ||
+      localStorage.getItem('vagou_user_cep') ||
+      localStorage.getItem('vagou_client_test_address') ||
+      '08235-770';
+    setOriginCoords(null);
+    setOriginAddress(savedHome);
   };
 
   const geocodeAddress = async (query: string): Promise<{ lat: number; lng: number } | null> => {
@@ -151,7 +185,6 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
         resolvedOrigin = await geocodeAddress(cleanOrigin);
       }
       if (!resolvedOrigin) {
-        // Coordenadas fallback (São Paulo Central)
         resolvedOrigin = { lat: -23.5505, lng: -46.6333 };
       }
 
@@ -161,9 +194,13 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
         resolvedDest = await geocodeAddress(cleanDest);
       }
       if (!resolvedDest) {
-        // Se for Aeroporto de Guarulhos
-        if (cleanDest.toLowerCase().includes('guarulhos') || cleanDest.toLowerCase().includes('aeroporto')) {
+        if (
+          cleanDest.toLowerCase().includes('guarulhos') ||
+          cleanDest.toLowerCase().includes('aeroporto')
+        ) {
           resolvedDest = { lat: -23.4356, lng: -46.4731 };
+        } else if (cleanDest.toLowerCase().includes('paulista')) {
+          resolvedDest = { lat: -23.5614, lng: -46.6559 };
         } else {
           resolvedDest = { lat: -23.5621, lng: -46.4795 };
         }
@@ -280,29 +317,46 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
             </div>
           )}
 
-          {/* CAMPO 1: ENDEREÇO DE PARTIDA + BOTÃO MINHA LOCALIZAÇÃO */}
+          {/* CAMPO 1: DE ONDE VOCÊ VAI SAIR? */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-2">
               <label className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Ponto de Partida (Origem)</span>
+                <span>De onde você vai sair?</span>
               </label>
 
-              {/* Botão "Minha Localização" */}
-              <button
-                type="button"
-                onClick={handleUseCurrentLocation}
-                disabled={isLocatingOrigin}
-                className="px-2.5 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10.5px] flex items-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
-                title="Detectar automaticamente o endereço via GPS do celular"
-              >
-                {isLocatingOrigin ? (
-                  <Loader2 className="w-3 h-3 text-white animate-spin" />
-                ) : (
-                  <Compass className="w-3 h-3 text-white animate-pulse" />
-                )}
-                <span className="text-white">Minha Localização</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                {/* Botão "Local Atual" */}
+                <button
+                  type="button"
+                  onClick={handleUseCurrentLocation}
+                  disabled={isLocatingOrigin}
+                  className="px-2.5 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10.5px] flex items-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                  title="Detectar endereço via GPS do celular"
+                >
+                  {isLocatingOrigin ? (
+                    <Loader2 className="w-3 h-3 text-white animate-spin" />
+                  ) : (
+                    <Compass className="w-3 h-3 text-white" />
+                  )}
+                  <span className="text-white">Local Atual</span>
+                </button>
+
+                {/* Botão "De Casa" */}
+                <button
+                  type="button"
+                  onClick={handleUseHomeAddress}
+                  className={`px-2.5 py-1 rounded-[4px] border font-bold text-[10.5px] flex items-center gap-1 transition cursor-pointer active:scale-95 ${
+                    isDark
+                      ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-emerald-500/50'
+                      : 'bg-slate-100 border-slate-300 text-slate-800 hover:border-emerald-500/50'
+                  }`}
+                  title="Usar endereço de casa salvo"
+                >
+                  <Home className="w-3 h-3 text-emerald-500" />
+                  <span>De Casa</span>
+                </button>
+              </div>
             </div>
 
             <div className="relative">
@@ -313,16 +367,21 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                   setOriginAddress(e.target.value);
                   setOriginCoords(null);
                 }}
-                placeholder="Ex: Rod. Ayrton Senna, 1370 ou seu endereço atual"
-                className={`w-full px-3 py-2.5 rounded-[4px] border text-xs outline-hidden transition ${
+                placeholder={isLocatingOrigin ? '' : 'Digite o endereço ou CEP de partida'}
+                className={`w-full px-3 py-2.5 pr-9 rounded-[4px] border text-xs outline-hidden transition ${
                   isDark
                     ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500'
                     : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
                 }`}
               />
+              {isLocatingOrigin && (
+                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+                  <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
+                </div>
+              )}
             </div>
 
-            {originCoords && (
+            {originCoords && !isLocatingOrigin && (
               <p className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                 <span>
@@ -336,7 +395,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
               <Navigation className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Para onde você quer ir (Destino)</span>
+              <span>Para onde você vai?</span>
             </label>
 
             <input

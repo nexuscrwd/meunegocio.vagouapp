@@ -62,6 +62,57 @@ function normalizeBookingTransportMode(mode?: TransportMode): BookingTransportMo
   return 'car';
 }
 
+function resolveAppointmentDestFallbackCoords(appointment: BookingAppointment): {
+  lat: number;
+  lng: number;
+} {
+  const anyApt = appointment as any;
+  const rawLat =
+    anyApt.salonLat ??
+    anyApt.salon_lat ??
+    anyApt.destLat ??
+    anyApt.destinationLat ??
+    anyApt.latitude;
+  const rawLng =
+    anyApt.salonLng ??
+    anyApt.salon_lng ??
+    anyApt.destLng ??
+    anyApt.destinationLng ??
+    anyApt.longitude;
+
+  if (
+    typeof rawLat === 'number' &&
+    typeof rawLng === 'number' &&
+    Number.isFinite(rawLat) &&
+    Number.isFinite(rawLng)
+  ) {
+    return { lat: rawLat, lng: rawLng };
+  }
+
+  const text = `${appointment.address || ''} ${appointment.salonName || ''}`.toLowerCase();
+  if (
+    text.includes('guarulhos') ||
+    text.includes('helio smidt') ||
+    text.includes('hélio smidt') ||
+    text.includes('aeroporto')
+  ) {
+    return { lat: -23.4356, lng: -46.4731 };
+  }
+  if (text.includes('paulista')) {
+    return { lat: -23.5614, lng: -46.6559 };
+  }
+  if (text.includes('morumbi') || text.includes('roque petroni')) {
+    return { lat: -23.6226, lng: -46.6987 };
+  }
+  if (text.includes('ibirapuera')) {
+    return { lat: -23.5874, lng: -46.6576 };
+  }
+  if (text.includes('congonhas')) {
+    return { lat: -23.6261, lng: -46.6564 };
+  }
+  return { lat: -23.5592, lng: -46.6589 };
+}
+
 export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = ({
   isOpen,
   appointment,
@@ -171,29 +222,16 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
         ? liveRouteData.decodedPath[liveRouteData.decodedPath.length - 1]
         : null;
 
-    const dLat = Number(
-      routeDestPt?.lat ??
-      anyApt.salonLat ??
-      anyApt.salon_lat ??
-      anyApt.destLat ??
-      anyApt.latitude ??
-      -23.5592
-    );
-    const dLng = Number(
-      routeDestPt?.lng ??
-      anyApt.salonLng ??
-      anyApt.salon_lng ??
-      anyApt.destLng ??
-      anyApt.longitude ??
-      -46.6589
-    );
+    const fallbackDest = resolveAppointmentDestFallbackCoords(appointment);
+    const dLat = Number(routeDestPt?.lat ?? fallbackDest.lat);
+    const dLng = Number(routeDestPt?.lng ?? fallbackDest.lng);
     return {
       originLat: Number.isFinite(oLat) ? oLat : -23.5505,
       originLng: Number.isFinite(oLng) ? oLng : -46.6333,
-      destLat: Number.isFinite(dLat) ? dLat : -23.5592,
-      destLng: Number.isFinite(dLng) ? dLng : -46.6589,
+      destLat: Number.isFinite(dLat) ? dLat : fallbackDest.lat,
+      destLng: Number.isFinite(dLng) ? dLng : fallbackDest.lng,
     };
-  }, [appointmentKey, deviceGpsOrigin?.lat, deviceGpsOrigin?.lng, liveRouteData]);
+  }, [appointment, appointmentKey, deviceGpsOrigin?.lat, deviceGpsOrigin?.lng, liveRouteData]);
 
   const { secondsUntilNextPing } = useLiveRouteTracker({
     appointment,
@@ -1150,29 +1188,16 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
         ? liveRouteData.decodedPath[liveRouteData.decodedPath.length - 1]
         : null;
 
-    const dLat = Number(
-      routeDestPt?.lat ??
-      anyApt.salonLat ??
-      anyApt.salon_lat ??
-      anyApt.destLat ??
-      anyApt.latitude ??
-      -23.5592
-    );
-    const dLng = Number(
-      routeDestPt?.lng ??
-      anyApt.salonLng ??
-      anyApt.salon_lng ??
-      anyApt.destLng ??
-      anyApt.longitude ??
-      -46.6589
-    );
+    const fallbackDest = resolveAppointmentDestFallbackCoords(appointment);
+    const dLat = Number(routeDestPt?.lat ?? fallbackDest.lat);
+    const dLng = Number(routeDestPt?.lng ?? fallbackDest.lng);
     return {
       originLat: Number.isFinite(oLat) ? oLat : -23.5505,
       originLng: Number.isFinite(oLng) ? oLng : -46.6333,
-      destLat: Number.isFinite(dLat) ? dLat : -23.5592,
-      destLng: Number.isFinite(dLng) ? dLng : -46.6589,
+      destLat: Number.isFinite(dLat) ? dLat : fallbackDest.lat,
+      destLng: Number.isFinite(dLng) ? dLng : fallbackDest.lng,
     };
-  }, [drawerAppointmentKey, deviceGpsOrigin?.lat, deviceGpsOrigin?.lng, liveRouteData]);
+  }, [appointment, drawerAppointmentKey, deviceGpsOrigin?.lat, deviceGpsOrigin?.lng, liveRouteData]);
 
   const { secondsUntilNextPing } = useLiveRouteTracker({
     appointment,

@@ -13,6 +13,24 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ---
 
+### [2026-10-28] — Engenharia GIS Blindada (Zero Linha Reta + Multi-CDN Tiles), Spinner Limpo Sem Legenda e Correção Semântica "De Casa" (bol-029)
+- **Tipo:** `[Fix / Refactor — GIS Georreferência Blindada, Zero Linha Reta & Síntese UX]`
+- **Motivo / Solicitação:** Eliminar definitivamente o fallback de linha reta no mapa e falhas de carregamento de tiles, exibir apenas a animação giratória (bolinha girando sem legenda "Carregando...") enquanto o endereço do local atual é resolvido, e corrigir a ambiguidade do botão *"Saindo de Casa"* para **"De Casa"** na janela *"De onde você vai sair?"*.
+- **Arquivos Impactados:**
+  - `server.ts`
+  - `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
+  - `src/components/live-tracking/LiveTrackingModal.tsx`
+  - `src/components/live-tracking/RouteSimulatorModal.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `KNOWLEDGE_BASE.md`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Garantia Absoluta Zero Linha Reta (`InteractiveGoogleRouteMap.tsx`):** Removidos todos os fallbacks de 2 pontos (`[origin, dest]`) em `findForwardRouteBearingAndRemainingPath` e `handleGpsFix`. Quando o GPS ao vivo dispara antes da rota ou fora do traçado (> 220m), o componente preserva a malha viária e dispara recálculo assíncrono por ruas reais.
+  2. **Ciclo de Vida Único do Leaflet + Multi-CDN Tile Auto-Recovery:** `L.map` agora é instanciado uma única vez com `ResizeObserver` (`invalidateSize`), evitando destruição do mapa ao atualizar coordenadas. Adicionado fallback automático de tiles (`tileerror`): Google Maps ➔ OpenStreetMap ➔ Esri ArcGIS World Street Map.
+  3. **Cascata de Roteamento Viário de 5 Camadas (`server.ts`):** `/api/geo/route` e `/api/maps/compute-route` agora resolvem coordenadas de pontos notáveis (Aeroporto de Guarulhos, Av. Paulista, Morumbi, Ibirapuera, Congonhas + Nominatim) e operam em cascata: Google Routes API v2 ➔ FOSSGIS OSRM (`routing.openstreetmap.de`) ➔ OSRM Global (`router.project-osrm.org`) ➔ Valhalla OSM (`valhalla1.openstreetmap.de`) ➔ Corredor Arterial Multi-Segmentado de 28 vértices.
+  4. **Spinner Limpo Sem Texto ("Bolinha Girando"):** Nos modais de origem (`SalonBookingModal.tsx`) e simulador (`RouteSimulatorModal.tsx`), enquanto o endereço do `Local Atual` é geocodificado, exibe-se exclusivamente o `<Loader2 className="animate-spin" />` sem textos redundantes.
+  5. **Correção Semântica ("Saindo de Casa" ➔ "De Casa"):** Ajustado nos botões de escolha de partida e na barra compacta de origem para responder diretamente à pergunta *"De onde você vai sair?"*.
+
 ### [2026-10-28] — Eliminação Definitiva da Marca D'água com Ladrilhos Oficiais Google Maps (bol-028)
 - **Tipo:** `[Fix — Cartografia Limpa & Zero Marcas D'água]`
 - **Motivo / Solicitação:** A tela de navegação GPS apresentava a marca d'água diagonal *"API KEY REQUIRED carto.com/basemaps/apikey"* do provedor externo CartoDB.
