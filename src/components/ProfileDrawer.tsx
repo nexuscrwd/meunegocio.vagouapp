@@ -1073,12 +1073,22 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  const backdropMouseDownRef = useRef(false);
+
   if (!isOpen) return null;
 
   return (
     <div 
       className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-xs transition-opacity animate-in fade-in duration-200 cursor-pointer overflow-hidden"
-      onClick={onClose}
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+          onClose();
+        }
+        backdropMouseDownRef.current = false;
+      }}
       aria-modal="true"
       role="dialog"
     >
@@ -1087,6 +1097,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         className={`w-full max-w-md h-dvh max-h-dvh flex flex-col shadow-2xl transition-transform animate-in slide-in-from-right duration-250 cursor-default overflow-hidden ${
           isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
         }`}
+        onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 1. CABEÇALHO COMPACTO SOMENTE NAS SUB-TELAS (AGENDA, DADOS, ETC.) */}
@@ -1441,6 +1452,33 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           <div className="text-xs font-bold font-['Poppins']">Vagas Relâmpagos</div>
                           <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                             Publicar horários ociosos com vídeo/foto
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                    </button>
+
+                    {/* 6. Utilidades & Google Workspace */}
+                    <button
+                      type="button"
+                      id="menu-option-utilidades-workspace"
+                      onClick={() => {
+                        hapticLight();
+                        onClose();
+                        onNavigateTab?.('utilidades');
+                      }}
+                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-[4px] bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0">
+                          <Mail className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold font-['Poppins']">Utilidades & Workspace</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Gmail, Chat, Drive, Sheets, Tasks e Consumo
                           </div>
                         </div>
                       </div>

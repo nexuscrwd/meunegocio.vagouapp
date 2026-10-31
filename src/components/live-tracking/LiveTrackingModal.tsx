@@ -1,7 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Navigation,
-  MapPin,
   Clock,
   AlertTriangle,
   Check,
@@ -14,6 +13,15 @@ import {
   Home,
   Sparkles,
   ArrowLeft,
+  Share2,
+  ListOrdered,
+  CornerUpLeft,
+  CornerUpRight,
+  RotateCcw,
+  ArrowUp,
+  ChevronUp,
+  ChevronDown,
+  Compass,
 } from 'lucide-react';
 import {
   BookingAppointment,
@@ -38,6 +46,7 @@ import {
   snapAndReverseGeocodeGps,
 } from '../../services/googleMapsService';
 import { InteractiveGoogleRouteMap } from './InteractiveGoogleRouteMap';
+import { SalonLocationGroundingPanel } from '../public/SalonLocationGroundingPanel';
 import { useTheme } from '../../context/ThemeContext';
 import { hapticLight, hapticMedium, hapticSuccess } from '../../utils/haptics';
 
@@ -52,6 +61,342 @@ interface LiveRouteDepartureModalProps {
   onRequestReschedule?: (appointment: BookingAppointment) => void;
   onOpenLiveViewer?: (appointment: BookingAppointment, initialTab: 'timeline' | 'map') => void;
 }
+
+function formatCountdownHhMm(totalMinutes: number): string {
+  const safeMin = Math.max(0, Math.round(totalMinutes));
+  const hours = Math.floor(safeMin / 60);
+  const mins = safeMin % 60;
+  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+}
+
+function renderManeuverIcon(maneuver: string, instruction: string) {
+  const text = (instruction || '').toLowerCase();
+  const m = (maneuver || '').toUpperCase();
+  if (m.includes('LEFT') || text.includes('esquerda')) {
+    return <CornerUpLeft className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />;
+  }
+  if (m.includes('RIGHT') || text.includes('direita')) {
+    return <CornerUpRight className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />;
+  }
+  if (m.includes('UTURN') || text.includes('retorno')) {
+    return <RotateCcw className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />;
+  }
+  return <ArrowUp className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />;
+}
+
+function getShortManeuverText(maneuver: string, instruction: string): string {
+  const text = (instruction || '').toLowerCase();
+  const m = (maneuver || '').toUpperCase();
+  if (m.includes('LEFT') || text.includes('esquerda')) {
+    return 'DOBRE A ESQUERDA';
+  }
+  if (m.includes('RIGHT') || text.includes('direita')) {
+    return 'DOBRE A DIREITA';
+  }
+  if (m.includes('UTURN') || text.includes('retorno')) {
+    return 'FAÇA O RETORNO';
+  }
+  if (m.includes('STRAIGHT') || text.includes('frente') || text.includes('continua')) {
+    return 'SIGA EM FRENTE';
+  }
+  return (instruction || 'SIGA EM FRENTE').toUpperCase();
+}
+
+interface MapGlassBottomSwipeMenuProps {
+  isDark: boolean;
+  distanceKm: number;
+  etaMinutes: number;
+  speedKmh: number;
+  showShareButton?: boolean;
+  isSharingWithSalon: boolean;
+  isSharedFeedback: boolean;
+  onShareWithSalon: () => void;
+  googleMapsUrl: string;
+  wazeUrl: string;
+  hasReachedDestination: boolean;
+  onMarkArrived: () => void;
+  salonName?: string;
+  salonAddress?: string;
+  destLat?: number;
+  destLng?: number;
+}
+
+const MapGlassBottomSwipeMenu: React.FC<MapGlassBottomSwipeMenuProps> = ({
+  isDark,
+  distanceKm,
+  etaMinutes,
+  speedKmh,
+  showShareButton = true,
+  isSharingWithSalon,
+  isSharedFeedback,
+  onShareWithSalon,
+  googleMapsUrl,
+  wazeUrl,
+  hasReachedDestination,
+  onMarkArrived,
+  salonName = 'Estabelecimento',
+  salonAddress = '',
+  destLat,
+  destLng,
+}) => {
+  const [isExpanded, setIsExpanded] = useState<boolean>(true);
+  const [showGroundingRadar, setShowGroundingRadar] = useState<boolean>(false);
+  const touchStartYRef = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 1) {
+      touchStartYRef.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (touchStartYRef.current === null || e.changedTouches.length === 0) return;
+    const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+    touchStartYRef.current = null;
+    if (deltaY < -18 && !isExpanded) {
+      hapticLight();
+      setIsExpanded(true);
+    } else if (deltaY > 18 && isExpanded) {
+      hapticLight();
+      setIsExpanded(false);
+    }
+  };
+
+  return (
+    <div
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      className={`absolute inset-x-0 bottom-0 z-20 rounded-t-2xl border-t backdrop-blur-xl transition-all duration-200 select-none ${
+        isDark
+          ? 'bg-slate-900/60 border-white/20 shadow-[0_-10px_32px_rgba(0,0,0,0.45)] ring-1 ring-inset ring-white/15'
+          : 'bg-white/75 border-white/85 shadow-[0_-10px_30px_rgba(15,23,42,0.16)] ring-1 ring-inset ring-white/60'
+      }`}
+    >
+      {/* Alça de Swipe estilo Google Maps / Waze */}
+      <button
+        type="button"
+        onClick={() => {
+          hapticLight();
+          setIsExpanded((prev) => !prev);
+        }}
+        className="w-full pt-2 pb-1 px-4 flex items-center justify-center relative cursor-pointer"
+        title={isExpanded ? 'Recolher menu do mapa' : 'Expandir menu do mapa'}
+      >
+        <span
+          className={`w-10 h-1 rounded-full transition-colors ${
+            isDark ? 'bg-white/40' : 'bg-slate-400/80'
+          }`}
+        />
+        <span
+          className={`absolute right-3.5 top-1.5 flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider ${
+            isDark ? 'text-slate-300' : 'text-slate-600'
+          }`}
+        >
+          {isExpanded ? (
+            <ChevronDown className="w-3.5 h-3.5" />
+          ) : (
+            <ChevronUp className="w-3.5 h-3.5" />
+          )}
+        </span>
+      </button>
+
+      {/* Informativos em Efeito Vidro Alpha Claro: Distância | Temp. Restante | Velocidade */}
+      <div className="px-3 pb-2.5 pt-0.5">
+        <div
+          className={`grid grid-cols-3 divide-x rounded-[4px] border px-2 py-2 backdrop-blur-md ${
+            isDark
+              ? 'bg-white/[0.08] border-white/15 divide-white/15'
+              : 'bg-white/65 border-white/80 divide-slate-300/70 shadow-2xs'
+          }`}
+        >
+          <div className="px-2 flex flex-col items-center justify-center" title="Distância restante">
+            <span
+              className={`text-[9px] font-extrabold uppercase tracking-wider leading-none mb-1 ${
+                isDark ? 'text-slate-200' : 'text-slate-600'
+              }`}
+            >
+              Distância
+            </span>
+            <span
+              className={`text-sm sm:text-base font-black font-mono tabular-nums leading-none ${
+                isDark ? 'text-white' : 'text-slate-950'
+              }`}
+            >
+              {distanceKm.toFixed(1).replace('.', ',')}{' '}
+              <span className="text-[10px] font-bold opacity-80">km</span>
+            </span>
+          </div>
+
+          <div className="px-2 flex flex-col items-center justify-center" title="Tempo Restante">
+            <span
+              className={`text-[9px] font-extrabold uppercase tracking-wider leading-none mb-1 ${
+                isDark ? 'text-emerald-300' : 'text-emerald-700'
+              }`}
+            >
+              Temp. Restante
+            </span>
+            <span
+              className={`text-sm sm:text-base font-black font-mono tabular-nums leading-none ${
+                isDark ? 'text-emerald-400' : 'text-emerald-600'
+              }`}
+            >
+              {formatCountdownHhMm(etaMinutes)}
+            </span>
+          </div>
+
+          <div
+            className="px-2 flex flex-col items-center justify-center"
+            title="Velocidade atual em tempo real"
+          >
+            <span
+              className={`text-[9px] font-extrabold uppercase tracking-wider leading-none mb-1 ${
+                isDark ? 'text-sky-300' : 'text-sky-700'
+              }`}
+            >
+              Velocidade
+            </span>
+            <span
+              className={`text-sm sm:text-base font-black font-mono tabular-nums leading-none ${
+                isDark ? 'text-sky-400' : 'text-sky-600'
+              }`}
+            >
+              {speedKmh} <span className="text-[10px] font-bold">km/h</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Gaveta Swipe Expandida (Compartilhar com Salão + Abrir no Google Maps / Waze + Cheguei) */}
+        {isExpanded && (
+          <div className="mt-2.5 space-y-2 animate-in fade-in duration-150">
+            {showShareButton && (
+              <button
+                type="button"
+                onClick={onShareWithSalon}
+                className="w-full h-10 px-3.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white font-extrabold text-xs font-['Poppins'] flex items-center justify-between gap-2 transition cursor-pointer shadow-sm"
+                title="Permitir que o salão/barbearia acompanhe sua chegada em tempo real"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  {isSharedFeedback || isSharingWithSalon ? (
+                    <CheckCircle2 className="w-4 h-4 text-white stroke-[2.5] shrink-0" />
+                  ) : (
+                    <Share2 className="w-4 h-4 text-white shrink-0" />
+                  )}
+                  <span className="text-white truncate">
+                    {isSharedFeedback
+                      ? 'Chegada compartilhada com o salão!'
+                      : isSharingWithSalon
+                      ? 'Compartilhando chegada com o salão'
+                      : 'Compartilhar com o Salão'}
+                  </span>
+                </div>
+                <span className="px-1.5 py-0.5 rounded-[3px] bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider shrink-0">
+                  {isSharingWithSalon || isSharedFeedback ? 'Ao Vivo' : 'Avisar'}
+                </span>
+              </button>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <a
+                href={googleMapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => hapticLight()}
+                className={`h-9 px-3 rounded-[4px] border backdrop-blur-md flex items-center justify-center gap-2 font-bold text-xs font-['Poppins'] transition active:scale-95 ${
+                  isDark
+                    ? 'bg-slate-900/75 hover:bg-slate-800/90 border-white/15 text-white'
+                    : 'bg-white/85 hover:bg-white border-slate-300/80 text-slate-900 shadow-2xs'
+                }`}
+                title="Abrir rota no Google Maps"
+              >
+                <img
+                  src="/maps-logo.svg"
+                  alt="Google Maps"
+                  className="w-4 h-4 object-contain shrink-0"
+                />
+                <span className="truncate">Abrir no Maps</span>
+              </a>
+
+              <a
+                href={wazeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => hapticLight()}
+                className={`h-9 px-3 rounded-[4px] border backdrop-blur-md flex items-center justify-center gap-2 font-bold text-xs font-['Poppins'] transition active:scale-95 ${
+                  isDark
+                    ? 'bg-slate-900/75 hover:bg-slate-800/90 border-white/15 text-white'
+                    : 'bg-white/85 hover:bg-white border-slate-300/80 text-slate-900 shadow-2xs'
+                }`}
+                title="Abrir rota no Waze"
+              >
+                <img
+                  src="/waze-logo.svg"
+                  alt="Waze"
+                  className="w-4 h-4 object-contain shrink-0"
+                />
+                <span className="truncate">Abrir no Waze</span>
+              </a>
+            </div>
+
+            {hasReachedDestination && (
+              <button
+                type="button"
+                onClick={onMarkArrived}
+                className="w-full h-10 px-4 rounded-[4px] bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs uppercase tracking-wider inline-flex items-center justify-center gap-2 transition cursor-pointer shadow-sm"
+              >
+                <Check className="w-4 h-4 text-white shrink-0 stroke-[2.5]" />
+                <span className="text-white">Cheguei no Local</span>
+              </button>
+            )}
+
+            {/* Botão para abrir o Radar Google Maps & Busca Google sobre os arredores do destino */}
+            <button
+              type="button"
+              onClick={() => {
+                hapticLight();
+                setShowGroundingRadar((prev) => !prev);
+              }}
+              className={`w-full h-8 px-3 rounded-[4px] flex items-center justify-between text-[11px] font-bold transition cursor-pointer ${
+                showGroundingRadar
+                  ? 'bg-emerald-500 text-white'
+                  : isDark
+                  ? 'bg-slate-900/80 hover:bg-slate-800 text-emerald-400'
+                  : 'bg-white/85 hover:bg-white text-slate-800'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                <Compass
+                  className={`w-3.5 h-3.5 shrink-0 ${
+                    showGroundingRadar ? 'text-white' : 'text-emerald-400'
+                  }`}
+                />
+                <span className={showGroundingRadar ? 'text-white' : ''}>
+                  Radar Maps & Busca da Região (Estacionamento / Trânsito)
+                </span>
+              </span>
+              {showGroundingRadar ? (
+                <ChevronDown className="w-3.5 h-3.5 text-white shrink-0" />
+              ) : (
+                <ChevronUp className="w-3.5 h-3.5 shrink-0" />
+              )}
+            </button>
+
+            {showGroundingRadar && (
+              <div className="max-h-[210px] overflow-y-auto rounded-[4px]">
+                <SalonLocationGroundingPanel
+                  salonName={salonName}
+                  salonAddress={salonAddress}
+                  lat={destLat}
+                  lng={destLng}
+                  isDark={isDark}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 function normalizeBookingTransportMode(mode?: TransportMode): BookingTransportMode {
   if (mode === 'walking') return 'walking';
@@ -124,6 +469,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
   onRequestReschedule,
 }) => {
   const { isDark } = useTheme();
+  const backdropMouseDownRef = useRef(false);
 
   const isAlreadySharing =
     appointment.tracking_status === 'live_sharing' ||
@@ -136,9 +482,24 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
   });
 
   const [activeViewTab, setActiveViewTab] = useState<'map' | 'timeline'>('map');
+  const [isSharedFeedback, setIsSharedFeedback] = useState<boolean>(false);
   const [hasReachedDestination, setHasReachedDestination] = useState<boolean>(
     appointment.tracking_status === 'arrived'
   );
+  const [currentSpeedKmh, setCurrentSpeedKmh] = useState<number>(0);
+  const [liveTelemetry, setLiveTelemetry] = useState<{
+    distanceKm: number;
+    etaMinutes: number;
+  } | null>(null);
+  const [activeManeuver, setActiveManeuver] = useState<{
+    instruction: string;
+    distanceText: string;
+    maneuver: string;
+  }>({
+    instruction: 'Próxima Esquerda',
+    distanceText: 'Em rota',
+    maneuver: 'TURN-LEFT',
+  });
 
   const transportMode: TransportMode = appointment.transport_mode || 'driving';
   const [cancelReason, setCancelReason] = useState<string>('');
@@ -468,19 +829,33 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
   // SE ESTIVER NA TELA EXPANDIDA DE MAPA IN-APP + ITINERÁRIO
   if (step === 'in_app_map') {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-2 bg-black/80 backdrop-blur-xs overflow-hidden animate-in fade-in duration-150">
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-2 bg-black/80 backdrop-blur-xs overflow-hidden animate-in fade-in duration-150"
+        onMouseDown={(e) => {
+          backdropMouseDownRef.current = e.target === e.currentTarget;
+        }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+            onClose();
+          }
+          backdropMouseDownRef.current = false;
+        }}
+      >
         <div
           className={`w-full h-full sm:max-w-5xl sm:max-h-[96vh] sm:border sm:rounded-[4px] shadow-2xl flex flex-col overflow-hidden transition-colors ${
             isDark
               ? 'bg-slate-950 border-slate-800 text-white'
               : 'bg-white border-slate-200 text-slate-900'
           }`}
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* 1. Cabeçalho Principal (Sem botão Abrir Externo) */}
+          {/* 1. Cabeçalho Principal Sincronizado com o Design System do App */}
           <div
-            className={`px-3.5 py-2.5 border-b flex items-center justify-between gap-2 shrink-0 ${
-              isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+            className={`h-13 sm:h-14 px-3 sm:px-4 border-b backdrop-blur-md flex items-center justify-between gap-2 shrink-0 transition-colors ${
+              isDark
+                ? 'bg-[#151A1E]/95 border-slate-800/80'
+                : 'bg-white/95 border-slate-200/90 shadow-xs'
             }`}
           >
             <div className="flex items-center gap-2 min-w-0">
@@ -490,150 +865,236 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                   hapticLight();
                   setStep('question');
                 }}
-                className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
+                className={`w-8 h-8 rounded-[4px] border flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
                   isDark
-                    ? 'bg-slate-800 text-slate-200 hover:text-white'
-                    : 'bg-slate-200 text-slate-700 hover:text-slate-900'
+                    ? 'bg-slate-900/90 hover:bg-slate-800 border-slate-800 text-slate-300 hover:text-white'
+                    : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 hover:text-slate-900 shadow-xs'
                 }`}
                 title="Voltar"
               >
-                <ArrowLeft className="w-3.5 h-3.5 text-emerald-500" />
+                <ArrowLeft className="w-4 h-4 text-emerald-500" />
               </button>
-              <div className="min-w-0">
-                <h3 className="text-xs sm:text-sm font-extrabold font-['Poppins'] leading-snug truncate">
-                  {appointment.salonName || 'Mapa da Rota'}
-                </h3>
-                <p
-                  className={`text-[10px] font-mono truncate ${
-                    isDark ? 'text-slate-400' : 'text-slate-500'
-                  }`}
-                >
-                  {appointment.protocolCode} • {appointment.serviceTitle || appointment.service} às{' '}
-                  {appointment.time || '10:00'}
-                </p>
+
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-[4px] bg-emerald-500 flex items-center justify-center text-white shrink-0 shadow-xs">
+                  <Navigation className="w-4 h-4 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-xs font-extrabold uppercase tracking-wider font-['Poppins'] truncate">
+                    {appointment.salonName || destinationLabel}
+                  </h3>
+                  <p
+                    className={`text-[10px] truncate ${
+                      isDark ? 'text-slate-400' : 'text-slate-500'
+                    }`}
+                  >
+                    Atendimento às {appointment.time || '10:00'}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={onClose}
-              className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
-                isDark
-                  ? 'bg-slate-800 text-slate-300 hover:text-white'
-                  : 'bg-slate-200 text-slate-600 hover:text-slate-900'
-              }`}
-              title="Fechar"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* 2. Sub-cabeçalho com o Endereço de Destino (Somente isso) */}
-          <div
-            className={`px-3.5 py-2 border-b flex items-center gap-2 shrink-0 ${
-              isDark
-                ? 'bg-slate-950 border-slate-800 text-slate-200'
-                : 'bg-slate-50 border-slate-200 text-slate-700'
-            }`}
-          >
-            <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-            <span className="text-xs font-bold truncate">{salonDestAddress}</span>
-          </div>
-
-          {/* 3. Abas de Modo de Visualização: "Mapa" e "Itinerário" */}
-          <div
-            className={`px-3.5 py-2 border-b shrink-0 ${
-              isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
-            }`}
-          >
-            <div
-              className={`grid grid-cols-2 gap-1.5 p-1 rounded-[4px] ${
-                isDark ? 'bg-slate-900' : 'bg-slate-100'
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  hapticLight();
-                  setActiveViewTab('map');
-                }}
-                className={`py-2 px-2.5 rounded-[3px] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
-                  activeViewTab === 'map'
-                    ? 'bg-emerald-500 text-white shadow-xs'
-                    : isDark
-                    ? 'text-slate-300 hover:text-white'
-                    : 'text-slate-700 hover:text-slate-900'
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {/* Seletor Segmentado Mapa / Itinerário */}
+              <div
+                className={`h-8 p-0.5 rounded-[4px] border flex items-center gap-0.5 ${
+                  isDark
+                    ? 'bg-slate-900/90 border-slate-800'
+                    : 'bg-slate-100 border-slate-200'
                 }`}
               >
-                <MapIcon
-                  className={`w-3.5 h-3.5 shrink-0 ${
-                    activeViewTab === 'map' ? 'text-white' : 'text-emerald-500'
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    setActiveViewTab('map');
+                  }}
+                  className={`w-7 h-6.5 rounded-[3px] flex items-center justify-center transition cursor-pointer ${
+                    activeViewTab === 'map'
+                      ? 'bg-emerald-500 text-white shadow-xs'
+                      : isDark
+                      ? 'text-slate-300 hover:text-white'
+                      : 'text-slate-700 hover:text-slate-900'
                   }`}
-                />
-                <span className={activeViewTab === 'map' ? 'text-white' : ''}>Mapa</span>
-              </button>
+                  title="Mapa"
+                >
+                  <MapIcon
+                    className={`w-3.5 h-3.5 ${
+                      activeViewTab === 'map' ? 'text-white' : 'text-emerald-500'
+                    }`}
+                  />
+                </button>
 
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    setActiveViewTab('timeline');
+                  }}
+                  className={`w-7 h-6.5 rounded-[3px] flex items-center justify-center transition cursor-pointer ${
+                    activeViewTab === 'timeline'
+                      ? 'bg-emerald-500 text-white shadow-xs'
+                      : isDark
+                      ? 'text-slate-300 hover:text-white'
+                      : 'text-slate-700 hover:text-slate-900'
+                  }`}
+                  title="Itinerário"
+                >
+                  <ListOrdered
+                    className={`w-3.5 h-3.5 ${
+                      activeViewTab === 'timeline' ? 'text-white' : 'text-emerald-500'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Botão Fechar */}
               <button
                 type="button"
-                onClick={() => {
-                  hapticLight();
-                  setActiveViewTab('timeline');
-                }}
-                className={`py-2 px-2.5 rounded-[3px] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
-                  activeViewTab === 'timeline'
-                    ? 'bg-emerald-500 text-white shadow-xs'
-                    : isDark
-                    ? 'text-slate-300 hover:text-white'
-                    : 'text-slate-700 hover:text-slate-900'
+                onClick={onClose}
+                className={`w-8 h-8 rounded-[4px] border flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
+                  isDark
+                    ? 'bg-slate-900/90 hover:bg-slate-800 border-slate-800 text-slate-300 hover:text-white'
+                    : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-600 hover:text-slate-900 shadow-xs'
                 }`}
+                title="Fechar"
               >
-                <Clock
-                  className={`w-3.5 h-3.5 shrink-0 ${
-                    activeViewTab === 'timeline' ? 'text-white' : 'text-emerald-500'
-                  }`}
-                />
-                <span className={activeViewTab === 'timeline' ? 'text-white' : ''}>Itinerário</span>
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* 4. Conteúdo Principal: Aba Mapa Limpo vs Aba Itinerário */}
+          {/* 2. Subcabeçalho Exclusivo de Direção (Próxima Rua) */}
+          <div
+            className={`px-3 sm:px-4 py-2 border-b shrink-0 flex items-center justify-between gap-2.5 transition-colors ${
+              isDark ? 'bg-slate-950 border-slate-800/80' : 'bg-slate-50 border-slate-200/90'
+            }`}
+          >
+            <div
+              className={`w-full flex items-center justify-between gap-2.5 px-3 py-1.5 rounded-[4px] border ${
+                isDark
+                  ? 'bg-amber-500/15 border-amber-500/40'
+                  : 'bg-amber-500/15 border-amber-500/50'
+              }`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                {renderManeuverIcon(activeManeuver.maneuver, activeManeuver.instruction)}
+                <div className="min-w-0 flex flex-col justify-center">
+                  <span className="text-[9px] font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider leading-none mb-0.5">
+                    Próxima Rua
+                  </span>
+                  <span className="text-xs font-extrabold font-['Poppins'] truncate text-slate-900 dark:text-white leading-tight">
+                    {getShortManeuverText(activeManeuver.maneuver, activeManeuver.instruction)}
+                  </span>
+                </div>
+              </div>
+              {activeManeuver.distanceText && (
+                <span className="text-[10px] font-mono tabular-nums font-extrabold text-amber-600 dark:text-amber-400 shrink-0">
+                  {activeManeuver.distanceText}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* 4. Conteúdo Principal: Aba Mapa com Menu Swipe Vidro no Rodapé vs Aba Itinerário */}
           {activeViewTab === 'map' ? (
-            <InteractiveGoogleRouteMap
-              originLat={stableCoords.originLat}
-              originLng={stableCoords.originLng}
-              originLabel={clientOriginAddress}
-              destLat={stableCoords.destLat}
-              destLng={stableCoords.destLng}
-              destLabel={appointment.salonName || salonDestAddress}
-              userAvatarUrl={
-                anyApt.clientAvatar ||
-                anyApt.avatar_url ||
-                (typeof window !== 'undefined'
-                  ? localStorage.getItem('vagou_user_avatar') || ''
-                  : '')
-              }
-              routeData={liveRouteData}
-              initialDistanceKm={metrics.distanceKm}
-              initialEtaMinutes={metrics.etaMinutes}
-              fallbackEmbedUrl={transportLinks.googleMapsEmbedUrl}
-              onLiveGpsUpdate={(lat, lng, snappedStreet) => {
-                const currentEta = appointment.eta_minutes ?? metrics.etaMinutes;
-                syncAppointmentAcrossStorageAndDb(
-                  appointment,
-                  {
-                    client_lat: lat,
-                    client_lng: lng,
-                    ...(snappedStreet ? { current_street_name: snappedStreet } : {}),
-                    tracking_status: currentEta <= 5 ? 'arriving_5min' : 'live_sharing',
-                  },
-                  onUpdateAppointment
-                );
-              }}
-              onDestinationReachedChange={(reached) => {
-                setHasReachedDestination(reached);
-              }}
-            />
+            <div className="relative flex-1 w-full h-full flex flex-col overflow-hidden">
+              <InteractiveGoogleRouteMap
+                originLat={stableCoords.originLat}
+                originLng={stableCoords.originLng}
+                originLabel={clientOriginAddress}
+                destLat={stableCoords.destLat}
+                destLng={stableCoords.destLng}
+                destLabel={appointment.salonName || salonDestAddress}
+                userAvatarUrl={
+                  anyApt.clientAvatar ||
+                  anyApt.avatar_url ||
+                  (typeof window !== 'undefined'
+                    ? localStorage.getItem('vagou_user_avatar') || ''
+                    : '')
+                }
+                routeData={liveRouteData}
+                initialDistanceKm={metrics.distanceKm}
+                initialEtaMinutes={metrics.etaMinutes}
+                fallbackEmbedUrl={transportLinks.googleMapsEmbedUrl}
+                onSpeedUpdate={(speed) => setCurrentSpeedKmh(speed)}
+                onManeuverUpdate={(m) => setActiveManeuver(m)}
+                onTelemetryUpdate={(distKm, etaMin) =>
+                  setLiveTelemetry({ distanceKm: distKm, etaMinutes: etaMin })
+                }
+                onLiveGpsUpdate={(lat, lng, snappedStreet) => {
+                  const currentEta =
+                    liveTelemetry?.etaMinutes ?? appointment.eta_minutes ?? metrics.etaMinutes;
+                  syncAppointmentAcrossStorageAndDb(
+                    appointment,
+                    {
+                      client_lat: lat,
+                      client_lng: lng,
+                      ...(snappedStreet ? { current_street_name: snappedStreet } : {}),
+                      tracking_status: currentEta <= 5 ? 'arriving_5min' : 'live_sharing',
+                    },
+                    onUpdateAppointment
+                  );
+                }}
+                onDestinationReachedChange={(reached) => {
+                  setHasReachedDestination(reached);
+                }}
+              />
+
+              <MapGlassBottomSwipeMenu
+                isDark={isDark}
+                distanceKm={liveTelemetry?.distanceKm ?? metrics.distanceKm}
+                etaMinutes={liveTelemetry?.etaMinutes ?? metrics.etaMinutes}
+                speedKmh={currentSpeedKmh}
+                showShareButton={true}
+                isSharingWithSalon={
+                  appointment.tracking_status === 'live_sharing' ||
+                  appointment.tracking_status === 'arriving_5min'
+                }
+                isSharedFeedback={isSharedFeedback}
+                onShareWithSalon={() => {
+                  hapticSuccess();
+                  const effectiveDist = liveTelemetry?.distanceKm ?? metrics.distanceKm;
+                  const effectiveEta = liveTelemetry?.etaMinutes ?? metrics.etaMinutes;
+                  syncAppointmentAcrossStorageAndDb(
+                    appointment,
+                    {
+                      tracking_status: effectiveEta <= 5 ? 'arriving_5min' : 'live_sharing',
+                      distance_km: Number(effectiveDist.toFixed(2)),
+                      eta_minutes: Math.max(1, Math.round(effectiveEta)),
+                      client_lat: stableCoords.originLat,
+                      client_lng: stableCoords.originLng,
+                      current_street_name:
+                        appointment.current_street_name || clientOriginAddress,
+                    },
+                    onUpdateAppointment
+                  );
+                  fetch('/api/webhooks/rtls', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      event: 'rtls.client_departed',
+                      appointmentId: appointment.id || appointment.protocolCode,
+                      salonName: appointment.salonName,
+                      clientName:
+                        appointment.customerName || appointment.clientName || 'Cliente',
+                      distanceKm: Number(effectiveDist.toFixed(2)),
+                      etaMinutes: Math.max(1, Math.round(effectiveEta)),
+                    }),
+                  }).catch(() => {});
+                  setIsSharedFeedback(true);
+                  setTimeout(() => setIsSharedFeedback(false), 3000);
+                }}
+                googleMapsUrl={transportLinks.googleMapsAppUrl}
+                wazeUrl={transportLinks.wazeAppUrl}
+                hasReachedDestination={hasReachedDestination}
+                onMarkArrived={handleMarkArrived}
+                salonName={appointment.salonName || 'Salão'}
+                salonAddress={salonDestAddress}
+                destLat={stableCoords.destLat}
+                destLng={stableCoords.destLng}
+              />
+            </div>
           ) : (
             <div className="flex-1 w-full overflow-y-auto p-4 space-y-4 text-xs">
               {/* Sequência do Itinerário */}
@@ -785,8 +1246,8 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
             </div>
           )}
 
-          {/* 5. Rodapé Fixo Abaixo do Mapa: Apenas o Botão "Cheguei" (aparece quando o usuário chega ao destino) */}
-          {hasReachedDestination && (
+          {/* 5. Rodapé Fixo para a aba Itinerário quando chega ao destino */}
+          {activeViewTab === 'timeline' && hasReachedDestination && (
             <div
               className={`sticky bottom-0 z-20 px-3.5 py-2.5 border-t shrink-0 ${
                 isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
@@ -810,7 +1271,15 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-xs animate-in fade-in"
-      onClick={onClose}
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+          onClose();
+        }
+        backdropMouseDownRef.current = false;
+      }}
     >
       <div
         className={`w-full max-w-md border-t sm:border rounded-t-2xl sm:rounded-[6px] shadow-2xl flex flex-col max-h-[92vh] overflow-hidden transition-colors ${
@@ -818,6 +1287,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
             ? 'bg-slate-950 border-slate-800 text-white'
             : 'bg-white border-slate-200 text-slate-900'
         }`}
+        onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabeçalho Compacto */}
@@ -1117,10 +1587,26 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
   onUpdateAppointment,
 }) => {
   const { isDark } = useTheme();
+  const backdropMouseDownRef = useRef(false);
   const [activeTab, setActiveTab] = useState<'timeline' | 'map'>(initialTab);
+  const [isSharedFeedback, setIsSharedFeedback] = useState<boolean>(false);
   const [hasReachedDestination, setHasReachedDestination] = useState<boolean>(
     appointment.tracking_status === 'arrived'
   );
+  const [currentSpeedKmh, setCurrentSpeedKmh] = useState<number>(0);
+  const [drawerLiveTelemetry, setDrawerLiveTelemetry] = useState<{
+    distanceKm: number;
+    etaMinutes: number;
+  } | null>(null);
+  const [activeManeuver, setActiveManeuver] = useState<{
+    instruction: string;
+    distanceText: string;
+    maneuver: string;
+  }>({
+    instruction: 'Próxima Esquerda',
+    distanceText: 'Em rota',
+    maneuver: 'TURN-LEFT',
+  });
   const transportMode: TransportMode = appointment.transport_mode || 'driving';
   const [liveRouteData, setLiveRouteData] = useState<GoogleComputedRouteResult | null>(null);
   const [deviceGpsOrigin, setDeviceGpsOrigin] = useState<{
@@ -1274,6 +1760,9 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
 
   if (!isOpen) return null;
 
+  const drawerDistanceKm = liveRouteData?.distanceKm ?? appointment.distance_km ?? 3.2;
+  const drawerEtaMinutes = liveRouteData?.etaMinutes ?? appointment.eta_minutes ?? 14;
+
   const checkpoints: LiveRouteCheckpoint[] =
     appointment.route_checkpoints && appointment.route_checkpoints.length > 0
       ? appointment.route_checkpoints
@@ -1326,7 +1815,15 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-2 bg-black/80 backdrop-blur-xs overflow-hidden animate-in fade-in"
-      onClick={onClose}
+      onMouseDown={(e) => {
+        backdropMouseDownRef.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
+          onClose();
+        }
+        backdropMouseDownRef.current = false;
+      }}
     >
       <div
         className={`w-full h-full sm:max-w-5xl sm:max-h-[96vh] sm:border sm:rounded-[4px] shadow-2xl flex flex-col overflow-hidden transition-colors ${
@@ -1334,20 +1831,23 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
             ? 'bg-slate-950 border-slate-800 text-white'
             : 'bg-white border-slate-200 text-slate-900'
         }`}
+        onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 1. Cabeçalho Principal (Sem botão Abrir Externo) */}
+        {/* 1. Cabeçalho Principal Sincronizado com o Design System do App */}
         <div
-          className={`px-3.5 py-2.5 border-b flex items-center justify-between gap-2 shrink-0 ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+          className={`h-13 sm:h-14 px-3 sm:px-4 border-b backdrop-blur-md flex items-center justify-between gap-2 shrink-0 transition-colors ${
+            isDark
+              ? 'bg-[#151A1E]/95 border-slate-800/80'
+              : 'bg-white/95 border-slate-200/90 shadow-xs'
           }`}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-7 h-7 rounded-[4px] bg-emerald-500 flex items-center justify-center text-white shrink-0">
-              <Navigation className="w-3.5 h-3.5 text-white" />
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 rounded-[4px] bg-emerald-500 flex items-center justify-center text-white shrink-0 shadow-xs">
+              <Navigation className="w-4 h-4 text-white" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-xs sm:text-sm font-extrabold uppercase tracking-wider font-['Poppins'] truncate">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider font-['Poppins'] truncate">
                 {actorLabel}
               </h3>
               <p
@@ -1355,34 +1855,111 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                   isDark ? 'text-slate-400' : 'text-slate-500'
                 }`}
               >
-                {appointment.salonName} • Atendimento às {appointment.time || '10:00'}
+                {appointment.salonName} • {appointment.time || '10:00'}
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className={`w-7 h-7 rounded-[4px] flex items-center justify-center cursor-pointer shrink-0 ${
-              isDark
-                ? 'bg-slate-800 text-slate-300 hover:text-white'
-                : 'bg-slate-200 text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Seletor Segmentado Mapa / Itinerário */}
+            <div
+              className={`h-8 p-0.5 rounded-[4px] border flex items-center gap-0.5 ${
+                isDark
+                  ? 'bg-slate-900/90 border-slate-800'
+                  : 'bg-slate-100 border-slate-200'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setActiveTab('map');
+                }}
+                className={`w-7 h-6.5 rounded-[3px] flex items-center justify-center transition cursor-pointer ${
+                  activeTab === 'map'
+                    ? 'bg-emerald-500 text-white shadow-xs'
+                    : isDark
+                    ? 'text-slate-300 hover:text-white'
+                    : 'text-slate-700 hover:text-slate-900'
+                }`}
+                title="Mapa"
+              >
+                <MapIcon
+                  className={`w-3.5 h-3.5 ${
+                    activeTab === 'map' ? 'text-white' : 'text-emerald-500'
+                  }`}
+                />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setActiveTab('timeline');
+                }}
+                className={`w-7 h-6.5 rounded-[3px] flex items-center justify-center transition cursor-pointer ${
+                  activeTab === 'timeline'
+                    ? 'bg-emerald-500 text-white shadow-xs'
+                    : isDark
+                    ? 'text-slate-300 hover:text-white'
+                    : 'text-slate-700 hover:text-slate-900'
+                }`}
+                title="Itinerário"
+              >
+                <ListOrdered
+                  className={`w-3.5 h-3.5 ${
+                    activeTab === 'timeline' ? 'text-white' : 'text-emerald-500'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Botão Fechar */}
+            <button
+              type="button"
+              onClick={onClose}
+              className={`w-8 h-8 rounded-[4px] border flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
+                isDark
+                  ? 'bg-slate-900/90 hover:bg-slate-800 border-slate-800 text-slate-300 hover:text-white'
+                  : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-600 hover:text-slate-900 shadow-xs'
+              }`}
+              title="Fechar"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* 2. Sub-cabeçalho com o Endereço de Destino (Somente isso) */}
+        {/* 2. Subcabeçalho Exclusivo de Direção (Próxima Rua) */}
         <div
-          className={`px-3.5 py-2 border-b flex items-center gap-2 shrink-0 ${
-            isDark
-              ? 'bg-slate-950 border-slate-800 text-slate-200'
-              : 'bg-slate-50 border-slate-200 text-slate-700'
+          className={`px-3 sm:px-4 py-2 border-b shrink-0 flex items-center justify-between gap-2.5 transition-colors ${
+            isDark ? 'bg-slate-950 border-slate-800/80' : 'bg-slate-50 border-slate-200/90'
           }`}
         >
-          <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-          <span className="text-xs font-bold truncate">{salonDestAddress}</span>
+          <div
+            className={`w-full flex items-center justify-between gap-2.5 px-3 py-1.5 rounded-[4px] border ${
+              isDark
+                ? 'bg-amber-500/15 border-amber-500/40'
+                : 'bg-amber-500/15 border-amber-500/50'
+            }`}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              {renderManeuverIcon(activeManeuver.maneuver, activeManeuver.instruction)}
+              <div className="min-w-0 flex flex-col justify-center">
+                <span className="text-[9px] font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider leading-none mb-0.5">
+                  Próxima Rua
+                </span>
+                <span className="text-xs font-extrabold font-['Poppins'] truncate text-slate-900 dark:text-white leading-tight">
+                  {getShortManeuverText(activeManeuver.maneuver, activeManeuver.instruction)}
+                </span>
+              </div>
+            </div>
+            {activeManeuver.distanceText && (
+              <span className="text-[10px] font-mono tabular-nums font-extrabold text-amber-600 dark:text-amber-400 shrink-0">
+                {activeManeuver.distanceText}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Alerta Automático de Chegada Iminente (ETA <= 5 min) */}
@@ -1402,85 +1979,87 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
           </div>
         )}
 
-        {/* 3. Abas de Modo de Visualização: "Mapa" e "Itinerário" */}
-        <div
-          className={`px-3.5 py-2 border-b shrink-0 ${
-            isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
-          }`}
-        >
-          <div
-            className={`grid grid-cols-2 gap-1.5 p-1 rounded-[4px] ${
-              isDark ? 'bg-slate-900' : 'bg-slate-100'
-            }`}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                hapticLight();
-                setActiveTab('map');
-              }}
-              className={`py-2 px-2.5 rounded-[3px] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
-                activeTab === 'map'
-                  ? 'bg-emerald-500 text-white shadow-xs'
-                  : isDark
-                  ? 'text-slate-300 hover:text-white'
-                  : 'text-slate-700 hover:text-slate-900'
-              }`}
-            >
-              <MapIcon
-                className={`w-3.5 h-3.5 shrink-0 ${
-                  activeTab === 'map' ? 'text-white' : 'text-emerald-500'
-                }`}
-              />
-              <span className={activeTab === 'map' ? 'text-white' : ''}>Mapa</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                hapticLight();
-                setActiveTab('timeline');
-              }}
-              className={`py-2 px-2.5 rounded-[3px] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
-                activeTab === 'timeline'
-                  ? 'bg-emerald-500 text-white shadow-xs'
-                  : isDark
-                  ? 'text-slate-300 hover:text-white'
-                  : 'text-slate-700 hover:text-slate-900'
-              }`}
-            >
-              <Clock
-                className={`w-3.5 h-3.5 shrink-0 ${
-                  activeTab === 'timeline' ? 'text-white' : 'text-emerald-500'
-                }`}
-              />
-              <span className={activeTab === 'timeline' ? 'text-white' : ''}>Itinerário</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 4. Conteúdo Principal: Aba Mapa Limpo vs Aba Itinerário */}
+        {/* 4. Conteúdo Principal: Aba Mapa com Menu Swipe Vidro no Rodapé vs Aba Itinerário */}
         {activeTab === 'map' ? (
-          <InteractiveGoogleRouteMap
-            originLat={stableDrawerCoords.originLat}
-            originLng={stableDrawerCoords.originLng}
-            originLabel={clientOriginAddress}
-            destLat={stableDrawerCoords.destLat}
-            destLng={stableDrawerCoords.destLng}
-            destLabel={appointment.salonName || salonDestAddress}
-            userAvatarUrl={
-              anyApt.clientAvatar ||
-              anyApt.avatar_url ||
-              (typeof window !== 'undefined'
-                ? localStorage.getItem('vagou_user_avatar') || ''
-                : '')
-            }
-            routeData={liveRouteData}
-            initialDistanceKm={liveRouteData?.distanceKm ?? appointment.distance_km ?? 3.2}
-            initialEtaMinutes={liveRouteData?.etaMinutes ?? appointment.eta_minutes ?? 14}
-            fallbackEmbedUrl={transportLinks.googleMapsEmbedUrl}
-            onDestinationReachedChange={(reached) => setHasReachedDestination(reached)}
-          />
+          <div className="relative flex-1 w-full h-full flex flex-col overflow-hidden">
+            <InteractiveGoogleRouteMap
+              originLat={stableDrawerCoords.originLat}
+              originLng={stableDrawerCoords.originLng}
+              originLabel={clientOriginAddress}
+              destLat={stableDrawerCoords.destLat}
+              destLng={stableDrawerCoords.destLng}
+              destLabel={appointment.salonName || salonDestAddress}
+              userAvatarUrl={
+                anyApt.clientAvatar ||
+                anyApt.avatar_url ||
+                (typeof window !== 'undefined'
+                  ? localStorage.getItem('vagou_user_avatar') || ''
+                  : '')
+              }
+              routeData={liveRouteData}
+              initialDistanceKm={drawerDistanceKm}
+              initialEtaMinutes={drawerEtaMinutes}
+              fallbackEmbedUrl={transportLinks.googleMapsEmbedUrl}
+              onSpeedUpdate={(speed) => setCurrentSpeedKmh(speed)}
+              onManeuverUpdate={(m) => setActiveManeuver(m)}
+              onTelemetryUpdate={(distKm, etaMin) =>
+                setDrawerLiveTelemetry({ distanceKm: distKm, etaMinutes: etaMin })
+              }
+              onDestinationReachedChange={(reached) => setHasReachedDestination(reached)}
+            />
+
+            <MapGlassBottomSwipeMenu
+              isDark={isDark}
+              distanceKm={drawerLiveTelemetry?.distanceKm ?? drawerDistanceKm}
+              etaMinutes={drawerLiveTelemetry?.etaMinutes ?? drawerEtaMinutes}
+              speedKmh={currentSpeedKmh}
+              showShareButton={viewerRole === 'client'}
+              isSharingWithSalon={
+                appointment.tracking_status === 'live_sharing' ||
+                appointment.tracking_status === 'arriving_5min'
+              }
+              isSharedFeedback={isSharedFeedback}
+              onShareWithSalon={() => {
+                hapticSuccess();
+                const effectiveDist = drawerLiveTelemetry?.distanceKm ?? drawerDistanceKm;
+                const effectiveEta = drawerLiveTelemetry?.etaMinutes ?? drawerEtaMinutes;
+                syncAppointmentAcrossStorageAndDb(
+                  appointment,
+                  {
+                    tracking_status: effectiveEta <= 5 ? 'arriving_5min' : 'live_sharing',
+                    distance_km: Number(effectiveDist.toFixed(2)),
+                    eta_minutes: Math.max(1, Math.round(effectiveEta)),
+                    client_lat: stableDrawerCoords.originLat,
+                    client_lng: stableDrawerCoords.originLng,
+                  },
+                  onUpdateAppointment
+                );
+                fetch('/api/webhooks/rtls', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    event: 'rtls.client_departed',
+                    appointmentId: appointment.id || appointment.protocolCode,
+                    salonName: appointment.salonName,
+                    clientName:
+                      appointment.customerName || appointment.clientName || 'Cliente',
+                    distanceKm: Number(effectiveDist.toFixed(2)),
+                    etaMinutes: Math.max(1, Math.round(effectiveEta)),
+                  }),
+                }).catch(() => {});
+                setIsSharedFeedback(true);
+                setTimeout(() => setIsSharedFeedback(false), 3000);
+              }}
+              googleMapsUrl={transportLinks.googleMapsAppUrl}
+              wazeUrl={transportLinks.wazeAppUrl}
+              hasReachedDestination={hasReachedDestination}
+              onMarkArrived={handleMarkArrived}
+              salonName={appointment.salonName || 'Salão'}
+              salonAddress={salonDestAddress}
+              destLat={stableDrawerCoords.destLat}
+              destLng={stableDrawerCoords.destLng}
+            />
+          </div>
         ) : (
           <div className="p-4 overflow-y-auto space-y-4 text-xs flex-1">
             <div className="space-y-1 pt-1">
@@ -1628,8 +2207,8 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
           </div>
         )}
 
-        {/* 5. Rodapé Fixo Abaixo do Mapa: Apenas o Botão "Cheguei" (aparece quando chega ao destino) */}
-        {hasReachedDestination && (
+        {/* 5. Rodapé Fixo para a aba Itinerário quando chega ao destino */}
+        {activeTab === 'timeline' && hasReachedDestination && (
           <div
             className={`p-3.5 border-t sticky bottom-0 z-20 shrink-0 ${
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'

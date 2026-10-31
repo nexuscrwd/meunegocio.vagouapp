@@ -217,7 +217,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     <nav 
       id="vagou-bottom-nav"
       style={navContainerStyle}
-      className={`shrink-0 w-full h-[66px] px-3 sm:px-6 gap-2 sm:gap-3 flex items-center justify-center z-30 transition-colors pb-[env(safe-area-inset-bottom,0px)] select-none ${navContainerClasses}`}
+      className={`shrink-0 w-full h-[80px] px-3 sm:px-6 gap-2 sm:gap-3 flex items-center justify-center z-30 transition-colors pb-[env(safe-area-inset-bottom,0px)] select-none ${navContainerClasses}`}
     >
       {establishmentTabs.map((tab) => {
         const Icon = tab.icon;

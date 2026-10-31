@@ -131,25 +131,28 @@ export const App: React.FC = () => {
     try {
       const saved = localStorage.getItem('vagou_user_appointments');
       if (saved) {
-        setAppointments(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        setAppointments((prev) => {
+          if (JSON.stringify(prev) === JSON.stringify(parsed)) return prev;
+          return parsed;
+        });
       } else {
-        setAppointments([]);
+        setAppointments((prev) => (prev.length === 0 ? prev : []));
       }
 
       const savedName = localStorage.getItem('vagou_user_name');
       if (savedName) {
-        setUserName(savedName);
+        setUserName((prev) => (prev === savedName ? prev : savedName));
       }
       const savedAvatar = localStorage.getItem('vagou_user_avatar');
       if (savedAvatar && (savedAvatar.includes('unsplash.com') || savedAvatar.includes('images.unsplash'))) {
         localStorage.removeItem('vagou_user_avatar');
-        setUserAvatarUrl('');
+        setUserAvatarUrl((prev) => (prev === '' ? prev : ''));
       } else if (isValidAvatarUrlString(savedAvatar)) {
-        setUserAvatarUrl(savedAvatar.trim());
+        const trimmedAvatar = savedAvatar.trim();
+        setUserAvatarUrl((prev) => (prev === trimmedAvatar ? prev : trimmedAvatar));
       }
-    } catch {
-      setAppointments([]);
-    }
+    } catch {}
 
     // Sincronizar em tempo real com public.appointments no Supabase
     if (isSupabaseConfigured) {
@@ -180,6 +183,9 @@ export const App: React.FC = () => {
                     merged.push(loc);
                   }
                 });
+                if (JSON.stringify(currentLocal) === JSON.stringify(merged)) {
+                  return currentLocal;
+                }
                 try {
                   localStorage.setItem('vagou_user_appointments', JSON.stringify(merged));
                 } catch {}
@@ -585,105 +591,6 @@ export const App: React.FC = () => {
     applyAccentColorToDom(accentColor);
   }, [accentColor]);
 
-  // Escuta Mensagens da Tríade Sync (admvapp postMessage)
-  useEffect(() => {
-    const handleMessage = async (event: MessageEvent) => {
-      const data = event.data;
-      if (!data || typeof data !== 'object') return;
-
-      const isAuthSuccess =
-        data.type === 'VAGOU_REGISTRATION_SUCCESS' ||
-        data.type === 'VAGOU_LOGIN_SUCCESS' ||
-        data.type === 'VAGOU_AUTH_SUCCESS' ||
-        ((data.source === 'VAGOUAPP_EMBED' || data.source === 'VAGOUAPP_FORM') &&
-          (data.event === 'USER_LOGIN_SUCCESS' ||
-            data.event === 'USER_REGISTER_SUCCESS' ||
-            data.event === 'SALON_MASTER_SUCCESS' ||
-            data.action === 'USER_LOGIN_SUCCESS' ||
-            data.action === 'USER_REGISTER_SUCCESS' ||
-            data.action === 'SALON_MASTER_SUCCESS'));
-
-      if (isAuthSuccess) {
-        const payload = data.payload || {};
-        const userObj = data.user || payload.user || {};
-        const resolvedId = userObj.id || data.userId || payload.userId || '';
-        const email = (data.email || userObj.email || payload.email || '').trim().toLowerCase();
-        const name =
-          data.name ||
-          userObj.name ||
-          userObj.user_metadata?.full_name ||
-          payload.name ||
-          payload.fullName ||
-          (email ? email.split('@')[0] : 'Usuário');
-        const phone = data.phone || userObj.phone || userObj.user_metadata?.phone || payload.phone || '';
-        const cpf = (
-          data.cpf ||
-          data.ownerCpf ||
-          userObj.cpf ||
-          userObj.user_metadata?.cpf ||
-          payload.cpf ||
-          payload.ownerCpf ||
-          ''
-        ).replace(/\D/g, '');
-
-        try {
-          if (resolvedId) localStorage.setItem('vagou_auth_user_id', resolvedId);
-          if (name) {
-            localStorage.setItem('vagou_user_name', name);
-            setUserName(name);
-          }
-          if (email) {
-            localStorage.setItem('vagou_user_email', email);
-            localStorage.setItem('vagou_active_partner', email);
-          }
-          if (cpf) {
-            localStorage.setItem('vagou_user_cpf', cpf);
-          }
-          if (phone) {
-            localStorage.setItem('vagou_user_phone', phone);
-          }
-
-          const sessionObj = data.session || payload.session || (data.access_token ? {
-            access_token: data.access_token,
-            refresh_token: data.refresh_token,
-          } : null);
-
-          if (isSupabaseConfigured && supabase) {
-            if (sessionObj?.access_token && sessionObj?.refresh_token) {
-              await supabase.auth.setSession({
-                access_token: sessionObj.access_token,
-                refresh_token: sessionObj.refresh_token,
-              });
-            } else {
-              await supabase.auth.refreshSession().catch(() => {});
-            }
-          }
-
-          window.dispatchEvent(
-            new CustomEvent('vagou:auth-updated', {
-              detail: { userId: resolvedId, email, cpf, name },
-            })
-          );
-
-          setActiveToast({
-            id: String(Date.now()),
-            title: 'Acesso Sincronizado',
-            message: `Olá ${name || 'usuário'}, seu perfil foi conectado com sucesso!`,
-            type: 'success',
-          });
-        } catch (err) {
-          console.error('Erro ao processar postMessage do Admin Master:', err);
-        }
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => {
-      window.removeEventListener('message', handleMessage);
-    };
-  }, []);
-
-
   // Validação Inicial de Subdomínio Wildcard (*.vagouapp.com) e Validação Soberana de Papel (RBAC)
   useEffect(() => {
     async function validateSubdomainAndSession() {
@@ -865,7 +772,7 @@ export const App: React.FC = () => {
             />
           ) : viewMode === 'salon' ? (
             <SalonProfileView
-              key={initialSalonData?.id || currentSubdomain || salonName || 'salon-profile'}
+              key={currentSubdomain || 'salon-profile'}
               salonName={salonName}
               activeSubdomain={currentSubdomain}
               initialSalonData={initialSalonData}

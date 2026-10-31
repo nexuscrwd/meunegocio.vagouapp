@@ -171,7 +171,7 @@ export function generateUuidV4(): string {
 
 /**
  * Verificação Soberana Multi-Camada de Papel e Vínculo com Estabelecimento (RBAC)
- * Suporta login direto Supabase Auth e login cross-subdomain via iframe do admvapp:
+ * Autenticação 100% nativa local integrada ao Supabase:
  * Camada 1: Vínculo direto de Titular/Dono em public.salons (owner_id, email, owner_cpf, branding)
  * Camada 2: Vínculo formal em public.salon_members (user_id + salon_id)
  * Camada 3: Vínculo de equipe em public.professionals (salon_id + email)

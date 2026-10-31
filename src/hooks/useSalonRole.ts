@@ -170,7 +170,7 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
       }
     });
 
-    // Escuta sincronização imediata disparada pelo modal de Login do admvapp (postMessage)
+    // Escuta sincronização imediata disparada pelo modal nativo de autenticação (vagou:auth-updated)
     const handleAuthUpdated = () => {
       if (isMounted) {
         evaluateRole();

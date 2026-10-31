@@ -147,32 +147,22 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').then((reg) => {
-            // Força busca imediata por atualização do Service Worker no servidor
-            reg.update();
+          const isPreviewOrDev =
+            window.location.hostname.includes('run.app') ||
+            window.location.hostname.includes('localhost') ||
+            window.location.hostname.includes('127.0.0.1');
 
-            // Detecta quando um novo Service Worker está pronto
-            reg.addEventListener('updatefound', () => {
-              const newWorker = reg.installing;
-              if (newWorker) {
-                newWorker.addEventListener('statechange', () => {
-                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                    newWorker.postMessage({ type: 'SKIP_WAITING' });
-                  }
-                });
+          if (isPreviewOrDev) {
+            navigator.serviceWorker.getRegistrations().then((registrations) => {
+              for (const reg of registrations) {
+                reg.unregister();
               }
-            });
-          }).catch((err) => {
-            console.log('SW registration error:', err);
-          });
+            }).catch(() => {});
+            return;
+          }
 
-          // Quando o novo Service Worker assumir o controle, recarrega para aplicar os estilos novos
-          let refreshing = false;
-          navigator.serviceWorker.addEventListener('controllerchange', () => {
-            if (!refreshing) {
-              refreshing = true;
-              window.location.reload();
-            }
+          navigator.serviceWorker.register('/sw.js').catch((err) => {
+            console.log('SW registration error:', err);
           });
         });
       }

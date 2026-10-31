@@ -31,11 +31,16 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-  // Initialize Gemini AI
+  // Initialize Gemini AI (Server-Side Only with required User-Agent header)
   const apiKey = process.env.GEMINI_API_KEY;
   let ai: GoogleGenAI | null = null;
   if (apiKey) {
-    ai = new GoogleGenAI({ apiKey });
+    ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: { 'User-Agent': 'aistudio-build' },
+      },
+    });
   }
 
   // Health check
@@ -1109,7 +1114,7 @@ Responda APENAS com o JSON válido, sem blocos de código adicionais além do JS
       contents.push({ text: prompt });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: contents,
         config: {
           responseMimeType: 'application/json',
@@ -1132,6 +1137,290 @@ Responda APENAS com o JSON válido, sem blocos de código adicionais além do JS
       return res.status(500).json({
         error: error.message || 'Erro ao processar a análise com IA.',
       });
+    }
+  });
+
+  // 8. Google Maps Grounding (gemini-3.8-flash + googleMaps tool + Places API New fallback)
+  app.post('/api/grounding/maps', async (req, res) => {
+    try {
+      const {
+        query = '',
+        salonName = '',
+        salonAddress = '',
+        lat,
+        lng,
+      } = req.body || {};
+
+      const cleanQuery = String(query || '').trim() || 'Estacionamentos, cafés e pontos de referência próximos';
+      const contextLocation = [salonName, salonAddress].filter(Boolean).join(' - ');
+      const numericLat = typeof lat === 'number' && !Number.isNaN(lat) ? lat : -23.561684;
+      const numericLng = typeof lng === 'number' && !Number.isNaN(lng) ? lng : -46.655981;
+
+      const mapsSources: Array<{
+        title: string;
+        uri: string;
+        placeId?: string;
+        address?: string;
+        reviewSnippet?: string;
+      }> = [];
+
+      if (ai) {
+        try {
+          const prompt = `Você é um guia urbano conciso para clientes indo ao estabelecimento "${salonName || 'Salão'}" localizado em "${salonAddress || 'São Paulo, SP'}".
+Pergunta / Interesse: "${cleanQuery}".
+Responda em português (pt-BR) de forma muito direta, sintetizada para celular (máximo 3 tópicos curtos), indicando opções reais próximas e dicas práticas de acesso.`;
+
+          const response = await ai.models.generateContent({
+            model: 'gemini-3.8-flash',
+            contents: prompt,
+            config: {
+              tools: [{ googleMaps: {} }],
+              toolConfig: {
+                retrievalConfig: {
+                  latLng: {
+                    latitude: numericLat,
+                    longitude: numericLng,
+                  },
+                },
+              },
+            },
+          });
+
+          const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+          for (const chunk of chunks as any[]) {
+            if (chunk?.maps?.uri) {
+              const snippet =
+                chunk.maps?.placeAnswerSources?.reviewSnippets?.[0]?.content ||
+                chunk.maps?.placeAnswerSources?.reviewSnippets?.[0]?.text ||
+                undefined;
+              mapsSources.push({
+                title: chunk.maps.title || 'Ver no Google Maps',
+                uri: chunk.maps.uri,
+                placeId: chunk.maps.placeId || undefined,
+                reviewSnippet: snippet,
+              });
+            }
+          }
+
+          if (response.text) {
+            // Se groundingChunks vier vazio, enriquecemos com Places API (New) para garantir links reais do Maps
+            if (mapsSources.length === 0) {
+              const mapsKey = getMapsApiKey();
+              if (mapsKey) {
+                try {
+                  const placesRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'X-Goog-Api-Key': mapsKey,
+                      'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.googleMapsUri',
+                      'X-Goog-Maps-Solution-ID': 'gmp_mcp_codeassist_v1_aistudio',
+                    },
+                    body: JSON.stringify({
+                      textQuery: `${cleanQuery} perto de ${salonAddress || salonName || 'São Paulo'}`,
+                      languageCode: 'pt-BR',
+                      regionCode: 'BR',
+                      maxResultCount: 4,
+                    }),
+                  });
+                  if (placesRes.ok) {
+                    const placesData = await placesRes.json();
+                    for (const p of placesData?.places || []) {
+                      const title = p.displayName?.text || p.formattedAddress || 'Local no Google Maps';
+                      const uri =
+                        p.googleMapsUri ||
+                        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                          `${title} ${p.formattedAddress || ''}`
+                        )}${p.id ? `&query_place_id=${encodeURIComponent(p.id)}` : ''}`;
+                      mapsSources.push({
+                        title,
+                        uri,
+                        placeId: p.id,
+                        address: p.formattedAddress,
+                      });
+                    }
+                  }
+                } catch {}
+              }
+            }
+
+            return res.json({
+              text: response.text,
+              sources: mapsSources,
+              model: 'gemini-3.8-flash',
+              groundedBy: 'googleMaps',
+            });
+          }
+        } catch (geminiErr: any) {
+          console.warn('[Maps Grounding] Fallback para Places API (New):', geminiErr?.message);
+        }
+      }
+
+      // Fallback direto via Google Places API (New) caso GEMINI_API_KEY não esteja ativa
+      const mapsKey = getMapsApiKey();
+      if (mapsKey) {
+        const placesRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': mapsKey,
+            'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.googleMapsUri',
+            'X-Goog-Maps-Solution-ID': 'gmp_mcp_codeassist_v1_aistudio',
+          },
+          body: JSON.stringify({
+            textQuery: `${cleanQuery} próximo a ${contextLocation || 'São Paulo, SP'}`,
+            languageCode: 'pt-BR',
+            regionCode: 'BR',
+            maxResultCount: 5,
+          }),
+        });
+
+        if (placesRes.ok) {
+          const placesData = await placesRes.json();
+          const list = Array.isArray(placesData?.places) ? placesData.places : [];
+          for (const p of list) {
+            const title = p.displayName?.text || p.formattedAddress || 'Local no Google Maps';
+            const uri =
+              p.googleMapsUri ||
+              `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                `${title} ${p.formattedAddress || ''}`
+              )}${p.id ? `&query_place_id=${encodeURIComponent(p.id)}` : ''}`;
+            mapsSources.push({
+              title,
+              uri,
+              placeId: p.id,
+              address: p.formattedAddress,
+            });
+          }
+
+          const summaryLines =
+            mapsSources.length > 0
+              ? mapsSources.map((s) => `• **${s.title}**${s.address ? ` — ${s.address}` : ''}`).join('\n')
+              : `Consulte no Google Maps as opções verificadas para "${cleanQuery}" ao redor de ${contextLocation || 'seu destino'}.`;
+
+          return res.json({
+            text: summaryLines,
+            sources: mapsSources,
+            model: 'places-api-new',
+            groundedBy: 'googleMaps',
+          });
+        }
+      }
+
+      // Link direto oficial do Google Maps para a busca solicitada
+      const directMapsUri = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        `${cleanQuery} ${contextLocation}`
+      )}`;
+      return res.json({
+        text: `Explore no Google Maps as referências verificadas para "${cleanQuery}" próximas a ${contextLocation || 'este endereço'}.`,
+        sources: [
+          {
+            title: `${cleanQuery} — Abrir no Google Maps`,
+            uri: directMapsUri,
+          },
+        ],
+        model: 'google-maps-direct',
+        groundedBy: 'googleMaps',
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        error: err?.message || 'Não foi possível consultar dados do Google Maps no momento.',
+      });
+    }
+  });
+
+  // 9. Google Search Grounding (gemini-3.8-flash + googleSearch tool)
+  app.post('/api/grounding/search', async (req, res) => {
+    try {
+      const { query = '', salonName = '', category = 'beleza e barbearia', city = '' } = req.body || {};
+      const cleanQuery = String(query || '').trim() || 'Tendências atuais de cortes e cuidados pessoais';
+
+      if (!ai) {
+        const fallbackSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(
+          `${cleanQuery} ${city || ''}`.trim()
+        )}`;
+        return res.json({
+          text: `Configure a chave GEMINI_API_KEY no servidor para síntese automática ou acesse a busca direta verificada no Google para "${cleanQuery}".`,
+          sources: [
+            {
+              title: `Pesquisar "${cleanQuery}" no Google`,
+              uri: fallbackSearchUrl,
+            },
+          ],
+          model: 'google-search-direct',
+          groundedBy: 'googleSearch',
+        });
+      }
+
+      const prompt = `Contexto: Estabelecimento "${salonName || 'Salão'}" (${category}) em "${city || 'Brasil'}".
+Consulta: "${cleanQuery}".
+Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no celular (máximo 3 pontos diretos em português pt-BR).`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: prompt,
+        config: {
+          tools: [{ googleSearch: {} }],
+        },
+      });
+
+      const rawChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+      const webSources: Array<{ title: string; uri: string }> = [];
+      for (const chunk of rawChunks as any[]) {
+        if (chunk?.web?.uri) {
+          webSources.push({
+            title: chunk.web.title || chunk.web.uri,
+            uri: chunk.web.uri,
+          });
+        }
+      }
+
+      return res.json({
+        text: response.text || 'Resultados atualizados via Google Search.',
+        sources: webSources,
+        model: 'gemini-3.8-flash',
+        groundedBy: 'googleSearch',
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        error: err?.message || 'Falha ao consultar o Google Search Grounding.',
+      });
+    }
+  });
+
+  // 10. Hermes Agent RTLS Webhook Orchestrator (/api/webhooks/rtls)
+  app.post('/api/webhooks/rtls', async (req, res) => {
+    try {
+      const payload = req.body || {};
+      const n8nWebhookUrl = (process.env.N8N_RTLS_WEBHOOK_URL || process.env.N8N_WEBHOOK_URL || '').trim();
+
+      if (n8nWebhookUrl) {
+        try {
+          await fetch(n8nWebhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(process.env.HERMES_WEBHOOK_SECRET
+                ? { 'X-Hermes-Secret': process.env.HERMES_WEBHOOK_SECRET }
+                : {}),
+            },
+            body: JSON.stringify({
+              source: 'mnvapp',
+              timestamp: new Date().toISOString(),
+              ...payload,
+            }),
+            signal: AbortSignal.timeout(4000),
+          });
+        } catch {}
+      }
+
+      return res.json({
+        ok: true,
+        event: payload.event || 'rtls.telemetry',
+        receivedAt: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      return res.status(500).json({ ok: false, error: err?.message || 'Erro no webhook RTLS' });
     }
   });
 

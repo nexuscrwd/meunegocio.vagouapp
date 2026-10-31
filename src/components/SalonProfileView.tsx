@@ -7,11 +7,13 @@ import {
   Scissors, Hand, Smile, Eye, Sparkles, LayoutDashboard,
   Store, Car, MapPin, Clock, Users, Wifi, Coffee, Wind,
   LogOut, EyeOff, User, Share2, Loader2, Bookmark, X,
-  Bike, Bus, Smartphone, Navigation, ExternalLink
+  Bike, Bus, Smartphone, Navigation, ExternalLink, Box
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ServiceOffer, BookingAppointment, SalonAdminSettings, UserPersona, ProfessionalTeamMember } from '../types';
 import { SalonBookingModal, CatalogServiceItem, SalonProfessionalItem } from './SalonBookingModal';
+import { SalonStudio3DView } from './public/SalonStudio3DView';
+import { SalonLocationGroundingPanel } from './public/SalonLocationGroundingPanel';
 import {
   getSavedBookingDraft,
   saveBookingDraft,
@@ -206,7 +208,25 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const { isDark, theme, setTheme, accentColor, setAccentColor: setAccentColorContext } = useTheme();
   const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState<boolean>(false);
   const [profileDrawerInitialTab, setProfileDrawerInitialTab] = useState<'menu' | 'agenda' | 'dados' | 'dependentes' | 'config'>('menu');
-  const [isClientAuthModalOpen, setIsClientAuthModalOpen] = useState<boolean>(false);
+  const [isClientAuthModalOpen, setIsClientAuthModalOpenState] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('vagou_client_auth_modal_open') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const setIsClientAuthModalOpen = useCallback((open: boolean) => {
+    setIsClientAuthModalOpenState(open);
+    try {
+      if (open) {
+        sessionStorage.setItem('vagou_client_auth_modal_open', 'true');
+      } else {
+        sessionStorage.removeItem('vagou_client_auth_modal_open');
+        sessionStorage.removeItem('vagou_client_auth_modal_mode');
+        sessionStorage.removeItem('vagou_register_wizard_draft');
+      }
+    } catch {}
+  }, []);
   const [currentUserName, setCurrentUserName] = useState<string>(userName);
   const [currentUserAvatarUrl, setCurrentUserAvatarUrl] = useState<string>(() => {
     try {
@@ -1143,8 +1163,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             updateDynamicPwaAssets(next.pwaName || next.salonName, next.salonIcon, next.accentColor, next.slogan);
             return next;
           });
-
-          window.dispatchEvent(new CustomEvent('vagou:auth-updated'));
         }
 
         const resolvedSlugKey = (salonRecord.slug || activeSlug || '').trim().toLowerCase();
@@ -1317,7 +1335,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       isMounted = false; 
       unsubscribeSalonApts();
     };
-  }, [salonName, activeSubdomain, initialSalonData, adminSettings.salonSlug, currentSalonDbId]);
+  }, [salonName, activeSubdomain, initialSalonData?.id]);
 
   // Escuta de eventos para atualização instantânea do catálogo de serviços no CRUD
   useEffect(() => {
@@ -2105,7 +2123,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     return catalogServices.slice(start, start + SERVICES_PER_PAGE);
   }, [catalogServices, servicePage]);
 
-  // Controles de swipe/swap para os três blocos da Seção Espaço (0: Equipe, 1: Estrutura, 2: Endereço & Mapa)
+  // Controles de swipe/swap para os três blocos da Seção Espaço (0: Estrutura, 1: Estúdio 3D, 2: Localização & Radar)
   const handleNextEspacoSlide = () => {
     setEspacoSwipeDirection(1);
     setEspacoSlideIndex((prev) => (prev + 1) % 3);
@@ -2158,7 +2176,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             title={salonInfo.name}
           >
           {activeLogo || adminSettings.salonIcon ? (
-            <div className="h-full w-full flex items-center justify-start min-w-0 pl-0 ml-0 py-0 my-0">
+            <div className="h-full w-full flex items-center justify-start min-w-0 p-[5px] ml-[5px] my-0">
               <img 
                 src={activeLogo || adminSettings.salonIcon} 
                 alt={salonInfo.name}
@@ -2166,7 +2184,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               />
             </div>
           ) : (
-            <div className="flex items-center justify-start gap-1.5 min-w-0">
+            <div className="flex items-center justify-start gap-1.5 min-w-0 p-[5px] ml-[5px]">
               <div
                 className="w-8 h-8 rounded-[4px] flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-xs"
                 style={{
@@ -2926,174 +2944,89 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           </div>
 
               <div className="px-3.5 sm:px-4 py-2.5 space-y-2.5 flex-1 min-h-0 flex flex-col justify-start overflow-y-auto">
-                {/* Abas de Navegação Interna da Seção Espaço */}
+                {/* Abas de Navegação Interna da Seção Espaço (Estrutura | Estúdio 3D | Localização & Radar) */}
                 <div className="grid grid-cols-3 gap-1.5 w-full">
-                  {/* Aba 1: Equipe */}
+                  {/* Aba 1: Estrutura */}
                   <button
                     type="button"
                     onClick={() => {
                       setEspacoSwipeDirection(0 < espacoSlideIndex ? -1 : 1);
                       setEspacoSlideIndex(0);
                     }}
-                    className={`py-2 px-1 rounded text-center transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 ${
+                    className={`py-2 px-1 rounded text-center transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                       espacoSlideIndex === 0
-                        ? isDark
-                          ? 'bg-slate-800 text-white font-bold border border-emerald-500/50 shadow-xs'
-                          : 'bg-white text-slate-900 font-bold border border-emerald-500/50 shadow-xs'
-                        : isDark
-                          ? 'bg-slate-900/80 text-slate-400 hover:text-white font-medium border border-slate-800'
-                          : 'bg-slate-100 text-slate-600 hover:text-slate-900 font-medium border border-slate-200'
-                    }`}
-                  >
-                    <Users className={`w-3.5 h-3.5 shrink-0 ${
-                      espacoSlideIndex === 0 ? 'text-emerald-400' : 'text-slate-400'
-                    }`} />
-                    <span className="text-[11px] sm:text-xs tracking-tight truncate">
-                      Equipe
-                    </span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold leading-none ${
-                      espacoSlideIndex === 0
-                        ? 'bg-emerald-500 text-white'
-                        : isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-600'
-                    }`}>
-                      {salonInfo.professionals.length}
-                    </span>
-                  </button>
-
-                  {/* Aba 2: Estrutura */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEspacoSwipeDirection(1 < espacoSlideIndex ? -1 : 1);
-                      setEspacoSlideIndex(1);
-                    }}
-                    className={`py-2 px-1 rounded text-center transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 ${
-                      espacoSlideIndex === 1
-                        ? isDark
-                          ? 'bg-slate-800 text-white font-bold border border-emerald-500/50 shadow-xs'
-                          : 'bg-white text-slate-900 font-bold border border-emerald-500/50 shadow-xs'
+                        ? 'bg-emerald-500 text-white font-bold shadow-xs'
                         : isDark
                           ? 'bg-slate-900/80 text-slate-400 hover:text-white font-medium border border-slate-800'
                           : 'bg-slate-100 text-slate-600 hover:text-slate-900 font-medium border border-slate-200'
                     }`}
                   >
                     <Store className={`w-3.5 h-3.5 shrink-0 ${
-                      espacoSlideIndex === 1 ? 'text-emerald-400' : 'text-slate-400'
+                      espacoSlideIndex === 0 ? 'text-white' : 'text-emerald-400'
                     }`} />
-                    <span className="text-[11px] sm:text-xs tracking-tight truncate">
+                    <span className={`text-[11px] sm:text-xs tracking-tight truncate ${
+                      espacoSlideIndex === 0 ? 'text-white' : ''
+                    }`}>
                       Estrutura
                     </span>
                   </button>
 
-                  {/* Aba 3: Localização */}
+                  {/* Aba 2: Estúdio 3D (Three.js PBR) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEspacoSwipeDirection(1 < espacoSlideIndex ? -1 : 1);
+                      setEspacoSlideIndex(1);
+                    }}
+                    className={`py-2 px-1 rounded text-center transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                      espacoSlideIndex === 1
+                        ? 'bg-emerald-500 text-white font-bold shadow-xs'
+                        : isDark
+                          ? 'bg-slate-900/80 text-slate-400 hover:text-white font-medium border border-slate-800'
+                          : 'bg-slate-100 text-slate-600 hover:text-slate-900 font-medium border border-slate-200'
+                    }`}
+                  >
+                    <Box className={`w-3.5 h-3.5 shrink-0 ${
+                      espacoSlideIndex === 1 ? 'text-white' : 'text-emerald-400'
+                    }`} />
+                    <span className={`text-[11px] sm:text-xs tracking-tight truncate ${
+                      espacoSlideIndex === 1 ? 'text-white' : ''
+                    }`}>
+                      Estúdio 3D
+                    </span>
+                  </button>
+
+                  {/* Aba 3: Localização & Radar Grounding */}
                   <button
                     type="button"
                     onClick={() => {
                       setEspacoSwipeDirection(2 < espacoSlideIndex ? -1 : 1);
                       setEspacoSlideIndex(2);
                     }}
-                    className={`py-2 px-1 rounded text-center transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 ${
+                    className={`py-2 px-1 rounded text-center transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                       espacoSlideIndex === 2
-                        ? isDark
-                          ? 'bg-slate-800 text-white font-bold border border-emerald-500/50 shadow-xs'
-                          : 'bg-white text-slate-900 font-bold border border-emerald-500/50 shadow-xs'
+                        ? 'bg-emerald-500 text-white font-bold shadow-xs'
                         : isDark
                           ? 'bg-slate-900/80 text-slate-400 hover:text-white font-medium border border-slate-800'
                           : 'bg-slate-100 text-slate-600 hover:text-slate-900 font-medium border border-slate-200'
                     }`}
                   >
                     <MapPin className={`w-3.5 h-3.5 shrink-0 ${
-                      espacoSlideIndex === 2 ? 'text-emerald-400' : 'text-slate-400'
+                      espacoSlideIndex === 2 ? 'text-white' : 'text-emerald-400'
                     }`} />
-                    <span className="text-[11px] sm:text-xs tracking-tight truncate">
+                    <span className={`text-[11px] sm:text-xs tracking-tight truncate ${
+                      espacoSlideIndex === 2 ? 'text-white' : ''
+                    }`}>
                       Localização
                     </span>
                   </button>
                 </div>
 
-                {/* Container com Suporte a Gesto Swipe (Arrasto Horizontal para Esquerda e Direita) */}
+                {/* Container de Conteúdo das Abas de Espaço */}
                 <div className="relative overflow-hidden select-none flex-1 min-h-0 flex flex-col justify-between">
                   <AnimatePresence mode="wait" custom={espacoSwipeDirection}>
-                    {/* SLIDE 0: EQUIPE & ESPECIALISTAS */}
+                    {/* SLIDE 0: ESTRUTURA DO ESPAÇO */}
                     {espacoSlideIndex === 0 && (
-                      <motion.div
-                        key="slide-equipe"
-                        custom={espacoSwipeDirection}
-                        initial={{ opacity: 0, x: espacoSwipeDirection > 0 ? 40 : -40 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: espacoSwipeDirection > 0 ? -40 : 40 }}
-                        transition={{ duration: 0.22, ease: 'easeOut' }}
-                        drag="x"
-                        dragConstraints={{ left: 0, right: 0 }}
-                        dragElastic={0.2}
-                        onDragEnd={(_, info) => {
-                          if (info.offset.x < -35 || info.velocity.x < -200) {
-                            handleNextEspacoSlide();
-                          } else if (info.offset.x > 35 || info.velocity.x > 200) {
-                            handlePrevEspacoSlide();
-                          }
-                        }}
-                        className="cursor-grab active:cursor-grabbing touch-pan-y flex-1 min-h-0 flex flex-col"
-                      >
-                        {/* ABA 1: EQUIPE / NOSSO TIME (LAYOUT PLANO, SEM BOX DENTRO DE BOX) */}
-                        <div className={`border rounded p-4 flex-1 min-h-[340px] flex flex-col justify-between transition-colors ${
-                          isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-                        }`}>
-                          <div className="flex-1 min-h-0 flex flex-col">
-                            {/* Título direto e discreto */}
-                            <div className={`flex items-center justify-between pb-3 border-b shrink-0 mb-3 ${
-                              isDark ? 'border-slate-800/80' : 'border-slate-200'
-                            }`}>
-                              <div className="flex items-center gap-2">
-                                <Users className="w-4 h-4 text-emerald-400" />
-                                <h4 className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                  {hasMultipleProfessionals ? 'Nosso Time' : 'Profissional'}
-                                </h4>
-                              </div>
-                              <span className="text-[11px] font-medium text-slate-400">
-                                {salonInfo.professionals.length} {salonInfo.professionals.length === 1 ? 'especialista' : 'especialistas'}
-                              </span>
-                            </div>
-
-                            {/* Grade Aberta e Plana da Equipe */}
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-5 gap-x-4 py-3 overflow-y-auto pr-1 flex-1 min-h-0 no-scrollbar items-start">
-                              {salonInfo.professionals.map((prof, idx) => (
-                                <div 
-                                  key={idx} 
-                                  className="flex flex-col items-center text-center"
-                                >
-                                  {prof.avatar ? (
-                                    <img
-                                      src={prof.avatar}
-                                      alt={prof.name}
-                                      className={`w-20 h-20 sm:w-24 sm:h-24 aspect-square rounded object-cover shadow-xs mb-2 border ${
-                                        isDark ? 'border-slate-800' : 'border-slate-200'
-                                      }`}
-                                      referrerPolicy="no-referrer"
-                                    />
-                                  ) : (
-                                    <div className={`w-20 h-20 sm:w-24 sm:h-24 aspect-square rounded bg-slate-800 flex items-center justify-center shadow-xs mb-2 border ${
-                                      isDark ? 'border-slate-800' : 'border-slate-200'
-                                    }`}>
-                                      <User className="w-8 h-8 text-slate-500" />
-                                    </div>
-                                  )}
-                                  <h5 className={`text-xs font-bold leading-tight truncate w-full px-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                    {prof.name}
-                                  </h5>
-                                  <p className={`text-[11px] leading-snug mt-0.5 truncate w-full px-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                    {prof.role}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-
-                    {/* SLIDE 1: ESTRUTURA DO ESPAÇO */}
-                    {espacoSlideIndex === 1 && (
                       <motion.div
                         key="slide-espaco-estrutura"
                         custom={espacoSwipeDirection}
@@ -3113,25 +3046,39 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         }}
                         className="cursor-grab active:cursor-grabbing touch-pan-y flex-1 min-h-0 flex flex-col"
                       >
-                        {/* ABA 2: CARD DE ESTRUTURA DO ESPAÇO & COMODIDADES */}
+                        {/* ABA 1: CARD DE ESTRUTURA DO ESPAÇO & COMODIDADES */}
                         <div className={`border rounded p-3.5 space-y-3 shadow-xs flex-1 min-h-[340px] flex flex-col justify-between ${
                           isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
                         }`}>
                           <div className="space-y-2.5">
-                            <h3 className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                              <Store className="w-4 h-4 text-emerald-500" />
-                              <span>{salonInfo.isHomeCare ? 'Modalidade de Atendimento' : 'Estrutura do Espaço'}</span>
-                            </h3>
+                            <div className="flex items-center justify-between gap-2">
+                              <h3 className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                <Store className="w-4 h-4 text-emerald-500" />
+                                <span>{salonInfo.isHomeCare ? 'Modalidade de Atendimento' : 'Estrutura do Espaço'}</span>
+                              </h3>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  hapticLight();
+                                  setEspacoSwipeDirection(1);
+                                  setEspacoSlideIndex(1);
+                                }}
+                                className="px-2.5 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+                              >
+                                <Box className="w-3 h-3 text-white shrink-0" />
+                                <span className="text-white">Ver em 3D</span>
+                              </button>
+                            </div>
                             <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                               {salonInfo.description}
                             </p>
                             <div className="grid grid-cols-2 gap-2 pt-1">
                               {salonInfo.amenities.map((amenity, idx) => (
-                                <div key={idx} className={`flex items-center gap-2 p-2.5 rounded border text-xs ${
+                                <div key={idx} className={`flex items-center gap-2 p-2.5 rounded text-xs ${
                                   isDark
-                                    ? 'bg-slate-950 border-slate-800 text-slate-300'
-                                    : 'bg-slate-50 border-slate-200 text-slate-700'
-                                }}`}>
+                                    ? 'bg-slate-950 text-slate-300'
+                                    : 'bg-slate-50 text-slate-700'
+                                }`}>
                                   <amenity.icon className="w-4 h-4 text-emerald-500 shrink-0" />
                                   <span className="truncate font-medium">{amenity.label}</span>
                                 </div>
@@ -3149,7 +3096,30 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                       </motion.div>
                     )}
 
-                    {/* SLIDE 2: ENDEREÇO & MAPA EMBED */}
+                    {/* SLIDE 1: ESTÚDIO 3D INTERATIVO (THREE.JS STUDIO PBR) */}
+                    {espacoSlideIndex === 1 && (
+                      <motion.div
+                        key="slide-espaco-3d"
+                        custom={espacoSwipeDirection}
+                        initial={{ opacity: 0, x: espacoSwipeDirection > 0 ? 40 : -40 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: espacoSwipeDirection > 0 ? -40 : 40 }}
+                        transition={{ duration: 0.22, ease: 'easeOut' }}
+                        className="flex-1 min-h-0 flex flex-col"
+                      >
+                        <SalonStudio3DView
+                          salonName={salonInfo.name}
+                          category={adminSettings.category}
+                          accentColor={adminSettings.accentColor || '#20C933'}
+                          isDark={isDark}
+                          onSelectStationForBooking={() => {
+                            handleSelectTab('vagas');
+                          }}
+                        />
+                      </motion.div>
+                    )}
+
+                    {/* SLIDE 2: ENDEREÇO, MAPA EMBED & RADAR GOOGLE MAPS / SEARCH GROUNDING */}
                     {espacoSlideIndex === 2 && (
                       <motion.div
                         key="slide-espaco-mapa"
@@ -3158,20 +3128,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: espacoSwipeDirection > 0 ? -40 : 40 }}
                         transition={{ duration: 0.22, ease: 'easeOut' }}
-                        drag="x"
-                        dragConstraints={{ left: 0, right: 0 }}
-                        dragElastic={0.2}
-                        onDragEnd={(_, info) => {
-                          if (info.offset.x < -35 || info.velocity.x < -200) {
-                            handleNextEspacoSlide();
-                          } else if (info.offset.x > 35 || info.velocity.x > 200) {
-                            handlePrevEspacoSlide();
-                          }
-                        }}
-                        className="cursor-grab active:cursor-grabbing touch-pan-y flex-1 min-h-0 flex flex-col"
+                        className="flex-1 min-h-0 flex flex-col space-y-2.5"
                       >
-                        {/* ABA 3: CARD DE ENDEREÇO, COMO CHEGAR & MAPA EMBED */}
-                        <div className={`border rounded p-3.5 space-y-3 shadow-xs flex-1 min-h-[340px] flex flex-col justify-between ${
+                        {/* ABA 3: CARD DE ENDEREÇO, COMO CHEGAR, MAPA EMBED & RADAR GROUNDING */}
+                        <div className={`border rounded p-3.5 space-y-3 shadow-xs flex-1 flex flex-col justify-between ${
                           isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
                         }`}>
                           {/* Endereço e Horário */}
@@ -3196,9 +3156,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                           </div>
 
                           {/* Abaixo: Mapa Embed */}
-                          <div className="space-y-1.5 pt-0.5 flex-1 min-h-0 flex flex-col">
-                            <div className={`relative w-full flex-1 min-h-[160px] sm:min-h-[190px] rounded overflow-hidden border shadow-xs ${
-                              isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-100'
+                          <div className="space-y-1.5 pt-0.5 flex flex-col">
+                            <div className={`relative w-full h-[155px] sm:h-[175px] rounded overflow-hidden shadow-xs ${
+                              isDark ? 'bg-slate-950' : 'bg-slate-100'
                             }`}>
                               <iframe
                                 title={`Localização no Google Maps - ${salonInfo.name}`}
@@ -3213,13 +3173,32 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                                 href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(salonInfo.name + ' ' + salonInfo.address)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="absolute bottom-2 right-2 px-2.5 py-1.5 bg-slate-950/90 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/30 rounded text-[10px] font-bold shadow-md backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 uppercase tracking-wider"
+                                className="absolute bottom-2 right-2 px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[10px] font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 uppercase tracking-wider whitespace-nowrap"
                               >
-                                <MapPin className="w-3 h-3 text-emerald-400" />
-                                <span>Rota no Maps</span>
+                                <MapPin className="w-3 h-3 text-white" />
+                                <span className="text-white">Rota no Maps</span>
                               </a>
                             </div>
                           </div>
+
+                          {/* Radar Inteligente Google Maps & Google Search Grounding (gemini-3.8-flash) */}
+                          <SalonLocationGroundingPanel
+                            salonName={salonInfo.name}
+                            salonAddress={salonInfo.address}
+                            salonCity={salonInfo.city}
+                            category={adminSettings.category || 'barbearia'}
+                            lat={
+                              initialSalonData?.latitude
+                                ? Number(initialSalonData.latitude)
+                                : undefined
+                            }
+                            lng={
+                              initialSalonData?.longitude
+                                ? Number(initialSalonData.longitude)
+                                : undefined
+                            }
+                            isDark={isDark}
+                          />
                         </div>
                       </motion.div>
                     )}
@@ -3228,7 +3207,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   {/* Dica de Swipe e Indicador de Pontos */}
                   <div className="mt-2 flex items-center justify-between px-1">
                     <span className="text-[10px] text-slate-400">
-                      Deslize para alternar entre as abas
+                      Toque nas abas para alternar entre Estrutura, 3D e Radar Maps
                     </span>
                     <div className="flex items-center gap-1.5">
                       {[0, 1, 2].map((dotIdx) => (
@@ -3319,7 +3298,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         return (
           <footer className={`w-full z-30 shrink-0 ${
             isHeroOverlay && (adminSettings.navBgStyle === 'transparent' || adminSettings.navBgStyle === 'glass')
-              ? '-mt-[66px] pointer-events-none'
+              ? '-mt-[80px] pointer-events-none'
               : ''
           }`}>
             <div className="pointer-events-auto w-full">
@@ -3643,7 +3622,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           }}
           salonName={salonInfo.name}
           salonSlug={adminSettings.salonSlug || activeSubdomain || ''}
-          salonLogo={activeLogo}
+          salonLogo={activeLogo || adminSettings.salonIcon || ''}
           salonLogoLight={adminSettings.salonLogoLight || ''}
           salonLogoDark={adminSettings.salonLogoDark || ''}
           primaryColor={adminSettings.accentColor || '#20C933'}

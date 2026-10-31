@@ -8,7 +8,8 @@ import {
   Layers,
   Droplets,
   Building2,
-  Gauge
+  Gauge,
+  Mail
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { BookingAppointment, CatalogServiceItem, UserPersona, SalonAdminSettings } from '../../types';
@@ -19,6 +20,7 @@ import { EnergyMeterManager } from './consumption/EnergyMeterManager';
 import { WaterConsumptionManager } from './consumption/WaterConsumptionManager';
 import { OperationalEquipmentsManager } from './consumption/OperationalEquipmentsManager';
 import { InfrastructureEquipmentsManager } from './consumption/InfrastructureEquipmentsManager';
+import { GoogleWorkspaceHub } from './GoogleWorkspaceHub';
 import { fetchSalonUtilitiesFromDatabase, syncAllLocalUtilitiesToDatabase } from '../../services/mnvSupabaseSync';
 
 export type UtilitiesSubTab = 
@@ -30,6 +32,7 @@ export type UtilitiesSubTab =
   | 'consumo_equip_infra'
   | 'financeiro'
   | 'insumos'
+  | 'workspace'
   | 'bancada'
   | 'utilidades';
 
@@ -73,7 +76,8 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
       tab === 'consumo_equip_operacionais' ||
       tab === 'consumo_equip_infra' ||
       tab === 'financeiro' ||
-      tab === 'insumos'
+      tab === 'insumos' ||
+      tab === 'workspace'
     ) {
       return tab;
     }
@@ -145,6 +149,12 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
       icon: Package,
       iconColor: 'text-purple-400',
     },
+    {
+      id: 'workspace' as const,
+      name: 'Google Workspace',
+      icon: Mail,
+      iconColor: 'text-cyan-400',
+    },
   ];
 
   // CARDS DA PORTA DE ENTRADA DE CONSUMO (SUB-HUB)
@@ -187,7 +197,12 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
     hapticLight();
     if (isInsideConsumoTool) {
       setActiveSubTab('consumo_hub');
-    } else if (activeSubTab === 'consumo_hub' || activeSubTab === 'financeiro' || activeSubTab === 'insumos') {
+    } else if (
+      activeSubTab === 'consumo_hub' ||
+      activeSubTab === 'financeiro' ||
+      activeSubTab === 'insumos' ||
+      activeSubTab === 'workspace'
+    ) {
       setActiveSubTab('hub');
     } else if (onBack) {
       onBack();
@@ -245,6 +260,13 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
           badge: 'Ferramenta',
           desc: 'Previsão de produtos e suprimentos',
           icon: Package,
+        };
+      case 'workspace':
+        return {
+          title: 'Google Workspace',
+          badge: 'Integração',
+          desc: 'Gmail, Chat, Drive, Sheets e Tasks',
+          icon: Mail,
         };
       default:
         return {
@@ -333,8 +355,8 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
         {/* PORTA DE ENTRADA PRINCIPAL: CARDS QUADRADOS DAS FERRAMENTAS */}
         {activeSubTab === 'hub' && (
           <div className="space-y-4 animate-in fade-in duration-150 py-1">
-            {/* GRADE DE 3 CARDS LADO A LADO - COMPACTO E PROPORCIONAL (SEM ASPECT-SQUARE NEM ESPAÇOS VAZIOS) */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            {/* GRADE DE 2x2 CARDS LADO A LADO - COMPACTO E PROPORCIONAL */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
               {mainHubCards.map((tool) => {
                 const Icon = tool.icon;
                 return (
@@ -464,6 +486,16 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
               services={services}
               activeProId={activeProId}
               isOwner={isOwner}
+            />
+          </div>
+        )}
+
+        {/* FERRAMENTA GERAL 3: GOOGLE WORKSPACE (GMAIL, CHAT, DRIVE, SHEETS, TASKS) */}
+        {activeSubTab === 'workspace' && (
+          <div className="animate-in fade-in duration-150">
+            <GoogleWorkspaceHub
+              salonName={salonName}
+              appointments={appointments}
             />
           </div>
         )}
