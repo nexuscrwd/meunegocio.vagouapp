@@ -14,7 +14,7 @@
  * Usa services puros (bookingService, transportService) — sem lógica de negócio no componente.
  */
 
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type {
   CatalogServiceItem,
   SalonProfessionalItem,
@@ -119,13 +119,17 @@ export interface UseBookingFlowProps {
 export interface UseBookingFlowReturn {
   // Estado global
   currentStep: BookingStep;
+  setCurrentStep: (step: BookingStep) => void;
   isLoading: boolean;
   error: string | null;
+  setError: (err: string | null) => void;
   
   // Serviços
   selectedServices: CatalogServiceItem[];
+  setSelectedServices: (services: CatalogServiceItem[]) => void;
   selectedService: CatalogServiceItem | null; // combinado
   isAddingExtraServices: boolean;
+  setIsAddingExtraServices: (v: boolean) => void;
   groupedServices: Record<string, CatalogServiceItem[]>;
   toggleService: (srv: CatalogServiceItem) => void;
   setAddingExtraServices: (v: boolean) => void;
@@ -133,11 +137,13 @@ export interface UseBookingFlowReturn {
   
   // Data
   selectedDateIso: string;
+  setSelectedDateIso: (iso: string) => void;
   currentViewMonth: Date;
   monthData: { monthLabel: string; daysGrid: any[]; year: number; month: number };
   setSelectedDate: (iso: string) => void;
   handlePrevMonth: () => void;
   handleNextMonth: () => void;
+  todayIso: string;
   
   // Profissionais + Horários
   selectedProfessional: string;
@@ -150,7 +156,7 @@ export interface UseBookingFlowReturn {
   isManhaPeriodDisabled: boolean;
   isTardePeriodDisabled: boolean;
   setSelectedProfessional: (name: string) => void;
-  setSelectedTimeSlot: (time: string) => void;
+  setSelectedTimeSlot: (time: string | null) => void;
   setTimePeriodFilter: (period: 'manha' | 'tarde' | 'noite' | 'todos') => void;
   
   // Beneficiário
@@ -164,7 +170,13 @@ export interface UseBookingFlowReturn {
   saveInlineDependent: (e: React.FormEvent) => Promise<void>;
   
   // Origem + Transporte
-  origin: OriginModalState;
+  origin: OriginModalState & {
+    setIsOpen: (v: boolean) => void;
+    setMode: (v: 'choice' | 'custom_cep') => void;
+    setOriginType: (v: 'home' | 'other') => void;
+    setCustomCepInput: (v: string) => void;
+    setHasCalculatedCustomCep: (v: boolean) => void;
+  };
   transport: ReturnType<typeof useTransportCalculator>;
   openOriginModal: () => void;
   closeOriginModal: () => void;
@@ -179,7 +191,7 @@ export interface UseBookingFlowReturn {
   saveAsDraft: () => void;
   handleConfirmFinal: (bypassAuth?: boolean) => Promise<void>;
   maxDepartureTime: string;
-  transportLinks: ReturnType<typeof buildTransportDeepLinks>;
+  transportLinks: ReturnType<typeof buildTransportDeepLinks> | null;
   
   // Confirmação Inicial (modal "Deseja agendar?")
   confirmIntent: ConfirmIntentModalState;
@@ -382,10 +394,10 @@ export function useBookingFlow({
       setIsLoadingBusySlots(true);
       const effectiveSalonId = salonId || localStorage.getItem(STORAGE_KEYS.SALON_DB_ID) || localStorage.getItem(STORAGE_KEYS.SALON_SLUG) || '';
       const slots = await fetchBusySlotsDirectly(effectiveSalonId, selectedDateIso);
-      const availablePros = await fetchAvailableProfessionalsForDate(effectiveSalonId, selectedDateIso, professionals, slots);
+      const availablePros = await fetchAvailableProfessionalsForDate(effectiveSalonId, selectedDateIso, professionals as any, slots);
       if (active) {
         setBusySlotsFromDb(slots);
-        setAvailableProfessionalsForDate(availablePros);
+        setAvailableProfessionalsForDate(availablePros as any);
         setIsLoadingBusySlots(false);
       }
     }
@@ -404,6 +416,19 @@ export function useBookingFlow({
       }
     }
   }, [availableProfessionalsForDate, selectedProfessional]);
+
+  // ============================================================================
+  // TRANSPORTE (hook dedicado)
+  // ============================================================================
+  
+  const transport = useTransportCalculator(
+    resumeDraft?.clientAddressQuery || 
+    localStorage.getItem(STORAGE_KEYS.USER_CEP) || 
+    localStorage.getItem(STORAGE_KEYS.USER_ADDRESS) || 
+    '08235-770',
+    salonCoords,
+    salonAddress || salonCep
+  );
   
   // Gera slots disponíveis
   const generatedSlots = useMemo(() => {
@@ -411,7 +436,7 @@ export function useBookingFlow({
       travelMinutes: transport.resolvedRoute?.etaMinutes || 0,
       prepMinutes: PREP_BUFFER_MINUTES,
       busySlots: busySlotsFromDb,
-      availableProfessionals: availableProfessionalsForDate,
+      availableProfessionals: availableProfessionalsForDate as any,
       nowOverride: currentTimeTick,
     });
   }, [selectedDateIso, selectedProfessional, transport.resolvedRoute?.etaMinutes, busySlotsFromDb, availableProfessionalsForDate, currentTimeTick]);
@@ -438,27 +463,10 @@ export function useBookingFlow({
     }
   }, [isSelectedDateToday, isManhaPeriodDisabled, isTardePeriodDisabled, timePeriodFilter]);
   
-  // ============================================================================
-  // TRANSPORTE (hook dedicado)
-  // ============================================================================
-  
-  const transport = useTransportCalculator(
-    // origin address inicial
-    resumeDraft?.clientAddressQuery || 
-    localStorage.getItem(STORAGE_KEYS.USER_CEP) || 
-    localStorage.getItem(STORAGE_KEYS.USER_ADDRESS) || 
-    '08235-770',
-    // salon coords
-    salonCoords,
-    // salon address
-    salonAddress || salonCep
-  );
-  
   // Sincroniza maxDepartureTime quando timeSlot muda
   useEffect(() => {
     if (selectedTimeSlot && transport.resolvedRoute) {
-      const maxDep = formatMaxDepartureTime(selectedTimeSlot, transport.resolvedRoute.etaMinutes);
-      transport.updateMaxDepartureTime(maxDep);
+      transport.updateMaxDepartureTime(selectedTimeSlot);
     } else {
       transport.updateMaxDepartureTime(null);
     }
@@ -555,7 +563,8 @@ export function useBookingFlow({
           const { supabase } = await import('../lib/supabase');
           if (supabase) {
             const { data } = await supabase.from('clients').select('id').ilike('email', `%${email}%`).maybeSingle();
-            if (data?.id) clientId = data.id;
+            const row = data as { id?: string } | null;
+            if (row?.id) clientId = row.id;
           }
         }
       }
@@ -703,8 +712,10 @@ export function useBookingFlow({
     }
     
     if (!bypassAuth) {
-      const { checkIsClientAuthenticated } = await import('./useAuth');
-      const isLogged = await checkIsClientAuthenticated();
+      const isLogged = Boolean(
+        localStorage.getItem(STORAGE_KEYS.CLIENT_SESSION) ||
+          localStorage.getItem(STORAGE_KEYS.USER_EMAIL)
+      );
       if (!isLogged) {
         hapticMedium();
         setAuthState(prev => ({ ...prev, isOpen: true, pendingAction: 'confirm_final' }));
@@ -804,8 +815,10 @@ export function useBookingFlow({
     setConfirmIntentState({ isOpen: false, pendingService: null });
     if (!target) return;
     
-    const { checkIsClientAuthenticated } = await import('./useAuth');
-    const isLogged = await checkIsClientAuthenticated();
+    const isLogged = Boolean(
+      localStorage.getItem(STORAGE_KEYS.CLIENT_SESSION) ||
+        localStorage.getItem(STORAGE_KEYS.USER_EMAIL)
+    );
     if (!isLogged) {
       hapticMedium();
       setAuthState({ isOpen: true, pendingAction: 'start_booking' });
@@ -925,25 +938,31 @@ export function useBookingFlow({
   return {
     // Estado
     currentStep,
+    setCurrentStep,
     isLoading,
     error,
+    setError,
     
     // Serviços
     selectedServices,
+    setSelectedServices,
     selectedService,
     isAddingExtraServices,
+    setIsAddingExtraServices,
     groupedServices,
     toggleService,
-    setAddingExtraServices,
+    setAddingExtraServices: setIsAddingExtraServices,
     promptScheduleService: openConfirmIntent,
     
     // Data
     selectedDateIso,
+    setSelectedDateIso,
     currentViewMonth,
     monthData,
     setSelectedDate: setSelectedDateIso,
     handlePrevMonth,
     handleNextMonth,
+    todayIso,
     
     // Profissionais + Horários
     selectedProfessional,
@@ -970,7 +989,14 @@ export function useBookingFlow({
     saveInlineDependent,
     
     // Origem + Transporte
-    origin,
+    origin: {
+      ...origin,
+      setIsOpen: (v: boolean) => setOriginState(prev => ({ ...prev, isOpen: v })),
+      setMode: (v: 'choice' | 'custom_cep') => setOriginState(prev => ({ ...prev, mode: v })),
+      setOriginType,
+      setCustomCepInput: (v: string) => setOriginState(prev => ({ ...prev, customCepInput: v })),
+      setHasCalculatedCustomCep: (v: boolean) => setOriginState(prev => ({ ...prev, hasCalculatedCustomCep: v })),
+    },
     transport,
     openOriginModal,
     closeOriginModal,

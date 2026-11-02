@@ -32,14 +32,24 @@ export {
   BOOKING_DRAFT_STORAGE_KEY,
   TRANSPORT_MODE_DB_MAP,
   TRANSPORT_MODE_UI_LABELS,
-  TRANSPORT_MODE_META,
-  mapUiTransportModeToDb,
 } from './types/booking';
 
 // Services
 export * from './services/transportService';
-export * from './services/geocodeService';
-export * from './services/bookingService';
+export { getGeocodeCacheStats, warmupGeocodeCache } from './services/geocodeService';
+export {
+  validateBookingConfirmData,
+  validateDraftData,
+  getSavedBookingDraft,
+  saveBookingDraft,
+  createBookingDraftFromState,
+  confirmAppointmentInDatabase,
+  loadClientDependents,
+  saveDependentToDatabase,
+  fetchBusySlotsDirectly,
+  fetchAvailableProfessionalsForDate,
+  getAvailableSlotsForDate,
+} from './services/bookingService';
 
 // Hooks
 export * from './hooks/useTransportCalculator';
@@ -62,7 +72,3 @@ export { SalonClientAuthModal } from './components/SalonClientAuthModal';
 
 // Utils
 export { hapticLight, hapticMedium, hapticSuccess } from './utils/haptics';
-export { formatMaxDepartureTime, formatDistanceKm, formatEtaMinutes, buildTransportDeepLinks, TRANSPORT_MODE_META, mapUiTransportModeToDb } from './services/transportService';
-export { geocodeBrazilLocation, clearGeocodeCache, getGeocodeCacheStats, warmupGeocodeCache } from './services/geocodeService';
-export { validateBookingConfirmData, validateDraftData, getSavedBookingDraft, saveBookingDraft, createBookingDraftFromState, confirmAppointmentInDatabase, loadClientDependents, saveDependentToDatabase, fetchBusySlotsDirectly, fetchAvailableProfessionalsForDate, getAvailableSlotsForDate } from './services/bookingService';
-export { PREP_BUFFER_MINUTES, STORAGE_KEYS, BOOKING_DRAFT_STORAGE_KEY } from './types/booking';

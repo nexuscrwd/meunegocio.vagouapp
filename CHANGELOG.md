@@ -13,6 +13,36 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ---
 
+### [2026-11-02] — Três Abas de Mídia no Cadastro/Edição de Serviço (`Fotos Prontas`, `Escolher da galeria`, `Do Dispositivo`) (`bol-082`)
+- **Tipo:** `[Feat / UX — Gestão de Mídia de Serviços em 3 Abas]`
+- **Motivo / Solicitação:** Inserir 3 abas na seção de mídia do formulário de serviço (`form > div:nth-of-type(5)` em `ProfessionalServicesManager.tsx`):
+  1. `Fotos Prontas`
+  2. `Escolher da galeria` (seleção de foto da galeria do usuário)
+  3. `Do Dispositivo` contendo as opções `Tirar foto` (tira foto pela câmera móvel, salva na categoria da galeria selecionada e redireciona direto para a aba da galeria) e `Selecionar` (seleciona do dispositivo ou Google Fotos e envia direto para a galeria).
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalServicesManager.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Três Abas Dedicadas (`formMediaTab: 'prontas' | 'galeria' | 'dispositivo'`):** Implementada barra de navegação em 3 colunas com contraste estrito (`bg-emerald-500 text-white` na aba ativa) e layout plano sem aninhamento de bordas (`Zero Box-in-Box`).
+  2. **Aba `Escolher da galeria`:** Permite filtrar por categoria (`Todas` ou categorias do salão) e selecionar qualquer foto salva na galeria (`savedMediaList`) com 1 toque.
+  3. **Aba `Do Dispositivo` (`Tirar foto` & `Selecionar`):** Inclui seletor rápido de categoria de destino na galeria (`formDeviceTargetCat`), botão `Tirar foto` (`capture="environment"`) e botão `Selecionar` (`accept="image/*"` para arquivos locais / Google Fotos). Ao capturar ou selecionar a imagem, ela é salva na biblioteca/Supabase (`processAndSaveMediaFile`), definida como capa (`formPhotoCover`) e a interface muda automaticamente para a aba `Escolher da galeria` (`redirectToFormGallery: true`).
+
+---
+
+### [2026-10-31] — Seta de Direção em Altura Total + Container de Trânsito, Acidentes e Radares (Estilo Waze + OpenStreetMap Overpass API) (`bol-081`)
+- **Tipo:** `[Feat / UX — Cockpit de Navegação GIS, Telemetria de Radares e Alertas de Trânsito Waze/OSM]`
+- **Motivo / Solicitação:** Remover o texto de instrução (`Próxima Rua` / manobra por extenso) do container de direção no subcabeçalho do `LiveTrackingModal.tsx`, mantendo **somente o ícone de seta de indicação grande (da altura total do seu container)**, e adicionar ao lado um segundo container dedicado a informações de trânsito em tempo real como **acidentes, radares de velocidade (`km/h`), trânsito intenso e obras na pista** (estilo Waze).
+- **Arquivos Impactados:**
+  - `src/components/live-tracking/LiveTrackingModal.tsx`
+  - `server.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Seta de Direção Grande (Altura Total do Container):** No subcabeçalho de navegação (`LiveTrackingModal` e `LiveTrackingDrawerModal`), o texto de instrução foi removido e o container de manobra (`h-11 w-11 sm:h-12 sm:w-12 p-1.5`) passou a exibir exclusivamente o ícone de seta (`ArrowUp`, `CornerUpLeft`, `CornerUpRight`, `RotateCcw`) com `w-full h-full stroke-[2.75]`, ocupando 100% da altura útil do seu container.
+  2. **Container de Alertas de Trânsito e Radares (`WazeTrafficAlertsContainer`):** Ao lado do container da seta (`flex-1 h-11 sm:h-12`), foi criado um container interativo que exibe alertas em tempo real da rota (Radares de velocidade com limite `km/h`, Acidentes reportados, Trânsito intenso/moderado e Obras na pista) com distância em metros/km, alternância automática a cada 5,5s e alternância manual ao toque.
+  3. **Endpoint Híbrido Waze GeoRSS + OpenStreetMap Overpass (`POST /api/traffic/route-alerts` em `server.ts`):** Consulta em servidor o feed GeoRSS do Waze Live Map (`alerts` de `ACCIDENT`, `JAM`, `HAZARD`, `ROAD_CLOSED`) e a API pública **OpenStreetMap Overpass** (`node["highway"="speed_camera"]` com `maxspeed` e `way["highway"="construction"]`) dentro da bounding box da rota do cliente até o salão, ordenando os alertas pela distância Haversine em metros.
+
+---
+
 ### [2026-10-31] — Estúdio 3D Interativo (`Three.js` Studio PBR) + Radar Inteligente Google Maps & Search Grounding (`gemini-3.8-flash`) (`bol-080`)
 - **Tipo:** `[Feat / Architecture — Three.js 3D Studio PBR, Google Maps Grounding & Google Search Grounding]`
 - **Motivo / Solicitação:** Reavaliar o aplicativo e aperfeiçoá-lo com as novas integrações de Cenas 3D interativas em `Three.js` (`three`), Google Maps Grounding (`googleMaps`) e Google Search Grounding (`googleSearch`) via `@google/genai` (`>= 2.25.0`) no servidor (`server.ts`).

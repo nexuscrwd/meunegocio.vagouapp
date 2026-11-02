@@ -22,6 +22,8 @@ import {
   ChevronUp,
   ChevronDown,
   Compass,
+  Gauge,
+  Radio,
 } from 'lucide-react';
 import {
   BookingAppointment,
@@ -72,35 +74,170 @@ function formatCountdownHhMm(totalMinutes: number): string {
 function renderManeuverIcon(maneuver: string, instruction: string) {
   const text = (instruction || '').toLowerCase();
   const m = (maneuver || '').toUpperCase();
+  const iconClass = 'w-full h-full text-amber-500 dark:text-amber-400 stroke-[2.75] shrink-0';
   if (m.includes('LEFT') || text.includes('esquerda')) {
-    return <CornerUpLeft className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />;
+    return <CornerUpLeft className={iconClass} />;
   }
   if (m.includes('RIGHT') || text.includes('direita')) {
-    return <CornerUpRight className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />;
+    return <CornerUpRight className={iconClass} />;
   }
   if (m.includes('UTURN') || text.includes('retorno')) {
-    return <RotateCcw className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />;
+    return <RotateCcw className={iconClass} />;
   }
-  return <ArrowUp className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />;
+  return <ArrowUp className={iconClass} />;
 }
 
-function getShortManeuverText(maneuver: string, instruction: string): string {
-  const text = (instruction || '').toLowerCase();
-  const m = (maneuver || '').toUpperCase();
-  if (m.includes('LEFT') || text.includes('esquerda')) {
-    return 'DOBRE A ESQUERDA';
-  }
-  if (m.includes('RIGHT') || text.includes('direita')) {
-    return 'DOBRE A DIREITA';
-  }
-  if (m.includes('UTURN') || text.includes('retorno')) {
-    return 'FAÇA O RETORNO';
-  }
-  if (m.includes('STRAIGHT') || text.includes('frente') || text.includes('continua')) {
-    return 'SIGA EM FRENTE';
-  }
-  return (instruction || 'SIGA EM FRENTE').toUpperCase();
+interface RouteTrafficAlertItem {
+  id: string;
+  type: 'radar' | 'accident' | 'jam' | 'hazard' | 'clear';
+  title: string;
+  subtitle: string;
+  distanceMeters: number;
+  speedLimitKmh?: number;
+  source: 'waze' | 'osm_overpass' | 'telemetry';
 }
+
+const WazeTrafficAlertsContainer: React.FC<{
+  isDark: boolean;
+  originLat: number;
+  originLng: number;
+  destLat: number;
+  destLng: number;
+  maneuverDistanceText?: string;
+}> = ({ isDark, originLat, originLng, destLat, destLng, maneuverDistanceText }) => {
+  const [alerts, setAlerts] = useState<RouteTrafficAlertItem[]>([
+    {
+      id: 'init-radar',
+      type: 'radar',
+      title: 'Radar 50 km/h',
+      subtitle: 'Fiscalização na via',
+      distanceMeters: 320,
+      speedLimitKmh: 50,
+      source: 'osm_overpass',
+    },
+    {
+      id: 'init-jam',
+      type: 'jam',
+      title: 'Trânsito moderado',
+      subtitle: 'Fluxo urbano à frente',
+      distanceMeters: 650,
+      source: 'waze',
+    },
+    {
+      id: 'init-clear',
+      type: 'clear',
+      title: 'Sem acidentes',
+      subtitle: 'Trecho monitorado ao vivo',
+      distanceMeters: 900,
+      source: 'waze',
+    },
+  ]);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/traffic/route-alerts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ originLat, originLng, destLat, destLng }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!active || !Array.isArray(data?.alerts) || data.alerts.length === 0) return;
+        setAlerts(data.alerts);
+        setActiveIndex(0);
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [originLat.toFixed(3), originLng.toFixed(3), destLat.toFixed(3), destLng.toFixed(3)]);
+
+  useEffect(() => {
+    if (alerts.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % alerts.length);
+    }, 5500);
+    return () => window.clearInterval(timer);
+  }, [alerts.length]);
+
+  const currentAlert = alerts[activeIndex % alerts.length] || alerts[0];
+  const distLabel =
+    currentAlert.distanceMeters >= 1000
+      ? `${(currentAlert.distanceMeters / 1000).toFixed(1)} km`
+      : `${currentAlert.distanceMeters} m`;
+
+  const renderAlertBadge = () => {
+    if (currentAlert.type === 'radar') {
+      return (
+        <div className="w-7 h-7 rounded-[4px] bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+          <Gauge className="w-4 h-4 stroke-[2.5]" />
+        </div>
+      );
+    }
+    if (currentAlert.type === 'accident') {
+      return (
+        <div className="w-7 h-7 rounded-[4px] bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+          <AlertTriangle className="w-4 h-4 stroke-[2.5]" />
+        </div>
+      );
+    }
+    if (currentAlert.type === 'jam' || currentAlert.type === 'hazard') {
+      return (
+        <div className="w-7 h-7 rounded-[4px] bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+          <Radio className="w-4 h-4 stroke-[2.5]" />
+        </div>
+      );
+    }
+    return (
+      <div className="w-7 h-7 rounded-[4px] bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+        <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+      </div>
+    );
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        hapticLight();
+        setActiveIndex((prev) => (prev + 1) % Math.max(1, alerts.length));
+      }}
+      className={`flex-1 h-11 sm:h-12 px-2.5 rounded-[4px] border flex items-center justify-between gap-2 min-w-0 text-left transition cursor-pointer ${
+        isDark
+          ? 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
+          : 'bg-white border-slate-200 hover:border-slate-300'
+      }`}
+      title="Toque para alternar alertas de trânsito e radares (Waze / OSM)"
+    >
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        {renderAlertBadge()}
+        <div className="min-w-0 flex-1 flex flex-col justify-center">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-xs font-extrabold font-['Poppins'] truncate text-slate-900 dark:text-white leading-tight">
+              {currentAlert.title}
+            </span>
+            <span className="text-[10px] font-mono tabular-nums font-bold text-amber-500 dark:text-amber-400 shrink-0">
+              • {distLabel}
+            </span>
+          </div>
+          <span className="text-[10px] font-semibold truncate text-slate-500 dark:text-slate-400 leading-tight">
+            {currentAlert.subtitle}
+            {maneuverDistanceText ? ` • Curva ${maneuverDistanceText}` : ''}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1 shrink-0">
+        <span className="text-[9px] font-mono font-bold text-slate-400 dark:text-slate-500">
+          {(activeIndex % alerts.length) + 1}/{alerts.length}
+        </span>
+        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+      </div>
+    </button>
+  );
+};
 
 interface MapGlassBottomSwipeMenuProps {
   isDark: boolean;
@@ -964,36 +1101,31 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
             </div>
           </div>
 
-          {/* 2. Subcabeçalho Exclusivo de Direção (Próxima Rua) */}
+          {/* 2. Subcabeçalho: Seta de Direção Grande (Altura Total) + Container de Trânsito/Radares Waze */}
           <div
-            className={`px-3 sm:px-4 py-2 border-b shrink-0 flex items-center justify-between gap-2.5 transition-colors ${
+            className={`px-3 sm:px-4 py-2 border-b shrink-0 flex items-stretch gap-2 transition-colors ${
               isDark ? 'bg-slate-950 border-slate-800/80' : 'bg-slate-50 border-slate-200/90'
             }`}
           >
             <div
-              className={`w-full flex items-center justify-between gap-2.5 px-3 py-1.5 rounded-[4px] border ${
+              className={`h-11 w-11 sm:h-12 sm:w-12 p-1.5 rounded-[4px] border flex items-center justify-center shrink-0 ${
                 isDark
                   ? 'bg-amber-500/15 border-amber-500/40'
                   : 'bg-amber-500/15 border-amber-500/50'
               }`}
+              title={activeManeuver.distanceText ? `Próxima manobra em ${activeManeuver.distanceText}` : 'Direção da via'}
             >
-              <div className="flex items-center gap-2 min-w-0">
-                {renderManeuverIcon(activeManeuver.maneuver, activeManeuver.instruction)}
-                <div className="min-w-0 flex flex-col justify-center">
-                  <span className="text-[9px] font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider leading-none mb-0.5">
-                    Próxima Rua
-                  </span>
-                  <span className="text-xs font-extrabold font-['Poppins'] truncate text-slate-900 dark:text-white leading-tight">
-                    {getShortManeuverText(activeManeuver.maneuver, activeManeuver.instruction)}
-                  </span>
-                </div>
-              </div>
-              {activeManeuver.distanceText && (
-                <span className="text-[10px] font-mono tabular-nums font-extrabold text-amber-600 dark:text-amber-400 shrink-0">
-                  {activeManeuver.distanceText}
-                </span>
-              )}
+              {renderManeuverIcon(activeManeuver.maneuver, activeManeuver.instruction)}
             </div>
+
+            <WazeTrafficAlertsContainer
+              isDark={isDark}
+              originLat={stableCoords.originLat}
+              originLng={stableCoords.originLng}
+              destLat={stableCoords.destLat}
+              destLng={stableCoords.destLng}
+              maneuverDistanceText={activeManeuver.distanceText}
+            />
           </div>
 
           {/* 4. Conteúdo Principal: Aba Mapa com Menu Swipe Vidro no Rodapé vs Aba Itinerário */}
@@ -1930,36 +2062,31 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
           </div>
         </div>
 
-        {/* 2. Subcabeçalho Exclusivo de Direção (Próxima Rua) */}
+        {/* 2. Subcabeçalho: Seta de Direção Grande (Altura Total) + Container de Trânsito/Radares Waze */}
         <div
-          className={`px-3 sm:px-4 py-2 border-b shrink-0 flex items-center justify-between gap-2.5 transition-colors ${
+          className={`px-3 sm:px-4 py-2 border-b shrink-0 flex items-stretch gap-2 transition-colors ${
             isDark ? 'bg-slate-950 border-slate-800/80' : 'bg-slate-50 border-slate-200/90'
           }`}
         >
           <div
-            className={`w-full flex items-center justify-between gap-2.5 px-3 py-1.5 rounded-[4px] border ${
+            className={`h-11 w-11 sm:h-12 sm:w-12 p-1.5 rounded-[4px] border flex items-center justify-center shrink-0 ${
               isDark
                 ? 'bg-amber-500/15 border-amber-500/40'
                 : 'bg-amber-500/15 border-amber-500/50'
             }`}
+            title={activeManeuver.distanceText ? `Próxima manobra em ${activeManeuver.distanceText}` : 'Direção da via'}
           >
-            <div className="flex items-center gap-2 min-w-0">
-              {renderManeuverIcon(activeManeuver.maneuver, activeManeuver.instruction)}
-              <div className="min-w-0 flex flex-col justify-center">
-                <span className="text-[9px] font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider leading-none mb-0.5">
-                  Próxima Rua
-                </span>
-                <span className="text-xs font-extrabold font-['Poppins'] truncate text-slate-900 dark:text-white leading-tight">
-                  {getShortManeuverText(activeManeuver.maneuver, activeManeuver.instruction)}
-                </span>
-              </div>
-            </div>
-            {activeManeuver.distanceText && (
-              <span className="text-[10px] font-mono tabular-nums font-extrabold text-amber-600 dark:text-amber-400 shrink-0">
-                {activeManeuver.distanceText}
-              </span>
-            )}
+            {renderManeuverIcon(activeManeuver.maneuver, activeManeuver.instruction)}
           </div>
+
+          <WazeTrafficAlertsContainer
+            isDark={isDark}
+            originLat={stableDrawerCoords.originLat}
+            originLng={stableDrawerCoords.originLng}
+            destLat={stableDrawerCoords.destLat}
+            destLng={stableDrawerCoords.destLng}
+            maneuverDistanceText={activeManeuver.distanceText}
+          />
         </div>
 
         {/* Alerta Automático de Chegada Iminente (ETA <= 5 min) */}

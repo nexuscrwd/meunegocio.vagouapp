@@ -8,20 +8,20 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { ArrowLeft, ChevronRight, X, Scissors, Calendar, Clock, Sparkles, Star, Plus, Check, RotateCcw, Bookmark, CheckCircle2, AlertCircle, Phone, Users, User, Loader2 } from 'lucide-react';
-import type { CatalogServiceItem, SalonProfessionalItem, BookingDraftItem, BookingSlotItem, TransportMode } from '../../types/booking';
-import { useTheme } from '../../context/ThemeContext';
-import { hapticLight, hapticMedium, hapticSuccess } from '../../utils/haptics';
-import { formatMaxDepartureTime, formatDistanceKm, formatEtaMinutes } from '../../services/transportService';
-import { PREP_BUFFER_MINUTES, STORAGE_KEYS } from '../../types/booking';
+import type { CatalogServiceItem, SalonProfessionalItem, BookingDraftItem, BookingSlotItem, TransportMode } from '../types/booking';
+import { useTheme } from '../context/ThemeContext';
+import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
+import { formatMaxDepartureTime, formatDistanceKm, formatEtaMinutes } from '../services/transportService';
+import { PREP_BUFFER_MINUTES, STORAGE_KEYS } from '../types/booking';
 
-import { useBookingFlow } from '../../hooks/useBookingFlow';
-import { ServiceSelectionStep } from '../steps/ServiceSelectionStep';
-import { DateSelectionStep } from '../steps/DateSelectionStep';
-import { ProfessionalTimeStep } from '../steps/ProfessionalTimeStep';
-import { BeneficiaryModal } from '../modals/BeneficiaryModal';
-import { OriginModal } from '../modals/OriginModal';
-import { SummaryModal } from '../modals/SummaryModal';
-import { ConfirmIntentModal } from '../modals/ConfirmIntentModal';
+import { useBookingFlow } from '../hooks/useBookingFlow';
+import { ServiceSelectionStep } from './steps/ServiceSelectionStep';
+import { DateSelectionStep } from './steps/DateSelectionStep';
+import { ProfessionalTimeStep } from './steps/ProfessionalTimeStep';
+import { BeneficiaryModal } from './modals/BeneficiaryModal';
+import { OriginModal } from './modals/OriginModal';
+import { SummaryModal } from './modals/SummaryModal';
+import { ConfirmIntentModal } from './modals/ConfirmIntentModal';
 import { SalonClientAuthModal } from './SalonClientAuthModal';
 
 interface SalonBookingModalProps {
@@ -128,13 +128,16 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     setCurrentStep,
     isLoading,
     error,
+    setError,
     clearError,
-    resetFlow,
+    resetFlow: resetFlowHook,
     
     // Serviços
     selectedServices,
+    setSelectedServices,
     selectedService,
     isAddingExtraServices,
+    setIsAddingExtraServices,
     groupedServices,
     toggleService,
     setAddingExtraServices,
@@ -200,9 +203,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     // Auth
     auth,
     checkAuth,
-    
-    // Utils
-    resetFlow: resetFlowHook,
   } = useBookingFlow({
     salonId,
     salonName,
@@ -222,7 +222,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     onDraftSaved,
     onConfirmAppointment,
     onClose,
-    onBeneficiaryState,
   });
 
   // ============================================================================
@@ -230,6 +229,21 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   // ============================================================================
   const prevBookingTriggerRef = useRef<number>(bookingTrigger);
   const prevInitialServiceIdRef = useRef<string | undefined>(initialService?.id);
+
+  const [confirmIntentState, setConfirmIntentState] = useState<{ isOpen: boolean; pendingService: CatalogServiceItem | null }>({
+    isOpen: false,
+    pendingService: null,
+  });
+  const [authState, setAuthState] = useState<{ isOpen: boolean; pendingAction: 'start_booking' | 'confirm_final' }>({
+    isOpen: false,
+    pendingAction: 'start_booking',
+  });
+  const [newDepFullName, setNewDepFullName] = useState('');
+  const [newDepRelationship, setNewDepRelationship] = useState<'son' | 'daughter' | 'spouse' | 'parent' | 'other'>('son');
+  const [newDepBirthDate, setNewDepBirthDate] = useState('');
+  const [newDepNotes, setNewDepNotes] = useState('');
+  const [isCreatingDependentInline, setIsCreatingDependentInline] = useState(false);
+  const [draftSavedFeedback, setDraftSavedFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     const triggerChanged = bookingTrigger > 0 && bookingTrigger !== prevBookingTriggerRef.current;
@@ -253,18 +267,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       }
     }
   }, [bookingTrigger, initialService, skipDateStep, initialTimeSlot, initialDateIso]);
-
-  // ============================================================================
-  // ESTADO LOCAL DE MODAIS (que o hook não gerencia)
-  // ============================================================================
-  const [confirmIntentState, setConfirmIntentState] = useState<{ isOpen: boolean; pendingService: CatalogServiceItem | null }>({
-    isOpen: false,
-    pendingService: null,
-  });
-
-  const setConfirmIntentState = useCallback((updater: any) => {
-    setConfirmIntentState(prev => typeof updater === 'function' ? updater(prev) : updater);
-  }, []);
 
   // ============================================================================
   // RENDER CONDICIONAL POR STEP
@@ -487,7 +489,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   // ============================================================================
   const modals = (
     <>
-      {confirmIntentModalNode}
       <BeneficiaryModal
         isOpen={beneficiary.isOpen}
         onClose={closeBeneficiaryModal}
@@ -496,7 +497,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         dependentId={beneficiary.dependentId}
         dependentName={beneficiary.dependentName}
         hasChosenBeneficiary={beneficiary.hasChosenBeneficiary}
-        registeredDependents={[]} // TODO: passar do hook
+        registeredDependents={[]}
         skipDateStep={skipDateStep}
         onSetDependentBooking={setDependentBooking}
         onSelectDependent={selectDependent}
@@ -504,15 +505,15 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         onCancelCreateDependent={cancelCreateDependent}
         onSaveInlineDependent={saveInlineDependent}
         isSavingInlineDependent={beneficiary.isSavingInlineDependent}
-        newDepFullName={beneficiary.newDepFullName}
+        newDepFullName={newDepFullName || beneficiary.newDepFullName}
         setNewDepFullName={setNewDepFullName}
-        newDepRelationship={beneficiary.newDepRelationship}
+        newDepRelationship={newDepRelationship || beneficiary.newDepRelationship}
         setNewDepRelationship={setNewDepRelationship}
-        newDepBirthDate={beneficiary.newDepBirthDate}
+        newDepBirthDate={newDepBirthDate || beneficiary.newDepBirthDate}
         setNewDepBirthDate={setNewDepBirthDate}
-        newDepNotes={beneficiary.newDepNotes}
+        newDepNotes={newDepNotes || beneficiary.newDepNotes}
         setNewDepNotes={setNewDepNotes}
-        isCreatingDependentInline={beneficiary.isCreatingDependentInline}
+        isCreatingDependentInline={isCreatingDependentInline || beneficiary.isCreatingDependentInline}
         onSetIsCreatingDependentInline={setIsCreatingDependentInline}
       />
       <OriginModal
@@ -532,13 +533,14 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         salonDestQuery={salonCep || salonAddress || '08285-010'}
         hasCalculatedCustomCep={origin.hasCalculatedCustomCep}
         customCepInput={origin.customCepInput}
-        setCustomCepInput={setCustomCepInput}
+        setCustomCepInput={origin.setCustomCepInput}
         originModalMode={origin.mode}
-        setOriginModalMode={setOriginModalMode}
+        setOriginModalMode={origin.setMode}
         originType={origin.originType}
         setOriginType={setOriginType}
         skipDateStep={skipDateStep}
-        setIsOriginModalOpen={setIsOriginOpen}
+        setIsOriginModalOpen={origin.setIsOpen}
+        setHasCalculatedCustomCep={origin.setHasCalculatedCustomCep}
       />
       <SummaryModal
         isOpen={summary.isOpen}
@@ -570,17 +572,19 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         setClientPhoneInput={() => {}}
         bookingErrorMessage={error || ''}
         setBookingErrorMessage={setError}
-        draftSavedFeedback={summary.draftSavedFeedback}
+        draftSavedFeedback={draftSavedFeedback || summary.draftSavedFeedback}
         setDraftSavedFeedback={setDraftSavedFeedback}
         isSubmittingBooking={isLoading}
         onSaveAsDraft={saveAsDraft}
         onConfirmFinal={handleConfirmFinal}
-        onClose={onClose}
       />
       <ConfirmIntentModal
-        isOpen={confirmIntentState.isOpen}
-        onClose={() => setConfirmIntentState({ isOpen: false, pendingService: null })}
-        pendingService={confirmIntentState.pendingService}
+        isOpen={confirmIntentState.isOpen || confirmIntent.isOpen}
+        onClose={() => {
+          setConfirmIntentState({ isOpen: false, pendingService: null });
+          closeConfirmIntent();
+        }}
+        pendingService={confirmIntentState.pendingService || confirmIntent.pendingService}
         salonName={salonName}
         salonLogo={salonLogo}
         salonLogoLight={salonLogoLight}
@@ -589,7 +593,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         onConfirm={handleConfirmIntent}
       />
       <SalonClientAuthModal
-        isOpen={auth.isOpen}
+        isOpen={authState.isOpen || auth.isOpen}
         onClose={() => setAuthState({ isOpen: false, pendingAction: 'start_booking' })}
         salonName={salonName}
         salonSlug={salonSlug}
@@ -623,58 +627,3 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     </>
   );
 };
-
-// ============================================================================
-// ESTADOS DE MODAIS LOCAIS (necessários para o orquestrador)
-// ============================================================================
-const [confirmIntentState, setConfirmIntentState] = useState<{ isOpen: boolean; pendingService: CatalogServiceItem | null }>({
-  isOpen: false,
-  pendingService: null,
-});
-
-const [authState, setAuthState] = useState<{ isOpen: boolean; pendingAction: 'start_booking' | 'confirm_final' }>({
-  isOpen: false,
-  pendingAction: 'start_booking',
-});
-
-// Handlers locais que precisam acessar estado do hook
-const handleConfirmIntent = useCallback(async () => {
-  const target = confirmIntentState.pendingService || initialService || selectedService;
-  setConfirmIntentState({ isOpen: false, pendingService: null });
-  if (!target) return;
-
-  const isLogged = await checkAuth();
-  if (!isLogged) {
-    hapticMedium();
-    setAuthState({ isOpen: true, pendingAction: 'start_booking' });
-    return;
-  }
-
-  hapticLight();
-  setSelectedServices([target]);
-  setIsAddingExtraServices(false);
-  if (initialDateIso) setSelectedDateIso(initialDateIso);
-  if (initialTimeSlot) {
-    setSelectedTimeSlot(initialTimeSlot);
-    setCurrentStep('professionals_and_time');
-    openSummaryModal();
-  } else {
-    setSelectedTimeSlot(null);
-    setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
-    openBeneficiaryModal();
-  }
-}, [confirmIntentState, initialService, selectedService, initialDateIso, initialTimeSlot, skipDateStep]);
-
-const confirmIntentModalNode = confirmIntentState.isOpen && confirmIntentState.pendingService && (
-  <ConfirmIntentModal
-    isOpen={confirmIntentState.isOpen}
-    onClose={() => setConfirmIntentState({ isOpen: false, pendingService: null })}
-    pendingService={confirmIntentState.pendingService}
-    salonName={salonName}
-    salonLogo={salonLogo}
-    salonLogoLight={salonLogoLight}
-    salonLogoDark={salonLogoDark}
-    primaryColor={primaryColor}
-    onConfirm={handleConfirmIntent}
-  />
-);

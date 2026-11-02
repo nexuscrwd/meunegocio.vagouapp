@@ -52,7 +52,6 @@ interface SummaryModalProps {
   isSubmittingBooking: boolean;
   onSaveAsDraft: () => void;
   onConfirmFinal: (bypassAuth?: boolean) => Promise<void>;
-  onClose: () => void;
 }
 
 const formatEta = (minutes: number) => {
@@ -107,12 +106,6 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
   const maxDepartureTime = transport.maxDepartureTime || (transport.resolvedRoute ? formatMaxDepartureTime(selectedTimeSlot, transport.resolvedRoute.etaMinutes) : '--H--');
   const formattedDistance = transport.resolvedRoute ? formatDistanceKm(transport.resolvedRoute.distanceKm) : '--';
   const formattedEta = transport.resolvedRoute ? formatEta(transport.resolvedRoute.etaMinutes) : '--';
-
-  const formatEta = (minutes: number) => {
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    return h > 0 ? `${h} ${h === 1 ? 'hora' : 'horas'} e ${String(m).padStart(2, '0')} min` : `${m} min`;
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
@@ -281,7 +274,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
                       </div>
                     )}
                   </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -346,7 +339,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
 
             <button
               type="button"
-              onClick={() => { hapticLight(); onClose(); setBookingErrorMessage(''); setSelectedTimeSlot(null); }}
+              onClick={() => { hapticLight(); onClose(); setBookingErrorMessage(''); }}
               className="py-2.5 px-2 rounded-[4px] border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer bg-rose-50 dark:bg-rose-900 border-rose-200 dark:border-rose-700 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-800"
             >
               <X className="w-3.5 h-3.5 shrink-0" />

@@ -36,17 +36,18 @@ interface ProfessionalTimeStepProps {
       salonCoords: { lat: number; lng: number };
     } | null;
     transportMode: 'car' | 'motorcycle' | 'transit' | 'rideshare';
+    setTransportMode?: (v: 'car' | 'motorcycle' | 'transit' | 'rideshare') => void;
     maxDepartureTime: string | null;
     updateMaxDepartureTime: (v: string | null) => void;
     runRouteCalculation: (origin: string, dest: string, mode?: any) => Promise<void>;
     originAddress: string;
     setOriginAddress: (v: string) => void;
-    salonDestQuery: string;
+    salonDestQuery?: string;
     originCoords: { lat: number; lng: number } | null;
-    resolvedSalonCoords: { lat: number; lng: number };
-    distanceKm: number;
-    etaMinutes: number;
-    isCalculatingRoute: boolean;
+    resolvedSalonCoords?: { lat: number; lng: number };
+    distanceKm?: number;
+    etaMinutes?: number;
+    isCalculatingRoute?: boolean;
   };
   originModal: {
     isOpen: boolean;
@@ -115,7 +116,7 @@ export const ProfessionalTimeStep: React.FC<ProfessionalTimeStepProps> = ({
   onCalculateCustomCep,
   onOpenSummary,
 }) => {
-  const { resolvedRoute, transportMode, maxDepartureTime, updateMaxDepartureTime, runRouteCalculation, originAddress, setOriginAddress, salonDestQuery, originCoords, resolvedSalonCoords, distanceKm, etaMinutes, isCalculatingRoute } = transport;
+  const { resolvedRoute, transportMode, setTransportMode, maxDepartureTime, updateMaxDepartureTime, runRouteCalculation, originAddress, setOriginAddress, salonDestQuery = '', originCoords, resolvedSalonCoords, distanceKm = 0, etaMinutes = 0, isCalculatingRoute = false } = transport;
   const { isOpen: isOriginOpen, setIsOpen: setIsOriginOpen, mode: originModalMode, setMode: setOriginModalMode, originType, setOriginType, customCepInput, setCustomCepInput, hasCalculatedCustomCep, setHasCalculatedCustomCep } = originModal;
   const { setIsOpen: setIsSummaryOpen } = summaryModal;
 
@@ -140,7 +141,7 @@ export const ProfessionalTimeStep: React.FC<ProfessionalTimeStepProps> = ({
               type="button"
               onClick={() => {
                 hapticLight();
-                setTransportMode(opt.key);
+                setTransportMode?.(opt.key);
                 const activeOrigin = originModalMode === 'custom_cep' && customCepInput.replace(/\D/g, '').length === 8
                   ? customCepInput
                   : originAddress;
@@ -166,6 +167,70 @@ export const ProfessionalTimeStep: React.FC<ProfessionalTimeStepProps> = ({
   const formattedEtaHoursAndMinutes = `${originHours} ${originHours === 1 ? 'hora' : 'horas'} e ${String(originRemainderMinutes).padStart(2, '0')} min`;
   const formattedDistanceComma = distanceKm.toFixed(1).replace('.', ',');
 
+  const renderPeriodSlotsBlock = (
+    periodKey: 'manha' | 'tarde' | 'noite',
+    label: string,
+    PeriodIcon: React.ElementType,
+    slots: Array<{ time: string; available: boolean; period: string; reason?: string }>,
+    isPeriodBlocked: boolean
+  ) => {
+    const availableCount = slots.filter((s) => s.available).length;
+    return (
+      <div key={periodKey} className="space-y-1.5">
+        <div className="flex items-center justify-between px-0.5">
+          <div className="flex items-center gap-1.5">
+            <PeriodIcon className={`w-3.5 h-3.5 ${isPeriodBlocked ? 'text-slate-500' : 'text-emerald-500'}`} />
+            <span className={`text-[11px] font-bold uppercase tracking-wider font-['Poppins'] ${
+              isPeriodBlocked ? 'text-slate-600 line-through dark:text-slate-400' : 'text-slate-800 dark:text-slate-200'
+            }`}>
+              {label}
+            </span>
+          </div>
+          <span className={`text-[10px] font-semibold ${availableCount > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+            {isPeriodBlocked ? 'Período encerrado hoje' : `${availableCount} livres`}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-4 gap-1.5">
+          {slots.map((slot) => {
+            const isSelected = selectedTimeSlot === slot.time;
+            const isAvailable = slot.available && !isPeriodBlocked;
+
+            return (
+              <button
+                key={slot.time}
+                type="button"
+                disabled={!isAvailable}
+                onClick={() => {
+                  hapticLight();
+                  onSetTimeSlot(slot.time);
+                  onOpenSummary();
+                }}
+                title={!isAvailable
+                  ? slot.reason === 'busy'
+                    ? 'Horário já ocupado no banco'
+                    : slot.reason === 'travel_buffer'
+                    ? `Insuficiente para deslocamento (${etaMinutes}m + 15m preparo)`
+                    : 'Horário já passou'
+                  : `Agendar às ${slot.time}`}
+                className={`py-2 px-1 rounded-[4px] text-xs font-bold border transition flex items-center justify-center gap-1 cursor-pointer ${
+                  isSelected
+                    ? 'bg-emerald-500 border-emerald-500 text-white font-black shadow-sm'
+                    : !isAvailable
+                    ? 'bg-slate-100/60 dark:bg-slate-900/30 border-slate-200 dark:border-slate-900 text-slate-300 dark:text-slate-600 line-through opacity-45 cursor-not-allowed'
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-400'
+                }`}
+              >
+                <Clock className={`w-3 h-3 ${isSelected ? 'text-white' : isAvailable ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-600'}`} />
+                <span className={isSelected ? 'text-white' : ''}>{slot.time}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-3 animate-in fade-in duration-200">
       {/* BLOCO 1: SELEÇÃO DE PROFISSIONAIS */}
@@ -174,7 +239,7 @@ export const ProfessionalTimeStep: React.FC<ProfessionalTimeStepProps> = ({
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1">
             <button
               type="button"
-              onClick={() => { hapticLight(); onSetProfessional('any'); onSetTimeSlot(null); }}
+              onClick={() => { hapticLight(); onSetProfessional('any'); onSetTimeSlot(''); }}
               className={`min-w-[105px] flex-shrink-0 p-1.5 px-2 rounded-[4px] border text-left flex items-center gap-2 transition cursor-pointer ${
                 selectedProfessional === 'any'
                   ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
@@ -200,7 +265,7 @@ export const ProfessionalTimeStep: React.FC<ProfessionalTimeStepProps> = ({
                 <button
                   key={prof.id || idx}
                   type="button"
-                  onClick={() => { hapticLight(); onSetProfessional(prof.name); onSetTimeSlot(null); }}
+                  onClick={() => { hapticLight(); onSetProfessional(prof.name); onSetTimeSlot(''); }}
                   className={`min-w-[115px] max-w-[135px] flex-shrink-0 p-1.5 px-2 rounded-[4px] border text-left flex items-center gap-2 transition cursor-pointer ${
                     isSelected
                       ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
@@ -232,7 +297,6 @@ export const ProfessionalTimeStep: React.FC<ProfessionalTimeStepProps> = ({
             })}
           </div>
         </div>
-      </div>
       )}
 
       {/* BLOCO 2: TABELA DE HORÁRIOS */}
@@ -287,74 +351,3 @@ export const ProfessionalTimeStep: React.FC<ProfessionalTimeStepProps> = ({
     </div>
   );
 };
-
-const renderPeriodSlotsBlock = (
-  periodKey: 'manha' | 'tarde' | 'noite',
-  label: string,
-  PeriodIcon: React.ElementType,
-  slots: Array<{ time: string; available: boolean; period: string; reason?: string }>,
-  isPeriodBlocked: boolean
-) => {
-  const availableCount = slots.filter((s) => s.available).length;
-  return (
-    <div key={periodKey} className="space-y-1.5">
-      <div className="flex items-center justify-between px-0.5">
-        <div className="flex items-center gap-1.5">
-          <PeriodIcon className={`w-3.5 h-3.5 ${isPeriodBlocked ? 'text-slate-500' : 'text-emerald-500'}`} />
-          <span className={`text-[11px] font-bold uppercase tracking-wider font-['Poppins'] ${
-            isPeriodBlocked ? 'text-slate-600 line-through dark:text-slate-400 line-through' : 'text-slate-800 dark:text-slate-200'
-          }`}>
-            {label}
-          </span>
-        </div>
-        <span className={`text-[10px] font-semibold ${availableCount > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-          {isPeriodBlocked ? 'Período encerrado hoje' : `${availableCount} livres`}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-4 gap-1.5">
-        {slots.map((slot) => {
-          const isSelected = selectedTimeSlot === slot.time;
-          const isAvailable = slot.available && !isPeriodBlocked;
-
-          return (
-            <button
-              key={slot.time}
-              type="button"
-              disabled={!isAvailable}
-              onClick={() => {
-                hapticLight();
-                onSetTimeSlot(slot.time);
-                onOpenSummary();
-              }}
-              title={!isAvailable
-                ? slot.reason === 'busy'
-                  ? 'Horário já ocupado no banco'
-                  : slot.reason === 'travel_buffer'
-                  ? `Insuficiente para deslocamento (${etaMinutes}m + 15m preparo)`
-                  : 'Horário já passou'
-                : `Agendar às ${slot.time}`}
-              className={`py-2 px-1 rounded-[4px] text-xs font-bold border transition flex items-center justify-center gap-1 cursor-pointer ${
-                isSelected
-                  ? 'bg-emerald-500 border-emerald-500 text-white font-black shadow-sm'
-                  : !isAvailable
-                  ? 'bg-slate-100/60 dark:bg-slate-900/30 border-slate-200 dark:border-slate-900 text-slate-300 dark:text-slate-600 line-through opacity-45 cursor-not-allowed'
-                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-400'
-              }`}
-            >
-              <Clock className={`w-3 h-3 ${isSelected ? 'text-white' : isAvailable ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-600'}`} />
-              <span className={isSelected ? 'text-white' : ''}>{slot.time}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-// Importações necessárias
-import { Sun, Sunset, Moon, Clock, Sparkles, Star, Loader2, User, Car, Bike, Bus, Smartphone, MapPin, Navigation, Search, Check, X, ChevronRight, ArrowLeft, Home, CheckCircle2, Bookmark, RotateCcw } from 'lucide-react';
-import { hapticLight, hapticMedium } from '../../utils/haptics';
-import type { SalonProfessionalItem, BookingSlotItem } from '../../types/booking';
-import { TRANSPORT_MODE_META, formatDistanceKm } from '../../services/transportService';
-import { TRANSPORT_OPTIONS } from './OriginModal'; // Reutiliza do OriginModal

@@ -70,6 +70,8 @@ export interface UseTransportCalculatorActions {
   
   // Ações principais
   calculateRoute: () => Promise<void>;
+  runRouteCalculation: (origin: string, dest: string, mode?: TransportMode) => Promise<void>;
+  updateMaxDepartureTime: (timeSlot: string | null) => void;
   geocodeOrigin: () => Promise<void>;
   geocodeSalon: () => Promise<void>;
   
@@ -88,6 +90,11 @@ export interface UseTransportCalculatorReturn extends UseTransportCalculatorStat
   // Estado derivado
   isReady: boolean;
   hasValidRoute: boolean;
+  isCalculatingRoute: boolean;
+  distanceKm: number;
+  etaMinutes: number;
+  salonDestQuery: string;
+  resolvedSalonCoords: Coordinates;
 }
 
 // ============================================================================
@@ -242,12 +249,12 @@ export function useTransportCalculator(
     
     try {
       // Usa resolveAddressDistanceToSalon que já faz geocode do salão se necessário
-      const resolved = await resolveAddressDistanceToSalon(
-        state.originAddress,
-        state.salonCoords,
-        state.salonAddress || undefined,
-        state.transportMode
-      );
+      const resolved = await resolveAddressDistanceToSalon({
+        originQuery: state.originAddress,
+        salonCoords: state.salonCoords,
+        salonDestinationQuery: state.salonAddress || undefined,
+        transportMode: state.transportMode,
+      });
       
       // Gera deep links
       const deepLinks = buildTransportDeepLinks({
@@ -324,6 +331,57 @@ export function useTransportCalculator(
     }
   }, [state.route]);
   
+  const runRouteCalculation = useCallback(
+    async (origin: string, dest: string, mode?: TransportMode) => {
+      const targetMode = mode || state.transportMode;
+      setState(prev => ({
+        ...prev,
+        originAddress: origin,
+        salonAddress: dest || prev.salonAddress,
+        transportMode: targetMode,
+        isCalculating: true,
+        error: null,
+      }));
+      try {
+        const resolved = await resolveAddressDistanceToSalon({
+          originQuery: origin,
+          salonCoords: state.salonCoords,
+          salonDestinationQuery: dest || state.salonAddress || undefined,
+          transportMode: targetMode,
+        });
+        const deepLinks = buildTransportDeepLinks({
+          originAddress: resolved.formattedAddress,
+          originLat: resolved.originCoords.lat,
+          originLng: resolved.originCoords.lng,
+          salonName: 'Salão',
+          salonAddress: resolved.salonFormattedAddress,
+          salonLat: resolved.salonCoords.lat,
+          salonLng: resolved.salonCoords.lng,
+          transportMode: targetMode,
+        });
+        setState(prev => ({
+          ...prev,
+          originCoords: resolved.originCoords,
+          salonCoords: resolved.salonCoords,
+          route: {
+            distanceKm: resolved.distanceKm,
+            etaMinutes: resolved.etaMinutes,
+            routeSummary: resolved.routeSummary,
+            source: resolved.source,
+            rawOsrmMinutes: resolved.rawOsrmMinutes,
+          },
+          resolvedRoute: resolved,
+          deepLinks,
+          isCalculating: false,
+          error: null,
+        }));
+      } catch {
+        setState(prev => ({ ...prev, isCalculating: false }));
+      }
+    },
+    [state.transportMode, state.salonCoords, state.salonAddress]
+  );
+
   // ============================================================================
   // RETORNO
   // ============================================================================
@@ -338,11 +396,12 @@ export function useTransportCalculator(
     setSalonCoords,
     setSalonAddress,
     calculateRoute,
+    runRouteCalculation,
     geocodeOrigin,
     geocodeSalon,
     clearError,
     reset,
-    updateMaxDepartureTime, // Exposto para componente pai chamar quando timeSlot muda
+    updateMaxDepartureTime,
     
     // Helpers
     formatDistance,
@@ -353,6 +412,11 @@ export function useTransportCalculator(
     // Derivado
     isReady,
     hasValidRoute,
+    isCalculatingRoute: state.isCalculating,
+    distanceKm: state.resolvedRoute?.distanceKm || 0,
+    etaMinutes: state.resolvedRoute?.etaMinutes || 0,
+    salonDestQuery: state.salonAddress,
+    resolvedSalonCoords: state.salonCoords,
   };
 }
 

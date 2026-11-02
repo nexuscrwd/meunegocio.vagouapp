@@ -249,6 +249,27 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
   const devicePhotoInputRef = useRef<HTMLInputElement | null>(null);
   const cameraVideoInputRef = useRef<HTMLInputElement | null>(null);
   const deviceVideoInputRef = useRef<HTMLInputElement | null>(null);
+  const formCameraPhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const formDevicePhotoInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Estados das 3 abas de mídia dentro do formulário do serviço (div:nth-of-type(5))
+  const [formMediaTab, setFormMediaTab] = useState<'prontas' | 'galeria' | 'dispositivo'>('prontas');
+  const [formGalleryFilterCat, setFormGalleryFilterCat] = useState<string>('Todas');
+  const [formDeviceTargetCat, setFormDeviceTargetCat] = useState<string>('Cabelo');
+
+  useEffect(() => {
+    if (formCategory) {
+      setFormDeviceTargetCat(formCategory);
+    }
+  }, [formCategory]);
+
+  const formFilteredGalleryImages = useMemo(() => {
+    return savedMediaList.filter((m) => {
+      if (m.type !== 'image') return false;
+      if (formGalleryFilterCat === 'Todas') return true;
+      return m.category.toLowerCase() === formGalleryFilterCat.toLowerCase();
+    });
+  }, [savedMediaList, formGalleryFilterCat]);
   
   const [deleteConfirmService, setDeleteConfirmService] = useState<CatalogServiceItem | null>(null);
   const [deleteConfirmCategory, setDeleteConfirmCategory] = useState<string | null>(null);
@@ -335,8 +356,12 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
   // Abrir modal para novo serviço (fluxo passo a passo)
   const handleOpenNew = (defaultCat?: string) => {
     hapticLight();
+    const initialCat = defaultCat && defaultCat !== 'Todos' ? defaultCat : (categoryList[0] || 'Cabelo');
     setEditingServiceId(null);
-    setFormCategory(defaultCat && defaultCat !== 'Todos' ? defaultCat : (categoryList[0] || 'Cabelo'));
+    setFormCategory(initialCat);
+    setFormDeviceTargetCat(initialCat);
+    setFormGalleryFilterCat('Todas');
+    setFormMediaTab('prontas');
     setFormTitle('');
     setFormPrice('50,00');
     setFormHours('00');
@@ -351,8 +376,12 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
   // Abrir modal para editar serviço
   const handleOpenEdit = (srv: CatalogServiceItem) => {
     hapticLight();
+    const initialCat = srv.category || categoryList[0] || 'Cabelo';
     setEditingServiceId(srv.id);
-    setFormCategory(srv.category || categoryList[0] || 'Cabelo');
+    setFormCategory(initialCat);
+    setFormDeviceTargetCat(initialCat);
+    setFormGalleryFilterCat('Todas');
+    setFormMediaTab('prontas');
     setFormTitle(srv.title);
     setFormPrice(formatCurrencyBRL(srv.price));
     const parsedDur = parseDurationToHoursMinutes(srv.duration);
@@ -547,9 +576,10 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
   const processAndSaveMediaFile = async (
     file: File,
     type: 'image' | 'video',
-    targetMode: 'static' | 'slideshow' | 'video'
+    targetMode: 'static' | 'slideshow' | 'video',
+    options?: { targetCategory?: string; redirectToFormGallery?: boolean }
   ) => {
-    const currentCat = mediaModalService?.category || formCategory || 'Cabelo';
+    const currentCat = options?.targetCategory || mediaModalService?.category || formCategory || 'Cabelo';
     const currentTitle = mediaModalService?.title || formTitle || 'Serviço';
     const salonId = localStorage.getItem('vagou_salon_db_id') || '';
 
@@ -597,8 +627,13 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
           setMediaPhotos((prev) => [...prev.slice(0, 4), uploadedUrl]);
         }
 
+        if (options?.redirectToFormGallery) {
+          setFormGalleryFilterCat(currentCat);
+          setFormMediaTab('galeria');
+        }
+
         hapticSuccess();
-        showToast('Mídia enviada para o Storage com sucesso!');
+        showToast(options?.redirectToFormGallery ? 'Foto salva na galeria e selecionada!' : 'Mídia enviada para o Storage com sucesso!');
         return;
       }
     } catch {
@@ -667,8 +702,12 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
           if (targetMode === 'static') {
             setMediaPhotos([finalUrl]);
             setFormPhotoCover(finalUrl);
+            if (options?.redirectToFormGallery) {
+              setFormGalleryFilterCat(currentCat);
+              setFormMediaTab('galeria');
+            }
             hapticSuccess();
-            showToast(`Foto salva e definida para o serviço!`);
+            showToast(options?.redirectToFormGallery ? 'Foto salva na galeria e selecionada!' : `Foto salva e definida para o serviço!`);
           } else {
             // slideshow: adicionar até 5 fotos
             if (mediaPhotos.length >= 5) {
@@ -836,6 +875,38 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         onChange={(e) => {
           if (e.target.files && e.target.files[0]) {
             processAndSaveMediaFile(e.target.files[0], 'video', 'video');
+            e.target.value = '';
+          }
+        }}
+        className="hidden"
+      />
+      {/* Inputs dedicados para a aba "Do Dispositivo" do formulário de serviço */}
+      <input
+        type="file"
+        ref={formCameraPhotoInputRef}
+        accept="image/*"
+        capture="environment"
+        onChange={(e) => {
+          if (e.target.files && e.target.files[0]) {
+            processAndSaveMediaFile(e.target.files[0], 'image', 'static', {
+              targetCategory: formDeviceTargetCat || formCategory || 'Cabelo',
+              redirectToFormGallery: true,
+            });
+            e.target.value = '';
+          }
+        }}
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={formDevicePhotoInputRef}
+        accept="image/*"
+        onChange={(e) => {
+          if (e.target.files && e.target.files[0]) {
+            processAndSaveMediaFile(e.target.files[0], 'image', 'static', {
+              targetCategory: formDeviceTargetCat || formCategory || 'Cabelo',
+              redirectToFormGallery: true,
+            });
             e.target.value = '';
           }
         }}
@@ -1373,8 +1444,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 />
               </div>
 
-              {/* 6. MÍDIA DO SERVIÇO & GALERIA PRONTA */}
-              <div className="space-y-2 pt-1">
+              {/* 6. MÍDIA DO SERVIÇO & GALERIA PRONTA (3 ABAS: FOTOS PRONTAS | ESCOLHER DA GALERIA | DO DISPOSITIVO) */}
+              <div className="space-y-2.5 pt-1">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                     <Camera className="w-3.5 h-3.5 text-emerald-400" />
@@ -1385,69 +1456,267 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   </span>
                 </div>
 
-                {/* Galeria de Fotos Prontas para a Categoria (1 Toque) */}
-                <div className={`p-2.5 rounded border space-y-2 ${
-                  isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10.5px] font-bold flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Fotos Prontas: {formCategory}</span>
-                    </span>
-                    <span className="text-[9px] text-slate-400">1 toque para definir</span>
-                  </div>
+                {/* Seletor das 3 Abas */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      setFormMediaTab('prontas');
+                    }}
+                    className={`py-2 px-1.5 rounded text-[10px] font-bold transition cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap border ${
+                      formMediaTab === 'prontas'
+                        ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                        : isDark
+                        ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white'
+                        : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    <Sparkles className={`w-3 h-3 shrink-0 ${formMediaTab === 'prontas' ? 'text-white' : 'text-emerald-400'}`} />
+                    <span className={formMediaTab === 'prontas' ? 'text-white' : ''}>Fotos Prontas</span>
+                  </button>
 
-                  {/* Carrossel horizontal de presets */}
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-                    {getGalleryPresetsForCategory(formCategory).map((preset) => {
-                      const isSelected = formPhotoCover === preset.url;
-                      return (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => {
-                            hapticLight();
-                            setFormPhotoCover(isSelected ? '' : preset.url);
-                          }}
-                          className={`relative w-16 h-16 rounded overflow-hidden shrink-0 border-2 transition active:scale-95 cursor-pointer group ${
-                            isSelected ? 'border-emerald-500 ring-2 ring-emerald-500/30' : 'border-slate-700/60 hover:border-slate-500'
-                          }`}
-                          title={preset.title}
-                        >
-                          <img
-                            src={preset.url}
-                            alt={preset.title}
-                            className="w-full h-full object-cover transition group-hover:scale-105"
-                            loading="lazy"
-                          />
-                          {isSelected && (
-                            <div className="absolute inset-0 bg-emerald-500/40 flex items-center justify-center">
-                              <Check className="w-4 h-4 text-white stroke-[3] drop-shadow" />
-                            </div>
-                          )}
-                          <div className="absolute bottom-0 inset-x-0 bg-black/75 px-1 py-0.5 text-[7.5px] text-white truncate text-center font-medium">
-                            {preset.title.split(' ')[0]}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      setFormMediaTab('galeria');
+                    }}
+                    className={`py-2 px-1.5 rounded text-[10px] font-bold transition cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap border ${
+                      formMediaTab === 'galeria'
+                        ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                        : isDark
+                        ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white'
+                        : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    <Images className={`w-3 h-3 shrink-0 ${formMediaTab === 'galeria' ? 'text-white' : 'text-emerald-400'}`} />
+                    <span className={formMediaTab === 'galeria' ? 'text-white' : ''}>Escolher da galeria</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      setFormMediaTab('dispositivo');
+                    }}
+                    className={`py-2 px-1.5 rounded text-[10px] font-bold transition cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap border ${
+                      formMediaTab === 'dispositivo'
+                        ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                        : isDark
+                        ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white'
+                        : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    <Camera className={`w-3 h-3 shrink-0 ${formMediaTab === 'dispositivo' ? 'text-white' : 'text-emerald-400'}`} />
+                    <span className={formMediaTab === 'dispositivo' ? 'text-white' : ''}>Do Dispositivo</span>
+                  </button>
                 </div>
 
-                {/* Bloco 2: Mídia Personalizada / Gerenciador Completo */}
+                {/* CONTEÚDO DA ABA 1: FOTOS PRONTAS */}
+                {formMediaTab === 'prontas' && (
+                  <div className="space-y-2 pt-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10.5px] font-bold flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Fotos Prontas: {formCategory}</span>
+                      </span>
+                      <span className="text-[9px] text-slate-400">1 toque para definir</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                      {getGalleryPresetsForCategory(formCategory).map((preset) => {
+                        const isSelected = formPhotoCover === preset.url;
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => {
+                              hapticLight();
+                              setFormPhotoCover(isSelected ? '' : preset.url);
+                            }}
+                            className={`relative w-16 h-16 rounded overflow-hidden shrink-0 border-2 transition active:scale-95 cursor-pointer group ${
+                              isSelected ? 'border-emerald-500 ring-2 ring-emerald-500/30' : 'border-slate-700/60 hover:border-slate-500'
+                            }`}
+                            title={preset.title}
+                          >
+                            <img
+                              src={preset.url}
+                              alt={preset.title}
+                              className="w-full h-full object-cover transition group-hover:scale-105"
+                              loading="lazy"
+                            />
+                            {isSelected && (
+                              <div className="absolute inset-0 bg-emerald-500/40 flex items-center justify-center">
+                                <Check className="w-4 h-4 text-white stroke-[3] drop-shadow" />
+                              </div>
+                            )}
+                            <div className="absolute bottom-0 inset-x-0 bg-black/75 px-1 py-0.5 text-[7.5px] text-white truncate text-center font-medium">
+                              {preset.title.split(' ')[0]}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* CONTEÚDO DA ABA 2: ESCOLHER DA GALERIA */}
+                {formMediaTab === 'galeria' && (
+                  <div className="space-y-2 pt-0.5">
+                    <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5">
+                      {availableLibraryCategories.map((cat) => {
+                        const isActive = formGalleryFilterCat === cat;
+                        return (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => {
+                              hapticLight();
+                              setFormGalleryFilterCat(cat);
+                            }}
+                            className={`py-1 px-2 rounded-full text-[9.5px] font-bold whitespace-nowrap transition cursor-pointer shrink-0 border ${
+                              isActive
+                                ? 'bg-emerald-500 border-emerald-500 text-white'
+                                : isDark
+                                ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                                : 'bg-slate-100 border-slate-200 text-slate-600'
+                            }`}
+                          >
+                            <span className={isActive ? 'text-white' : ''}>{cat}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {formFilteredGalleryImages.length === 0 ? (
+                      <div className="py-6 text-center text-slate-400 space-y-1">
+                        <Images className="w-6 h-6 mx-auto text-slate-500" />
+                        <p className="text-[11px] font-bold">Nenhuma foto nesta categoria da galeria</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-1.5 max-h-36 overflow-y-auto no-scrollbar p-0.5">
+                        {formFilteredGalleryImages.map((item) => {
+                          const isSelected = formPhotoCover === item.url;
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => {
+                                hapticLight();
+                                setFormPhotoCover(isSelected ? '' : item.url);
+                              }}
+                              className={`aspect-square rounded overflow-hidden relative border-2 transition active:scale-95 cursor-pointer group ${
+                                isSelected
+                                  ? 'border-emerald-500 ring-2 ring-emerald-500/30'
+                                  : isDark
+                                  ? 'border-slate-800 hover:border-slate-600'
+                                  : 'border-slate-200 hover:border-slate-400'
+                              }`}
+                              title={item.title}
+                            >
+                              <img
+                                src={item.url}
+                                alt={item.title}
+                                className="w-full h-full object-cover transition group-hover:scale-105"
+                                loading="lazy"
+                              />
+                              <div className="absolute bottom-0 inset-x-0 bg-black/75 px-1 py-0.5 text-[7.5px] text-white truncate text-center font-medium">
+                                {item.category}
+                              </div>
+                              {isSelected && (
+                                <div className="absolute inset-0 bg-emerald-500/40 flex items-center justify-center">
+                                  <Check className="w-4 h-4 text-white stroke-[3] drop-shadow" />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* CONTEÚDO DA ABA 3: DO DISPOSITIVO (TIRAR FOTO | SELECIONAR) */}
+                {formMediaTab === 'dispositivo' && (
+                  <div className="space-y-2.5 pt-0.5">
+                    <div className="space-y-1">
+                      <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 block">
+                        Salvar na galeria:
+                      </span>
+                      <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5">
+                        {categoryList.map((cat) => {
+                          const isSelectedCat = formDeviceTargetCat === cat;
+                          return (
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() => {
+                                hapticLight();
+                                setFormDeviceTargetCat(cat);
+                              }}
+                              className={`py-1 px-2 rounded-full text-[9.5px] font-bold whitespace-nowrap transition cursor-pointer shrink-0 border ${
+                                isSelectedCat
+                                  ? 'bg-emerald-500 border-emerald-500 text-white'
+                                  : isDark
+                                  ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                                  : 'bg-slate-100 border-slate-200 text-slate-600'
+                              }`}
+                            >
+                              <span className={isSelectedCat ? 'text-white' : ''}>{cat}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Sub-opção 1: Tirar foto (Câmera Móvel -> Salva na galeria selecionada -> Vai direto para a galeria) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          formCameraPhotoInputRef.current?.click();
+                        }}
+                        className="py-2.5 px-3 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-98 whitespace-nowrap"
+                      >
+                        <Camera className="w-4 h-4 text-white stroke-[2.5] shrink-0" />
+                        <span className="text-white">Tirar foto</span>
+                      </button>
+
+                      {/* Sub-opção 2: Selecionar (Dispositivo ou Google Fotos -> Salva e vai para a galeria) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          formDevicePhotoInputRef.current?.click();
+                        }}
+                        className={`py-2.5 px-3 rounded border font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 whitespace-nowrap ${
+                          isDark
+                            ? 'bg-slate-900 border-slate-800 text-white hover:border-emerald-500'
+                            : 'bg-slate-100 border-slate-300 text-slate-900 hover:bg-slate-200'
+                        }`}
+                      >
+                        <Upload className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>Selecionar</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Status da Capa / Acesso ao Gerenciador de Mídia Completo */}
                 {editingServiceId ? (
                   (() => {
                     const currentService = services.find((s) => s.id === editingServiceId);
                     const srvMode = currentService?.displayMode || (currentService?.mediaType === 'video' ? 'video' : 'static');
-                    const photoCount = currentService?.photos?.length || (currentService?.image || formPhotoCover ? 1 : 0);
                     const isVideoMode = srvMode === 'video' && !!currentService?.videoUrl;
                     const activeThumb = formPhotoCover || currentService?.image || currentService?.photos?.[0];
 
                     return (
-                      <div className={`p-2.5 rounded border flex items-center justify-between gap-3 ${
+                      <div className={`p-2 rounded border flex items-center justify-between gap-2.5 ${
                         isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
                       }`}>
-                        <div className="w-10 h-10 rounded overflow-hidden relative shrink-0 bg-slate-950 border border-slate-800 flex items-center justify-center">
+                        <div className="w-9 h-9 rounded overflow-hidden relative shrink-0 bg-slate-950 flex items-center justify-center">
                           {isVideoMode ? (
                             <video
                               src={currentService?.videoUrl}
@@ -1472,8 +1741,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                           <p className={`text-[11px] font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
                             {activeThumb ? 'Capa definida' : 'Sem foto definida'}
                           </p>
-                          <p className={`text-[9.5px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            {formPhotoCover ? 'Foto selecionada da galeria' : 'Adicione foto, slide ou vídeo'}
+                          <p className={`text-[9.5px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {formPhotoCover ? 'Foto pronta para salvar' : 'Selecione nas abas acima'}
                           </p>
                         </div>
 
@@ -1484,10 +1753,10 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                               handleOpenMediaManager(currentService);
                             }
                           }}
-                          className="px-2.5 py-1.5 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10px] cursor-pointer shrink-0 flex items-center gap-1 shadow-sm active:scale-98"
+                          className="px-2.5 py-1.5 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10px] cursor-pointer shrink-0 flex items-center gap-1 shadow-sm active:scale-98 whitespace-nowrap"
                         >
                           <Camera className="w-3.5 h-3.5 text-white" />
-                          <span>Mídia Pro</span>
+                          <span className="text-white">Mídia Pro</span>
                         </button>
                       </div>
                     );
@@ -1498,7 +1767,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   }`}>
                     <span className="flex items-center gap-1.5 truncate">
                       <Sparkles className="w-3 h-3 text-emerald-400 shrink-0" />
-                      <span>{formPhotoCover ? 'Capa selecionada com sucesso!' : 'Toque em uma foto pronta acima para ilustrar o serviço.'}</span>
+                      <span>{formPhotoCover ? 'Capa selecionada!' : 'Escolha uma foto em uma das 3 abas acima.'}</span>
                     </span>
                     {formPhotoCover && (
                       <button

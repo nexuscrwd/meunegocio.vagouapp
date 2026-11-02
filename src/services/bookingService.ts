@@ -436,6 +436,5 @@ export {
   fetchBusySlotsDirectly,
   fetchAvailableProfessionalsForDate,
   getAvailableSlotsForDate,
-  type BusySlotRecord,
   type SlotGenerationOptions,
 } from '../utils/bookingSlots';

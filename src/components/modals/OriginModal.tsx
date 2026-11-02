@@ -32,11 +32,11 @@ interface OriginModalProps {
   originType: 'home' | 'other';
   setOriginType: (v: 'home' | 'other') => void;
   skipDateStep: boolean;
-  setOriginModalMode: (v: 'choice' | 'custom_cep') => void;
   setIsOriginModalOpen: (v: boolean) => void;
+  setHasCalculatedCustomCep?: (v: boolean) => void;
 }
 
-const TRANSPORT_OPTIONS: Array<{ key: TransportMode; label: string; Icon: React.ElementType }> = [
+export const TRANSPORT_OPTIONS: Array<{ key: TransportMode; label: string; Icon: React.ElementType }> = [
   { key: 'car', label: 'Carro', Icon: Car },
   { key: 'motorcycle', label: 'Moto', Icon: Bike },
   { key: 'transit', label: 'Transporte Público', Icon: Bus },
@@ -66,8 +66,8 @@ export const OriginModal: React.FC<OriginModalProps> = ({
   originType,
   setOriginType,
   skipDateStep,
-  setOriginModalMode: _setOriginModalMode,
   setIsOriginModalOpen,
+  setHasCalculatedCustomCep,
 }) => {
   if (!isOpen || !selectedService) return null;
 
@@ -220,10 +220,10 @@ export const OriginModal: React.FC<OriginModalProps> = ({
                     if (digits.length === 8) {
                       setOriginAddress(formatted);
                       runRouteCalculation(formatted, salonDestQuery, transportMode).then(() => {
-                        setHasCalculatedCustomCep(true);
+                        setHasCalculatedCustomCep?.(true);
                       });
                     } else {
-                      setHasCalculatedCustomCep(false);
+                      setHasCalculatedCustomCep?.(false);
                     }
                   }}
                   placeholder="00000-000"
