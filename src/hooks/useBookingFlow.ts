@@ -402,7 +402,12 @@ export function useBookingFlow({
       }
     }
     load();
-    return () => { active = false; };
+    const handleSync = () => { load(); };
+    window.addEventListener('vagou:appointments-updated', handleSync);
+    return () => { 
+      active = false; 
+      window.removeEventListener('vagou:appointments-updated', handleSync);
+    };
   }, [salonId, selectedDateIso, professionals]);
   
   // Auto-seleciona profissional se só houver 1 disponível

@@ -95,9 +95,9 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
     {
       id: 'dados' as ManagementCardId,
       title: 'Dados do negócio',
-      description: 'Informações comerciais, fiscais e horários de atendimento',
+      description: 'Informações comerciais e fiscais do estabelecimento',
       icon: Building2,
-      badge: adminSettings.cnpj ? 'CNPJ Ativo' : '2 Seções',
+      badge: adminSettings.cnpj ? 'CNPJ Ativo' : 'Comercial & Fiscal',
       highlightColor: 'emerald',
     },
     {

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { 
   Clock, CalendarCheck, User, Zap, Check, Play, Pause, Plus, X,
-  ArrowRightLeft, AlertCircle, ArrowLeft, Users, CheckCircle2, TrendingUp,
+  ArrowRightLeft, AlertCircle, ArrowLeft, Users, CheckCircle2,
   MessageCircle, Scissors, Navigation
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
@@ -408,13 +408,105 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [transferSuccessMessage, setTransferSuccessMessage] = useState<string | null>(null);
 
+  // Agendamentos com fallback de MOCK para teste e averiguação imediata dos 3 cards no ambiente de dev
+  const effectiveAppointments = useMemo(() => {
+    const now = new Date();
+    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const shortToday = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    const hasTodayApts = (appointments || []).some((a) => {
+      return (
+        a.dateIso === todayIso ||
+        a.dayGroup === 'Hoje' ||
+        a.dayGroup === shortToday ||
+        (typeof a.dateTime === 'string' && (a.dateTime.includes('Hoje') || a.dateTime.includes(shortToday)))
+      );
+    });
+
+    if (hasTodayApts && Array.isArray(appointments) && appointments.length > 0) {
+      return appointments;
+    }
+
+    // Mock Appointments de Teste para o Atendimento Atual, Próximo e Pendente
+    const mock1: BookingAppointment = {
+      id: 'mock-app-current',
+      protocolCode: '#VGA-2001',
+      clientName: 'Carlos Eduardo',
+      customerName: 'Carlos Eduardo',
+      clientPhone: '11987654321',
+      serviceTitle: 'Corte de Cabelo + Barba',
+      service: 'Corte de Cabelo + Barba',
+      serviceName: 'Corte de Cabelo + Barba',
+      salonName: salonName || 'Meu Estabelecimento',
+      professionalName: currentUserName || 'Profissional',
+      professional: currentUserName || 'Profissional',
+      dateTime: `Hoje, 10:00`,
+      dayGroup: 'Hoje',
+      time: '10:00',
+      duration: '45m',
+      durationMinutes: 45,
+      totalPrice: 65,
+      status: 'EM ATENDIMENTO',
+      dateIso: todayIso,
+      tracking_status: 'idle',
+    };
+
+    const mock2: BookingAppointment = {
+      id: 'mock-app-next',
+      protocolCode: '#VGA-2002',
+      clientName: 'Lucas Gabriel',
+      customerName: 'Lucas Gabriel',
+      clientPhone: '11976543210',
+      serviceTitle: 'Barba Espartana',
+      service: 'Barba Espartana',
+      serviceName: 'Barba Espartana',
+      salonName: salonName || 'Meu Estabelecimento',
+      professionalName: currentUserName || 'Profissional',
+      professional: currentUserName || 'Profissional',
+      dateTime: `Hoje, 11:00`,
+      dayGroup: 'Hoje',
+      time: '11:00',
+      duration: '30m',
+      durationMinutes: 30,
+      totalPrice: 40,
+      status: 'CONFIRMADO',
+      dateIso: todayIso,
+      tracking_status: 'live_sharing', // Trajeto Compartilhado ao Vivo (VERDE)
+    };
+
+    const mock3: BookingAppointment = {
+      id: 'mock-app-pending',
+      protocolCode: '#VGA-2003',
+      clientName: 'Matheus Silva',
+      customerName: 'Matheus Silva',
+      clientPhone: '11965432109',
+      serviceTitle: 'Corte Degradê Navalhado',
+      service: 'Corte Degradê Navalhado',
+      serviceName: 'Corte Degradê Navalhado',
+      salonName: salonName || 'Meu Estabelecimento',
+      professionalName: currentUserName || 'Profissional',
+      professional: currentUserName || 'Profissional',
+      dateTime: `Hoje, 14:00`,
+      dayGroup: 'Hoje',
+      time: '14:00',
+      duration: '40m',
+      durationMinutes: 40,
+      totalPrice: 50,
+      status: 'PENDENTE',
+      dateIso: todayIso,
+      tracking_status: 'idle', // Ainda não em trajeto (OPACO)
+    };
+
+    return [mock1, mock2, mock3, ...(appointments || [])];
+  }, [appointments, salonName, currentUserName]);
+
   // Fila ativa de hoje para o profissional ativo (excluindo concluídos e cancelados)
   const todayActiveAppointments = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
-    const activeList = appointments.filter((app) => {
+    const activeList = effectiveAppointments.filter((app) => {
       if (!matchesSelectedPro(app)) return false;
       const appKey = app.protocolCode || app.id || `${app.time}-${app.clientName}`;
       const effectiveStatus = localAppointmentStatuses[appKey] || app.status || '';
@@ -452,26 +544,51 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
 
       return (a.time || '').localeCompare(b.time || '');
     });
-  }, [appointments, matchesSelectedPro, localAppointmentStatuses]);
+  }, [effectiveAppointments, matchesSelectedPro, localAppointmentStatuses]);
 
   // Três slots de atendimento na fila prioritária
-  const currentCardAppointment = todayActiveAppointments[0] || null;
-  const nextCardAppointment = todayActiveAppointments[1] || null;
+  const currentCardAppointment = useMemo(() => {
+    const inProgress = todayActiveAppointments.find((a) => {
+      const k = a.protocolCode || a.id || `${a.time}-${a.clientName}`;
+      const st = (localAppointmentStatuses[k] || a.status || '').toUpperCase();
+      return st.includes('ATEND') || st.includes('INICI') || st.includes('PAUS');
+    });
+    return inProgress || todayActiveAppointments[0] || null;
+  }, [todayActiveAppointments, localAppointmentStatuses]);
+
+  const nextCardAppointment = useMemo(() => {
+    const remaining = todayActiveAppointments.filter((a) => {
+      if (currentCardAppointment && (a.protocolCode === currentCardAppointment.protocolCode || a.id === currentCardAppointment.id)) {
+        return false;
+      }
+      const k = a.protocolCode || a.id || `${a.time}-${a.clientName}`;
+      const st = (localAppointmentStatuses[k] || a.status || '').toUpperCase();
+      return st !== 'PENDENTE';
+    });
+    return remaining[0] || null;
+  }, [todayActiveAppointments, currentCardAppointment, localAppointmentStatuses]);
+
   const confirmationCardAppointment = useMemo(() => {
-    if (todayActiveAppointments[2]) return todayActiveAppointments[2];
-    // Se não há 3º agendamento na fila principal, verifica se há algum aguardando confirmação
-    const pending = appointments.find((a) => {
+    const pending = effectiveAppointments.find((a) => {
       if (!matchesSelectedPro(a)) return false;
       const k = a.protocolCode || a.id || `${a.time}-${a.clientName}`;
       const st = (localAppointmentStatuses[k] || a.status || '').toUpperCase();
       if (st === 'CANCELADO' || st === 'CONCLUÍDO' || st === 'CONCLUIDO') return false;
+
       const isAlreadyShown =
         (currentCardAppointment && (a.protocolCode === currentCardAppointment.protocolCode || a.id === currentCardAppointment.id)) ||
         (nextCardAppointment && (a.protocolCode === nextCardAppointment.protocolCode || a.id === nextCardAppointment.id));
+
       return !isAlreadyShown && (st.includes('PEND') || st.includes('AGEND'));
     });
-    return pending || null;
-  }, [todayActiveAppointments, appointments, matchesSelectedPro, localAppointmentStatuses, currentCardAppointment, nextCardAppointment]);
+
+    return pending || todayActiveAppointments.find((a) => {
+      const isAlreadyShown =
+        (currentCardAppointment && (a.protocolCode === currentCardAppointment.protocolCode || a.id === currentCardAppointment.id)) ||
+        (nextCardAppointment && (a.protocolCode === nextCardAppointment.protocolCode || a.id === nextCardAppointment.id));
+      return !isAlreadyShown;
+    }) || null;
+  }, [effectiveAppointments, todayActiveAppointments, matchesSelectedPro, localAppointmentStatuses, currentCardAppointment, nextCardAppointment]);
 
   // Trava Operacional de Mitigação: O próximo atendimento não pode ser iniciado sem a conclusão ou definição do anterior
   const isModalBlockedByPrevious = useMemo(() => {
@@ -639,44 +756,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     setActionModalAppointment(null);
   }, [actionModalAppointment, handleCompleteAppointment]);
 
-  // 1. Resumo Financeiro Rápido (Linguagem Direta: Caixa, Previsão, Ticket Médio e Líquido)
-  const financialQuickSummary = useMemo(() => {
-    let realizedRevenue = 0;
-    let completedCount = 0;
-    let forecastRevenue = 0;
-    let pendingCount = 0;
-
-    appointments.forEach((app) => {
-      if (!matchesSelectedPro(app)) return;
-      const val = Number(app.totalPrice) || 45;
-      const st = (app.status || '').toUpperCase();
-      if (st === 'CONCLUÍDO' || st === 'CONCLUIDO') {
-        realizedRevenue += val;
-        completedCount += 1;
-      } else if (st !== 'CANCELADO') {
-        forecastRevenue += val;
-        pendingCount += 1;
-      }
-    });
-
-    // Se não há agendamentos concluídos ou previstos, mantem 0
-    const averageTicket = completedCount > 0 ? realizedRevenue / completedCount : 0;
-    const isOwner = userRole === 'admin' || currentPersona === 'admin';
-    const activeMember = teamList.find(m => m.name === loggedProfessionalName);
-    const commissionRate = isOwner ? 100 : (activeMember?.commissionRate ?? 60);
-    const netProfitOrCommission = (realizedRevenue * commissionRate) / 100;
-
-    return {
-      realizedRevenue,
-      completedCount,
-      forecastRevenue,
-      pendingCount,
-      averageTicket,
-      netProfitOrCommission,
-      isOwner,
-    };
-  }, [appointments, matchesSelectedPro, userRole, currentPersona, teamList, loggedProfessionalName]);
-
   const renderAppointmentCard = (app: BookingAppointment, cardType: 'atual' | 'proximo' | 'confirmacao') => {
     const appKey = app.protocolCode || app.id || `${app.time}-${app.clientName}`;
     const effectiveStatus = (localAppointmentStatuses[appKey] || app.status || '').toUpperCase();
@@ -775,30 +854,40 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
             )}
 
             {/* 2. Próximo Atendimento com Status "A caminho: Sim" ou "Não" */}
-            {cardType === 'proximo' && (
-              <>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
-                  isDark ? 'bg-slate-800 text-slate-200 border border-slate-700' : 'bg-slate-100 text-slate-700 border border-slate-200'
-                }`}>
-                  <Clock className="w-2.5 h-2.5 text-slate-400" />
-                  <span>Próximo Atendimento</span>
-                </span>
-
-                {isEnRoute ? (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-emerald-500 text-white shadow-2xs">
-                    <Navigation className="w-2.5 h-2.5 fill-white text-white" />
-                    <span>A caminho: Sim</span>
-                  </span>
-                ) : (
+            {cardType === 'proximo' && (() => {
+              const isLiveSharing = app.tracking_status === 'live_sharing' || app.tracking_status === 'arriving_5min' || app.tracking_status === 'hurry_confirmed' || app.tracking_status === 'arrived';
+              const isEnRouteNoMap = !isLiveSharing && (app.tracking_status === 'on_way_no_map' || effectiveStatus.includes('CAMINHO') || (app as any).isClientEnRoute);
+              
+              return (
+                <>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
-                    isDark ? 'bg-slate-800 text-slate-400 border border-slate-700' : 'bg-slate-100 text-slate-500 border border-slate-200'
+                    isDark ? 'bg-slate-800 text-slate-200 border border-slate-700' : 'bg-slate-100 text-slate-700 border border-slate-200'
                   }`}>
                     <Clock className="w-2.5 h-2.5 text-slate-400" />
-                    <span>A caminho: Não</span>
+                    <span>Próximo Atendimento</span>
                   </span>
-                )}
-              </>
-            )}
+
+                  {isLiveSharing ? (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-emerald-500 text-white shadow-2xs">
+                      <Navigation className="w-2.5 h-2.5 fill-white text-white" />
+                      <span>Em Trajeto (GPS Compartilhado)</span>
+                    </span>
+                  ) : isEnRouteNoMap ? (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-blue-500 text-white shadow-2xs">
+                      <Navigation className="w-2.5 h-2.5 text-white" />
+                      <span>Em Trajeto (Sem GPS)</span>
+                    </span>
+                  ) : (
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
+                      isDark ? 'opacity-50 bg-slate-800/40 text-slate-400 border border-slate-700/60' : 'opacity-60 bg-slate-100/60 text-slate-500 border border-slate-200'
+                    }`}>
+                      <Clock className="w-2.5 h-2.5 text-slate-400" />
+                      <span>Ainda Não Iniciou Trajeto</span>
+                    </span>
+                  )}
+                </>
+              );
+            })()}
 
             {/* 3. Confirmação de Atendimento */}
             {cardType === 'confirmacao' && (
@@ -1047,7 +1136,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       {/* 2. Conteúdo Rolável: Fila & Agenda seguido de Dashboard & Metas */}
       <div className="p-2 flex flex-col gap-3 flex-1">
         {/* Bloco de Atendimentos Prioritários: Atual / Próximo e Confirmação */}
-        <div className="space-y-2">
+        <div className="space-y-2 pb-6">
           {/* Título do Grupo de Atendimento */}
           <div className="flex items-center justify-between px-0.5 pt-0.5">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
@@ -1077,48 +1166,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
             renderEmptyAppointmentCard('confirmacao')
           )}
         </div>
-
-        {/* Itens de Dashboard & Caixa Operacional (Posicionados abaixo da Fila & Atendimentos) */}
-        <div className="space-y-3 pb-6">
-          {/* Bloco 1: KPIs Principais (Copiado da Seção Caixa) */}
-          <div className="grid grid-cols-2 gap-2">
-            {/* Caixa Realizado */}
-            <div className={`p-3 rounded border flex flex-col justify-between ${
-              isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-            }`}>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Caixa Realizado</span>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              </div>
-              <div className="mt-1">
-                <span className="text-lg font-black font-mono tracking-tight text-emerald-400">
-                  R$ {financialQuickSummary.realizedRevenue.toFixed(2).replace('.', ',')}
-                </span>
-                <p className="text-[10px] text-slate-500 mt-0.5">
-                  {financialQuickSummary.completedCount} {financialQuickSummary.completedCount === 1 ? 'atendimento' : 'atendimentos'}
-                </p>
-              </div>
-            </div>
-
-            {/* Previsão Restante */}
-            <div className={`p-3 rounded border flex flex-col justify-between ${
-              isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-            }`}>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Previsão Aberta</span>
-                <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
-              </div>
-              <div className="mt-1">
-                <span className="text-lg font-black font-mono tracking-tight text-amber-400">
-                  R$ {financialQuickSummary.forecastRevenue.toFixed(2).replace('.', ',')}
-                </span>
-                <p className="text-[10px] text-slate-500 mt-0.5">
-                  {financialQuickSummary.pendingCount} {financialQuickSummary.pendingCount === 1 ? 'agendamento' : 'agendamentos'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Modal Operacional de Atendimento (Iniciar, Pausar, Adicionar Mais Tempo, Concluir) */}
@@ -1135,7 +1182,9 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
         return (
           <div 
             id="professional-appointment-action-modal-overlay"
-            className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150"
+            className={`fixed inset-0 z-[9999] w-full max-w-md mx-auto h-full flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200 select-none ${
+              isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
+            }`}
             onClick={() => {
               setIsActionModalOpen(false);
               setActionModalAppointment(null);
@@ -1143,8 +1192,8 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
           >
             <div 
               id="professional-appointment-action-modal"
-              className={`w-full max-w-sm rounded border p-4 flex flex-col gap-3.5 shadow-2xl relative select-none animate-in zoom-in-95 duration-150 ${
-                isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+              className={`w-full h-full flex flex-col justify-between overflow-y-auto no-scrollbar relative p-4 gap-4 ${
+                isDark ? 'bg-slate-950 text-white' : 'bg-white text-slate-900'
               }`}
               onClick={(e) => e.stopPropagation()}
             >

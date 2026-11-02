@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 
 export interface SalonAuthHeaderProps {
   salonName?: string;
@@ -20,13 +21,17 @@ export const SalonAuthHeader: React.FC<SalonAuthHeaderProps> = ({
   subtitle,
   onClose,
 }) => {
+  const { isDark } = useTheme();
   const [logoError, setLogoError] = useState(false);
 
   const resolvedLogo =
     salonLogoUrl ||
     (typeof window !== 'undefined'
-      ? localStorage.getItem('vagou_salon_logo_dark') ||
-        localStorage.getItem('vagou_salon_logo_light') ||
+      ? (isDark
+          ? localStorage.getItem('vagou_salon_logo_dark') ||
+            localStorage.getItem('vagou_salon_logo_light')
+          : localStorage.getItem('vagou_salon_logo_light') ||
+            localStorage.getItem('vagou_salon_logo_dark')) ||
         localStorage.getItem('vagou_salon_icon') ||
         ''
       : '');
@@ -39,12 +44,20 @@ export const SalonAuthHeader: React.FC<SalonAuthHeaderProps> = ({
   const hasValidLogo = Boolean(resolvedLogo && !logoError);
 
   return (
-    <div className="relative min-h-[116px] px-8 py-5 bg-slate-950 border-b border-slate-800 flex flex-col items-center justify-center text-center gap-2">
+    <div
+      className={`relative min-h-[116px] px-8 py-5 border-b flex flex-col items-center justify-center text-center gap-2 ${
+        isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+      }`}
+    >
       {onClose && (
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-3 right-3 p-1.5 rounded-[4px] text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+          className={`absolute top-3 right-3 p-1.5 rounded-[4px] transition cursor-pointer ${
+            isDark
+              ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
+          }`}
           title="Fechar modal"
           aria-label="Fechar modal"
         >
@@ -62,13 +75,18 @@ export const SalonAuthHeader: React.FC<SalonAuthHeaderProps> = ({
       )}
 
       <div className="flex flex-col items-center justify-center max-w-full">
-        <h2 className="text-sm sm:text-base font-extrabold text-white tracking-tight text-center break-words">
+        <h2
+          className={`text-sm sm:text-base font-extrabold tracking-tight text-center break-words ${
+            isDark ? 'text-white' : 'text-slate-900'
+          }`}
+        >
           {resolvedSalonName}
         </h2>
-        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 text-center mt-0.5">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-accent text-center mt-0.5">
           {subtitle}
         </p>
       </div>
     </div>
   );
 };
+

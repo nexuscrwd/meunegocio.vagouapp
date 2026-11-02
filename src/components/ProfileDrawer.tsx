@@ -1307,7 +1307,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                             <LayoutDashboard className="w-4 h-4 text-emerald-400" />
                           </div>
                           <div>
-                            <div className="text-xs font-bold font-['Poppins']">GESTÃO</div>
+                            <div className="text-xs font-bold font-['Poppins']">MODO SALÃO</div>
                           </div>
                         </div>
                         <ChevronRight className="w-4 h-4 opacity-70" />
@@ -1481,7 +1481,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                             <Store className="w-4 h-4 text-white" />
                           </div>
                           <div className="text-left">
-                            <div className="text-white font-bold font-['Poppins']">VITRINE</div>
+                            <div className="text-white font-bold font-['Poppins']">MODO CLIENTE</div>
                           </div>
                         </div>
                         <ChevronRight className="w-4 h-4 text-white" />
@@ -2798,12 +2798,16 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
             </div>
 
             {/* Mensagens */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0 bg-slate-950/40">
+            <div className={`flex-1 overflow-y-auto p-3 space-y-3 min-h-0 ${
+              isDark ? 'bg-slate-950/40' : 'bg-slate-50/70'
+            }`}>
               {drawerChatMessages.map((msg) => {
                 if (msg.sender === 'system') {
                   return (
-                    <div key={msg.id} className="my-2 p-2 rounded-[4px] bg-slate-900/90 border border-slate-800 text-[10px] text-slate-400 text-center flex items-center justify-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <div key={msg.id} className={`my-2 p-2 rounded-[4px] border text-[10px] text-center flex items-center justify-center gap-1.5 ${
+                      isDark ? 'bg-slate-900/90 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600'
+                    }`}>
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                       <span>{msg.text}</span>
                     </div>
                   );
@@ -2976,9 +2980,13 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                             }}
                             className={`p-2 rounded border text-center transition cursor-pointer flex flex-col items-center justify-center relative min-h-[62px] ${
                               isDisabled
-                                ? 'opacity-40 border-dashed border-slate-800 bg-slate-950/60 cursor-not-allowed text-slate-500'
+                                ? isDark
+                                  ? 'opacity-40 border-dashed border-slate-800 bg-slate-950/60 cursor-not-allowed text-slate-500'
+                                  : 'opacity-50 border-dashed border-slate-300 bg-slate-100 cursor-not-allowed text-slate-400'
                                 : isSelected
-                                ? 'border-emerald-500 bg-emerald-500/20 text-white ring-1 ring-emerald-500'
+                                ? isDark
+                                  ? 'border-emerald-500 bg-emerald-500/20 text-white ring-1 ring-emerald-500'
+                                  : 'border-emerald-500 bg-emerald-500/15 text-slate-900 ring-1 ring-emerald-500'
                                 : isDark
                                 ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
                                 : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
@@ -3110,7 +3118,11 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   <button
                     type="button"
                     onClick={() => setGovernanceWarning({ isOpen: false, type: null })}
-                    className="flex-1 py-2 rounded border border-slate-700 text-xs font-semibold text-slate-300 hover:bg-slate-800 transition cursor-pointer"
+                    className={`flex-1 py-2 rounded border text-xs font-semibold transition cursor-pointer ${
+                      isDark
+                        ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                        : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                    }`}
                   >
                     Agora Não
                   </button>
@@ -3145,7 +3157,11 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 <button
                   type="button"
                   onClick={() => setGovernanceWarning({ isOpen: false, type: null })}
-                  className="w-full py-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition cursor-pointer"
+                  className={`w-full py-2 rounded text-xs font-bold transition cursor-pointer ${
+                    isDark
+                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                      : 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                  }`}
                 >
                   Entendi
                 </button>
@@ -3166,7 +3182,11 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 <button
                   type="button"
                   onClick={() => setGovernanceWarning({ isOpen: false, type: null })}
-                  className="w-full py-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition cursor-pointer"
+                  className={`w-full py-2 rounded text-xs font-bold transition cursor-pointer ${
+                    isDark
+                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                      : 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                  }`}
                 >
                   Entendi
                 </button>

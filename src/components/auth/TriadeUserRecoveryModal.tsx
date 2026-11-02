@@ -18,6 +18,7 @@ import {
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { SalonAuthHeader } from './SalonAuthHeader';
 import { findMatchingTriadeAccounts } from './TriadeUserLoginForm';
+import { useTheme } from '../../context/ThemeContext';
 
 export interface SecurityQuestionItem {
   id: string;
@@ -80,6 +81,7 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
   onBackToLogin,
   variant = 'card',
 }) => {
+  const { isDark } = useTheme();
   const [view, setView] = useState<RecoveryModalView>('choose');
   const [questions] = useState<SecurityQuestionItem[]>(OFFICIAL_SECURITY_QUESTIONS);
   const [selectedQuestion, setSelectedQuestion] = useState<SecurityQuestionItem>(() => {
@@ -395,7 +397,9 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
     <div
       className={`w-full max-w-md mx-auto ${
         variant === 'card'
-          ? 'bg-slate-900 border border-slate-800 rounded-[4px] shadow-2xl overflow-hidden'
+          ? isDark
+            ? 'bg-slate-900 border border-slate-800 rounded-[4px] shadow-2xl overflow-hidden text-white'
+            : 'bg-white border border-slate-200 rounded-[4px] shadow-2xl overflow-hidden text-slate-900'
           : ''
       }`}
     >
@@ -412,14 +416,14 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
           <div
             className={`p-3 rounded-[4px] text-xs font-semibold flex items-center gap-2 border ${
               feedback.type === 'success'
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
+                : 'bg-rose-500/10 text-rose-500 border-rose-500/30'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
             ) : (
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
             )}
             <span>{feedback.message}</span>
           </div>
@@ -428,7 +432,11 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
         {/* TELA 1: ESCOLHA ENTRE [USUÁRIO] E [SENHA] */}
         {view === 'choose' && (
           <div className="space-y-4">
-            <p className="text-xs text-slate-300 text-center font-medium">
+            <p
+              className={`text-xs text-center font-medium ${
+                isDark ? 'text-slate-300' : 'text-slate-600'
+              }`}
+            >
               Selecione qual informação deseja recuperar:
             </p>
 
@@ -440,7 +448,7 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
                   pickRandomQuestion();
                   setView('user');
                 }}
-                className="py-4 px-3 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs flex flex-col items-center justify-center gap-2 shadow-lg transition active:scale-95 cursor-pointer"
+                className="py-4 px-3 rounded-[4px] bg-accent hover:opacity-95 text-white font-bold text-xs flex flex-col items-center justify-center gap-2 shadow-lg transition active:scale-95 cursor-pointer"
               >
                 <User className="w-5 h-5 text-white" />
                 <span className="text-white uppercase tracking-wide">Usuário</span>
@@ -453,20 +461,28 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
                   setPasswordStep('identify');
                   setView('password');
                 }}
-                className="py-4 px-3 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs flex flex-col items-center justify-center gap-2 shadow-lg transition active:scale-95 cursor-pointer"
+                className="py-4 px-3 rounded-[4px] bg-accent hover:opacity-95 text-white font-bold text-xs flex flex-col items-center justify-center gap-2 shadow-lg transition active:scale-95 cursor-pointer"
               >
                 <KeyRound className="w-5 h-5 text-white" />
                 <span className="text-white uppercase tracking-wide">Senha</span>
               </button>
             </div>
 
-            <div className="sticky bottom-0 z-20 pt-2 bg-slate-900">
+            <div
+              className={`sticky bottom-0 z-20 pt-2 ${
+                isDark ? 'bg-slate-900' : 'bg-white'
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => onBackToLogin()}
-                className="w-full py-2.5 px-4 rounded-[4px] bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                className={`w-full py-2.5 px-4 rounded-[4px] border font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                  isDark
+                    ? 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-200'
+                    : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
+                }`}
               >
-                <ArrowLeft className="w-4 h-4 text-emerald-400" />
+                <ArrowLeft className="w-4 h-4 text-accent" />
                 <span>Voltar para ACESSAR</span>
               </button>
             </div>
@@ -479,15 +495,19 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
             {/* Seleção rápida de pergunta secreta com quebra de linha */}
             <div className="relative">
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[11px] font-semibold text-slate-300">
+                <label
+                  className={`text-[11px] font-semibold ${
+                    isDark ? 'text-slate-300' : 'text-slate-700'
+                  }`}
+                >
                   Pergunta Secreta
                 </label>
                 <button
                   type="button"
                   onClick={pickRandomQuestion}
-                  className="text-[11px] font-bold text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  className="text-[11px] font-bold text-accent hover:underline flex items-center gap-1 cursor-pointer"
                 >
-                  <RefreshCw className="w-3 h-3 text-emerald-400" />
+                  <RefreshCw className="w-3 h-3 text-accent" />
                   <span>Sortear outra</span>
                 </button>
               </div>
@@ -495,20 +515,30 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
               <button
                 type="button"
                 onClick={() => setIsQuestionListOpen((prev) => !prev)}
-                className="w-full bg-slate-950 border border-slate-800 hover:border-emerald-500/60 rounded-[4px] px-3 py-2.5 text-xs text-white text-left flex items-center justify-between gap-2 transition cursor-pointer"
+                className={`w-full border rounded-[4px] px-3 py-2.5 text-xs text-left flex items-center justify-between gap-2 transition cursor-pointer ${
+                  isDark
+                    ? 'bg-slate-950 border-slate-800 hover:border-emerald-500/60 text-white'
+                    : 'bg-slate-50 border-slate-300 hover:border-slate-400 text-slate-900'
+                }`}
               >
                 <span className="whitespace-normal break-words leading-snug">
                   {selectedQuestion.questionText}
                 </span>
                 <ChevronDown
                   className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${
-                    isQuestionListOpen ? 'rotate-180 text-emerald-400' : ''
+                    isQuestionListOpen ? 'rotate-180 text-accent' : ''
                   }`}
                 />
               </button>
 
               {isQuestionListOpen && (
-                <div className="mt-1 bg-slate-950 border border-slate-700 rounded-[4px] overflow-hidden divide-y divide-slate-800/80 shadow-xl">
+                <div
+                  className={`mt-1 border rounded-[4px] overflow-hidden divide-y shadow-xl ${
+                    isDark
+                      ? 'bg-slate-950 border-slate-700 divide-slate-800/80'
+                      : 'bg-white border-slate-300 divide-slate-200'
+                  }`}
+                >
                   {questions.map((q) => {
                     const isSelected = q.code === selectedQuestion.code;
                     return (
@@ -523,8 +553,10 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
                         }}
                         className={`w-full px-3 py-2.5 text-xs text-left whitespace-normal break-words leading-snug transition cursor-pointer ${
                           isSelected
-                            ? 'bg-[#20C933] text-white font-bold'
-                            : 'text-slate-200 hover:bg-slate-800'
+                            ? 'bg-accent text-white font-bold'
+                            : isDark
+                            ? 'text-slate-200 hover:bg-slate-800'
+                            : 'text-slate-700 hover:bg-slate-100'
                         }`}
                       >
                         {q.questionText}
@@ -536,9 +568,13 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
             </div>
 
             {/* Pergunta Secreta Destacada */}
-            <div className="p-3 rounded-[4px] bg-slate-950 border border-slate-800 space-y-2">
-              <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">
-                <HelpCircle className="w-4 h-4 shrink-0 text-emerald-400" />
+            <div
+              className={`p-3 rounded-[4px] border space-y-2 ${
+                isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+              }`}
+            >
+              <div className="flex items-center gap-2 text-accent text-xs font-bold">
+                <HelpCircle className="w-4 h-4 shrink-0 text-accent" />
                 <span>{selectedQuestion.questionText}</span>
               </div>
 
@@ -548,13 +584,17 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
                 value={secretAnswer}
                 onChange={(e) => setSecretAnswer(e.target.value)}
                 placeholder="Digite sua resposta secreta"
-                className="w-full bg-slate-900 border border-slate-800 rounded-[4px] px-3 py-2 text-xs text-white outline-none focus:border-emerald-500 transition placeholder:text-slate-500"
+                className={`w-full border rounded-[4px] px-3 py-2 text-xs outline-none focus:border-emerald-500 transition ${
+                  isDark
+                    ? 'bg-slate-900 border-slate-800 text-white placeholder:text-slate-500'
+                    : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400'
+                }`}
               />
             </div>
 
             {/* Campo complementar opcional de Celular ou E-mail */}
             <div>
-              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                 Celular ou E-mail (opcional para confirmação rápida)
               </label>
               <input
@@ -562,23 +602,34 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
                 value={contactHint}
                 onChange={(e) => setContactHint(e.target.value)}
                 placeholder="(11) 99999-9999 ou seu@email.com"
-                className="w-full bg-slate-950 border border-slate-800 rounded-[4px] px-3 py-2 text-xs text-white outline-none focus:border-emerald-500 transition placeholder:text-slate-500"
+                className={`w-full border rounded-[4px] px-3 py-2 text-xs outline-none focus:border-emerald-500 transition ${
+                  isDark
+                    ? 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-500'
+                    : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400'
+                }`}
               />
             </div>
 
             {recoveredUsername && (
-              <div className="p-3 rounded-[4px] bg-slate-950 border border-emerald-500/40 space-y-2">
-                <p className="text-[11px] text-slate-400">
-                  Nome Completo: <strong className="text-white">{recoveredFullName}</strong>
+              <div
+                className={`p-3 rounded-[4px] border border-emerald-500/40 space-y-2 ${
+                  isDark ? 'bg-slate-950' : 'bg-emerald-50/40'
+                }`}
+              >
+                <p className="text-[11px] text-slate-500">
+                  Nome Completo:{' '}
+                  <strong className={isDark ? 'text-white' : 'text-slate-900'}>
+                    {recoveredFullName}
+                  </strong>
                 </p>
-                <p className="text-xs text-slate-300">
+                <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                   Seu Nome de Usuário:{' '}
-                  <strong className="text-emerald-400 text-sm">{recoveredUsername}</strong>
+                  <strong className="text-accent text-sm">{recoveredUsername}</strong>
                 </p>
                 <button
                   type="button"
                   onClick={() => onBackToLogin(recoveredUsername)}
-                  className="w-full py-2.5 px-3 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                  className="w-full py-2.5 px-3 rounded-[4px] bg-accent hover:opacity-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
                 >
                   <ShieldCheck className="w-4 h-4 text-white" />
                   <span className="text-white">Usar Usuário em ACESSAR</span>
@@ -587,7 +638,11 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
               </div>
             )}
 
-            <div className="sticky bottom-0 z-20 pt-2 bg-slate-900 grid grid-cols-2 gap-2">
+            <div
+              className={`sticky bottom-0 z-20 pt-2 grid grid-cols-2 gap-2 ${
+                isDark ? 'bg-slate-900' : 'bg-white'
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => {
@@ -595,7 +650,11 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
                   setRecoveredUsername(null);
                   setView('choose');
                 }}
-                className="py-2.5 px-3 rounded-[4px] bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                className={`py-2.5 px-3 rounded-[4px] border font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                  isDark
+                    ? 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-200'
+                    : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
+                }`}
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Voltar</span>
@@ -604,7 +663,7 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
               <button
                 type="submit"
                 disabled={isLoading || secretAnswer.trim().length < 2}
-                className="py-2.5 px-3 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
+                className="py-2.5 px-3 rounded-[4px] bg-accent hover:opacity-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
               >
                 {isLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin text-white" />
@@ -624,41 +683,63 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
           <form onSubmit={handleRecoverPassword} className="space-y-3.5">
             {passwordStep === 'identify' ? (
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label
+                  className={`block text-xs font-semibold mb-1.5 ${
+                    isDark ? 'text-slate-300' : 'text-slate-700'
+                  }`}
+                >
                   Usuário, Celular ou E-mail
                 </label>
-                <div className="flex items-center bg-slate-950 border border-slate-800 rounded-[4px] px-3 py-2.5 focus-within:border-emerald-500 transition">
-                  <User className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+                <div
+                  className={`flex items-center border rounded-[4px] px-3 py-2.5 focus-within:border-emerald-500 transition ${
+                    isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'
+                  }`}
+                >
+                  <User className="w-4 h-4 text-accent mr-2 shrink-0" />
                   <input
                     type="text"
                     required
                     value={recoveryIdentifier}
                     onChange={(e) => setRecoveryIdentifier(e.target.value)}
                     placeholder="@usuario, (11) 99999-9999 ou e-mail"
-                    className="bg-transparent text-xs sm:text-sm text-white outline-none w-full placeholder:text-slate-500"
+                    className={`bg-transparent text-xs sm:text-sm outline-none w-full ${
+                      isDark ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400'
+                    }`}
                   />
                 </div>
               </div>
             ) : (
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label
+                    className={`block text-xs font-semibold mb-1 ${
+                      isDark ? 'text-slate-300' : 'text-slate-700'
+                    }`}
+                  >
                     Nova Senha (1 maiúscula e 1 caractere especial)
                   </label>
-                  <div className="flex items-center bg-slate-950 border border-slate-800 rounded-[4px] px-3 py-2.5 focus-within:border-emerald-500 transition">
-                    <Lock className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+                  <div
+                    className={`flex items-center border rounded-[4px] px-3 py-2.5 focus-within:border-emerald-500 transition ${
+                      isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'
+                    }`}
+                  >
+                    <Lock className="w-4 h-4 text-accent mr-2 shrink-0" />
                     <input
                       type={showNewPassword ? 'text' : 'password'}
                       required
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Nova senha"
-                      className="bg-transparent text-xs sm:text-sm text-white outline-none w-full placeholder:text-slate-500"
+                      className={`bg-transparent text-xs sm:text-sm outline-none w-full ${
+                        isDark ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400'
+                      }`}
                     />
                     <button
                       type="button"
                       onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="text-slate-400 hover:text-white ml-2 cursor-pointer"
+                      className={`ml-2 cursor-pointer ${
+                        isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
+                      }`}
                     >
                       {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -666,23 +747,35 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label
+                    className={`block text-xs font-semibold mb-1 ${
+                      isDark ? 'text-slate-300' : 'text-slate-700'
+                    }`}
+                  >
                     Confirme a Nova Senha
                   </label>
-                  <div className="flex items-center bg-slate-950 border border-slate-800 rounded-[4px] px-3 py-2.5 focus-within:border-emerald-500 transition">
-                    <Lock className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+                  <div
+                    className={`flex items-center border rounded-[4px] px-3 py-2.5 focus-within:border-emerald-500 transition ${
+                      isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'
+                    }`}
+                  >
+                    <Lock className="w-4 h-4 text-accent mr-2 shrink-0" />
                     <input
                       type={showConfirmNewPassword ? 'text' : 'password'}
                       required
                       value={confirmNewPassword}
                       onChange={(e) => setConfirmNewPassword(e.target.value)}
                       placeholder="Repita a nova senha"
-                      className="bg-transparent text-xs sm:text-sm text-white outline-none w-full placeholder:text-slate-500"
+                      className={`bg-transparent text-xs sm:text-sm outline-none w-full ${
+                        isDark ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400'
+                      }`}
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
-                      className="text-slate-400 hover:text-white ml-2 cursor-pointer"
+                      className={`ml-2 cursor-pointer ${
+                        isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
+                      }`}
                     >
                       {showConfirmNewPassword ? (
                         <EyeOff className="w-4 h-4" />
@@ -695,7 +788,11 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
               </div>
             )}
 
-            <div className="sticky bottom-0 z-20 pt-2 bg-slate-900 grid grid-cols-2 gap-2">
+            <div
+              className={`sticky bottom-0 z-20 pt-2 grid grid-cols-2 gap-2 ${
+                isDark ? 'bg-slate-900' : 'bg-white'
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => {
@@ -706,7 +803,11 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
                     setView('choose');
                   }
                 }}
-                className="py-2.5 px-3 rounded-[4px] bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                className={`py-2.5 px-3 rounded-[4px] border font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                  isDark
+                    ? 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-200'
+                    : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
+                }`}
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Voltar</span>
@@ -715,7 +816,7 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
               <button
                 type="submit"
                 disabled={isLoading || (passwordStep === 'reset' && !isNewPasswordValid)}
-                className="py-2.5 px-3 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
+                className="py-2.5 px-3 rounded-[4px] bg-accent hover:opacity-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
               >
                 {isLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin text-white" />

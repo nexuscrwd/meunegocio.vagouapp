@@ -9,7 +9,6 @@ import { hapticSuccess, hapticLight } from '../../utils/haptics';
 import { updateDynamicPwaAssets } from '../../utils/pwaAssets';
 import { compressImageFile } from '../../utils/imageCompressor';
 import { getSectionHeaderStyleData } from '../../utils/sectionHeaderStyle';
-import { getThemeColorPresets } from '../../utils/colorPresets';
 
 export interface VisualIdentityCardViewProps {
   adminSettings: SalonAdminSettings;
@@ -33,7 +32,7 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
   const [salonLogoLight, setSalonLogoLight] = useState(adminSettings.salonLogoLight || adminSettings.salonLogo || '');
   const [salonLogoDark, setSalonLogoDark] = useState(adminSettings.salonLogoDark || adminSettings.salonLogo || '');
   const [salonIcon, setSalonIcon] = useState(adminSettings.salonIcon || '');
-  const [accentColor, setAccentColor] = useState(adminSettings.accentColor || '#10b981');
+  const [accentColor, setAccentColor] = useState(adminSettings.accentColor || '#20C933');
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState<string>('');
@@ -42,7 +41,15 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
   const logoDarkInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
 
-  const COLOR_PRESETS = getThemeColorPresets(accentColor);
+  const COLOR_PRESETS = [
+    { hex: '#20C933', label: 'Esmeralda' },
+    { hex: '#3b82f6', label: 'Azul' },
+    { hex: '#d97706', label: 'Dourado' },
+    { hex: '#e11d48', label: 'Rose' },
+    { hex: '#7c3aed', label: 'Violeta' },
+    { hex: '#475569', label: 'Grafite' },
+    { hex: '#000000', label: 'Preto' },
+  ];
 
   const BRAND_FONT_PRESETS = [
     {

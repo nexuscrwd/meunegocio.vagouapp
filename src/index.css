@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --color-emerald-50: color-mix(in srgb, var(--accent-color) 10%, white 90%);
@@ -57,15 +58,28 @@ input[type="number"] {
   appearance: textfield;
 }
 
-/* Utilitários diretos de Cor de Destaque */
-.bg-accent { background-color: var(--accent-color) !important; }
+/* Utilitários diretos de Cor de Destaque e Status */
+.bg-accent,
+.status-green-bg {
+  background-color: var(--accent-color) !important;
+  color: #ffffff !important;
+}
+.status-blue-bg {
+  background-color: #3b82f6 !important;
+  color: #ffffff !important;
+}
 .border-accent { border-color: var(--accent-color) !important; }
 .text-accent { color: var(--accent-color) !important; }
 
 /* Compatibilidade reativa para classes hexadecimais legadas */
-.bg-\[\#20C933\] { background-color: var(--accent-color) !important; }
+.bg-\[\#20C933\] {
+  background-color: var(--accent-color) !important;
+  color: #ffffff !important;
+}
 .hover\:bg-\[\#1bb32d\]:hover,
-.hover\:bg-\[\#1eb72e\]:hover { background-color: color-mix(in srgb, var(--accent-color) 85%, black 15%) !important; }
+.hover\:bg-\[\#1eb72e\]:hover {
+  background-color: color-mix(in srgb, var(--accent-color) 85%, black 15%) !important;
+}
 .text-\[\#20C933\] { color: var(--accent-color) !important; }
 .text-\[\#087A2A\] { color: color-mix(in srgb, var(--accent-color) 72%, black 28%) !important; }
 .border-\[\#20C933\] { border-color: var(--accent-color) !important; }
@@ -87,12 +101,61 @@ input[type="number"] {
 /* Harmonização Cromática de Bordas — Tema Claro (Light Pearl) */
 html:not(.dark) .border-slate-200:not([style*="border-color"]),
 html:not(.dark) .border-slate-200\/90:not([style*="border-color"]),
-html:not(.dark) .border-slate-200\/80:not([style*="border-color"]) {
+html:not(.dark) .border-slate-200\/80:not([style*="border-color"]),
+html:not(.dark) .border-slate-800:not([style*="border-color"]),
+html:not(.dark) .border-slate-800\/90:not([style*="border-color"]),
+html:not(.dark) .border-slate-800\/80:not([style*="border-color"]),
+html:not(.dark) .border-slate-800\/60:not([style*="border-color"]) {
   border-color: color-mix(in srgb, var(--accent-color) 22%, #e2e8f0 78%);
 }
 
-html:not(.dark) .border-slate-300:not([style*="border-color"]) {
+html:not(.dark) .border-slate-300:not([style*="border-color"]),
+html:not(.dark) .border-slate-700:not([style*="border-color"]),
+html:not(.dark) .border-slate-700\/80:not([style*="border-color"]),
+html:not(.dark) .border-slate-700\/60:not([style*="border-color"]) {
   border-color: color-mix(in srgb, var(--accent-color) 28%, #cbd5e1 72%);
+}
+
+/* Harmonização Automática de Superfícies e Textos Legados no Tema Claro */
+html:not(.dark) .bg-slate-950:not([style*="background-color"]),
+html:not(.dark) .bg-slate-950\/95:not([style*="background-color"]),
+html:not(.dark) .bg-slate-950\/90:not([style*="background-color"]),
+html:not(.dark) .bg-slate-950\/80:not([style*="background-color"]),
+html:not(.dark) .bg-slate-950\/60:not([style*="background-color"]),
+html:not(.dark) .bg-slate-950\/50:not([style*="background-color"]),
+html:not(.dark) .bg-slate-950\/40:not([style*="background-color"]) {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+html:not(.dark) .bg-slate-900:not([style*="background-color"]),
+html:not(.dark) .bg-slate-900\/95:not([style*="background-color"]),
+html:not(.dark) .bg-slate-900\/90:not([style*="background-color"]),
+html:not(.dark) .bg-slate-900\/80:not([style*="background-color"]),
+html:not(.dark) .bg-slate-900\/70:not([style*="background-color"]),
+html:not(.dark) .bg-slate-900\/60:not([style*="background-color"]),
+html:not(.dark) .bg-slate-900\/50:not([style*="background-color"]),
+html:not(.dark) .bg-slate-900\/40:not([style*="background-color"]) {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+html:not(.dark) .bg-slate-800:not([style*="background-color"]),
+html:not(.dark) .bg-slate-800\/90:not([style*="background-color"]),
+html:not(.dark) .bg-slate-800\/80:not([style*="background-color"]),
+html:not(.dark) .bg-slate-800\/60:not([style*="background-color"]),
+html:not(.dark) .bg-slate-800\/50:not([style*="background-color"]) {
+  background-color: #f1f5f9;
+  color: #1e293b;
+}
+
+html:not(.dark) .text-slate-100:not([style*="color"]),
+html:not(.dark) .text-slate-200:not([style*="color"]) {
+  color: #0f172a;
+}
+
+html:not(.dark) .text-slate-300:not([style*="color"]) {
+  color: #334155;
 }
 
 /* Harmonização Cromática de Subtítulos e Textos Secundários (Atmospheric Brand Tinting) */
@@ -118,7 +181,11 @@ html:not(.dark) .text-slate-600:not([style*="color"]) {
 
 /* Regra inegociável de contraste do Vagou: texto sobre fundo colorido sólido deve ser branco puro */
 .text-white,
-.dark .text-white {
+.dark .text-white,
+.bg-emerald-500,
+.bg-emerald-600,
+.bg-accent,
+.bg-\[\#20C933\] {
   color: #ffffff !important;
 }
 

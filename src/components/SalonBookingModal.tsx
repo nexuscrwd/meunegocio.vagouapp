@@ -517,8 +517,15 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       }
     }
     loadBusySlotsAndAvailablePros();
+
+    const handleAppointmentsLiveSync = () => {
+      loadBusySlotsAndAvailablePros();
+    };
+    window.addEventListener('vagou:appointments-updated', handleAppointmentsLiveSync);
+
     return () => {
       active = false;
+      window.removeEventListener('vagou:appointments-updated', handleAppointmentsLiveSync);
     };
   }, [salonId, selectedDateIso, isSummaryModalOpen, professionals]);
 

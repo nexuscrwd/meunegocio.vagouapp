@@ -1,13 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Building2, Clock, UserCheck, 
+  Building2, UserCheck, 
   Save, Check, Search, Loader2, Sparkles, 
-  ArrowLeft, AlertCircle, Plus, FileText,
-  Tag, X, Users
+  ArrowLeft, AlertCircle, FileText,
+  Tag
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { 
-  SalonAdminSettings, DayOperatingHours, OperatingSchedule, 
+  SalonAdminSettings, 
   SalonProfessionalItem 
 } from '../../types';
 import { hapticSuccess, hapticLight, hapticMedium } from '../../utils/haptics';
@@ -78,217 +78,18 @@ export function isValidCNPJ(cnpj: string): boolean {
   return result === parseInt(digits.charAt(1), 10);
 }
 
-const createDefaultDays = (open = '09:00', close = '20:00', withBreak = true): DayOperatingHours[] => [
-  { dayKey: 'seg', dayLabel: 'Seg', isOpen: true, openTime: open, closeTime: close, hasBreak: withBreak, breakStart: '12:00', breakEnd: '13:00' },
-  { dayKey: 'ter', dayLabel: 'Ter', isOpen: true, openTime: open, closeTime: close, hasBreak: withBreak, breakStart: '12:00', breakEnd: '13:00' },
-  { dayKey: 'qua', dayLabel: 'Qua', isOpen: true, openTime: open, closeTime: close, hasBreak: withBreak, breakStart: '12:00', breakEnd: '13:00' },
-  { dayKey: 'qui', dayLabel: 'Qui', isOpen: true, openTime: open, closeTime: close, hasBreak: withBreak, breakStart: '12:00', breakEnd: '13:00' },
-  { dayKey: 'sex', dayLabel: 'Sex', isOpen: true, openTime: open, closeTime: close, hasBreak: withBreak, breakStart: '12:00', breakEnd: '13:00' },
-  { dayKey: 'sab', dayLabel: 'Sáb', isOpen: true, openTime: open, closeTime: '18:00', hasBreak: false, breakStart: '12:00', breakEnd: '13:00' },
-  { dayKey: 'dom', dayLabel: 'Dom', isOpen: false, openTime: '09:00', closeTime: '14:00', hasBreak: false, breakStart: '12:00', breakEnd: '13:00' },
-];
-
-function timeToMinutes(t: string): number {
-  const [h, m] = (t || '00:00').split(':').map((n) => parseInt(n, 10) || 0);
-  return h * 60 + m;
-}
-
-function minutesToTime(mins: number): string {
-  const clamped = Math.max(0, Math.min(23 * 60 + 59, mins));
-  const h = Math.floor(clamped / 60);
-  const m = clamped % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-/**
- * Calcula a união matemática dos horários de todos os profissionais para a aba "Geral".
- */
-function computeUnionGeneralSchedule(
-  proIds: string[],
-  schedulesByPro: Record<string, DayOperatingHours[]>,
-  fallbackGeneralDays: DayOperatingHours[]
-): DayOperatingHours[] {
-  if (proIds.length === 0) return fallbackGeneralDays;
-
-  const baseKeys: Array<{ key: DayOperatingHours['dayKey']; label: string }> = [
-    { key: 'seg', label: 'Seg' },
-    { key: 'ter', label: 'Ter' },
-    { key: 'qua', label: 'Qua' },
-    { key: 'qui', label: 'Qui' },
-    { key: 'sex', label: 'Sex' },
-    { key: 'sab', label: 'Sáb' },
-    { key: 'dom', label: 'Dom' },
-  ];
-
-  return baseKeys.map(({ key, label }) => {
-    const intervals: Array<[number, number]> = [];
-
-    for (const pid of proIds) {
-      const proDays = schedulesByPro[pid];
-      if (!Array.isArray(proDays)) continue;
-      const d = proDays.find((item) => item.dayKey === key);
-      if (!d || !d.isOpen) continue;
-
-      const start = timeToMinutes(d.openTime || '09:00');
-      const end = timeToMinutes(d.closeTime || '20:00');
-      if (end <= start) continue;
-
-      if (d.hasBreak && d.breakStart && d.breakEnd) {
-        const bStart = timeToMinutes(d.breakStart);
-        const bEnd = timeToMinutes(d.breakEnd);
-        if (bStart > start && bEnd > bStart && bEnd < end) {
-          intervals.push([start, bStart]);
-          intervals.push([bEnd, end]);
-        } else {
-          intervals.push([start, end]);
-        }
-      } else {
-        intervals.push([start, end]);
-      }
-    }
-
-    if (intervals.length === 0) {
-      return {
-        dayKey: key,
-        dayLabel: label,
-        isOpen: false,
-        openTime: '09:00',
-        closeTime: '18:00',
-        hasBreak: false,
-        breakStart: '12:00',
-        breakEnd: '13:00',
-      };
-    }
-
-    intervals.sort((a, b) => a[0] - b[0]);
-    const merged: Array<[number, number]> = [intervals[0]];
-    for (let i = 1; i < intervals.length; i++) {
-      const prev = merged[merged.length - 1];
-      const curr = intervals[i];
-      if (curr[0] <= prev[1]) {
-        prev[1] = Math.max(prev[1], curr[1]);
-      } else {
-        merged.push(curr);
-      }
-    }
-
-    const minOpen = merged[0][0];
-    const maxClose = merged[merged.length - 1][1];
-
-    if (merged.length === 1) {
-      return {
-        dayKey: key,
-        dayLabel: label,
-        isOpen: true,
-        openTime: minutesToTime(minOpen),
-        closeTime: minutesToTime(maxClose),
-        hasBreak: false,
-        breakStart: '12:00',
-        breakEnd: '13:00',
-      };
-    }
-
-    return {
-      dayKey: key,
-      dayLabel: label,
-      isOpen: true,
-      openTime: minutesToTime(minOpen),
-      closeTime: minutesToTime(maxClose),
-      hasBreak: true,
-      breakStart: minutesToTime(merged[0][1]),
-      breakEnd: minutesToTime(merged[1][0]),
-    };
-  });
-}
-
 export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
   adminSettings,
   onUpdateSettings,
-  professionals = [],
-  onUpdateProfessionals,
   onBack,
-  initialTab = 'comercial',
 }) => {
   const { isDark } = useTheme();
-  const normalizedInitialTab: 'comercial' | 'horarios' =
-    initialTab === 'horarios' ? 'horarios' : 'comercial';
-  const [activeSubTab, setActiveSubTab] = useState<'comercial' | 'horarios'>(normalizedInitialTab);
 
   // 1. INFORMAÇÕES COMERCIAIS
   const [salonName, setSalonName] = useState(adminSettings.salonName || '');
   const [category, setCategory] = useState(adminSettings.category || 'Barbearia');
 
-  // 2. HORÁRIOS DE ATENDIMENTO (Aba "Geral" + Abas por Profissional + 2 Turnos / Pausas de Urgência)
-  const [localProfessionals, setLocalProfessionals] = useState<SalonProfessionalItem[]>(() => {
-    if (Array.isArray(professionals) && professionals.length > 0) {
-      return professionals;
-    }
-    return [
-      {
-        id: 'pro-1',
-        name: adminSettings.salonName || 'Profissional 1',
-        role: 'Titular',
-        systemRole: 'admin',
-      },
-    ];
-  });
-  const [newProNameInput, setNewProNameInput] = useState('');
-  const [isAddingQuickPro, setIsAddingQuickPro] = useState(false);
-
-  const [days, setDays] = useState<DayOperatingHours[]>(() => {
-    if (adminSettings.operatingSchedule?.days && adminSettings.operatingSchedule.days.length > 0) {
-      return adminSettings.operatingSchedule.days.map((d) => ({
-        ...d,
-        hasBreak: d.hasBreak ?? false,
-        breakStart: d.breakStart || '12:00',
-        breakEnd: d.breakEnd || '13:00',
-      }));
-    }
-    return createDefaultDays('09:00', '20:00', true);
-  });
-
-  const [professionalSchedules, setProfessionalSchedules] = useState<Record<string, DayOperatingHours[]>>(() => {
-    const savedMap = adminSettings.operatingSchedule?.professionalSchedules || {};
-    const initialMap: Record<string, DayOperatingHours[]> = { ...savedMap };
-    const proList = Array.isArray(professionals) && professionals.length > 0 ? professionals : localProfessionals;
-
-    proList.forEach((p, idx) => {
-      const pid = p.id || `pro-${idx + 1}`;
-      if (!initialMap[pid]) {
-        if (p.workSchedule?.startTime && p.workSchedule?.endTime) {
-          initialMap[pid] = createDefaultDays(p.workSchedule.startTime, p.workSchedule.endTime, false);
-        } else if (proList.length > 1 && idx === 0) {
-          initialMap[pid] = createDefaultDays('09:00', '12:00', false);
-        } else if (proList.length > 1 && idx === 1) {
-          initialMap[pid] = createDefaultDays('12:00', '20:00', false);
-        } else {
-          initialMap[pid] = createDefaultDays('09:00', '20:00', true);
-        }
-      }
-    });
-    return initialMap;
-  });
-
-  const [activeScheduleTab, setActiveScheduleTab] = useState<'geral' | string>('geral');
-
-  const proIds = useMemo(
-    () => localProfessionals.map((p, idx) => p.id || `pro-${idx + 1}`),
-    [localProfessionals]
-  );
-
-  const hasMultipleProfessionals = localProfessionals.length > 1;
-
-  const computedGeneralDays = useMemo(() => {
-    if (!hasMultipleProfessionals) return days;
-    return computeUnionGeneralSchedule(proIds, professionalSchedules, days);
-  }, [hasMultipleProfessionals, proIds, professionalSchedules, days]);
-
-  const activeDaysList: DayOperatingHours[] =
-    activeScheduleTab === 'geral'
-      ? computedGeneralDays
-      : (professionalSchedules[activeScheduleTab] || createDefaultDays('09:00', '20:00', false));
-
-  // 3. FISCAL (Autônomo vs CNPJ + BrasilAPI + Responsável Legal CPF)
+  // 2. FISCAL (Autônomo vs CNPJ + BrasilAPI + Responsável Legal CPF)
   const initialCnpjDigits = (adminSettings.cnpj || '').replace(/\D/g, '');
   const [hasCnpj, setHasCnpj] = useState<boolean>(initialCnpjDigits.length === 14);
   const [razaoSocial, setRazaoSocial] = useState(initialCnpjDigits.length === 14 ? (adminSettings.razaoSocial || '') : '');
@@ -298,205 +99,145 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
   const [cpfError, setCpfError] = useState('');
 
   const [legalManagerName, setLegalManagerName] = useState(adminSettings.legalManagerName || '');
-  const [legalManagerCpf, setLegalManagerCpf] = useState(adminSettings.ownerCpf || adminSettings.legalManagerCpf || '');
+  const [legalManagerCpf, setLegalManagerCpf] = useState(adminSettings.legalManagerCpf || adminSettings.ownerCpf || '');
   const [legalManagerPhone, setLegalManagerPhone] = useState(adminSettings.legalManagerPhone || adminSettings.salonPhone || '');
-  const [legalManagerEmail, setLegalManagerEmail] = useState(
-    adminSettings.legalManagerEmail || adminSettings.email || (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_email') || '' : '')
-  );
+  const [legalManagerEmail, setLegalManagerEmail] = useState(adminSettings.legalManagerEmail || adminSettings.email || '');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
 
-  // Máscaras de entrada
-  const formatCpf = (v: string) => {
-    const raw = v.replace(/\D/g, '').slice(0, 11);
-    return raw
-      .replace(/^(\d{3})(\d)/, '$1.$2')
-      .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
-      .replace(/\.(\d{3})(\d)/, '.$1-$2');
-  };
-
-  const formatCnpj = (v: string) => {
-    const raw = v.replace(/\D/g, '').slice(0, 14);
-    return raw
-      .replace(/^(\d{2})(\d)/, '$1.$2')
-      .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-      .replace(/\.(\d{3})(\d)/, '.$1/$2')
-      .replace(/(\d{4})(\d)/, '$1-$2');
-  };
-
-  const formatPhone = (v: string) => {
-    const raw = v.replace(/\D/g, '').slice(0, 11);
-    if (raw.length <= 10) {
-      return raw
-        .replace(/^(\d{2})(\d)/, '($1) $2')
-        .replace(/(\d{4})(\d)/, '$1-$2');
-    }
-    return raw
-      .replace(/^(\d{2})(\d)/, '($1) $2')
-      .replace(/(\d{5})(\d)/, '$1-$2');
-  };
-
-  // Consulta Automática de CNPJ via BrasilAPI
-  const searchCnpjBrasilApi = async (cnpjValue: string) => {
-    const clean = cnpjValue.replace(/\D/g, '');
-    if (clean.length !== 14) return;
-
-    if (!isValidCNPJ(clean)) {
-      setCnpjFeedback({ type: 'error', message: 'CNPJ inválido (dígitos verificadores incorretos).' });
-      hapticMedium();
-      return;
-    }
-
-    setIsSearchingCnpj(true);
+  // Formatação em tempo real de CNPJ (XX.XXX.XXX/XXXX-XX)
+  const handleCnpjChange = (value: string) => {
+    const raw = value.replace(/\D/g, '').slice(0, 14);
+    let formatted = raw;
+    if (raw.length > 2) formatted = `${raw.slice(0, 2)}.${raw.slice(2)}`;
+    if (raw.length > 5) formatted = `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5)}`;
+    if (raw.length > 8) formatted = `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5, 8)}/${raw.slice(8)}`;
+    if (raw.length > 12) formatted = `${raw.slice(0, 2)}.${raw.slice(2, 5)}.${raw.slice(5, 8)}/${raw.slice(8, 12)}-${raw.slice(12, 14)}`;
+    setCnpj(formatted);
     setCnpjFeedback(null);
+  };
 
-    try {
-      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${clean}`);
-      if (!res.ok) {
-        setCnpjFeedback({ type: 'error', message: 'CNPJ não localizado na base da Receita Federal.' });
-        return;
+  // Formatação em tempo real de CPF (XXX.XXX.XXX-XX)
+  const handleCpfChange = (value: string) => {
+    const raw = value.replace(/\D/g, '').slice(0, 11);
+    let formatted = raw;
+    if (raw.length > 3) formatted = `${raw.slice(0, 3)}.${raw.slice(3)}`;
+    if (raw.length > 6) formatted = `${raw.slice(0, 3)}.${raw.slice(3, 6)}.${raw.slice(6)}`;
+    if (raw.length > 9) formatted = `${raw.slice(0, 3)}.${raw.slice(3, 6)}.${raw.slice(6, 9)}-${raw.slice(9, 11)}`;
+    setLegalManagerCpf(formatted);
+
+    if (raw.length === 11) {
+      if (!isValidCPF(raw)) {
+        setCpfError('CPF inválido. Confira os 11 dígitos.');
+      } else {
+        setCpfError('');
       }
-      const data = await res.json();
-      if (data.razao_social) setRazaoSocial(data.razao_social);
-      if (data.nome_fantasia && (!salonName || salonName === 'Meu Estabelecimento')) setSalonName(data.nome_fantasia);
-      setCnpjFeedback({ type: 'success', message: 'Dados sincronizados da Receita Federal (BrasilAPI).' });
-      hapticSuccess();
-    } catch {
-      setCnpjFeedback({ type: 'error', message: 'Não foi possível consultar a BrasilAPI no momento.' });
-    } finally {
-      setIsSearchingCnpj(false);
-    }
-  };
-
-  const handleCnpjChange = (val: string) => {
-    const masked = formatCnpj(val);
-    setCnpj(masked);
-    const raw = masked.replace(/\D/g, '');
-    if (raw.length === 14) {
-      searchCnpjBrasilApi(masked);
-    } else {
-      setCnpjFeedback(null);
-    }
-  };
-
-  const handleCpfChange = (val: string) => {
-    const masked = formatCpf(val);
-    setLegalManagerCpf(masked);
-    const raw = masked.replace(/\D/g, '');
-    if (raw.length === 11 && !isValidCPF(raw)) {
-      setCpfError('CPF inválido (verifique os dígitos).');
     } else {
       setCpfError('');
     }
   };
 
-  // Atualização de Dias e Horários (Geral ou por Profissional)
-  const mutateActiveSchedule = (updater: (prev: DayOperatingHours[]) => DayOperatingHours[]) => {
-    if (activeScheduleTab === 'geral') {
-      if (hasMultipleProfessionals) {
-        setProfessionalSchedules((prevMap) => {
-          const nextMap: Record<string, DayOperatingHours[]> = {};
-          proIds.forEach((pid) => {
-            const currentProDays = prevMap[pid] || createDefaultDays('09:00', '20:00', false);
-            nextMap[pid] = updater(currentProDays);
-          });
-          return nextMap;
-        });
-      } else {
-        setDays((prev) => {
-          const next = updater(prev);
-          if (proIds[0]) {
-            setProfessionalSchedules((m) => ({ ...m, [proIds[0]]: next }));
-          }
-          return next;
-        });
-      }
-    } else {
-      setProfessionalSchedules((prevMap) => {
-        const currentList = prevMap[activeScheduleTab] || createDefaultDays('09:00', '20:00', false);
-        const updatedList = updater(currentList);
-        const nextMap = { ...prevMap, [activeScheduleTab]: updatedList };
-        if (!hasMultipleProfessionals) {
-          setDays(updatedList);
-        }
-        return nextMap;
-      });
-    }
+  // Formatação em tempo real de Telefone / WhatsApp ((XX) 9XXXX-XXXX)
+  const handlePhoneChange = (value: string) => {
+    const raw = value.replace(/\D/g, '').slice(0, 11);
+    let formatted = raw;
+    if (raw.length > 0) formatted = `(${raw.slice(0, 2)}`;
+    if (raw.length > 2) formatted = `(${raw.slice(0, 2)}) ${raw.slice(2)}`;
+    if (raw.length > 7) formatted = `(${raw.slice(0, 2)}) ${raw.slice(2, 7)}-${raw.slice(7, 11)}`;
+    setLegalManagerPhone(formatted);
   };
 
-  const toggleDay = (dayKey: string) => {
+  // Consulta Automatizada de CNPJ (BrasilAPI com Fallback para ReceitaWS)
+  const handleSearchCnpj = async () => {
+    const cleanCnpj = cnpj.replace(/\D/g, '');
+    if (cleanCnpj.length !== 14) {
+      setCnpjFeedback({ type: 'error', message: 'Digite os 14 dígitos do CNPJ para buscar.' });
+      return;
+    }
+
+    if (!isValidCNPJ(cleanCnpj)) {
+      setCnpjFeedback({ type: 'error', message: 'Dígitos verificadores do CNPJ são inválidos.' });
+      return;
+    }
+
+    setIsSearchingCnpj(true);
+    setCnpjFeedback(null);
     hapticLight();
-    mutateActiveSchedule((prev) =>
-      prev.map((d) => (d.dayKey === dayKey ? { ...d, isOpen: !d.isOpen } : d))
-    );
-  };
 
-  const updateDayField = (
-    dayKey: string,
-    field: 'openTime' | 'closeTime' | 'hasBreak' | 'breakStart' | 'breakEnd',
-    value: any
-  ) => {
-    mutateActiveSchedule((prev) =>
-      prev.map((d) => (d.dayKey === dayKey ? { ...d, [field]: value } : d))
-    );
-  };
+    try {
+      // 1ª Tentativa: BrasilAPI (sem autenticação, rápida)
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
+      if (res.ok) {
+        const data = await res.json();
+        const nomeFantasia = (data.nome_fantasia || '').trim();
+        const razao = (data.razao_social || '').trim();
 
-  const handleAddQuickProfessional = () => {
-    const clean = newProNameInput.trim();
-    if (!clean) return;
-    hapticSuccess();
-    const newId = `pro-${Date.now()}`;
-    const newPro: SalonProfessionalItem = {
-      id: newId,
-      name: clean,
-      role: 'Profissional',
-      systemRole: 'member',
-    };
-    const nextPros = [...localProfessionals, newPro];
-    setLocalProfessionals(nextPros);
-    setProfessionalSchedules((prev) => ({
-      ...prev,
-      [newId]: createDefaultDays('12:00', '20:00', false),
-    }));
-    if (onUpdateProfessionals) {
-      onUpdateProfessionals(nextPros);
+        if (razao) setRazaoSocial(razao);
+        if (nomeFantasia && (!salonName || salonName === 'Meu Salão' || salonName === 'Meu Estabelecimento')) {
+          setSalonName(nomeFantasia);
+        } else if (!salonName && razao) {
+          setSalonName(razao);
+        }
+
+        if (data.ddd_telefone_1 && !legalManagerPhone) {
+          const rawPhone = data.ddd_telefone_1.replace(/\D/g, '');
+          if (rawPhone.length >= 10) {
+            handlePhoneChange(rawPhone);
+          }
+        }
+
+        if (data.email && !legalManagerEmail) {
+          setLegalManagerEmail(data.email.toLowerCase().trim());
+        }
+
+        setCnpjFeedback({
+          type: 'success',
+          message: `Dados carregados: ${razao || nomeFantasia}`,
+        });
+        hapticSuccess();
+        return;
+      }
+
+      // Fallback: ReceitaWS via JSONP / CORS proxy público
+      const fallbackRes = await fetch(`https://minhareceita.org/${cleanCnpj}`);
+      if (fallbackRes.ok) {
+        const fallbackData = await fallbackRes.json();
+        const razao = (fallbackData.razao_social || '').trim();
+        const nomeFantasia = (fallbackData.nome_fantasia || '').trim();
+
+        if (razao) setRazaoSocial(razao);
+        if (nomeFantasia && (!salonName || salonName === 'Meu Salão' || salonName === 'Meu Estabelecimento')) {
+          setSalonName(nomeFantasia);
+        }
+
+        setCnpjFeedback({
+          type: 'success',
+          message: `Dados carregados: ${razao || nomeFantasia}`,
+        });
+        hapticSuccess();
+        return;
+      }
+
+      setCnpjFeedback({
+        type: 'error',
+        message: 'CNPJ não encontrado na base pública. Você pode preencher manualmente.',
+      });
+    } catch {
+      setCnpjFeedback({
+        type: 'error',
+        message: 'Instabilidade ao consultar CNPJ. Preencha a Razão Social manualmente.',
+      });
+    } finally {
+      setIsSearchingCnpj(false);
     }
-    setNewProNameInput('');
-    setIsAddingQuickPro(false);
-    setActiveScheduleTab(newId);
   };
 
-  // Gerar string descritiva sintética de horários para a vitrine a partir da aba Geral consolidada
-  const generateOpeningHoursSummary = (): string => {
-    const effectiveDays = computedGeneralDays;
-    const openDays = effectiveDays.filter((d) => d.isOpen);
-    if (openDays.length === 0) return 'Fechado temporariamente';
-    const firstOpen = openDays[0];
-    const hoursLabel = firstOpen.hasBreak && firstOpen.breakStart && firstOpen.breakEnd
-      ? `${firstOpen.openTime} às ${firstOpen.breakStart} • ${firstOpen.breakEnd} às ${firstOpen.closeTime}`
-      : `${firstOpen.openTime} às ${firstOpen.closeTime}`;
-
-    if (openDays.length === 7) return `Seg a Dom • ${hoursLabel}`;
-    const hasSegToSex = ['seg', 'ter', 'qua', 'qui', 'sex'].every((k) =>
-      effectiveDays.find((d) => d.dayKey === k)?.isOpen
-    );
-    const sab = effectiveDays.find((d) => d.dayKey === 'sab');
-    if (hasSegToSex && sab?.isOpen) {
-      return `Seg a Sáb • ${hoursLabel}`;
-    }
-    if (hasSegToSex && !sab?.isOpen) {
-      return `Seg a Sex • ${hoursLabel}`;
-    }
-    return `${openDays.map((d) => d.dayLabel).join(', ')} • ${hoursLabel}`;
-  };
-
-  // Salvar Dados
+  // Salvar Dados do Negócio (Identificação Comercial e Fiscal)
   const handleSave = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
     const rawCpfDigits = legalManagerCpf.replace(/\D/g, '');
     if (rawCpfDigits.length > 0 && !isValidCPF(rawCpfDigits)) {
-      setActiveSubTab('comercial');
       setCpfError('Informe um CPF válido (11 dígitos verificados pela Receita Federal).');
       hapticMedium();
       return;
@@ -504,23 +245,12 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
 
     const rawCnpjDigits = cnpj.replace(/\D/g, '');
     if (hasCnpj && rawCnpjDigits.length > 0 && !isValidCNPJ(rawCnpjDigits)) {
-      setActiveSubTab('comercial');
       setCnpjFeedback({ type: 'error', message: 'CNPJ inválido. Confira os 14 dígitos informados.' });
       hapticMedium();
       return;
     }
 
     hapticSuccess();
-
-    const finalGeneralDays = computedGeneralDays;
-
-    const operatingSchedule: OperatingSchedule = {
-      preset: 'personalizado',
-      days: finalGeneralDays,
-      defaultOpenTime: finalGeneralDays[0]?.openTime || '09:00',
-      defaultCloseTime: finalGeneralDays[0]?.closeTime || '20:00',
-      professionalSchedules,
-    };
 
     const isValidCnpj = hasCnpj && rawCnpjDigits.length === 14;
     const finalCnpj = isValidCnpj ? cnpj.trim() : '';
@@ -534,9 +264,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
       razaoSocial: finalRazaoSocial,
       cnpj: finalCnpj,
       ownerCpf: legalManagerCpf.trim(),
-      operatingSchedule,
-      operatingHoursJson: operatingSchedule as any,
-      openingHours: generateOpeningHoursSummary(),
       legalManagerName: legalManagerName.trim(),
       legalManagerCpf: legalManagerCpf.trim(),
       legalManagerPhone: resolvedWhatsapp,
@@ -546,9 +273,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);
   };
-
-  const showComercial = activeSubTab === 'comercial';
-  const showHorarios = activeSubTab === 'horarios';
 
   const sectionHeaderStyleData = useMemo(() => {
     return getSectionHeaderStyleData(adminSettings, isDark);
@@ -593,608 +317,291 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
             </span>
           )}
         </div>
+      </div>
 
-        {/* 2 Abas Dedicadas: Informações | Atendimento (Endereço e Contatos foram movidos para Espaço) */}
-        <div className="grid grid-cols-2 gap-1.5">
-          {[
-            { id: 'comercial' as const, label: 'Informações', icon: Building2 },
-            { id: 'horarios' as const, label: 'Atendimento', icon: Clock },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isSel = activeSubTab === tab.id;
-            return (
+      {/* Formulário Principal: Identificação Comercial & Fiscal */}
+      <form onSubmit={handleSave} className="p-3.5 space-y-4 pb-24 flex-1">
+        {/* ============================================================== */}
+        {/* 1. INFORMAÇÕES (Identificação Comercial: Nome Fantasia & Categoria) */}
+        {/* ============================================================== */}
+        <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
+          isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+        }`}>
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+            <Building2 className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+              Identificação Comercial
+            </h3>
+          </div>
+
+          {/* Nome Fantasia & Categoria */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Nome Fantasia <span className="text-rose-400">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={salonName}
+                onChange={(e) => setSalonName(e.target.value)}
+                placeholder="Ex: Studio Elegance"
+                className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                  isDark 
+                    ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                }`}
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Categoria Principal
+              </label>
+              <div className="relative">
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition appearance-none cursor-pointer ${
+                    isDark 
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                >
+                  {SALON_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat} className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+                <Tag className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ============================================================== */}
+        {/* 2. DADOS FISCAIS & TRIBUTÁRIOS (Autônomo vs CNPJ + Titular) */}
+        {/* ============================================================== */}
+        <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
+          isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+        }`}>
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-emerald-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                Dados Fiscais & Cadastro
+              </h3>
+            </div>
+            <span className="text-[10px] text-slate-400 font-mono">
+              {hasCnpj ? 'Pessoa Jurídica' : 'Pessoa Física / Autônomo'}
+            </span>
+          </div>
+
+          {/* Seletor: Possui CNPJ ou Atua como Autônomo (CPF) */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+              Enquadramento Tributário
+            </label>
+            <div className="grid grid-cols-2 gap-2">
               <button
-                key={tab.id}
                 type="button"
                 onClick={() => {
                   hapticLight();
-                  setActiveSubTab(tab.id);
+                  setHasCnpj(false);
+                  setCnpjFeedback(null);
                 }}
-                className={`py-2 px-2.5 rounded-[4px] text-[11px] font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
-                  isSel
+                className={`py-2 px-3 rounded-[4px] border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  !hasCnpj
                     ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
                     : isDark
-                    ? 'bg-slate-950 border-slate-800 text-slate-300 hover:border-emerald-500/40'
-                    : 'bg-slate-100 border-slate-200 text-slate-700 hover:border-emerald-500/40'
+                    ? 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                    : 'bg-slate-100 border-slate-200 text-slate-600 hover:border-slate-300'
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 shrink-0 ${isSel ? 'text-white' : 'text-emerald-400'}`} />
-                <span className={isSel ? 'text-white' : ''}>{tab.label}</span>
+                <UserCheck className={`w-3.5 h-3.5 ${!hasCnpj ? 'text-white' : 'text-slate-400'}`} />
+                <span className={!hasCnpj ? 'text-white' : ''}>Autônomo (CPF)</span>
               </button>
-            );
-          })}
-        </div>
-      </div>
 
-      {/* Formulário Principal */}
-      <form onSubmit={handleSave} className="p-3.5 space-y-4 pb-24 flex-1">
-        {/* ============================================================== */}
-        {/* 1. INFORMAÇÕES (Identificação Comercial: Nome Fantasia, Categoria + Fiscal: CNPJ/CPF e Titular) */}
-        {/* ============================================================== */}
-        {showComercial && (
-          <>
-            <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
-              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-            }`}>
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
-                <Building2 className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
-                  Identificação Comercial
-                </h3>
-              </div>
-
-              {/* Nome Fantasia & Categoria */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Nome Fantasia <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={salonName}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSalonName(val);
-                      onUpdateSettings({ salonName: val });
-                    }}
-                    placeholder="Ex: Rota 99 Barbearia"
-                    className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
-                      isDark 
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
-                    <Tag className="w-3 h-3 text-emerald-400" />
-                    <span>Categoria</span>
-                  </label>
-                  <select
-                    value={category}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCategory(val);
-                      onUpdateSettings({ category: val });
-                    }}
-                    className={`w-full px-3 py-2 rounded-[4px] border text-xs font-semibold outline-hidden transition ${
-                      isDark 
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                    }`}
-                  >
-                    {SALON_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  setHasCnpj(true);
+                  setCnpjFeedback(null);
+                }}
+                className={`py-2 px-3 rounded-[4px] border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  hasCnpj
+                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                    : isDark
+                    ? 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                    : 'bg-slate-100 border-slate-200 text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                <Building2 className={`w-3.5 h-3.5 ${hasCnpj ? 'text-white' : 'text-slate-400'}`} />
+                <span className={hasCnpj ? 'text-white' : ''}>Empresa (CNPJ / MEI)</span>
+              </button>
             </div>
+          </div>
 
-            {/* FISCAL • TRIBUTAÇÃO & REGIME (CNPJ / CPF) */}
-            <div className={`p-3.5 rounded-[4px] border space-y-3 ${
-              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-            }`}>
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
-                <FileText className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
-                  Fiscal • Tributação & Regime (CNPJ / CPF)
-                </h3>
-              </div>
-
+          {/* Bloco Dinâmico: CNPJ com Busca Automatizada */}
+          {hasCnpj && (
+            <div className="space-y-3 pt-1">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                  Modalidade Fiscal do Estabelecimento
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  CNPJ (MEI, ME ou EPP)
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hapticLight();
-                      setHasCnpj(false);
-                      setCnpj('');
-                      setRazaoSocial('');
-                    }}
-                    className={`py-2 px-3 rounded-[4px] text-xs font-bold border transition cursor-pointer whitespace-nowrap ${
-                      !hasCnpj
-                        ? 'bg-emerald-500 border-emerald-500 text-white'
-                        : isDark
-                        ? 'bg-slate-950 border-slate-800 text-slate-300 hover:border-emerald-500/50'
-                        : 'bg-slate-100 border-slate-200 text-slate-700 hover:border-emerald-500/50'
-                    }`}
-                  >
-                    Autônomo (Sem CNPJ)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hapticLight();
-                      setHasCnpj(true);
-                    }}
-                    className={`py-2 px-3 rounded-[4px] text-xs font-bold border transition cursor-pointer whitespace-nowrap ${
-                      hasCnpj
-                        ? 'bg-emerald-500 border-emerald-500 text-white'
-                        : isDark
-                        ? 'bg-slate-950 border-slate-800 text-slate-300 hover:border-emerald-500/50'
-                        : 'bg-slate-100 border-slate-200 text-slate-700 hover:border-emerald-500/50'
-                    }`}
-                  >
-                    Pessoa Jurídica (CNPJ)
-                  </button>
-                </div>
-              </div>
-
-              {hasCnpj ? (
-                <div className="space-y-2.5 pt-1">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between mb-1">
-                        <span>CNPJ (14 dígitos) <span className="text-rose-400">*</span></span>
-                        <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-                          <Sparkles className="w-3 h-3 text-emerald-400" />
-                          BrasilAPI
-                        </span>
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={cnpj}
-                          onChange={(e) => handleCnpjChange(e.target.value)}
-                          placeholder="00.000.000/0000-00"
-                          className={`w-full pl-3 pr-9 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
-                            isDark 
-                              ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                              : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                          }`}
-                        />
-                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center">
-                          {isSearchingCnpj ? (
-                            <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => searchCnpjBrasilApi(cnpj)}
-                              className="text-slate-400 hover:text-emerald-400 transition cursor-pointer"
-                              title="Consultar CNPJ na Receita Federal (BrasilAPI)"
-                            >
-                              <Search className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                        Razão Social <span className="text-rose-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={razaoSocial}
-                        onChange={(e) => setRazaoSocial(e.target.value)}
-                        placeholder="Ex: Empresa de Beleza LTDA"
-                        className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
-                          isDark 
-                            ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                            : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                        }`}
-                      />
-                    </div>
-                  </div>
-
-                  {cnpjFeedback && (
-                    <p className={`text-[11px] flex items-center gap-1 font-medium ${
-                      cnpjFeedback.type === 'error' ? 'text-rose-400' : 'text-emerald-400'
-                    }`}>
-                      {cnpjFeedback.type === 'error' ? (
-                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                      ) : (
-                        <Check className="w-3.5 h-3.5 shrink-0" />
-                      )}
-                      <span>{cnpjFeedback.message}</span>
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-[11px] text-slate-400">
-                  Atuação como profissional autônomo (Pessoa Física). Os campos fiscais de CNPJ e Razão Social permanecem isentos.
-                </p>
-              )}
-            </div>
-
-            {/* TITULAR & RESPONSÁVEL LEGAL (CPF Pessoal) */}
-            <div className={`p-3.5 rounded-[4px] border space-y-3 ${
-              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-            }`}>
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
-                <UserCheck className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
-                  Titular & Responsável Legal (CPF Pessoal)
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Nome Completo do Titular <span className="text-rose-400">*</span>
-                  </label>
+                <div className="flex items-center gap-1.5">
                   <input
                     type="text"
-                    required
-                    value={legalManagerName}
-                    onChange={(e) => setLegalManagerName(e.target.value)}
-                    placeholder="Ex: Anderson Henrique Pires"
-                    className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    value={cnpj}
+                    onChange={(e) => handleCnpjChange(e.target.value)}
+                    placeholder="00.000.000/0000-00"
+                    maxLength={18}
+                    className={`flex-1 px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
                       isDark 
                         ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
                         : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
                     }`}
                   />
+                  <button
+                    type="button"
+                    onClick={handleSearchCnpj}
+                    disabled={isSearchingCnpj || cnpj.replace(/\D/g, '').length !== 14}
+                    className="px-3 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                    title="Buscar dados na Receita Federal"
+                  >
+                    {isSearchingCnpj ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                    ) : (
+                      <Search className="w-3.5 h-3.5 text-white" />
+                    )}
+                    <span className="hidden sm:inline text-white">Buscar</span>
+                  </button>
                 </div>
 
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    CPF Pessoal do Titular <span className="text-slate-400 font-normal lowercase">(opcional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={legalManagerCpf}
-                    onChange={(e) => handleCpfChange(e.target.value)}
-                    placeholder="000.000.000-00"
-                    className={`w-full px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
-                      cpfError
-                        ? 'border-rose-500 bg-rose-950/20 text-rose-200'
-                        : isDark 
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                    }`}
-                  />
-                  {cpfError && (
-                    <p className="text-[10px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
+                {cnpjFeedback && (
+                  <p className={`text-[11px] mt-1.5 flex items-center gap-1 font-medium ${
+                    cnpjFeedback.type === 'success' ? 'text-emerald-400' : 'text-rose-400'
+                  }`}>
+                    {cnpjFeedback.type === 'success' ? (
+                      <Sparkles className="w-3 h-3 shrink-0" />
+                    ) : (
                       <AlertCircle className="w-3 h-3 shrink-0" />
-                      <span>{cpfError}</span>
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Telefone / WhatsApp <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={legalManagerPhone}
-                    onChange={(e) => setLegalManagerPhone(formatPhone(e.target.value))}
-                    placeholder="(00) 00000-0000"
-                    className={`w-full px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
-                      isDark 
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    E-mail de Contato <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={legalManagerEmail}
-                    onChange={(e) => setLegalManagerEmail(e.target.value)}
-                    placeholder="seu.email@exemplo.com"
-                    className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
-                      isDark 
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                    }`}
-                  />
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* ============================================================== */}
-        {/* 2. HORÁRIOS DE ATENDIMENTO (Abas Geral + Profissionais, Dias e Turnos com Intervalo/Pausa) */}
-        {/* ============================================================== */}
-        {showHorarios && (
-            <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
-              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-            }`}>
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800/60 gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-emerald-400" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
-                    Horários de Atendimento
-                  </h3>
-                </div>
-                <span className="text-[10px] font-mono text-emerald-400 font-semibold">
-                  {generateOpeningHoursSummary()}
-                </span>
-              </div>
-
-              {/* CABEÇALHO DE ESCALAS: ABA "GERAL" + ABAS COM NOMES DOS PROFISSIONAIS */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Escala por Profissional & Geral do Salão</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hapticLight();
-                      setIsAddingQuickPro((prev) => !prev);
-                    }}
-                    className="px-2 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
-                  >
-                    <Plus className="w-3 h-3 text-white" />
-                    <span className="text-white">Profissional</span>
-                  </button>
-                </div>
-
-                {isAddingQuickPro && (
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      value={newProNameInput}
-                      onChange={(e) => setNewProNameInput(e.target.value)}
-                      placeholder="Nome do profissional (ex: Lucas)"
-                      className={`flex-1 px-2.5 py-1.5 rounded-[4px] border text-xs outline-hidden ${
-                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                      }`}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddQuickProfessional}
-                      className="px-3 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold cursor-pointer whitespace-nowrap"
-                    >
-                      Adicionar
-                    </button>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hapticLight();
-                      setActiveScheduleTab('geral');
-                    }}
-                    className={`px-3 py-1.5 rounded-[4px] text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                      activeScheduleTab === 'geral'
-                        ? 'bg-emerald-500 text-white shadow-xs'
-                        : isDark
-                        ? 'bg-slate-950 text-slate-300 hover:text-white'
-                        : 'bg-slate-100 text-slate-700 hover:text-slate-900'
-                    }`}
-                  >
-                    <Building2 className={`w-3.5 h-3.5 ${activeScheduleTab === 'geral' ? 'text-white' : 'text-emerald-400'}`} />
-                    <span className={activeScheduleTab === 'geral' ? 'text-white' : ''}>Geral</span>
-                  </button>
-
-                  {localProfessionals.map((pro, idx) => {
-                    const pid = pro.id || `pro-${idx + 1}`;
-                    const isSel = activeScheduleTab === pid;
-                    return (
-                      <button
-                        key={pid}
-                        type="button"
-                        onClick={() => {
-                          hapticLight();
-                          setActiveScheduleTab(pid);
-                        }}
-                        className={`px-3 py-1.5 rounded-[4px] text-xs font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                          isSel
-                            ? 'bg-emerald-500 text-white shadow-xs'
-                            : isDark
-                            ? 'bg-slate-950 text-slate-300 hover:text-white'
-                            : 'bg-slate-100 text-slate-700 hover:text-slate-900'
-                        }`}
-                      >
-                        <span className={isSel ? 'text-white' : ''}>{pro.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {hasMultipleProfessionals && activeScheduleTab === 'geral' && (
-                  <p className="text-[10px] text-emerald-400 font-medium">
-                    Aba Geral consolida automaticamente a união dos turnos de todos os profissionais (ex: 09:00 às 12:00 + 12:00 às 20:00 = 09:00 às 20:00). Selecione a aba de um profissional para ajustar seu turno individual.
+                    )}
+                    <span>{cnpjFeedback.message}</span>
                   </p>
                 )}
               </div>
 
-              {/* DIAS DE FUNCIONAMENTO */}
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                  Dias de Funcionamento {activeScheduleTab !== 'geral' ? `(${localProfessionals.find((p, i) => (p.id || `pro-${i + 1}`) === activeScheduleTab)?.name || 'Profissional'})` : '(Salão)'}
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Razão Social Registrada
                 </label>
-                <div className="grid grid-cols-7 gap-1.5">
-                  {activeDaysList.map((d) => (
-                    <button
-                      key={d.dayKey}
-                      type="button"
-                      onClick={() => toggleDay(d.dayKey)}
-                      className={`py-2 rounded-[4px] text-xs font-bold transition flex flex-col items-center justify-center cursor-pointer ${
-                        d.isOpen
-                          ? 'bg-emerald-500 text-white shadow-xs'
-                          : isDark
-                          ? 'bg-slate-950 text-slate-500'
-                          : 'bg-slate-100 text-slate-400'
-                      }`}
-                    >
-                      <span className={d.isOpen ? 'text-white' : ''}>{d.dayLabel}</span>
-                      <span className={`text-[9px] mt-0.5 ${d.isOpen ? 'text-white font-semibold' : 'text-slate-500'}`}>
-                        {d.isOpen ? 'Aberto' : 'Off'}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* HORÁRIOS DE ATENDIMENTO (Ajuste Específico por Dia: 09:00 às 12:00 - 13:00 às 20:00) */}
-              <div className="space-y-2 pt-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Horários de Atendimento (Ajuste por Dia • Intervalo / Pausa)
-                </label>
-
-                <div className="divide-y divide-slate-800/60">
-                  {activeDaysList.map((d) => {
-                    const isReadOnlyUnion = hasMultipleProfessionals && activeScheduleTab === 'geral';
-                    return (
-                      <div
-                        key={d.dayKey}
-                        className={`py-2.5 flex flex-col gap-2 text-xs transition ${
-                          !d.isOpen ? 'opacity-45' : ''
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold w-9">{d.dayLabel}</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-[4px] font-bold ${
-                              d.isOpen ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'
-                            }`}>
-                              {d.isOpen ? 'Aberto' : 'Fechado'}
-                            </span>
-                          </div>
-
-                          {d.isOpen ? (
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              {d.hasBreak ? (
-                                <>
-                                  <div className="flex items-center gap-1">
-                                    <input
-                                      type="time"
-                                      disabled={isReadOnlyUnion}
-                                      value={d.openTime}
-                                      onChange={(e) => updateDayField(d.dayKey, 'openTime', e.target.value)}
-                                      className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
-                                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                                      }`}
-                                    />
-                                    <span className="text-[10px] text-slate-400">às</span>
-                                    <input
-                                      type="time"
-                                      disabled={isReadOnlyUnion}
-                                      value={d.breakStart || '12:00'}
-                                      onChange={(e) => updateDayField(d.dayKey, 'breakStart', e.target.value)}
-                                      className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
-                                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                                      }`}
-                                    />
-                                  </div>
-
-                                  <span className="text-xs font-bold text-emerald-400">-</span>
-
-                                  <div className="flex items-center gap-1">
-                                    <input
-                                      type="time"
-                                      disabled={isReadOnlyUnion}
-                                      value={d.breakEnd || '13:00'}
-                                      onChange={(e) => updateDayField(d.dayKey, 'breakEnd', e.target.value)}
-                                      className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
-                                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                                      }`}
-                                    />
-                                    <span className="text-[10px] text-slate-400">às</span>
-                                    <input
-                                      type="time"
-                                      disabled={isReadOnlyUnion}
-                                      value={d.closeTime}
-                                      onChange={(e) => updateDayField(d.dayKey, 'closeTime', e.target.value)}
-                                      className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
-                                        isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                                      }`}
-                                    />
-                                  </div>
-
-                                  {!isReadOnlyUnion && (
-                                    <button
-                                      type="button"
-                                      onClick={() => updateDayField(d.dayKey, 'hasBreak', false)}
-                                      className="p-1 rounded-[4px] text-slate-400 hover:text-rose-400 transition cursor-pointer"
-                                      title="Remover intervalo / pausa"
-                                    >
-                                      <X className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
-                                </>
-                              ) : (
-                                <>
-                                  <input
-                                    type="time"
-                                    disabled={isReadOnlyUnion}
-                                    value={d.openTime}
-                                    onChange={(e) => updateDayField(d.dayKey, 'openTime', e.target.value)}
-                                    className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
-                                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                                    }`}
-                                  />
-                                  <span className="text-[10px] text-slate-400">às</span>
-                                  <input
-                                    type="time"
-                                    disabled={isReadOnlyUnion}
-                                    value={d.closeTime}
-                                    onChange={(e) => updateDayField(d.dayKey, 'closeTime', e.target.value)}
-                                    className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
-                                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                                    }`}
-                                  />
-                                  {!isReadOnlyUnion && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        hapticLight();
-                                        updateDayField(d.dayKey, 'hasBreak', true);
-                                      }}
-                                      className="px-2 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
-                                    >
-                                      <Plus className="w-3 h-3 text-white" />
-                                      <span className="text-white">Pausa</span>
-                                    </button>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-[10px] text-slate-500 italic">Sem expediente</span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <input
+                  type="text"
+                  value={razaoSocial}
+                  onChange={(e) => setRazaoSocial(e.target.value)}
+                  placeholder="Nome empresarial na Receita Federal"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark 
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
               </div>
             </div>
-        )}
+          )}
+
+          {/* Dados do Responsável Legal / Titular do Negócio */}
+          <div className="pt-2 border-t border-slate-800/60 space-y-3">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              Responsável Legal / Titular
+            </span>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Nome Completo do Titular
+                </label>
+                <input
+                  type="text"
+                  value={legalManagerName}
+                  onChange={(e) => setLegalManagerName(e.target.value)}
+                  placeholder="Nome civil do proprietário"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark 
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  CPF do Titular <span className="text-slate-500">(Verificado)</span>
+                </label>
+                <input
+                  type="text"
+                  value={legalManagerCpf}
+                  onChange={(e) => handleCpfChange(e.target.value)}
+                  placeholder="000.000.000-00"
+                  maxLength={14}
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
+                    cpfError
+                      ? 'border-rose-500 bg-rose-500/10 text-white'
+                      : isDark 
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+                {cpfError && (
+                  <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1 font-medium">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    <span>{cpfError}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  WhatsApp Oficial do Negócio
+                </label>
+                <input
+                  type="tel"
+                  value={legalManagerPhone}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
+                  placeholder="(11) 98765-4321"
+                  maxLength={15}
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
+                    isDark 
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  E-mail Oficial do Negócio
+                </label>
+                <input
+                  type="email"
+                  value={legalManagerEmail}
+                  onChange={(e) => setLegalManagerEmail(e.target.value)}
+                  placeholder="seu.email@exemplo.com"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark 
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
       </form>
 
       {/* RODAPÉ FIXO DE AÇÃO */}

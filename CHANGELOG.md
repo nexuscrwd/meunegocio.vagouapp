@@ -13,6 +13,136 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ---
 
+### [2026-11-02] — Revisão Minuciosa de CSS, Temas (Claro/Escuro) e Cor de Destaque em Todos os Modais e Ferramentas (`bol-112`)
+- **Tipo:** `[Fix / Design System / CSS — Harmonização Integral de Temas e Cor da Marca]`
+- **Motivo / Solicitação:** Revisar minuciosamente todo o código, CSS e modais para corrigir elementos que permaneciam com fundo escuro fixo no Tema Claro ou exibiam botões acinzentados fora da cor escolhida pelo salão (ex.: `Checkout PIX — Acerto Pós-Serviço`, `Plaquinha PIX`, `ConfirmIntentModal`, modais de autenticação e CSS global).
+- **Arquivos Impactados:**
+  - `src/index.css`
+  - `src/context/ThemeContext.tsx`
+  - `src/components/professional/VisualIdentityCardView.tsx`
+  - `src/components/professional/PixCheckoutModal.tsx`
+  - `src/components/professional/SalonPixPrintModal.tsx`
+  - `src/components/modals/ConfirmIntentModal.tsx`
+  - `src/components/auth/SalonAuthHeader.tsx`
+  - `src/components/auth/TriadeUserLoginForm.tsx`
+  - `src/components/auth/TriadeUserRecoveryModal.tsx`
+  - `src/components/auth/TriadeUserRegisterForm.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Sanitização da Cor de Destaque (`ThemeContext.tsx` & `VisualIdentityCardView.tsx`):** Criada a função `sanitizeAccentColor()` para impedir que valores de superfície (`transparent`, `#ffffff`, `#94a3b8`) corrompam `--accent-color` e deixem os botões principais cinzas; substituídos os presets de "1. COR DE DESTAQUE" por cores vibrantes de marca (`#20C933`, `#3b82f6`, `#d97706`, `#e11d48`, `#7c3aed`, `#475569`, `#000000`).
+  2. **Variante `.dark` do Tailwind v4 & Harmonização Automática (`src/index.css`):** Declarado `@custom-variant dark (&:where(.dark, .dark *));`, definidas as classes `.status-green-bg` e `.status-blue-bg` e aplicadas regras automáticas `html:not(.dark)` para superfícies, bordas e textos, garantindo contraste branco puro (`#ffffff`) em qualquer fundo verde/destaque.
+  3. **Adequação Completa de Modais (`PixCheckoutModal`, `SalonPixPrintModal`, `ConfirmIntentModal`, `SalonAuthHeader`, `TriadeUserLoginForm`, `TriadeUserRecoveryModal`, `TriadeUserRegisterForm` e `ProfileDrawer`):** Conectados diretamente ao `useTheme()` (`isDark`, `accentColor`) com suporte completo ao Tema Claro e Escuro.
+
+---
+
+### [2026-11-02] — Adequação do Tema Claro/Escuro nos Modais do Sistema (`bol-111`)
+- **Tipo:** `[Fix / UI Theme — Suporte Completo ao Tema Claro e Escuro nos Modais]`
+- **Motivo / Solicitação:** Corrigir as cores dos modais de ação do atendimento e de pausa de horários para responderem dinamicamente ao tema ativo (`isDark`).
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `src/components/professional/PauseSlotsModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Ação do Atendimento (`ProfessionalDashboardView.tsx`):** Removidas as classes fixas de fundo escuro (`bg-slate-950 text-white`) do overlay e container, adaptando para `${isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}` e `${isDark ? 'bg-slate-950 text-white' : 'bg-white text-slate-900'}`.
+  2. **Modal de Pausa (`PauseSlotsModal.tsx`):** Ajustada a renderização dos botões de horário pausado no grid para `bg-rose-50 border-rose-300 text-rose-950` no tema claro, mantendo contraste alto e legibilidade perfeita em ambas as paletas.
+
+---
+
+### [2026-11-02] — Atualização dos Cards do Painel do Profissional & Modal em Tela Cheia (`bol-110`)
+- **Tipo:** `[Feat / UI / UX — Painel do Profissional & Telemetria RTLS]`
+- **Motivo / Solicitação:** 
+  1. Card 1: Exibir "Atendimento Atual" e, ao ser clicado, abrir o modal de ação ocupando a tela inteira do aplicativo para o profissional se dedicar exclusivamente ao atendimento.
+  2. Card 2: Exibir "Próximo Atendimento" com badge diferenciado por trajeto:
+     - Verde (`bg-emerald-500 text-white`): Cliente em trajeto com GPS em tempo real compartilhado.
+     - Azul (`bg-blue-500 text-white`): Cliente a caminho sem compartilhamento de mapa.
+     - Opaco (`opacity-50 bg-slate-800/40 text-slate-400`): Cliente que ainda não iniciou o trajeto.
+  3. Card 3: Exibir "Pendentes de Confirmação".
+  4. Inclusão de dados de teste (mock) para verificação visual e mecânica do app.
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Memoização & Mock Data Embutido:** Atualizado `effectiveAppointments` em `ProfessionalDashboardView.tsx` com fallback de agendamentos reais em andamento, confirmados e pendentes.
+  2. **Três Badges de Trajeto no Card 2:** Configurada a verificação de `tracking_status` em `renderAppointmentCard` para destacar o status do cliente em trajeto (Verde/GPS, Azul/Sem GPS, Opaco/Não iniciou).
+  3. **Modal de Ação em Tela Cheia (`z-[9999]`):** Reformulado o overlay e o container do `actionModalAppointment` para preencher toda a tela do dispositivo (`fixed inset-0 z-[9999] bg-slate-950 text-white`), permitindo foco total e fácil manuseio da bancada.
+
+---
+
+### [2026-11-02] — Auditoria e Blindagem da Reflexão de Horários Pausados no Banco Supabase e Fluxo de Clientes (`bol-109`)
+- **Tipo:** `[Database / Integration / Bugfix — Sincronização Bidirecional de Horários Pausados]`
+- **Motivo / Solicitação:** Verificar o código para averiguar se os horários pausados refletem fielmente no banco de dados Supabase e no sistema de agendamento por parte dos clientes.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/hooks/useBookingFlow.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Persistência de Metadados de Bloqueio no Supabase (`supabase.ts`):**
+     - Corrigido `mapBookingAppointmentToDbPayload` para mapear explicitamente `is_blocked_slot: true`, `block_reason: 'Pausa de Emergência'` e `professional_name` no payload de gravação de `public.appointments`.
+     - Atualizado `mapDbAppointmentToBookingAppointment` para ler `is_blocked_slot` e `block_reason` nas consultas relacionais.
+  2. **Sincronização de Despausa / Exclusão de Bloqueios (`removeBlockedSlotInDb`):**
+     - Criada e exportada a função `removeBlockedSlotInDb(protocolCode)` que deleta diretamente ou cancela no Supabase qualquer registro de slot pausado (`protocol_code` com ou sem `#`).
+     - No `handleUpdateAppointments` (`SalonProfileView.tsx`), foi implementada a detecção diferencial: se um horário foi despausado pelo profissional, o sistema remove ou cancela imediatamente o registro correspondente no Supabase, impedindo que o horário permaneça trancado no banco.
+  3. **Reflexão Imediata no Agendamento do Cliente (`bookingSlots.ts`, `SalonBookingModal.tsx`, `useBookingFlow.ts`):**
+     - `fetchBusySlotsDirectly` consulta a tabela `appointments` (onde `status = 'BLOQUEADO'` e `status != 'CANCELADO'`) e o cache local.
+     - `getAvailableSlotsForDate` identifica a ocupação e marca o slot com `available: false, reason: 'busy'`, bloqueando instantaneamente a seleção pelo cliente.
+     - Adicionado listener de evento em tempo real (`vagou:appointments-updated`) no `SalonBookingModal.tsx` e `useBookingFlow.ts` para que qualquer pausa ou despausa feita no salão recalcule os horários da vitrine sem necessidade de recarregar a página.
+
+---
+
+### [2026-11-02] — Ajuste Temático, Filtragem de Horários Relevantes & Despoluição do Modal de Pausa (`bol-108`)
+- **Tipo:** `[Refactor / UI & Theme — Focus Mode]`
+- **Motivo / Solicitação:**
+  1. Integrar o modal de pausa (`PauseSlotsModal.tsx`) à cor do tema ativo do estabelecimento e ao tema dark/light (`useTheme`).
+  2. Filtrar o grid de horários para exibir exclusivamente horários que podem ser pausados ou que já estão pausados (eliminando do grid todos os horários passados e horários ocupados por clientes agendados).
+  3. Despoluir o modal removendo elementos desnecessários selecionados (alerta longo de texto e botões de motivo de emergência), otimizando o espaço útil no mobile.
+- **Arquivos Impactados:**
+  - `src/components/professional/PauseSlotsModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Conexão Direta com `ThemeContext`:** O modal agora consome `isDark` e `accentColor` (hex do salão, ex: `#20C933`), adaptando o fundo do contêiner (`bg-slate-950` / `bg-white`), bordas, textos e botões de ação principal (`Pausar Todos` e `Concluir`).
+  2. **Regra de Contraste Obrigatório:** Os botões com fundo sólido do tema (`style={{ backgroundColor: themeHex }}`) utilizam estritamente texto e ícones brancos puros (`text-white`), garantindo leitura imediata e zero ofuscamento.
+  3. **Filtro Estrito de Slots Elegíveis (`eligibleSlots`):**
+     - Removidos 100% dos slots passados (`isPast`) e slots com clientes já agendados (`booked`).
+     - A grade exibe apenas horários futuros vagos (prontos para bloqueio) ou pausados (prontos para desbloqueio).
+     - Quando não há horários restantes no dia, exibe aviso conciso.
+  4. **Despoluição e Síntese Mobile:**
+     - Removido o alerta explicativo prolixo (`Agenda operando normalmente...`).
+     - Removida a grade de seleção de motivos (`Queda de Energia`, `Saída de Emergência`, etc.), assumindo motivo padrão direto.
+     - Redução do cabeçalho e foco direto nas ações rápidas e na grade de toques.
+
+---
+
+### [2026-11-02] — Ajuste de Nomenclatura no Menu Principal, Remoção de Atendimento em Dados do Negócio e Exclusão de KPIs Caixa/Previsão do Painel (`bol-107`)
+- **Tipo:** `[Refactor / UI & Clean Code — Focus Mode]`
+- **Motivo / Solicitação:**
+  1. Alterar no menu principal o nome "VITRINE" para "MODO CLIENTE" e "GESTÃO" para "MODO SALÃO".
+  2. Remover aba e conteúdo "Atendimento" constante em "Dados do Negócio".
+  3. Remover div selecionada ("Caixa Realizado e Previsão Aberta") da seção Painel (`ProfessionalDashboardView.tsx`).
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/professional/BusinessDataCardView.tsx`
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Menu Principal (`ProfileDrawer.tsx`):**
+     - Atualizada a identificação do modo de gestão de `"GESTÃO"` para `"MODO SALÃO"`.
+     - Atualizada a identificação do modo vitrine pública de `"VITRINE"` para `"MODO CLIENTE"`.
+  2. **Dados do Negócio (`BusinessDataCardView.tsx`):**
+     - Removida a barra de abas e a aba `"Atendimento"`.
+     - Removido o bloco completo de edição de horários de funcionamento por salão e escala de equipe que agora é gerenciado nativamente em Equipe (`TeamManager.tsx`).
+     - Eliminadas funções auxiliares e variáveis de estado obsoletas (`computeUnionGeneralSchedule`, `days`, `professionalSchedules`, etc.) e imports não utilizados (`Clock`, `Users`, `X`, `Plus`), deixando a tela plana e focada exclusivamente nas Informações Comerciais e Fiscais.
+     - Atualizada a descrição e badge do card em `SalonCustomizationHub.tsx`.
+  3. **Painel Operacional (`ProfessionalDashboardView.tsx`):**
+     - Removido o contêiner dos cards "Caixa Realizado" e "Previsão Aberta" posicionado abaixo da fila de atendimento.
+     - Removido o hook `financialQuickSummary` e o import não utilizado `TrendingUp` (Clean Code / Zero poluição).
+     - Aplicado padding inferior (`pb-6`) direto na lista de cards da cadeira.
+
+---
+
 ### [2026-11-02] — Auditoria Total de Conexões Supabase & Script Mestre de Convergência do Banco (`bol-106`)
 - **Tipo:** `[Database / Architecture — Supabase Connectivity Audit & Master SQL Schema 3.0]`
 - **Motivo / Solicitação:** Verificar todas as conexões do app com o banco de dados Supabase, realizar auditoria minuciosa coluna a coluna em todas as tabelas e fornecer o script SQL completo, idempotente e atualizado em conformidade com 100% dos recursos do app.

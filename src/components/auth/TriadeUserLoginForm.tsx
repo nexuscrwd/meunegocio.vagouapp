@@ -16,6 +16,7 @@ import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import firebaseConfig from '../../../firebase-applet-config.json';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { SalonAuthHeader } from './SalonAuthHeader';
+import { useTheme } from '../../context/ThemeContext';
 
 export interface TriadeUserLoginPayload {
   identifier: string;
@@ -190,6 +191,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
   salonLogoUrl,
   initialIdentifier = '',
 }) => {
+  const { isDark } = useTheme();
   const [identifier, setIdentifier] = useState(initialIdentifier);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -419,7 +421,9 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
     <div
       className={`w-full max-w-md mx-auto ${
         variant === 'card'
-          ? 'bg-slate-900 border border-slate-800 rounded-[4px] shadow-2xl overflow-hidden'
+          ? isDark
+            ? 'bg-slate-900 border border-slate-800 rounded-[4px] shadow-2xl overflow-hidden text-white'
+            : 'bg-white border border-slate-200 rounded-[4px] shadow-2xl overflow-hidden text-slate-900'
           : ''
       }`}
     >
@@ -439,12 +443,12 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
           <div
             className={`p-3 rounded-[4px] mb-4 text-xs font-semibold flex items-center gap-2 border ${
               feedback.type === 'success'
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
+                : 'bg-rose-500/10 text-rose-500 border-rose-500/30'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
             ) : (
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
             )}
@@ -454,40 +458,62 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+            <label
+              className={`block text-xs font-semibold mb-1.5 ${
+                isDark ? 'text-slate-300' : 'text-slate-700'
+              }`}
+            >
               Usuário, Celular ou E-mail
             </label>
-            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-[4px] px-3 py-2.5 focus-within:border-emerald-500 transition">
-              <User className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+            <div
+              className={`flex items-center border rounded-[4px] px-3 py-2.5 focus-within:border-emerald-500 transition ${
+                isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'
+              }`}
+            >
+              <User className="w-4 h-4 text-accent mr-2 shrink-0" />
               <input
                 type="text"
                 required
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 placeholder="@usuario, (11) 99999-9999 ou e-mail"
-                className="bg-transparent text-sm text-white outline-none w-full placeholder:text-slate-500"
+                className={`bg-transparent text-sm outline-none w-full ${
+                  isDark ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400'
+                }`}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+            <label
+              className={`block text-xs font-semibold mb-1.5 ${
+                isDark ? 'text-slate-300' : 'text-slate-700'
+              }`}
+            >
               Senha de Acesso
             </label>
-            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-[4px] px-3 py-2.5 focus-within:border-emerald-500 transition">
-              <Lock className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+            <div
+              className={`flex items-center border rounded-[4px] px-3 py-2.5 focus-within:border-emerald-500 transition ${
+                isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'
+              }`}
+            >
+              <Lock className="w-4 h-4 text-accent mr-2 shrink-0" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Sua senha secreta"
-                className="bg-transparent text-sm text-white outline-none w-full placeholder:text-slate-500"
+                className={`bg-transparent text-sm outline-none w-full ${
+                  isDark ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400'
+                }`}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="text-slate-400 hover:text-white transition ml-2 cursor-pointer"
+                className={`transition ml-2 cursor-pointer ${
+                  isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
+                }`}
               >
                 {showPassword ? (
                   <EyeOff className="w-4 h-4" />
@@ -501,7 +527,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
           <button
             type="submit"
             disabled={isLoading || isGoogleLoading}
-            className="w-full py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 transition cursor-pointer whitespace-nowrap"
+            className="w-full py-3 px-4 rounded-[4px] bg-accent hover:opacity-95 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg active:scale-95 transition cursor-pointer whitespace-nowrap"
           >
             {isLoading ? (
               <Loader2 className="w-4 h-4 animate-spin text-white" />
@@ -516,32 +542,42 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
           {/* Divisor + Botão Conta Google */}
           <div className="flex items-center gap-3 py-0.5">
-            <div className="flex-1 h-px bg-slate-800" />
+            <div className={`flex-1 h-px ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
             <span className="text-[10px] uppercase font-bold text-slate-500">ou</span>
-            <div className="flex-1 h-px bg-slate-800" />
+            <div className={`flex-1 h-px ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
           </div>
 
           <button
             type="button"
             onClick={handleGoogleAccountLogin}
             disabled={isLoading || isGoogleLoading}
-            className="w-full py-2.5 px-4 rounded-[4px] bg-slate-950 hover:bg-slate-800 border border-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer whitespace-nowrap"
+            className={`w-full py-2.5 px-4 rounded-[4px] border font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer whitespace-nowrap ${
+              isDark
+                ? 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-white'
+                : 'bg-slate-50 hover:bg-slate-100 border-slate-300 text-slate-900'
+            }`}
           >
             {isGoogleLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+              <Loader2 className="w-4 h-4 animate-spin text-accent" />
             ) : (
-              <Chrome className="w-4 h-4 text-emerald-400" />
+              <Chrome className="w-4 h-4 text-accent" />
             )}
             <span>Conta Google</span>
           </button>
 
           {/* Rodapé Discreto do Formulário ACESSAR: "Esqueci Usuário/Senha" + "CADASTRO" */}
-          <div className="pt-3 border-t border-slate-800/60 flex items-center justify-between gap-4 px-1">
+          <div
+            className={`pt-3 border-t flex items-center justify-between gap-4 px-1 ${
+              isDark ? 'border-slate-800/60' : 'border-slate-200'
+            }`}
+          >
             {onOpenRecovery && (
               <button
                 type="button"
                 onClick={onOpenRecovery}
-                className="bg-transparent border-0 p-0 text-slate-400 hover:text-emerald-400 font-thin text-xs tracking-wide underline-offset-4 hover:underline transition cursor-pointer whitespace-nowrap"
+                className={`bg-transparent border-0 p-0 font-medium text-xs tracking-wide underline-offset-4 hover:underline transition cursor-pointer whitespace-nowrap ${
+                  isDark ? 'text-slate-400 hover:text-emerald-400' : 'text-slate-600 hover:text-slate-900'
+                }`}
               >
                 Esqueci Usuário/Senha
               </button>
@@ -551,7 +587,9 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
               <button
                 type="button"
                 onClick={onSwitchToRegister}
-                className="bg-transparent border-0 p-0 text-slate-400 hover:text-emerald-400 font-thin text-xs tracking-wide underline-offset-4 hover:underline transition cursor-pointer whitespace-nowrap ml-auto"
+                className={`bg-transparent border-0 p-0 font-bold text-xs tracking-wide underline-offset-4 hover:underline transition cursor-pointer whitespace-nowrap ml-auto ${
+                  isDark ? 'text-slate-400 hover:text-emerald-400' : 'text-slate-600 hover:text-slate-900'
+                }`}
               >
                 CADASTRO
               </button>

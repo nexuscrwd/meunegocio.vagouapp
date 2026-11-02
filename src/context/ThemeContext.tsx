@@ -18,8 +18,18 @@ export const ThemeContext = createContext<ThemeContextType>({
   setAccentColor: () => {},
 });
 
-export const applyAccentColorToDom = (color: string) => {
-  if (!color) return;
+export const sanitizeAccentColor = (rawColor?: string | null): string => {
+  if (!rawColor) return '#20C933';
+  const trimmed = rawColor.trim().toLowerCase();
+  if (
+    !trimmed ||
+    trimmed === 'transparent' ||
+    trimmed === '#ffffff' ||
+    trimmed === '#fff' ||
+    trimmed === 'white'
+  ) {
+    return '#20C933';
+  }
   const colorMap: Record<string, string> = {
     emerald: '#20C933',
     blue: '#3b82f6',
@@ -27,7 +37,13 @@ export const applyAccentColorToDom = (color: string) => {
     amber: '#f59e0b',
     violet: '#8b5cf6',
   };
-  const hex = color.startsWith('#') ? color : (colorMap[color] || color || '#20C933');
+  if (colorMap[trimmed]) return colorMap[trimmed];
+  return rawColor.startsWith('#') ? rawColor.trim() : '#20C933';
+};
+
+export const applyAccentColorToDom = (color: string) => {
+  if (!color) return;
+  const hex = sanitizeAccentColor(color);
 
   try {
     localStorage.setItem('vagou_accent_color', hex);
@@ -69,8 +85,9 @@ export const applyAccentColorToDom = (color: string) => {
         --color-emerald-900: color-mix(in srgb, ${hex} 40%, black 60%) !important;
         --color-emerald-950: color-mix(in srgb, ${hex} 20%, black 80%) !important;
       }
-      .bg-accent, .bg-\\[\\#20C933\\] {
+      .bg-accent, .bg-\\[\\#20C933\\], .status-green-bg {
         background-color: ${hex} !important;
+        color: #ffffff !important;
       }
       .hover\\:bg-\\[\\#1bb32d\\]:hover, .hover\\:bg-\\[\\#1eb72e\\]:hover {
         background-color: color-mix(in srgb, ${hex} 85%, black 15%) !important;
@@ -84,41 +101,48 @@ export const applyAccentColorToDom = (color: string) => {
       .border-accent, .border-\\[\\#20C933\\] {
         border-color: ${hex} !important;
       }
-      .dark .border-slate-800,
-      .dark .border-slate-800\\/90,
-      .dark .border-slate-800\\/80,
-      .dark .border-slate-800\\/60 {
+      .dark .border-slate-800:not([style*="border-color"]),
+      .dark .border-slate-800\\/90:not([style*="border-color"]),
+      .dark .border-slate-800\\/80:not([style*="border-color"]),
+      .dark .border-slate-800\\/60:not([style*="border-color"]) {
         border-color: color-mix(in srgb, ${hex} 24%, #1e293b 76%) !important;
       }
-      .dark .border-slate-700,
-      .dark .border-slate-700\\/80,
-      .dark .border-slate-700\\/60 {
+      .dark .border-slate-700:not([style*="border-color"]),
+      .dark .border-slate-700\\/80:not([style*="border-color"]),
+      .dark .border-slate-700\\/60:not([style*="border-color"]) {
         border-color: color-mix(in srgb, ${hex} 32%, #334155 68%) !important;
       }
-      html:not(.dark) .border-slate-200,
-      html:not(.dark) .border-slate-200\\/90,
-      html:not(.dark) .border-slate-200\\/80 {
+      html:not(.dark) .border-slate-200:not([style*="border-color"]),
+      html:not(.dark) .border-slate-200\\/90:not([style*="border-color"]),
+      html:not(.dark) .border-slate-200\\/80:not([style*="border-color"]),
+      html:not(.dark) .border-slate-800:not([style*="border-color"]),
+      html:not(.dark) .border-slate-800\\/90:not([style*="border-color"]),
+      html:not(.dark) .border-slate-800\\/80:not([style*="border-color"]),
+      html:not(.dark) .border-slate-800\\/60:not([style*="border-color"]) {
         border-color: color-mix(in srgb, ${hex} 22%, #e2e8f0 78%) !important;
       }
-      html:not(.dark) .border-slate-300 {
+      html:not(.dark) .border-slate-300:not([style*="border-color"]),
+      html:not(.dark) .border-slate-700:not([style*="border-color"]),
+      html:not(.dark) .border-slate-700\\/80:not([style*="border-color"]),
+      html:not(.dark) .border-slate-700\\/60:not([style*="border-color"]) {
         border-color: color-mix(in srgb, ${hex} 28%, #cbd5e1 72%) !important;
       }
-      .dark .text-slate-300 {
+      .dark .text-slate-300:not([style*="color"]) {
         color: color-mix(in srgb, ${hex} 16%, #cbd5e1 84%) !important;
       }
-      .dark .text-slate-400 {
+      .dark .text-slate-400:not([style*="color"]) {
         color: color-mix(in srgb, ${hex} 24%, #94a3b8 76%) !important;
       }
-      .dark .text-slate-500 {
+      .dark .text-slate-500:not([style*="color"]) {
         color: color-mix(in srgb, ${hex} 20%, #64748b 80%) !important;
       }
-      html:not(.dark) .text-slate-400 {
+      html:not(.dark) .text-slate-400:not([style*="color"]) {
         color: color-mix(in srgb, ${hex} 25%, #64748b 75%) !important;
       }
-      html:not(.dark) .text-slate-500 {
+      html:not(.dark) .text-slate-500:not([style*="color"]) {
         color: color-mix(in srgb, ${hex} 28%, #475569 72%) !important;
       }
-      html:not(.dark) .text-slate-600 {
+      html:not(.dark) .text-slate-600:not([style*="color"]) {
         color: color-mix(in srgb, ${hex} 24%, #334155 76%) !important;
       }
       .text-white, .dark .text-white {
@@ -213,7 +237,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (parsed && parsed.accentColor) saved = parsed.accentColor;
         }
       }
-      const initial = saved || '#20C933';
+      const initial = sanitizeAccentColor(saved);
       applyAccentColorToDom(initial);
       return initial;
     } catch {
@@ -283,8 +307,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const setAccentColor = (color: string) => {
-    setAccentColorState(color);
-    applyAccentColorToDom(color);
+    const clean = sanitizeAccentColor(color);
+    setAccentColorState(clean);
+    applyAccentColorToDom(clean);
   };
 
   return (

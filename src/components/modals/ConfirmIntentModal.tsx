@@ -6,6 +6,7 @@
 import React from 'react';
 import { X, Calendar, Clock, CheckCircle2 } from 'lucide-react';
 import type { CatalogServiceItem } from '../../types/booking';
+import { useTheme } from '../../context/ThemeContext';
 import { hapticLight, hapticMedium } from '../../utils/haptics';
 
 interface ConfirmIntentModalProps {
@@ -28,14 +29,17 @@ export const ConfirmIntentModal: React.FC<ConfirmIntentModalProps> = ({
   salonLogo,
   salonLogoLight,
   salonLogoDark,
-  primaryColor = '#20C933',
+  primaryColor,
   onConfirm,
 }) => {
+  const { isDark, accentColor } = useTheme();
+  const effectiveColor = primaryColor || accentColor || '#20C933';
+
   if (!isOpen || !pendingService) return null;
 
   const resolvedBrandLogo = (
     salonLogo ||
-    (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? salonLogoDark : salonLogoLight) ||
+    (isDark ? salonLogoDark : salonLogoLight) ||
     salonLogoDark ||
     salonLogoLight ||
     ''
@@ -47,9 +51,9 @@ export const ConfirmIntentModal: React.FC<ConfirmIntentModalProps> = ({
       onClick={() => onClose()}
     >
       <div
-        className={`w-full max-w-md my-auto rounded-[4px] border p-5 shadow-2xl space-y-4 font-['Poppins'] ${
-          typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
-            ? 'bg-[#090D16] border-slate-800 text-white'
+        className={`w-full max-w-md my-auto rounded-[4px] border p-5 shadow-2xl space-y-4 font-['Poppins'] transition-colors ${
+          isDark
+            ? 'bg-slate-950 border-slate-800 text-white'
             : 'bg-white border-slate-200 text-slate-900'
         }`}
         onClick={(e) => e.stopPropagation()}
@@ -64,17 +68,17 @@ export const ConfirmIntentModal: React.FC<ConfirmIntentModalProps> = ({
               />
             ) : (
               <div
-                style={{ backgroundColor: primaryColor }}
+                style={{ backgroundColor: effectiveColor }}
                 className="w-8 h-8 rounded-[4px] flex items-center justify-center shrink-0 text-white mt-0.5"
               >
                 <Calendar className="w-4 h-4 text-white" />
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-extrabold leading-snug">
+              <h3 className={`text-sm font-extrabold leading-snug ${isDark ? 'text-white' : 'text-slate-900'}`}>
                 Deseja realizar o agendamento?
               </h3>
-              <p className="text-[11px] leading-snug mt-0.5 break-words text-slate-500 dark:text-slate-400">
+              <p className={`text-[11px] leading-snug mt-0.5 break-words ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 {salonName}
               </p>
             </div>
@@ -82,7 +86,11 @@ export const ConfirmIntentModal: React.FC<ConfirmIntentModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+            className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
+              isDark
+                ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+            }`}
             aria-label="Fechar"
           >
             <X className="w-4 h-4" />
@@ -90,15 +98,15 @@ export const ConfirmIntentModal: React.FC<ConfirmIntentModalProps> = ({
         </div>
 
         <div
-          className={`p-3 rounded-[4px] flex items-center justify-between gap-3 ${
-            typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
-              ? 'bg-slate-900 text-slate-100'
-              : 'bg-slate-100 text-slate-900'
+          className={`p-3 rounded-[4px] border flex items-center justify-between gap-3 ${
+            isDark
+              ? 'bg-slate-900 border-slate-800 text-slate-100'
+              : 'bg-slate-50 border-slate-200 text-slate-900'
           }`}
         >
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold leading-snug break-words">{pendingService.title}</p>
-            <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 font-medium mt-1">
+            <span className={`inline-flex items-center gap-1 text-[10px] font-medium mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
               <Clock className="w-3 h-3 text-emerald-500 shrink-0" />
               <span>{pendingService.duration}</span>
             </span>
@@ -112,10 +120,10 @@ export const ConfirmIntentModal: React.FC<ConfirmIntentModalProps> = ({
           <button
             type="button"
             onClick={() => { hapticLight(); onClose(); }}
-            className={`py-3 px-3 rounded-[4px] font-bold text-xs transition cursor-pointer text-center ${
-              typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
-                ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                : 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+            className={`py-3 px-3 rounded-[4px] font-bold text-xs transition cursor-pointer text-center border ${
+              isDark
+                ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
             }`}
           >
             Agora não
@@ -124,7 +132,7 @@ export const ConfirmIntentModal: React.FC<ConfirmIntentModalProps> = ({
           <button
             type="button"
             onClick={() => { hapticMedium(); onConfirm(); }}
-            style={{ backgroundColor: primaryColor }}
+            style={{ backgroundColor: effectiveColor }}
             className="py-3 px-3 rounded-[4px] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition hover:brightness-110 cursor-pointer text-center"
           >
             <CheckCircle2 className="w-4 h-4 text-white shrink-0" />

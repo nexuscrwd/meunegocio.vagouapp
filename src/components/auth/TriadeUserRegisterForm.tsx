@@ -26,6 +26,7 @@ import firebaseConfig from '../../../firebase-applet-config.json';
 import { supabase, isSupabaseConfigured, generateUuidV4 } from '../../lib/supabase';
 import { SalonAuthHeader } from './SalonAuthHeader';
 import { OFFICIAL_SECURITY_QUESTIONS } from './TriadeUserRecoveryModal';
+import { useTheme } from '../../context/ThemeContext';
 
 const BRAZIL_UF_LIST = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
@@ -129,6 +130,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   salonName,
   salonLogoUrl,
 }) => {
+  const { isDark } = useTheme();
   const initialDraft = React.useMemo(() => {
     try {
       const raw = sessionStorage.getItem('vagou_register_wizard_draft');
@@ -827,7 +829,9 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     <div
       className={`w-full max-w-md mx-auto ${
         variant === 'card'
-          ? 'bg-slate-900 border border-slate-800 rounded-[4px] shadow-2xl overflow-hidden'
+          ? isDark
+            ? 'bg-slate-900 border border-slate-800 rounded-[4px] shadow-2xl overflow-hidden text-white'
+            : 'bg-white border border-slate-200 rounded-[4px] shadow-2xl overflow-hidden text-slate-900'
           : ''
       }`}
     >
@@ -846,7 +850,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
       {step !== 'welcome' && (
         <div className="mb-4">
           <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 mb-1.5">
-            <span className="text-emerald-400 uppercase tracking-wider">{currentMeta.label}</span>
+            <span className="text-accent uppercase tracking-wider">{currentMeta.label}</span>
             <span>
               Fase {currentMeta.index} de {currentMeta.total}
             </span>
@@ -856,7 +860,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               <div
                 key={idx}
                 className={`h-1 rounded-[4px] transition-all ${
-                  idx <= currentMeta.index ? 'bg-[#20C933]' : 'bg-slate-800'
+                  idx <= currentMeta.index ? 'bg-accent' : isDark ? 'bg-slate-800' : 'bg-slate-200'
                 }`}
               />
             ))}
@@ -937,7 +941,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 setFeedback(null);
                 setStep('name');
               }}
-              className="w-full py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition cursor-pointer whitespace-nowrap"
+              className="w-full py-3 px-4 rounded-[4px] bg-accent hover:opacity-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition cursor-pointer whitespace-nowrap"
             >
               <span className="text-white">Avançar</span>
               <ArrowRight className="w-4 h-4 text-white" />
@@ -1078,7 +1082,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 setFeedback(null);
                 setStep('email');
               }}
-              className="py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
+              className="py-3 px-4 rounded-[4px] bg-accent hover:opacity-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
             >
               <span className="text-white">Avançar</span>
               <ArrowRight className="w-4 h-4 text-white" />
@@ -1154,7 +1158,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 setFeedback(null);
                 setStep('address_cep');
               }}
-              className="py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
+              className="py-3 px-4 rounded-[4px] bg-accent hover:opacity-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
             >
               <span className="text-white">Avançar</span>
               <ArrowRight className="w-4 h-4 text-white" />
@@ -1228,7 +1232,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               type="button"
               disabled={!isCepStepValid || isLookingUpCep}
               onClick={() => lookupCepAndAdvance(cepDigits, true)}
-              className="py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
+              className="py-3 px-4 rounded-[4px] bg-accent hover:opacity-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
             >
               {isLookingUpCep ? (
                 <Loader2 className="w-4 h-4 animate-spin text-white" />
@@ -1348,7 +1352,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               type="button"
               disabled={!isAddressNumValid}
               onClick={() => setStep('address_summary')}
-              className="py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
+              className="py-3 px-4 rounded-[4px] bg-accent hover:opacity-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
             >
               <span className="text-white">Avançar</span>
               <ArrowRight className="w-4 h-4 text-white" />
@@ -1514,7 +1518,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 setFeedback(null);
                 setStep('password');
               }}
-              className="py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
+              className="py-3 px-4 rounded-[4px] bg-accent hover:opacity-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
             >
               <CheckCircle2 className="w-4 h-4 text-white" />
               <span className="text-white">Confirmar</span>
@@ -1653,7 +1657,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                         }}
                         className={`w-full px-3 py-2.5 text-xs text-left whitespace-normal break-words leading-snug transition cursor-pointer ${
                           isSelected
-                            ? 'bg-[#20C933] text-white font-bold'
+                            ? 'bg-accent text-white font-bold'
                             : 'text-slate-200 hover:bg-slate-800'
                         }`}
                       >
@@ -1686,7 +1690,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
             <button
               type="submit"
               disabled={!isPasswordStepValid || isLoading}
-              className="py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
+              className="py-3 px-4 rounded-[4px] bg-accent hover:opacity-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin text-white" />
@@ -1705,7 +1709,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
       {step === 'welcome' && (
         <div className="space-y-4 py-2">
           <div className="flex flex-col items-center text-center space-y-2">
-            <div className="w-12 h-12 rounded-[4px] bg-[#20C933] text-white flex items-center justify-center shadow-lg">
+            <div className="w-12 h-12 rounded-[4px] bg-accent text-white flex items-center justify-center shadow-lg">
               <Sparkles className="w-6 h-6 text-white" />
             </div>
             <h4 className="text-sm sm:text-base font-extrabold text-white leading-snug">
@@ -1737,7 +1741,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
             <button
               type="button"
               onClick={() => onClose?.()}
-              className="w-full py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition cursor-pointer whitespace-nowrap"
+              className="w-full py-3 px-4 rounded-[4px] bg-accent hover:opacity-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition cursor-pointer whitespace-nowrap"
             >
               <CheckCircle2 className="w-4 h-4 text-white" />
               <span className="text-white">Continuar Conectado</span>

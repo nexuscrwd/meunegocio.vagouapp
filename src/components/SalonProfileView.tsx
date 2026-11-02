@@ -63,6 +63,7 @@ import {
   mapDbAppointmentToBookingAppointment,
   mapBookingAppointmentToDbPayload,
   upsertAppointmentInDb,
+  removeBlockedSlotInDb,
   subscribeToAppointments,
   ensureSalonRow
 } from '../lib/supabase';
@@ -1447,6 +1448,17 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   }, [adminSettings.pwaName, adminSettings.salonName, adminSettings.salonIcon, adminSettings.salonLogoDark, adminSettings.salonLogo, adminSettings.accentColor, salonName]);
 
   const handleUpdateAppointments = async (newApts: BookingAppointment[]) => {
+    // 1. Identificar agendamentos ou bloqueios removidos (ex: slots despausados)
+    const removedApts = appointmentsList.filter(
+      (oldApt) =>
+        !newApts.some(
+          (nApt) =>
+            (nApt.protocolCode && nApt.protocolCode === oldApt.protocolCode) ||
+            (nApt.id && nApt.id === oldApt.id)
+        )
+    );
+
+    // 2. Atualizar estado local e cache no localStorage imediatamente
     setAppointmentsList(newApts);
     try {
       localStorage.setItem('vagou_user_appointments', JSON.stringify(newApts));
@@ -1454,6 +1466,17 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       // ignore
     }
 
+    // 3. Notificar todos os componentes do app via CustomEvent
+    window.dispatchEvent(new CustomEvent('vagou:appointments-updated', { detail: { appointments: newApts } }));
+
+    // 4. Sincronizar exclusões de bloqueios/pausas no Supabase
+    for (const rem of removedApts) {
+      if (rem.protocolCode) {
+        await removeBlockedSlotInDb(rem.protocolCode);
+      }
+    }
+
+    // 5. Sincronizar inserções/atualizações no Supabase
     const salonId = currentSalonDbId || localStorage.getItem('vagou_salon_db_id');
     if (salonId) {
       for (const apt of newApts) {

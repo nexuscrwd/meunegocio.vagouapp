@@ -1285,8 +1285,9 @@ export function mapDbAppointmentToBookingAppointment(dbApt: any, fallbackSalonNa
     clientPhone: dbApt.client_phone || dbApt.customer_phone || '',
     customerPhone: dbApt.client_phone || dbApt.customer_phone || '',
     customerEmail: dbApt.client_email || dbApt.customer_email || '',
-    address: dbApt.client_address || dbApt.salons?.address || '',
     createdAt: dbApt.created_at,
+    isBlockedSlot: Boolean(dbApt.is_blocked_slot || (dbApt.status || '').toUpperCase() === 'BLOQUEADO'),
+    blockReason: dbApt.block_reason || undefined,
     // Campos de Dependente (Conta Família) e Rastreamento Ao Vivo (bol-020)
     is_dependent: Boolean(dbApt.is_dependent),
     dependent_id: dbApt.dependent_id || undefined,
@@ -1356,6 +1357,10 @@ export function mapBookingAppointmentToDbPayload(apt: Partial<BookingAppointment
     start_time: startTime,
     end_time: endTime,
     status: (apt.status || 'CONFIRMADO').toUpperCase(),
+    is_blocked_slot: Boolean(apt.isBlockedSlot || (apt.status || '').toUpperCase() === 'BLOQUEADO'),
+    block_reason: apt.blockReason || ((apt.status || '').toUpperCase() === 'BLOQUEADO' ? 'Pausa de Emergência' : null),
+    professional_name: apt.professionalName || apt.professional || null,
+    ...((apt as any).professionalId || (apt as any).professional_id ? { professional_id: (apt as any).professionalId || (apt as any).professional_id } : {}),
     notes: (apt as any).notes || (apt.is_dependent && apt.dependent_name ? `Dependente: ${apt.dependent_name}` : null),
     ...(apt.is_dependent !== undefined ? { is_dependent: apt.is_dependent } : {}),
     ...((apt as any).dependent_id !== undefined ? { dependent_id: (apt as any).dependent_id } : {}),
@@ -1532,6 +1537,9 @@ export async function upsertAppointmentInDb(appointmentData: any): Promise<{ suc
       delete safePayload.prep_buffer_minutes;
       delete safePayload.cancellation_reason;
       delete safePayload.last_location_update;
+      delete safePayload.is_blocked_slot;
+      delete safePayload.block_reason;
+      delete safePayload.professional_name;
       const retry = await (client.from('appointments') as any)
         .upsert(safePayload, { onConflict: 'protocol_code' })
         .select()
@@ -1672,6 +1680,47 @@ export async function cancelAppointmentInDb(protocolCode: string, cancellationRe
 
     if (error) {
       return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+}
+
+/**
+ * Remove ou cancela um slot de pausa no Supabase pelo protocolo
+ */
+export async function removeBlockedSlotInDb(protocolCode: string): Promise<{ success: boolean; error?: string }> {
+  if (!supabase || !isSupabaseConfigured || !protocolCode) {
+    return { success: false, error: 'Supabase não conectado' };
+  }
+  const client = getDbClient() || supabase;
+  try {
+    const raw = protocolCode.trim();
+    const withHash = raw.startsWith('#') ? raw : `#${raw}`;
+    const withoutHash = raw.startsWith('#') ? raw.slice(1) : raw;
+
+    // 1. Tenta DELETE direto da tabela appointments para slots de pausa
+    const { error: delError } = await (client.from('appointments') as any)
+      .delete()
+      .or(`protocol_code.eq."${withoutHash}",protocol_code.eq."${withHash}"`);
+
+    if (!delError) {
+      return { success: true };
+    }
+
+    // 2. Se DELETE falhar (ex: por FK), atualiza status para CANCELADO
+    const { error: updError } = await (client.from('appointments') as any)
+      .update({
+        status: 'CANCELADO',
+        tracking_status: 'cancelled',
+        cancellation_reason: 'Despausado pelo estabelecimento',
+        updated_at: new Date().toISOString()
+      })
+      .or(`protocol_code.eq."${withoutHash}",protocol_code.eq."${withHash}"`);
+
+    if (updError) {
+      return { success: false, error: updError.message };
     }
     return { success: true };
   } catch (err: any) {

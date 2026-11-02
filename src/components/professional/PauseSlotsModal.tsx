@@ -1,18 +1,14 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { 
   X, 
   CirclePause, 
-  Clock, 
-  AlertTriangle, 
-  CheckCircle2, 
-  RotateCcw, 
-  ZapOff, 
-  ShieldAlert, 
   Calendar,
   Lock,
   Unlock,
+  RotateCcw,
   Check
 } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 import { BookingAppointment } from '../../types';
 import { hapticLight, hapticMedium, hapticSuccess } from '../../utils/haptics';
 
@@ -35,13 +31,6 @@ const ALL_DAY_SLOTS = [
   '20:00'
 ];
 
-const EMERGENCY_REASONS = [
-  { id: 'queda_energia', label: 'Queda de Energia', icon: ZapOff },
-  { id: 'saida_emergencia', label: 'Saída de Emergência', icon: AlertTriangle },
-  { id: 'imprevisto', label: 'Imprevisto Geral', icon: ShieldAlert },
-  { id: 'intervalo', label: 'Intervalo Não Previsto', icon: Clock },
-];
-
 export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
   isOpen,
   onClose,
@@ -50,7 +39,8 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
   salonName = 'Meu Estabelecimento',
   activeProName = 'Profissional',
 }) => {
-  const [selectedReason, setSelectedReason] = useState<string>('Queda de Energia');
+  const { isDark, accentColor } = useTheme();
+  const themeHex = accentColor || '#20C933';
 
   // Determinar data de hoje
   const today = useMemo(() => new Date(), []);
@@ -119,29 +109,26 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
     });
   }, [appointments, currentMinutes, isAptToday]);
 
+  // Filtrar apenas horários elegíveis: os passados e ocupados por clientes são removidos por obviedade
+  const eligibleSlots = useMemo(() => {
+    return slotStatuses.filter((s) => !s.isPast && (s.state === 'available' || s.state === 'paused'));
+  }, [slotStatuses]);
+
   // Contagens
   const stats = useMemo(() => {
-    const futureSlots = slotStatuses.filter((s) => !s.isPast);
-    const pausedCount = slotStatuses.filter((s) => s.state === 'paused').length;
-    const futureAvailableCount = futureSlots.filter((s) => s.state === 'available').length;
-    const futureBookedCount = futureSlots.filter((s) => s.state === 'booked').length;
+    const pausedCount = eligibleSlots.filter((s) => s.state === 'paused').length;
+    const futureAvailableCount = eligibleSlots.filter((s) => s.state === 'available').length;
     return {
       pausedCount,
       futureAvailableCount,
-      futureBookedCount,
-      totalFuture: futureSlots.length,
+      totalEligible: eligibleSlots.length,
     };
-  }, [slotStatuses]);
+  }, [eligibleSlots]);
 
-  // Alternar um slot individualmente
+  // Alternar um slot individualmente (pausar / despausar)
   const handleToggleSlot = useCallback((timeStr: string) => {
-    const target = slotStatuses.find((s) => s.time === timeStr);
+    const target = eligibleSlots.find((s) => s.time === timeStr);
     if (!target) return;
-
-    if (target.state === 'booked') {
-      hapticMedium();
-      return; // Não altera cliente agendado diretamente por segurança
-    }
 
     if (target.state === 'paused') {
       // Despausar este slot
@@ -160,10 +147,10 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
     hapticMedium();
     const newBlock: BookingAppointment = {
       protocolCode: `PAUSE-${timeStr.replace(':', '')}-${Math.floor(1000 + Math.random() * 9000)}`,
-      customerName: `🔒 ${selectedReason}`,
-      clientName: `🔒 ${selectedReason}`,
-      service: `Pausa: ${selectedReason}`,
-      serviceTitle: `Pausa: ${selectedReason}`,
+      customerName: '🔒 Pausa de Horário',
+      clientName: '🔒 Pausa de Horário',
+      service: 'Pausa de Emergência',
+      serviceTitle: 'Pausa de Emergência',
       salonName: salonName,
       dateTime: `Hoje, ${timeStr}`,
       dayGroup: 'Hoje',
@@ -172,7 +159,7 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
       totalPrice: 0,
       status: 'BLOQUEADO',
       isBlockedSlot: true,
-      blockReason: selectedReason,
+      blockReason: 'Pausa de Emergência',
       professional: activeProName,
       professionalName: activeProName,
       createdAt: `${formattedToday} às ${timeStr}`,
@@ -181,20 +168,20 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
 
     const updated = [newBlock, ...appointments];
     onUpdateAppointments(updated);
-  }, [slotStatuses, appointments, isAptToday, selectedReason, salonName, activeProName, formattedToday, todayIso, onUpdateAppointments]);
+  }, [eligibleSlots, appointments, isAptToday, salonName, activeProName, formattedToday, todayIso, onUpdateAppointments]);
 
-  // 1. Pausar Todos os Horários Futuros (Instantaneamente para caso de emergência)
+  // 1. Pausar Todos os Horários Futuros Vagos
   const handlePauseAllUpcoming = useCallback(() => {
     hapticMedium();
-    const futureAvailable = slotStatuses.filter((s) => !s.isPast && s.state === 'available');
-    if (futureAvailable.length === 0) return;
+    const available = eligibleSlots.filter((s) => s.state === 'available');
+    if (available.length === 0) return;
 
-    const newBlocks: BookingAppointment[] = futureAvailable.map((s) => ({
+    const newBlocks: BookingAppointment[] = available.map((s) => ({
       protocolCode: `PAUSE-${s.time.replace(':', '')}-${Math.floor(1000 + Math.random() * 9000)}`,
-      customerName: `🔒 ${selectedReason}`,
-      clientName: `🔒 ${selectedReason}`,
-      service: `Pausa: ${selectedReason}`,
-      serviceTitle: `Pausa: ${selectedReason}`,
+      customerName: '🔒 Pausa de Horário',
+      clientName: '🔒 Pausa de Horário',
+      service: 'Pausa de Emergência',
+      serviceTitle: 'Pausa de Emergência',
       salonName: salonName,
       dateTime: `Hoje, ${s.time}`,
       dayGroup: 'Hoje',
@@ -203,7 +190,7 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
       totalPrice: 0,
       status: 'BLOQUEADO',
       isBlockedSlot: true,
-      blockReason: selectedReason,
+      blockReason: 'Pausa de Emergência',
       professional: activeProName,
       professionalName: activeProName,
       createdAt: `${formattedToday} às ${s.time}`,
@@ -212,12 +199,11 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
 
     const updated = [...newBlocks, ...appointments];
     onUpdateAppointments(updated);
-  }, [slotStatuses, appointments, selectedReason, salonName, activeProName, formattedToday, todayIso, onUpdateAppointments]);
+  }, [eligibleSlots, appointments, salonName, activeProName, formattedToday, todayIso, onUpdateAppointments]);
 
-  // 2. Despausar Horários Futuros com antecedência > 1 hora (Regra do Usuário)
+  // 2. Despausar Horários Futuros com antecedência > 1 hora
   const handleUnpauseBeyondOneHour = useCallback(() => {
     hapticSuccess();
-    // Horários futuros acima de 1 hora do momento atual (currentMinutes + 60)
     const thresholdMinutes = currentMinutes + 60;
 
     const updated = appointments.filter((a) => {
@@ -229,11 +215,11 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
       const [h, m] = aptTime.split(':').map(Number);
       const aptMinutes = h * 60 + m;
 
-      // Se for maior que 1 hora de antecedência, desbloqueia (remove o bloqueio)
+      // Se for maior ou igual a 1 hora de antecedência, desbloqueia
       if (aptMinutes >= thresholdMinutes) {
-        return false; // Remove da lista de agendamentos
+        return false;
       }
-      return true; // Mantém bloqueado os horários da próxima 1h
+      return true;
     });
 
     onUpdateAppointments(updated);
@@ -253,236 +239,185 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-200">
       <div 
-        className="w-full max-w-lg bg-slate-950 border border-slate-800 rounded-t-xl sm:rounded-lg shadow-2xl flex flex-col max-h-[92vh] overflow-hidden text-slate-100 animate-in slide-in-from-bottom-4 duration-200"
+        className={`w-full max-w-md border rounded-t-xl sm:rounded-[4px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden animate-in slide-in-from-bottom-4 duration-200 ${
+          isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+        }`}
       >
-        {/* Cabeçalho */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-900/80">
+        {/* Cabeçalho que acompanha o tema */}
+        <div className={`p-3.5 border-b flex items-center justify-between shrink-0 ${
+          isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
+        }`}>
           <div className="flex items-center gap-2.5">
-            <div className={`w-9 h-9 rounded flex items-center justify-center ${
-              stats.pausedCount > 0 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-            }`}>
-              <CirclePause className="w-5 h-5 stroke-[2.2]" />
+            <div 
+              className="w-8 h-8 rounded-[4px] flex items-center justify-center border shrink-0"
+              style={{
+                backgroundColor: `${themeHex}20`,
+                borderColor: `${themeHex}40`,
+                color: themeHex,
+              }}
+            >
+              <CirclePause className="w-4 h-4 stroke-[2.2]" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white tracking-tight leading-tight">
+              <h2 className="text-sm font-bold tracking-tight leading-tight font-['Poppins']">
                 Pausar Agendamentos
               </h2>
-              <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
-                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+              <p className={`text-[11px] flex items-center gap-1.5 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                <Calendar className="w-3 h-3 text-slate-400" />
                 Hoje • {formattedToday}
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={() => {
               hapticLight();
               onClose();
             }}
-            className="w-8 h-8 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition active:scale-95"
+            className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition active:scale-95 cursor-pointer ${
+              isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+            title="Fechar"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Conteúdo Rolável */}
-        <div className="p-4 overflow-y-auto space-y-4 flex-1">
-          {/* Alerta de Status Dinâmico */}
-          {stats.pausedCount > 0 ? (
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded p-3 flex items-start gap-3 text-amber-200 text-xs">
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-bold text-amber-300">
-                  {stats.pausedCount} {stats.pausedCount === 1 ? 'horário pausado' : 'horários pausados'} hoje
-                </p>
-                <p className="text-amber-200/80 mt-0.5">
-                  Horários pausados estão indisponíveis para clientes agendarem no Radar e na Vitrine.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded p-3 flex items-start gap-3 text-emerald-200 text-xs">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-bold text-emerald-300">Agenda operando normalmente</p>
-                <p className="text-emerald-200/80 mt-0.5">
-                  Em caso fortuito ou emergência, use os botões abaixo para bloquear instantaneamente os horários futuros.
-                </p>
-              </div>
-            </div>
-          )}
+        {/* Conteúdo Despoluído e Otimizado */}
+        <div className="p-3.5 overflow-y-auto space-y-3.5 flex-1 no-scrollbar">
+          {/* Ações Rápidas no Topo */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            {/* Botão Pausar Todos os Horários Futuros (Cor do Tema com Texto Branco) */}
+            <button
+              type="button"
+              onClick={handlePauseAllUpcoming}
+              disabled={stats.futureAvailableCount === 0}
+              style={{ backgroundColor: stats.futureAvailableCount > 0 ? themeHex : undefined }}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-[4px] disabled:opacity-40 disabled:pointer-events-none text-white font-bold text-xs transition active:scale-98 shadow-xs cursor-pointer"
+            >
+              <Lock className="w-3.5 h-3.5 text-white stroke-[2.4]" />
+              <span className="text-white">Pausar Todos ({stats.futureAvailableCount} livres)</span>
+            </button>
 
-          {/* Motivo Rápido da Pausa Emergencial */}
-          <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-2">
-              Motivo da Pausa:
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {EMERGENCY_REASONS.map((r) => {
-                const Icon = r.icon;
-                const isSelected = selectedReason === r.label;
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => {
-                      hapticLight();
-                      setSelectedReason(r.label);
-                    }}
-                    className={`flex items-center gap-2 p-2 rounded text-xs font-medium border text-left transition active:scale-95 ${
-                      isSelected
-                        ? 'bg-amber-500/20 border-amber-500/60 text-amber-200 shadow-xs'
-                        : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-                    <span className="truncate">{r.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+            {/* Botão Despausar (> 1h) */}
+            <button
+              type="button"
+              onClick={handleUnpauseBeyondOneHour}
+              disabled={stats.pausedCount === 0}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-[4px] disabled:opacity-40 disabled:pointer-events-none font-bold text-xs border transition active:scale-98 cursor-pointer ${
+                isDark 
+                  ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-200' 
+                  : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+              }`}
+              title="Desbloqueia os horários a partir de 1 hora da hora atual"
+            >
+              <Unlock className="w-3.5 h-3.5" style={{ color: themeHex }} />
+              <span>Despausar (&gt; 1h)</span>
+            </button>
 
-          {/* Ações Globais de Emergência */}
-          <div className="space-y-2 pt-1">
-            <label className="text-xs font-semibold text-slate-300 block">
-              Ações Rápidas:
-            </label>
-            <div className="flex flex-col sm:flex-row gap-2">
-              {/* Botão Pausar Todos os Horários Futuros */}
+            {/* Botão Despausar Todos */}
+            {stats.pausedCount > 0 && (
               <button
                 type="button"
-                onClick={handlePauseAllUpcoming}
-                disabled={stats.futureAvailableCount === 0}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:pointer-events-none text-slate-950 font-bold text-xs transition active:scale-95 shadow-md shadow-amber-500/20"
+                onClick={handleUnpauseAll}
+                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-[4px] font-bold text-xs border transition active:scale-98 cursor-pointer ${
+                  isDark
+                    ? 'bg-rose-950/30 hover:bg-rose-900/40 border-rose-500/40 text-rose-300'
+                    : 'bg-rose-50 hover:bg-rose-100 border-rose-300 text-rose-700'
+                }`}
+                title="Remove todos os bloqueios de pausa de hoje"
               >
-                <Lock className="w-4 h-4 stroke-[2.4]" />
-                <span>Pausar Todos ({stats.futureAvailableCount} livres)</span>
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Todos</span>
               </button>
-
-              {/* Botão Despausar (> 1h) */}
-              <button
-                type="button"
-                onClick={handleUnpauseBeyondOneHour}
-                disabled={stats.pausedCount === 0}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:pointer-events-none text-slate-100 font-semibold text-xs border border-slate-700 transition active:scale-95"
-                title="Desbloqueia os horários a partir de 1 hora da hora atual"
-              >
-                <Unlock className="w-4 h-4 text-emerald-400" />
-                <span>Despausar (&gt; 1h)</span>
-              </button>
-
-              {/* Botão Despausar Todos */}
-              {stats.pausedCount > 0 && (
-                <button
-                  type="button"
-                  onClick={handleUnpauseAll}
-                  className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded bg-slate-900 hover:bg-slate-800 text-rose-300 font-semibold text-xs border border-rose-500/30 transition active:scale-95"
-                  title="Remove todos os bloqueios de pausa de hoje"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Todos</span>
-                </button>
-              )}
-            </div>
+            )}
           </div>
 
-          {/* Grade de Horários do Dia */}
-          <div className="pt-2">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold text-slate-300">
-                Grade de Horários de Hoje:
+          {/* Grade de Horários Elegíveis (Apenas futuros livres ou pausados) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-0.5">
+              <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                Horários Restantes de Hoje
               </label>
-              <span className="text-[11px] text-slate-400">
-                Toque no horário para alternar pausa
+              <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                Toque no horário para alternar
               </span>
             </div>
 
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-              {slotStatuses.map((s) => {
-                if (s.state === 'past') {
-                  return (
-                    <div
-                      key={s.time}
-                      className="flex flex-col items-center justify-center py-2 px-1 rounded bg-slate-900/40 border border-slate-800/40 text-slate-600 cursor-not-allowed select-none opacity-60"
-                    >
-                      <span className="text-xs font-mono font-medium line-through">
-                        {s.time}
-                      </span>
-                      <span className="text-[9px] uppercase tracking-wider text-slate-600">
-                        Passado
-                      </span>
-                    </div>
-                  );
-                }
+            {eligibleSlots.length === 0 ? (
+              <div className={`p-6 rounded-[4px] border text-center ${
+                isDark ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'
+              }`}>
+                <p className="text-xs font-medium">Nenhum horário livre restante para pausar hoje.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {eligibleSlots.map((s) => {
+                  if (s.state === 'paused') {
+                    return (
+                      <button
+                        key={s.time}
+                        type="button"
+                        onClick={() => handleToggleSlot(s.time)}
+                        className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-[4px] border transition active:scale-95 cursor-pointer shadow-xs ${
+                          isDark 
+                            ? 'bg-rose-950/40 border-rose-500/60 hover:bg-rose-900/50 text-white' 
+                            : 'bg-rose-50 border-rose-300 hover:bg-rose-100 text-rose-950'
+                        }`}
+                        title="Toque para despausar este horário"
+                      >
+                        <div className="flex items-center gap-1">
+                          <CirclePause className={`w-3.5 h-3.5 stroke-[2.5] ${isDark ? 'text-rose-400' : 'text-rose-600'}`} />
+                          <span className={`text-xs font-mono font-bold ${isDark ? 'text-white' : 'text-rose-950'}`}>
+                            {s.time}
+                          </span>
+                        </div>
+                        <span className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>
+                          Pausado
+                        </span>
+                      </button>
+                    );
+                  }
 
-                if (s.state === 'booked') {
-                  const clientName = s.appointment?.clientName || s.appointment?.customerName || 'Cliente';
-                  return (
-                    <div
-                      key={s.time}
-                      className="flex flex-col items-center justify-center py-2 px-1 rounded bg-emerald-950/20 border border-emerald-600/30 text-emerald-300 cursor-default select-none"
-                    >
-                      <span className="text-xs font-mono font-bold text-emerald-200">
-                        {s.time}
-                      </span>
-                      <span className="text-[9px] truncate max-w-full font-medium text-emerald-400">
-                        {clientName}
-                      </span>
-                    </div>
-                  );
-                }
-
-                if (s.state === 'paused') {
+                  // Vago / Aberto
                   return (
                     <button
                       key={s.time}
                       type="button"
                       onClick={() => handleToggleSlot(s.time)}
-                      className="flex flex-col items-center justify-center py-2 px-1 rounded bg-rose-950/30 border border-rose-500/60 text-rose-200 hover:bg-rose-900/40 transition active:scale-95 cursor-pointer shadow-xs shadow-rose-950/50"
-                      title="Toque para despausar este horário"
+                      className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-[4px] border transition active:scale-95 cursor-pointer ${
+                        isDark 
+                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white hover:border-slate-700' 
+                          : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-900 hover:border-slate-300'
+                      }`}
+                      title="Toque para pausar este horário"
                     >
-                      <div className="flex items-center gap-1">
-                        <CirclePause className="w-3 h-3 text-rose-400 stroke-[2.5]" />
-                        <span className="text-xs font-mono font-bold">
-                          {s.time}
-                        </span>
-                      </div>
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-rose-400">
-                        Pausado
+                      <span className="text-xs font-mono font-bold">
+                        {s.time}
+                      </span>
+                      <span 
+                        className="text-[9px] font-bold uppercase tracking-wider mt-0.5"
+                        style={{ color: themeHex }}
+                      >
+                        Vago
                       </span>
                     </button>
                   );
-                }
-
-                // Vago / Aberto
-                return (
-                  <button
-                    key={s.time}
-                    type="button"
-                    onClick={() => handleToggleSlot(s.time)}
-                    className="flex flex-col items-center justify-center py-2 px-1 rounded bg-slate-900 border border-slate-700/80 hover:border-amber-500/60 hover:bg-slate-800 text-slate-200 transition active:scale-95 cursor-pointer"
-                    title="Toque para pausar este horário"
-                  >
-                    <span className="text-xs font-mono font-bold text-white">
-                      {s.time}
-                    </span>
-                    <span className="text-[9px] font-medium text-emerald-400">
-                      Vago
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+                })}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Rodapé Fixo */}
-        <div className="p-3 sm:p-4 border-t border-slate-800 bg-slate-900/90 shrink-0 sticky bottom-0 z-20 flex items-center justify-between gap-3">
-          <div className="text-xs text-slate-400">
-            <span className="font-semibold text-white">{stats.futureAvailableCount}</span> livres •{' '}
-            <span className="font-semibold text-amber-400">{stats.pausedCount}</span> pausados
+        <div className={`p-3 border-t shrink-0 sticky bottom-0 z-20 flex items-center justify-between gap-3 ${
+          isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
+        }`}>
+          <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+            <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{stats.futureAvailableCount}</span> livres •{' '}
+            <span className="font-bold text-rose-400">{stats.pausedCount}</span> pausados
           </div>
 
           <button
@@ -491,10 +426,11 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
               hapticLight();
               onClose();
             }}
-            className="py-2 px-5 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-md shadow-emerald-500/20"
+            style={{ backgroundColor: themeHex }}
+            className="py-2 px-5 rounded-[4px] text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-xs cursor-pointer"
           >
-            <Check className="w-4 h-4 stroke-[2.5]" />
-            <span>Concluir</span>
+            <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+            <span className="text-white">Concluir</span>
           </button>
         </div>
       </div>
