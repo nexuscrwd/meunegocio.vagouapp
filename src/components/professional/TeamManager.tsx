@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Users, UserPlus, User as UserIcon, 
-  Trash2, ArrowLeft, ChevronRight, ChevronDown, Check,
-  Briefcase, ShieldCheck, Scissors, Calendar, Clock, Save, Camera, Layers
+  Trash2, ArrowLeft, ChevronRight, Check,
+  Briefcase, ShieldCheck, Scissors, Calendar, Clock, Save, Camera, Layers,
+  Plus, X
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import {
@@ -17,6 +18,7 @@ import {
   ProfessionalWorkSchedule,
   SalonProfessionalItem,
   CatalogServiceItem,
+  DayOperatingHours,
 } from '../../types';
 import { generateUuidV4 } from '../../lib/supabase';
 
@@ -42,28 +44,87 @@ const WEEK_DAYS_CONFIG = [
   { key: 'dom', shortLabel: 'Dom', fullLabel: 'Domingo' },
 ] as const;
 
-const DEFAULT_DAY_SLOT: Omit<ProfessionalDayScheduleSlot, 'dayKey'> = {
-  morningStart: '08:00',
-  morningEnd: '12:00',
-  afternoonStart: '13:00',
-  afternoonEnd: '18:00',
+export const createDefaultProDays = (
+  open = '09:00',
+  close = '18:00',
+  withBreak = true
+): DayOperatingHours[] => [
+  { dayKey: 'seg', dayLabel: 'Seg', isOpen: true, openTime: open, closeTime: close, hasBreak: withBreak, breakStart: '12:00', breakEnd: '13:00' },
+  { dayKey: 'ter', dayLabel: 'Ter', isOpen: true, openTime: open, closeTime: close, hasBreak: withBreak, breakStart: '12:00', breakEnd: '13:00' },
+  { dayKey: 'qua', dayLabel: 'Qua', isOpen: true, openTime: open, closeTime: close, hasBreak: withBreak, breakStart: '12:00', breakEnd: '13:00' },
+  { dayKey: 'qui', dayLabel: 'Qui', isOpen: true, openTime: open, closeTime: close, hasBreak: withBreak, breakStart: '12:00', breakEnd: '13:00' },
+  { dayKey: 'sex', dayLabel: 'Sex', isOpen: true, openTime: open, closeTime: close, hasBreak: withBreak, breakStart: '12:00', breakEnd: '13:00' },
+  { dayKey: 'sab', dayLabel: 'Sáb', isOpen: true, openTime: open, closeTime: '14:00', hasBreak: false, breakStart: '12:00', breakEnd: '13:00' },
+  { dayKey: 'dom', dayLabel: 'Dom', isOpen: false, openTime: '09:00', closeTime: '14:00', hasBreak: false, breakStart: '12:00', breakEnd: '13:00' },
+];
+
+export const mapMemberToScheduleDays = (member: ProfessionalTeamMember): DayOperatingHours[] => {
+  try {
+    const rawAdmin = localStorage.getItem('vagou_admin_settings');
+    if (rawAdmin) {
+      const parsed = JSON.parse(rawAdmin);
+      const savedProDays = parsed?.operatingSchedule?.professionalSchedules?.[member.id];
+      if (Array.isArray(savedProDays) && savedProDays.length === 7) {
+        return savedProDays.map((d: DayOperatingHours) => ({
+          ...d,
+          hasBreak: d.hasBreak ?? false,
+          breakStart: d.breakStart || '12:00',
+          breakEnd: d.breakEnd || '13:00',
+        }));
+      }
+    }
+  } catch {}
+
+  const defaults = createDefaultProDays(
+    member.workSchedule?.startTime || '09:00',
+    member.workSchedule?.endTime || '18:00'
+  );
+
+  const activeDays = member.workSchedule?.days || ['seg', 'ter', 'qua', 'qui', 'sex'];
+  const dailySlots = member.workSchedule?.dailySchedules || {};
+
+  return defaults.map((d) => {
+    const isDayOpen = activeDays.includes(d.dayKey);
+    const slot = dailySlots[d.dayKey];
+    if (!slot) {
+      return { ...d, isOpen: isDayOpen };
+    }
+    const hasBreak = slot.hasBreak !== undefined
+      ? Boolean(slot.hasBreak)
+      : Boolean(slot.afternoonStart && slot.morningEnd && slot.afternoonStart !== slot.morningEnd);
+    const openTime = slot.openTime || slot.morningStart || d.openTime;
+    const closeTime = slot.closeTime || slot.afternoonEnd || slot.morningEnd || d.closeTime;
+    const breakStart = slot.breakStart || slot.morningEnd || '12:00';
+    const breakEnd = slot.breakEnd || slot.afternoonStart || '13:00';
+    return {
+      dayKey: d.dayKey,
+      dayLabel: d.dayLabel,
+      isOpen: isDayOpen,
+      openTime,
+      closeTime,
+      hasBreak,
+      breakStart,
+      breakEnd,
+    };
+  });
 };
 
-function createDefaultDailySchedules(days: string[]): Record<string, ProfessionalDayScheduleSlot> {
+export function createDefaultDailySchedules(days: string[] = ['seg', 'ter', 'qua', 'qui', 'sex']): Record<string, ProfessionalDayScheduleSlot> {
   const map: Record<string, ProfessionalDayScheduleSlot> = {};
   WEEK_DAYS_CONFIG.forEach((d) => {
     map[d.key] = {
       dayKey: d.key,
-      ...DEFAULT_DAY_SLOT,
+      morningStart: '08:00',
+      morningEnd: '12:00',
+      afternoonStart: '13:00',
+      afternoonEnd: '18:00',
+      isOpen: days.includes(d.key),
+      openTime: '09:00',
+      closeTime: '18:00',
+      hasBreak: true,
+      breakStart: '12:00',
+      breakEnd: '13:00',
     };
-  });
-  days.forEach((dKey) => {
-    if (!map[dKey]) {
-      map[dKey] = {
-        dayKey: dKey,
-        ...DEFAULT_DAY_SLOT,
-      };
-    }
   });
   return map;
 }
@@ -191,11 +252,9 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
   const [formAccessType, setFormAccessType] = useState<ProfessionalAccessType>('professional');
   const [formCategories, setFormCategories] = useState<string[]>(['Cabelo']);
   const [formServiceIds, setFormServiceIds] = useState<string[]>([]);
-  const [formDays, setFormDays] = useState<string[]>(['seg', 'ter', 'qua', 'qui', 'sex']);
-  const [formDailySchedules, setFormDailySchedules] = useState<Record<string, ProfessionalDayScheduleSlot>>(() =>
-    createDefaultDailySchedules(['seg', 'ter', 'qua', 'qui', 'sex'])
+  const [formScheduleDays, setFormScheduleDays] = useState<DayOperatingHours[]>(() =>
+    createDefaultProDays('09:00', '18:00', true)
   );
-  const [expandedScheduleDayKey, setExpandedScheduleDayKey] = useState<string | null>(null);
 
   // Categorias disponíveis no salão (combinando catálogo + localStorage + padrão)
   const availableCategories = useMemo(() => {
@@ -250,26 +309,24 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
     return customText.trim() || 'Outros';
   };
 
-  const generateShiftSummaryLabel = (
-    days: string[],
-    schedules: Record<string, ProfessionalDayScheduleSlot>
-  ): string => {
-    const orderedDays = WEEK_DAYS_CONFIG.filter((d) => days.includes(d.key));
-    if (orderedDays.length === 0) return 'Sem dias selecionados';
-    const firstSlot = schedules[orderedDays[0].key] || {
-      dayKey: orderedDays[0].key,
-      ...DEFAULT_DAY_SLOT,
-    };
+  const generateShiftSummaryLabel = (scheduleDays: DayOperatingHours[]): string => {
+    const activeDays = scheduleDays.filter((d) => d.isOpen);
+    if (activeDays.length === 0) return 'Sem expediente definido';
+    const first = activeDays[0];
     const daysText =
-      orderedDays.length === 5 &&
-      days.includes('seg') &&
-      days.includes('sex') &&
-      !days.includes('sab') &&
-      !days.includes('dom')
+      activeDays.length === 5 &&
+      activeDays.some((d) => d.dayKey === 'seg') &&
+      activeDays.some((d) => d.dayKey === 'sex') &&
+      !activeDays.some((d) => d.dayKey === 'sab') &&
+      !activeDays.some((d) => d.dayKey === 'dom')
         ? 'Seg a Sex'
-        : orderedDays.map((d) => d.shortLabel).join(', ');
+        : activeDays.map((d) => d.dayLabel).join(', ');
 
-    return `${daysText} • ${firstSlot.morningStart} às ${firstSlot.morningEnd} e ${firstSlot.afternoonStart} às ${firstSlot.afternoonEnd}`;
+    const timeRange = first.hasBreak
+      ? `${first.openTime} às ${first.breakStart || '12:00'} - ${first.breakEnd || '13:00'} às ${first.closeTime}`
+      : `${first.openTime} às ${first.closeTime}`;
+
+    return `${daysText} • ${timeRange}`;
   };
 
   const saveTeam = (newTeam: ProfessionalTeamMember[]) => {
@@ -347,19 +404,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
           : allCatalogServices.map((s) => s.id)
       );
 
-      const memberDays =
-        member.workSchedule?.days && member.workSchedule.days.length > 0
-          ? member.workSchedule.days
-          : ['seg', 'ter', 'qua', 'qui', 'sex'];
-      setFormDays(memberDays);
-
-      const baseDaily = createDefaultDailySchedules(memberDays);
-      if (member.workSchedule?.dailySchedules) {
-        Object.entries(member.workSchedule.dailySchedules).forEach(([k, val]) => {
-          baseDaily[k] = val;
-        });
-      }
-      setFormDailySchedules(baseDaily);
+      setFormScheduleDays(mapMemberToScheduleDays(member));
     } else {
       setEditingMember(null);
       setFormAvatarUrl('');
@@ -369,11 +414,8 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
       setFormAccessType('professional');
       setFormCategories(availableCategories.slice(0, 1));
       setFormServiceIds(allCatalogServices.map((s) => s.id));
-      const initialDays = ['seg', 'ter', 'qua', 'qui', 'sex'];
-      setFormDays(initialDays);
-      setFormDailySchedules(createDefaultDailySchedules(initialDays));
+      setFormScheduleDays(createDefaultProDays('09:00', '18:00', true));
     }
-    setExpandedScheduleDayKey(null);
     setActiveView('detail');
   };
 
@@ -402,62 +444,41 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
     );
   };
 
-  const toggleMemberDay = (dayKey: string) => {
+  const toggleScheduleDay = (dayKey: string) => {
     hapticLight();
-    setFormDays((prev) => {
-      if (prev.includes(dayKey)) {
-        return prev.length > 1 ? prev.filter((d) => d !== dayKey) : prev;
-      }
-      return [...prev, dayKey];
-    });
-    setFormDailySchedules((prev) => {
-      if (prev[dayKey]) return prev;
-      return {
-        ...prev,
-        [dayKey]: {
-          dayKey,
-          ...DEFAULT_DAY_SLOT,
-        },
-      };
-    });
+    setFormScheduleDays((prev) =>
+      prev.map((d) => (d.dayKey === dayKey ? { ...d, isOpen: !d.isOpen } : d))
+    );
   };
 
-  const updateDaySlotField = (
+  const updateScheduleDayField = <K extends keyof DayOperatingHours>(
     dayKey: string,
-    field: keyof Omit<ProfessionalDayScheduleSlot, 'dayKey'>,
-    value: string
+    field: K,
+    value: DayOperatingHours[K]
   ) => {
-    setFormDailySchedules((prev) => ({
-      ...prev,
-      [dayKey]: {
-        ...(prev[dayKey] || { dayKey, ...DEFAULT_DAY_SLOT }),
-        [field]: value,
-      },
-    }));
+    setFormScheduleDays((prev) =>
+      prev.map((d) => (d.dayKey === dayKey ? { ...d, [field]: value } : d))
+    );
   };
 
   const replicateFirstDayScheduleToAll = () => {
     hapticSuccess();
-    const orderedSelected = WEEK_DAYS_CONFIG.filter((d) => formDays.includes(d.key));
-    if (orderedSelected.length === 0) return;
-    const firstKey = orderedSelected[0].key;
-    const sourceSlot = formDailySchedules[firstKey] || {
-      dayKey: firstKey,
-      ...DEFAULT_DAY_SLOT,
-    };
-    setFormDailySchedules((prev) => {
-      const next = { ...prev };
-      formDays.forEach((dKey) => {
-        next[dKey] = {
-          dayKey: dKey,
-          morningStart: sourceSlot.morningStart,
-          morningEnd: sourceSlot.morningEnd,
-          afternoonStart: sourceSlot.afternoonStart,
-          afternoonEnd: sourceSlot.afternoonEnd,
-        };
-      });
-      return next;
-    });
+    const firstActive = formScheduleDays.find((d) => d.isOpen) || formScheduleDays[0];
+    if (!firstActive) return;
+    setFormScheduleDays((prev) =>
+      prev.map((d) =>
+        d.isOpen
+          ? {
+              ...d,
+              openTime: firstActive.openTime,
+              closeTime: firstActive.closeTime,
+              hasBreak: firstActive.hasBreak,
+              breakStart: firstActive.breakStart,
+              breakEnd: firstActive.breakEnd,
+            }
+          : d
+      )
+    );
   };
 
   const handleSaveProfessional = (e?: React.FormEvent) => {
@@ -478,26 +499,41 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
       .filter((s) => formServiceIds.includes(s.id))
       .map((s) => s.title);
 
-    const orderedDays = WEEK_DAYS_CONFIG.filter((d) => formDays.includes(d.key)).map((d) => d.key);
-    const firstSlot =
-      formDailySchedules[orderedDays[0]] || {
-        dayKey: orderedDays[0] || 'seg',
-        ...DEFAULT_DAY_SLOT,
+    const activeDayKeys = formScheduleDays.filter((d) => d.isOpen).map((d) => d.dayKey);
+    const firstActiveDay = formScheduleDays.find((d) => d.isOpen) || formScheduleDays[0];
+
+    const dailySchedules: Record<string, ProfessionalDayScheduleSlot> = {};
+    formScheduleDays.forEach((d) => {
+      dailySchedules[d.dayKey] = {
+        dayKey: d.dayKey,
+        isOpen: d.isOpen,
+        morningStart: d.openTime,
+        morningEnd: d.hasBreak ? (d.breakStart || '12:00') : d.closeTime,
+        afternoonStart: d.hasBreak ? (d.breakEnd || '13:00') : d.openTime,
+        afternoonEnd: d.closeTime,
+        openTime: d.openTime,
+        closeTime: d.closeTime,
+        hasBreak: d.hasBreak,
+        breakStart: d.breakStart,
+        breakEnd: d.breakEnd,
       };
+    });
 
     const workSchedule: ProfessionalWorkSchedule = {
       shiftType: 'personalizado',
-      shiftLabel: generateShiftSummaryLabel(orderedDays, formDailySchedules),
-      days: orderedDays,
-      startTime: firstSlot.morningStart,
-      endTime: firstSlot.afternoonEnd,
-      dailySchedules: formDailySchedules,
+      shiftLabel: generateShiftSummaryLabel(formScheduleDays),
+      days: activeDayKeys,
+      startTime: firstActiveDay.openTime,
+      endTime: firstActiveDay.closeTime,
+      dailySchedules,
     };
 
     const specsArray =
       formCategories.length > 0
         ? formCategories
         : [resolveJobFunctionLabel(formJobFunction, formCustomJobFunction)];
+
+    const targetMemberId = editingMember ? editingMember.id : generateUuidV4();
 
     let updatedTeam: ProfessionalTeamMember[];
 
@@ -522,7 +558,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
       );
     } else {
       const newMember: ProfessionalTeamMember = {
-        id: generateUuidV4(),
+        id: targetMemberId,
         name: formName.trim(),
         role: mappedRole,
         accessType: formAccessType,
@@ -540,6 +576,22 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
       };
       updatedTeam = [...team, newMember];
     }
+
+    // Sincronização automática com a agenda de profissionais de vagou_admin_settings
+    try {
+      const rawAdmin = localStorage.getItem('vagou_admin_settings');
+      if (rawAdmin) {
+        const parsed = JSON.parse(rawAdmin);
+        if (!parsed.operatingSchedule) {
+          parsed.operatingSchedule = { preset: 'personalizado', days: [] };
+        }
+        if (!parsed.operatingSchedule.professionalSchedules) {
+          parsed.operatingSchedule.professionalSchedules = {};
+        }
+        parsed.operatingSchedule.professionalSchedules[targetMemberId] = formScheduleDays;
+        localStorage.setItem('vagou_admin_settings', JSON.stringify(parsed));
+      }
+    } catch {}
 
     saveTeam(updatedTeam);
     hapticSuccess();
@@ -559,7 +611,6 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
   // ============================================================================
   if (activeView === 'detail') {
     const isMainAdmin = editingMember?.role === 'admin' && editingMember?.id === 'prof_admin_1';
-    const orderedSelectedDays = WEEK_DAYS_CONFIG.filter((d) => formDays.includes(d.key));
 
     return (
       <div
@@ -868,15 +919,15 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
             </div>
           </div>
 
-          {/* 5. ATENDIMENTO: DIAS DE ATENDIMENTO + HORÁRIOS POR DIA (08:00 ÀS 12:00 / 13:00 ÀS 18:00) */}
+          {/* 5. ATENDIMENTO: DIAS DE FUNCIONAMENTO + HORÁRIOS COM INTERVALO/PAUSA (MODELO OFICIAL) */}
           <div
             className={`p-3.5 rounded-[4px] border space-y-3.5 ${
               isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
             }`}
           >
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800/60 gap-2 flex-wrap">
               <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-emerald-400" />
+                <Clock className="w-4 h-4 text-emerald-400" />
                 <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
                   Atendimento
                 </h3>
@@ -891,155 +942,154 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
               </button>
             </div>
 
-            {/* Dias de Atendimento (Botões Cards de Segunda a Sexta + Sáb/Dom) */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+            {/* Dias de Funcionamento (Grid de 7 Dias com Aberto / Off) */}
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
                 Dias de Atendimento
               </label>
-              <div className="grid grid-cols-5 sm:grid-cols-7 gap-1.5">
-                {WEEK_DAYS_CONFIG.map((day) => {
-                  const isSel = formDays.includes(day.key);
-                  return (
-                    <button
-                      key={day.key}
-                      type="button"
-                      onClick={() => toggleMemberDay(day.key)}
-                      className={`py-2 px-1.5 rounded-[4px] text-xs font-bold transition flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
-                        isSel
-                          ? 'bg-emerald-500 text-white shadow-xs'
-                          : isDark
-                          ? 'bg-slate-950 text-slate-400 hover:text-white'
-                          : 'bg-slate-100 text-slate-700 hover:text-slate-900'
-                      }`}
-                    >
-                      <span className={isSel ? 'text-white' : ''}>{day.shortLabel}</span>
-                    </button>
-                  );
-                })}
+              <div className="grid grid-cols-7 gap-1.5">
+                {formScheduleDays.map((d) => (
+                  <button
+                    key={d.dayKey}
+                    type="button"
+                    onClick={() => toggleScheduleDay(d.dayKey)}
+                    className={`py-2 rounded-[4px] text-xs font-bold transition flex flex-col items-center justify-center cursor-pointer ${
+                      d.isOpen
+                        ? 'bg-emerald-500 text-white shadow-xs'
+                        : isDark
+                        ? 'bg-slate-950 text-slate-500'
+                        : 'bg-slate-100 text-slate-400'
+                    }`}
+                  >
+                    <span className={d.isOpen ? 'text-white' : ''}>{d.dayLabel}</span>
+                    <span className={`text-[9px] mt-0.5 ${d.isOpen ? 'text-white font-semibold' : 'text-slate-500'}`}>
+                      {d.isOpen ? 'Aberto' : 'Off'}
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Horário de Atendimento para cada dia selecionado (Ex: das 08:00 às 12:00 / das 13:00 às 18:00) */}
-            <div className="space-y-2.5 pt-2 border-t border-slate-800/60">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Horário de Atendimento por Dia</span>
+            {/* Horários de Atendimento (Ajuste por Dia • Intervalo / Pausa) */}
+            <div className="space-y-2 pt-1">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Horários de Atendimento (Ajuste por Dia • Intervalo / Pausa)
               </label>
 
-              <div className="space-y-1.5">
-                {orderedSelectedDays.map((day) => {
-                  const slot = formDailySchedules[day.key] || {
-                    dayKey: day.key,
-                    ...DEFAULT_DAY_SLOT,
-                  };
-                  const isExpanded = expandedScheduleDayKey === day.key;
-                  return (
-                    <div
-                      key={day.key}
-                      className={`rounded-[4px] transition ${
-                        isDark ? 'bg-slate-950' : 'bg-slate-50'
-                      }`}
-                    >
-                      {/* Linha Única Clicável: Segunda-feira - 08:00 às 12:00 | 13:00 às 18:00 */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          hapticLight();
-                          setExpandedScheduleDayKey((prev) =>
-                            prev === day.key ? null : day.key
-                          );
-                        }}
-                        className="w-full px-3 py-2.5 flex items-center justify-between gap-2 text-left cursor-pointer"
-                      >
-                        <div className="min-w-0 flex-1 flex items-center justify-between gap-2 whitespace-nowrap overflow-hidden">
-                          <span className="text-xs font-bold text-emerald-400 shrink-0">
-                            {day.fullLabel}
-                          </span>
-                          <span
-                            className={`text-xs font-mono truncate ${
-                              isDark ? 'text-slate-200' : 'text-slate-700'
-                            }`}
-                          >
-                            {slot.morningStart} às {slot.morningEnd} | {slot.afternoonStart} às {slot.afternoonEnd}
-                          </span>
-                        </div>
-
-                        <ChevronDown
-                          className={`w-4 h-4 shrink-0 transition-transform ${
-                            isExpanded
-                              ? 'rotate-180 text-emerald-400'
-                              : 'text-slate-500'
+              <div className="divide-y divide-slate-800/60">
+                {formScheduleDays.map((d) => (
+                  <div
+                    key={d.dayKey}
+                    className={`py-2.5 flex flex-col gap-2 text-xs transition ${
+                      !d.isOpen ? 'opacity-45' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold w-9">{d.dayLabel}</span>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded-[4px] font-bold ${
+                            d.isOpen ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'
                           }`}
-                        />
-                      </button>
+                        >
+                          {d.isOpen ? 'Aberto' : 'Fechado'}
+                        </span>
+                      </div>
 
-                      {/* Painel Dropdown de Edição dos Horários do Dia */}
-                      {isExpanded && (
-                        <div className="px-2.5 pb-2.5 pt-1.5 border-t border-slate-800/50 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs animate-in fade-in duration-150">
-                          {/* Período 1: Manhã (das 08:00 às 12:00) */}
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-semibold text-slate-400 w-7">Das</span>
-                            <input
-                              type="time"
-                              value={slot.morningStart}
-                              onChange={(e) =>
-                                updateDaySlotField(day.key, 'morningStart', e.target.value)
-                              }
-                              className={`flex-1 px-2 py-1 rounded-[4px] border text-xs font-mono outline-hidden ${
-                                isDark
-                                  ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500'
-                                  : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-500'
-                              }`}
-                            />
-                            <span className="text-[10px] font-semibold text-slate-400">às</span>
-                            <input
-                              type="time"
-                              value={slot.morningEnd}
-                              onChange={(e) =>
-                                updateDaySlotField(day.key, 'morningEnd', e.target.value)
-                              }
-                              className={`flex-1 px-2 py-1 rounded-[4px] border text-xs font-mono outline-hidden ${
-                                isDark
-                                  ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500'
-                                  : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-500'
-                              }`}
-                            />
-                          </div>
+                      {d.isOpen ? (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {d.hasBreak ? (
+                            <>
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="time"
+                                  value={d.openTime}
+                                  onChange={(e) => updateScheduleDayField(d.dayKey, 'openTime', e.target.value)}
+                                  className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
+                                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                                  }`}
+                                />
+                                <span className="text-[10px] text-slate-400">às</span>
+                                <input
+                                  type="time"
+                                  value={d.breakStart || '12:00'}
+                                  onChange={(e) => updateScheduleDayField(d.dayKey, 'breakStart', e.target.value)}
+                                  className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
+                                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                                  }`}
+                                />
+                              </div>
 
-                          {/* Período 2: Tarde (das 13:00 às 18:00) */}
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-semibold text-slate-400 w-7">Das</span>
-                            <input
-                              type="time"
-                              value={slot.afternoonStart}
-                              onChange={(e) =>
-                                updateDaySlotField(day.key, 'afternoonStart', e.target.value)
-                              }
-                              className={`flex-1 px-2 py-1 rounded-[4px] border text-xs font-mono outline-hidden ${
-                                isDark
-                                  ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500'
-                                  : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-500'
-                              }`}
-                            />
-                            <span className="text-[10px] font-semibold text-slate-400">às</span>
-                            <input
-                              type="time"
-                              value={slot.afternoonEnd}
-                              onChange={(e) =>
-                                updateDaySlotField(day.key, 'afternoonEnd', e.target.value)
-                              }
-                              className={`flex-1 px-2 py-1 rounded-[4px] border text-xs font-mono outline-hidden ${
-                                isDark
-                                  ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500'
-                                  : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-500'
-                              }`}
-                            />
-                          </div>
+                              <span className="text-xs font-bold text-emerald-400">-</span>
+
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="time"
+                                  value={d.breakEnd || '13:00'}
+                                  onChange={(e) => updateScheduleDayField(d.dayKey, 'breakEnd', e.target.value)}
+                                  className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
+                                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                                  }`}
+                                />
+                                <span className="text-[10px] text-slate-400">às</span>
+                                <input
+                                  type="time"
+                                  value={d.closeTime}
+                                  onChange={(e) => updateScheduleDayField(d.dayKey, 'closeTime', e.target.value)}
+                                  className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
+                                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                                  }`}
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => updateScheduleDayField(d.dayKey, 'hasBreak', false)}
+                                className="p-1 rounded-[4px] text-slate-400 hover:text-rose-400 transition cursor-pointer"
+                                title="Remover intervalo / pausa"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <input
+                                type="time"
+                                value={d.openTime}
+                                onChange={(e) => updateScheduleDayField(d.dayKey, 'openTime', e.target.value)}
+                                className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
+                                  isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                                }`}
+                              />
+                              <span className="text-[10px] text-slate-400">às</span>
+                              <input
+                                type="time"
+                                value={d.closeTime}
+                                onChange={(e) => updateScheduleDayField(d.dayKey, 'closeTime', e.target.value)}
+                                className={`px-1.5 py-1 rounded-[4px] border text-[11px] font-mono outline-hidden ${
+                                  isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                                }`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  hapticLight();
+                                  updateScheduleDayField(d.dayKey, 'hasBreak', true);
+                                }}
+                                className="px-2 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+                              >
+                                <Plus className="w-3 h-3 text-white" />
+                                <span className="text-white">Pausa</span>
+                              </button>
+                            </>
+                          )}
                         </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-500 italic">Sem expediente</span>
                       )}
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             </div>
           </div>

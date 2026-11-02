@@ -197,6 +197,8 @@ CREATE TABLE public.professionals (
     specialties TEXT[] DEFAULT ARRAY['cabelo']::TEXT[],
     color_hex VARCHAR(20) DEFAULT '#10B981',
     slot_minutes INTEGER DEFAULT 45,
+    commission_rate NUMERIC(5,2) DEFAULT 50.00,
+    product_commission_rate NUMERIC(5,2) DEFAULT 10.00,
     use_custom_schedule BOOLEAN DEFAULT FALSE,
     schedule_config JSONB,
     is_active BOOLEAN DEFAULT TRUE,
@@ -287,9 +289,33 @@ CREATE TABLE public.appointments (
     date_str VARCHAR(20) NOT NULL,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
-    status VARCHAR(50) DEFAULT 'CONFIRMADO',     -- CONFIRMADO, EM_ATENDIMENTO, CONCLUIDO, CANCELADO, NO_SHOW
+    status VARCHAR(50) DEFAULT 'CONFIRMADO',     -- CONFIRMADO, EM_ATENDIMENTO, CONCLUIDO, CANCELADO, NO_SHOW, BLOQUEADO
     commission_fee NUMERIC(10,2) DEFAULT 1.50,
     notes TEXT,
+
+    -- Pausa Emergencial de Vagas & Bloqueio Instantâneo (bol-103)
+    is_blocked_slot BOOLEAN DEFAULT FALSE,
+    block_reason TEXT,
+    chair_order INTEGER DEFAULT 0,
+    swap_state JSONB,
+
+    -- Radar Bidirecional de Deslocamento Ao Vivo & RTLS GPS (bol-020)
+    service_location_type TEXT DEFAULT 'in_salon',
+    transport_mode TEXT DEFAULT 'driving',
+    tracking_status TEXT DEFAULT 'idle',
+    selected_route_summary TEXT,
+    route_polyline TEXT,
+    current_street_name TEXT,
+    route_checkpoints JSONB DEFAULT '[]'::jsonb,
+    active_adversity JSONB DEFAULT NULL,
+    delay_minutes INTEGER DEFAULT 0,
+    client_lat DOUBLE PRECISION,
+    client_lng DOUBLE PRECISION,
+    distance_km NUMERIC(6,2),
+    eta_minutes INTEGER,
+    prep_buffer_minutes INTEGER DEFAULT 10,
+    cancellation_reason TEXT,
+    last_location_update TIMESTAMPTZ,
     
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()

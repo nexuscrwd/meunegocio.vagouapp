@@ -393,6 +393,12 @@ export interface ProfessionalDayScheduleSlot {
   morningEnd: string;   // ex: '12:00'
   afternoonStart: string; // ex: '13:00'
   afternoonEnd: string;   // ex: '18:00'
+  isOpen?: boolean;
+  openTime?: string;
+  closeTime?: string;
+  hasBreak?: boolean;
+  breakStart?: string;
+  breakEnd?: string;
 }
 
 export type ProfessionalAccessType = 'professional' | 'admin' | 'superadmin';

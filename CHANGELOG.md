@@ -13,6 +13,49 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ---
 
+### [2026-11-02] — Auditoria Total de Conexões Supabase & Script Mestre de Convergência do Banco (`bol-106`)
+- **Tipo:** `[Database / Architecture — Supabase Connectivity Audit & Master SQL Schema 3.0]`
+- **Motivo / Solicitação:** Verificar todas as conexões do app com o banco de dados Supabase, realizar auditoria minuciosa coluna a coluna em todas as tabelas e fornecer o script SQL completo, idempotente e atualizado em conformidade com 100% dos recursos do app.
+- **Arquivos Impactados:**
+  - `supabase/migrations/20261102_master_database_convergence.sql`
+  - `supabase/schema.sql`
+  - `src/types/database.types.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Auditoria de Conectividade em Tempo Real:** Testadas com sucesso via chamadas HTTP diretas todas as 15 tabelas do ecossistema: `salons`, `professionals`, `services`, `salon_services`, `service_offers`, `appointments`, `clients`, `profiles`, `client_family_members`, `dependents`, `salon_users`, `salon_members`, `system_admins`, `salon_media_items`, `salon_media_slots`, `salon_ui_settings`, `salon_utilities_records`, `billing_invoices`, `security_questions` e `user_security_answers`.
+  2. **Identificação de Discrepâncias de Colunas Remotas:** A inspeção profunda identificou que colunas essenciais de navegação RTLS/GPS (`bol-020`) e de bloqueio/pausa emergencial (`bol-103`) em `appointments`, assim como comodidades (`amenities`, `holidays`) em `salons` e taxas de comissão em `professionals`, não haviam sido propagadas no banco remoto.
+  3. **Geração do Script Mestre de Convergência 3.0 (`20261102_master_database_convergence.sql`):** Script SQL 100% idempotente contendo criação condicional (`CREATE TABLE IF NOT EXISTS`), migração defensiva (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`), índices de performance geográfica e busca, funções RPC (`get_offers_in_radius`, perguntas secretas), RLS permissivo com `GRANT ALL` e configuração de Storage Buckets (`avatars` e `salon-media`).
+  4. **Sincronização de Tipos (`database.types.ts`):** Atualizada a tipagem de `AppointmentStatus` para incluir `'BLOQUEADO'` e incorporadas as novas colunas nas definições de `Row` e `Insert`.
+
+---
+
+### [2026-11-02] — Unificação do Modelo de Edição de Horário do Profissional (Modelo BusinessDataCardView) (`bol-105`)
+- **Tipo:** `[Refactor / UI — Focus Mode (Edição de Atendimento de Profissionais em TeamManager.tsx)]`
+- **Motivo / Solicitação:** Adotar o modelo oficial de edição de horários de funcionamento e atendimento presente em `BusinessDataCardView.tsx` (`form:nth-of-type(1) > div:nth-of-type(1)` sob a aba Atendimento) para a edição de escala de cada profissional em `TeamManager.tsx`.
+- **Arquivos Impactados:**
+  - `src/types.ts`
+  - `src/components/professional/TeamManager.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Tipagem e Compatibilidade Expandida (`types.ts`):** Adicionadas as propriedades opcionais `isOpen`, `openTime`, `closeTime`, `hasBreak`, `breakStart` e `breakEnd` na interface `ProfessionalDayScheduleSlot` para garantir compatibilidade bidirecional transparente entre o formato legado e a estrutura moderna de horários.
+  2. **Substituição do Modelo Antigo por Lista Plana (`TeamManager.tsx`):**
+     - Removido o modelo antigo de acordeão e divisão fixa manhã/tarde (`morningStart`/`morningEnd`/`afternoonStart`/`afternoonEnd`).
+     - Adicionado o seletor em grade de 7 dias (Seg a Dom) com alternância visual direta de status (`Aberto` / `Off`).
+     - Implementada a lista corrida e plana de horários diários:
+       - Rótulo do dia e badge de status (`Aberto` em fundo esmeralda com texto branco puro / `Fechado` em slate).
+       - Modo contínuo (sem pausa): exibe `[openTime] às [closeTime]` com botão de adição rápida `+ Pausa` (`bg-emerald-500 text-white`).
+       - Modo com pausa: exibe `[openTime] às [breakStart] - [breakEnd] às [closeTime]` com botão `X` para remover o intervalo.
+     - Botão utilitário `"Repetir 1º dia em todos"` no cabeçalho da seção.
+  3. **Persistência e Sincronização Dupla:**
+     - O salvamento atualiza o objeto `workSchedule` da equipe com `dailySchedules` e `shiftLabel` resumido.
+     - Sincronização automática com `adminSettings.operatingSchedule.professionalSchedules[proId]` no `localStorage`, garantindo coerência imediata caso o usuário abra a aba do profissional em `BusinessDataCardView`.
+  4. **Conformidade Estrita com Regras de Design:**
+     - Fundo verde sólido com texto e ícone branco puro (`text-white`).
+     - Raio de borda uniforme `rounded-[4px]`.
+     - Layout plano sem aninhamento excessivo ("box inside box").
+
+---
+
 ### [2026-11-02] — Correção da Navegação de Retorno do Menu Principal / Equipe (`bol-104`)
 - **Tipo:** `[Fix / UX — Navigation / Focus Mode (Botão Voltar em Equipe e Menus de Gestão)]`
 - **Motivo / Solicitação:** Ao clicar no botão Voltar nas telas de gestão (como Equipe, Serviços, Espaço, Preferências, Caixa, etc.) acessadas a partir das Opções do Menu Principal (`ProfileDrawer`), o menu estava se fechando por completo e levando ao painel de fundo, obrigando o usuário a reabrir o menu pelo botão de avatar no topo. O comportamento correto é retornar diretamente às opções do menu sem fechá-lo por completo.
