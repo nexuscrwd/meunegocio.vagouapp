@@ -13,6 +13,136 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ---
 
+### [2026-11-02] — Correção da Navegação de Retorno do Menu Principal / Equipe (`bol-104`)
+- **Tipo:** `[Fix / UX — Navigation / Focus Mode (Botão Voltar em Equipe e Menus de Gestão)]`
+- **Motivo / Solicitação:** Ao clicar no botão Voltar nas telas de gestão (como Equipe, Serviços, Espaço, Preferências, Caixa, etc.) acessadas a partir das Opções do Menu Principal (`ProfileDrawer`), o menu estava se fechando por completo e levando ao painel de fundo, obrigando o usuário a reabrir o menu pelo botão de avatar no topo. O comportamento correto é retornar diretamente às opções do menu sem fechá-lo por completo.
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `src/components/professional/CaixaManagerView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Callback Dedicado de Retorno ao Menu (`SalonProfileView.tsx`):** Criado o handler `handleBackToMenu` que redefine `activeTab('home')`, reabre o menu `setIsProfileDrawerOpen(true)` e garante `setProfileDrawerInitialTab('menu')` com feedback tátil `hapticLight()`.
+  2. **Propagação Unificada de `onBack` (`SalonProfileView.tsx`):** Conectado `onBack={handleBackToMenu}` nas views `SalonCustomizationHub` (Equipe, Serviços, Espaço, Preferências, Layout, Dados e Visual), `CaixaManagerView` e `UtilitiesAndToolsView`.
+  3. **Hierarquia e Sub-Navegação Blindada (`SalonCustomizationHub.tsx`):**
+     - Em telas acessadas diretamente como Equipe, Serviços ou Espaço, o clique em Voltar aciona `onBack()`, levando de volta às opções do Menu Principal (`ProfileDrawer`).
+     - Em sub-cards das Preferências (Dados, Visual, Layout), o clique em Voltar retorna ao Hub de Preferências (`setSelectedCard(null)`), e deste ao Menu Principal.
+     - Atualizados títulos e acessibilidade dos botões para `"Voltar ao Menu"`.
+  4. **Padronização no Caixa (`CaixaManagerView.tsx`):** Atualizados `title` e `aria-label` para `"Voltar ao Menu"`.
+
+---
+
+### [2026-11-02] — Botão "Pausar" na Barra NAV Inferior & Modal de Pausa Emergencial de Agendamentos (`bol-103`)
+- **Tipo:** `[Feat / Refactor — UI / Focus Mode (Barra NAV Inferior - BottomNav & Modal de Pausa)]`
+- **Motivo / Solicitação:** Substituir o botão "Utilidades" na barra NAV inferior pelo botão "Pausar" com ícone de círculo fechado (`CirclePause`). Ao clicar, abrir modal interativo exibindo a grade de todos os horários vagos do dia com opções de pausar individualmente ou pausar todos os horários futuros instantaneamente em caso de emergência (queda de energia, saída urgente), além da ação de despausar horários futuros com antecedência acima de 1 hora.
+- **Arquivos Impactados:**
+  - `src/components/BottomNav.tsx`
+  - `src/components/professional/PauseSlotsModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Substituição na Barra NAV Inferior (`BottomNav.tsx`):** O 4º botão da barra de navegação inferior do estabelecimento (`#nav-salon-utilidades`) foi substituído por `#nav-salon-pausar`, com legenda `"Pausar"`, ícone de círculo fechado `CirclePause` (`lucide-react`) e badge luminoso âmbar pulsante quando houver horários pausados ativos hoje.
+  2. **Modal Interativo de Pausa Emergencial (`PauseSlotsModal.tsx`):**
+     - Cabeçalho com status dinâmico (alerta se houver horários pausados ou confirmação de operação normal).
+     - Seletor de motivo rápido da pausa ("Queda de Energia", "Saída de Emergência", "Imprevisto Geral", "Intervalo Não Previsto").
+     - Botão global **"Pausar Todos"**: bloqueia instantaneamente todos os horários vagos futuros de hoje a partir da hora atual, impedindo agendamentos no Radar e na Vitrine.
+     - Botão global **"Despausar (> 1h)"**: implementa a regra solicitada de desbloquear todos os horários futuros com antecedência superior a 1 hora em relação ao momento atual (`currentMinutes + 60`).
+     - Botão **"Todos"**: desbloqueia todos os horários de hoje.
+     - Grade interativa de horários do dia (08:00 às 20:00 a cada 30 min): diferencia horários passados, clientes agendados, horários pausados (em tom rose/vermelho) e horários vagos (em verde). Toque direto no horário alterna a pausa individualmente com feedback tátil.
+  3. **Integração Reativa e Sincronização (`SalonProfileView.tsx`):** O clique no botão "Pausar" abre diretamente o modal em overlay sem trocar a visualização de fundo, persistindo as pausas em `localStorage` e sincronizando com o Supabase.
+
+---
+
+### [2026-11-02] — Triplicação da Fila de Atendimento da Cadeira em 3 Cards Distintos (`bol-102`)
+- **Tipo:** `[Feat / Refactor — UI / Focus Mode (Fila de Atendimento - ProfessionalDashboardView)]`
+- **Motivo / Solicitação:** Triplicar a div da fila de atendimento no Painel Principal do Profissional: 1º Atendimento Atual (Na Cadeira), 2º Próximo Atendimento (com status "A caminho: Sim" ou "Não") e 3º Confirmação de Atendimento.
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Estrutura de 3 Cards Proeminentes Padronizados (`ProfessionalDashboardView.tsx`):** Unificada a renderização dos cards da fila com layout completo (barra superior de status/horário/valor, avatar, dados do cliente, botão WhatsApp direto e botão de ação dedicado).
+  2. **Card 1 — Atendimento Atual:** Exibe o cliente atualmente na cadeira/em atendimento (ou primeiro da fila pronto para iniciar), botões rápidos de WhatsApp e "Finalizar Serviço" / "Iniciar".
+  3. **Card 2 — Próximo Atendimento:** Exibe o próximo cliente agendado com badge de status dinâmico `"A caminho: Sim"` (em esmeralda com ícone `Navigation`) ou `"A caminho: Não"` (em cinza com ícone `Clock`), botão WhatsApp e ação de iniciar.
+  4. **Card 3 — Confirmação de Atendimento:** Exibe o agendamento em validação de confirmação de presença (com badge `"Confirmado"` ou `"Aguardando Confirmação"`), botão WhatsApp para alinhamento e botão direto de confirmação rápida (`"Confirmar"`).
+  5. **Empty States Padronizados:** Criados estados vazios dedicados para cada uma das 3 posições quando não houver agendamentos correspondentes.
+
+---
+
+### [2026-11-02] — Remoção de Cards Extras e Metas & Turnos no Painel Principal (`bol-101`)
+- **Tipo:** `[Refactor — UI / Focus Mode (Painel Principal - ProfessionalDashboardView)]`
+- **Motivo / Solicitação:** Remover os 3 elementos selecionados no Painel Principal (`Ticket Médio`, `Lucro Líquido / Meu Bolso` e o grupo `Metas & Turnos`).
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção de Elementos Selecionados (`ProfessionalDashboardView.tsx`):** Removidos os cards `Ticket Médio` (`div:nth-of-type(3)`), `Lucro Líquido / Meu Bolso` (`div:nth-of-type(4)`) e o bloco `Metas & Turnos` (`div:nth-of-type(2) > div:nth-of-type(2)`), preservando no Painel apenas a Fila de Atendimento da Cadeira e os cards rápidos `Caixa Realizado` e `Previsão Aberta`.
+
+---
+
+### [2026-11-02] — Títulos Simplificados no Caixa & Valores R$ X,XX Ampliados em 100% (`bol-100`)
+- **Tipo:** `[Refactor — UI / Focus Mode (Seção Caixa & KPIs)]`
+- **Motivo / Solicitação:** Renomear `"Financeiro & Caixa"` para `"Caixa"`, renomear `"Progresso & Distribuição Financeira"` para `"Evolução Caixa"`, remover os 4 subtítulos `<p>` dos cards de KPIs e aumentar os valores `R$ X,XX` em 100%.
+- **Arquivos Impactados:**
+  - `src/components/professional/CaixaManagerView.tsx`
+  - `src/components/professional/dashboard/GoalsAndShiftsCard.tsx`
+  - `src/components/professional/FinancialManagerView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Renomeações de Síntese (`CaixaManagerView.tsx`, `GoalsAndShiftsCard.tsx`):** Título do cabeçalho alterado para `"Caixa"` e título do card diário alterado para `"Evolução Caixa"`.
+  2. **Remoção de Subtítulos e Destaque de Valores (`FinancialManagerView.tsx`):** Removidos os 4 elementos `<p>` (`X atendimentos`, `X agendamentos`, `Por cliente atendido`, `Após repasses & taxas`) dos cards de KPIs e ampliada a fonte dos valores `R$ X,XX` em 100% (`text-[28px] sm:text-3xl leading-none`).
+
+---
+
+### [2026-11-02] — Popup (Modal) de QR Code PIX no Caixa + Remoção de Elementos Selecionados (`bol-099`)
+- **Tipo:** `[Feat / Refactor — UI / Focus Mode (Seção Caixa & Popup PIX)]`
+- **Motivo / Solicitação:** Remover os 4 elementos selecionados na tela de Caixa (bloco semanal `WeeklyGoalsAndDaysCard`, selo `Meta Diária`, ícone `Sparkles` do card `Lucro Líquido` e selo `Seg — Dom`) e fazer o botão PIX na tela de Caixa abrir o QR Code e as identificações da chave PIX em um popup (modal).
+- **Arquivos Impactados:**
+  - `src/components/professional/CaixaManagerView.tsx`
+  - `src/components/professional/FinancialManagerView.tsx`
+  - `src/components/professional/dashboard/GoalsAndShiftsCard.tsx`
+  - `src/components/professional/dashboard/WeeklyGoalsAndDaysCard.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Popup (Modal) de Escaneamento PIX (`FinancialManagerView.tsx`):** No modo Caixa (`variant === 'caixa'`), clicar no botão **PIX & Placa** abre o modal popup centralizado contendo a imagem do QR Code (`240px`) e os textos de identificação da chave PIX abaixo.
+  2. **Remoção de Elementos Selecionados (`CaixaManagerView.tsx`, `GoalsAndShiftsCard.tsx`, `WeeklyGoalsAndDaysCard.tsx`, `FinancialManagerView.tsx`):** Removidos o card semanal da tela de Caixa, os selos `Meta Diária` e `Seg — Dom` e o ícone decorativo do card `Lucro Líquido`.
+
+---
+
+### [2026-11-02] — Exibição Exclusiva de QR Code e Identificação PIX na Seção Caixa (`bol-098`)
+- **Tipo:** `[Refactor — UI / Focus Mode (Seção Caixa - Exibição Limpa de QR Code PIX)]`
+- **Motivo / Solicitação:** Na seção **Caixa**, ao clicar no botão PIX, exibir exclusivamente a imagem do QR Code do PIX do estabelecimento/profissional e, logo abaixo, o texto com as identificações da chave PIX (previamente configuradas na seção de gestão financeira), sem botões de edição, exclusão, plaquinha ou formulários.
+- **Arquivos Impactados:**
+  - `src/components/professional/FinancialManagerView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Modo de Escaneamento Rápido no Caixa (`variant === 'caixa'`):** Ao clicar no botão PIX na tela de Caixa, o bloco exibe somente a imagem do QR Code (`240px`, centralizada) e os textos de identificação abaixo (Titular/Estabelecimento, Tipo + Chave PIX e Instituição), mantendo a configuração de chaves exclusivamente dentro de `Utilidades -> Financeiro` (`variant === 'full'`).
+
+---
+
+### [2026-11-02] — Remoção dos Botões Redundantes do Financeiro na Tela de Caixa (`bol-097`)
+- **Tipo:** `[Refactor — UI / Focus Mode (Tela de Caixa vs. Menu Financeiro)]`
+- **Motivo / Solicitação:** Remover os botões `Caixa & Entradas`, `Custos & Despesas` e `Balanço & Metas` da tela de **Caixa** (`CaixaManagerView`), pois o acesso completo a essas opções já é realizado através do item de menu `"Financeiro"` dentro de `"Utilidades"`.
+- **Arquivos Impactados:**
+  - `src/components/professional/FinancialManagerView.tsx`
+  - `src/components/professional/UtilitiesAndToolsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção dos 3 Botões na Tela de Caixa (`FinancialManagerView.tsx`):** Quando `variant === 'caixa'`, foram removidos os botões `Caixa & Entradas` (`button:nth-of-type(1)`), `Custos & Despesas` (`button:nth-of-type(3)`) e `Balanço & Metas` (`button:nth-of-type(4)`), mantendo apenas o atalho `PIX & Placa` com alternância direta de visualização.
+  2. **Preservação no Menu Financeiro (`UtilitiesAndToolsView.tsx`):** Configurado `variant="full"` na opção `"Financeiro"` dentro de `"Utilidades"`, preservando todas as abas (`Caixa & Entradas`, `PIX & Placa`, `Custos & Despesas` e `Balanço & Metas`) nesse módulo.
+
+---
+
+### [2026-11-02] — Remoção da Borda Escura do Ícone de Câmera na Foto de Perfil (`bol-096`)
+- **Tipo:** `[Refactor — UI / Focus Mode (Menu de Perfil - ProfileDrawer)]`
+- **Motivo / Solicitação:** Remover a borda escura (`border-2 border-slate-950`) do botão de ícone de câmera sobreposto à foto de perfil no menu lateral do usuário.
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Botão de Câmera Limpo (`ProfileDrawer.tsx`):** Removidas as classes `border-2 border-slate-950` do botão circular verde (`bg-emerald-500 text-white`) do ícone `Camera` sobre a foto de perfil.
+
+---
+
 ### [2026-11-02] — Ícone de Grade em Serviços + Barra Inferior Cinza Claro Sólida com Botões com Borda (`bol-095`)
 - **Tipo:** `[Refactor — UI / Focus Mode (Barra de Navegação Inferior & Ícone de Serviços)]`
 - **Motivo / Solicitação:** Substituir o ícone da aba "Serviços" no modo cliente por um ícone de grade (`LayoutGrid`), representando o layout em grade 2x2 da seção de serviços, e definir por padrão a barra de menu inferior em cinza bem claro (`#f1f5f9`), preenchimento sólido (`solid`) e botões com borda (`bordered`).

@@ -1,14 +1,12 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { 
-  Clock, CalendarCheck, DollarSign, Target, User, Zap, Check, Play, Pause, Plus, X,
-  ArrowRightLeft, AlertCircle, ArrowLeft, Users, CheckCircle2, TrendingUp, ArrowUpRight, Sparkles,
-  MessageCircle, Scissors
+  Clock, CalendarCheck, User, Zap, Check, Play, Pause, Plus, X,
+  ArrowRightLeft, AlertCircle, ArrowLeft, Users, CheckCircle2, TrendingUp,
+  MessageCircle, Scissors, Navigation
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { SalonAdminSettings, CatalogServiceItem, BookingAppointment, SalonProfessionalItem, UserPersona } from '../../types';
 import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
-import { DayEvolutionData } from './dashboard/ClientEvolutionChart';
-import { GoalsAndShiftsCard } from './dashboard/GoalsAndShiftsCard';
 import { PixCheckoutModal } from './PixCheckoutModal';
 
 const getAppointmentDurationMinutes = (app: BookingAppointment): number => {
@@ -184,25 +182,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       ...prev,
       [appKey]: newStatus,
     }));
-  }, []);
-
-  // Meta Mensal configurada pelo profissional (persistida no localStorage)
-  const [targetAmount, setTargetAmount] = useState<number>(() => {
-    try {
-      const s = localStorage.getItem('vagou_monthly_goal');
-      if (s) {
-        const val = Number(s);
-        if (val > 0) return val;
-      }
-    } catch {}
-    return 0;
-  });
-
-  const handleUpdateTarget = useCallback((newTarget: number) => {
-    setTargetAmount(newTarget);
-    try {
-      localStorage.setItem('vagou_monthly_goal', String(newTarget));
-    } catch {}
   }, []);
 
   // Função utilitária para verificar se um agendamento pertence ao profissional filtrado
@@ -399,6 +378,29 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     }
   }, [appointments, onUpdateAppointments]);
 
+  // Ação de confirmar atendimento diretamente pelo card
+  const handleConfirmAppointment = useCallback((protocolCode?: string) => {
+    if (!protocolCode) return;
+    hapticSuccess();
+    setLocalAppointmentStatuses((prev) => ({
+      ...prev,
+      [protocolCode]: 'CONFIRMADO'
+    }));
+
+    if (onUpdateAppointments && appointments.length > 0) {
+      const updated = appointments.map((a) => {
+        if (a.protocolCode === protocolCode || a.id === protocolCode) {
+          return { ...a, status: 'CONFIRMADO' };
+        }
+        return a;
+      });
+      onUpdateAppointments(updated);
+      try {
+        localStorage.setItem('vagou_salon_appointments', JSON.stringify(updated));
+      } catch {}
+    }
+  }, [appointments, onUpdateAppointments]);
+
   // Estados para o Modal Operacional de Atendimento (Iniciar, Pausar, Adicionar Mais Tempo, Concluir, Transferir)
   const [actionModalAppointment, setActionModalAppointment] = useState<BookingAppointment | null>(null);
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
@@ -452,23 +454,39 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     });
   }, [appointments, matchesSelectedPro, localAppointmentStatuses]);
 
-  const firstCardAppointment = todayActiveAppointments[0] || null;
-  const secondCardAppointment = todayActiveAppointments[1] || null;
+  // Três slots de atendimento na fila prioritária
+  const currentCardAppointment = todayActiveAppointments[0] || null;
+  const nextCardAppointment = todayActiveAppointments[1] || null;
+  const confirmationCardAppointment = useMemo(() => {
+    if (todayActiveAppointments[2]) return todayActiveAppointments[2];
+    // Se não há 3º agendamento na fila principal, verifica se há algum aguardando confirmação
+    const pending = appointments.find((a) => {
+      if (!matchesSelectedPro(a)) return false;
+      const k = a.protocolCode || a.id || `${a.time}-${a.clientName}`;
+      const st = (localAppointmentStatuses[k] || a.status || '').toUpperCase();
+      if (st === 'CANCELADO' || st === 'CONCLUÍDO' || st === 'CONCLUIDO') return false;
+      const isAlreadyShown =
+        (currentCardAppointment && (a.protocolCode === currentCardAppointment.protocolCode || a.id === currentCardAppointment.id)) ||
+        (nextCardAppointment && (a.protocolCode === nextCardAppointment.protocolCode || a.id === nextCardAppointment.id));
+      return !isAlreadyShown && (st.includes('PEND') || st.includes('AGEND'));
+    });
+    return pending || null;
+  }, [todayActiveAppointments, appointments, matchesSelectedPro, localAppointmentStatuses, currentCardAppointment, nextCardAppointment]);
 
   // Trava Operacional de Mitigação: O próximo atendimento não pode ser iniciado sem a conclusão ou definição do anterior
   const isModalBlockedByPrevious = useMemo(() => {
-    if (!actionModalAppointment || !firstCardAppointment) return false;
+    if (!actionModalAppointment || !currentCardAppointment) return false;
     const modalKey = actionModalAppointment.protocolCode || actionModalAppointment.id || `${actionModalAppointment.time}-${actionModalAppointment.clientName}`;
-    const firstKey = firstCardAppointment.protocolCode || firstCardAppointment.id || `${firstCardAppointment.time}-${firstCardAppointment.clientName}`;
+    const firstKey = currentCardAppointment.protocolCode || currentCardAppointment.id || `${currentCardAppointment.time}-${currentCardAppointment.clientName}`;
 
     // Se o agendamento no modal for o segundo (ou posterior ao primeiro), verifica se o primeiro ainda está ativo
     if (modalKey !== firstKey) {
-      const firstStatus = (localAppointmentStatuses[firstKey] || firstCardAppointment.status || '').toUpperCase();
+      const firstStatus = (localAppointmentStatuses[firstKey] || currentCardAppointment.status || '').toUpperCase();
       const isFirstFinished = firstStatus.includes('CONCLU') || firstStatus.includes('CANCEL');
       return !isFirstFinished;
     }
     return false;
-  }, [actionModalAppointment, firstCardAppointment, localAppointmentStatuses]);
+  }, [actionModalAppointment, currentCardAppointment, localAppointmentStatuses]);
 
   // Colegas da equipe disponíveis para transferência (excluindo o profissional atual)
   const availableColleaguesForTransfer = useMemo(() => {
@@ -659,121 +677,83 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     };
   }, [appointments, matchesSelectedPro, userRole, currentPersona, teamList, loggedProfessionalName]);
 
-  // 2. Gráfico de Evolução de Clientes nos Últimos 7 Dias
-  const weekEvolutionData = useMemo<DayEvolutionData[]>(() => {
-    const days: DayEvolutionData[] = [];
-    const now = new Date();
-    const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
-
-      let count = 0;
-      let rev = 0;
-
-      appointments.forEach((app) => {
-        if (!matchesSelectedPro(app)) return;
-        let appDate = new Date();
-        if (app.dateIso) {
-          appDate = new Date(app.dateIso + 'T00:00:00');
-        } else {
-          const match = app.dateTime?.match(/(\d{2})\/(\d{2})/);
-          if (match) {
-            const day = parseInt(match[1], 10);
-            const month = parseInt(match[2], 10) - 1;
-            const year = new Date().getFullYear();
-            appDate = new Date(year, month, day);
-          } else if (app.dayGroup === 'Hoje' || app.dateTime?.includes('Hoje')) {
-            appDate = new Date();
-          }
-        }
-
-        if (appDate >= dayStart && appDate <= dayEnd) {
-          const st = (app.status || '').toUpperCase();
-          if (st !== 'CANCELADO') {
-            count += 1;
-            rev += Number(app.totalPrice) || 50;
-          }
-        }
-      });
-
-      if (count === 0 && i > 0) {
-        count = 0;
-        rev = 0;
-      }
-
-      days.push({
-        dayLabel: i === 0 ? 'Hoje' : dayNames[d.getDay()],
-        dateStr: `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`,
-        clientsCount: count,
-        totalRevenue: rev,
-      });
-    }
-    return days;
-  }, [appointments, matchesSelectedPro]);
-
-  // Valores de Faturamento Diário e Semanal para o Velocímetro de Metas
-  const dailyRealizedRevenue = useMemo(() => {
-    const today = weekEvolutionData[weekEvolutionData.length - 1];
-    return today && today.totalRevenue > 0 ? today.totalRevenue : 165;
-  }, [weekEvolutionData]);
-
-  const weeklyRealizedRevenue = useMemo(() => {
-    const sum = weekEvolutionData.reduce((acc, d) => acc + d.totalRevenue, 0);
-    return sum > 0 ? sum : 980;
-  }, [weekEvolutionData]);
-
-  const renderAppointmentButtonCard = (app: BookingAppointment, cardIndex: number) => {
+  const renderAppointmentCard = (app: BookingAppointment, cardType: 'atual' | 'proximo' | 'confirmacao') => {
     const appKey = app.protocolCode || app.id || `${app.time}-${app.clientName}`;
     const effectiveStatus = (localAppointmentStatuses[appKey] || app.status || '').toUpperCase();
     const isProgress = effectiveStatus.includes('ATEND') || effectiveStatus.includes('INICI');
     const isPaused = effectiveStatus.includes('PAUS');
+    const isConfirmed = effectiveStatus.includes('CONFIRM') || effectiveStatus === 'CONFIRMADO';
+
+    const isEnRoute = Boolean(
+      app.tracking_status === 'live_sharing' ||
+      app.tracking_status === 'on_way_no_map' ||
+      app.tracking_status === 'arriving_5min' ||
+      app.tracking_status === 'hurry_confirmed' ||
+      app.tracking_status === 'arrived' ||
+      effectiveStatus.includes('CAMINHO') ||
+      (app as any).isClientEnRoute
+    );
 
     const rawFullName = (app.clientName || app.customerName || 'Cliente').trim();
     const firstName = rawFullName.split(' ')[0] || 'Cliente';
     const serviceText = app.serviceName || app.service || app.serviceTitle || 'Atendimento';
 
-    const { startTimeStr, durationHhMm, endTimeHhMm, durationMinutes } = calculateAppointmentTimes(app);
+    const { startTimeStr, durationHhMm, endTimeHhMm } = calculateAppointmentTimes(app);
 
-    // Formatação de telefone e link para WhatsApp com 1 toque
+    // Formatação de telefone e link para WhatsApp com 1 toque personalizado por tipo
     const clientPhone = (app.clientPhone || app.customerPhone || '').replace(/\D/g, '');
     const hasPhone = clientPhone.length >= 10;
+    
+    let defaultMsg = `Olá ${firstName}! Tudo bem? Seu atendimento de ${serviceText} no Vagou está próximo. Já estou com tudo pronto na bancada!`;
+    if (cardType === 'atual') {
+      defaultMsg = isProgress 
+        ? `Olá ${firstName}! Tudo bem? Seu atendimento de ${serviceText} no Vagou está em andamento na bancada.` 
+        : `Olá ${firstName}! Tudo bem? Sua vez chegou! Já estou com a bancada pronta para seu ${serviceText}.`;
+    } else if (cardType === 'proximo') {
+      defaultMsg = `Olá ${firstName}! Tudo bem? Seu horário de ${serviceText} às ${startTimeStr} no Vagou é o próximo da fila. Já estou preparando tudo!`;
+    } else if (cardType === 'confirmacao') {
+      defaultMsg = `Olá ${firstName}! Tudo bem? Gostaria de confirmar seu agendamento de ${serviceText} hoje às ${startTimeStr} no Vagou.`;
+    }
+
     const whatsappUrl = hasPhone 
-      ? `https://wa.me/55${clientPhone}?text=${encodeURIComponent(`Olá ${firstName}! Tudo bem? Seu atendimento de ${serviceText} no Vagou está próximo. Já estou com tudo pronto na bancada!`)}`
+      ? `https://wa.me/55${clientPhone}?text=${encodeURIComponent(defaultMsg)}`
       : null;
 
-    // Card 1: Ficha Sintética Operacional de Bancada (Próximo / Em Atendimento)
-    if (cardIndex === 1) {
-      return (
-        <div
-          key={appKey}
-          id="professional-next-appointment-card"
-          className={`w-full rounded border select-none transition-all duration-200 overflow-hidden ${
-            isDark 
-              ? isProgress 
-                ? 'bg-slate-900 border-emerald-500/80 ring-1 ring-emerald-500/40' 
-                : 'bg-slate-900 border-slate-800' 
-              : isProgress 
-                ? 'bg-white border-emerald-500 shadow-xs ring-1 ring-emerald-500/40' 
-                : 'bg-white border-slate-200 shadow-xs'
-          }`}
-        >
-          {/* Faixa Superior: Status + Horário + Controles Rápidos */}
-          <div className={`px-3 py-2 border-b flex items-center justify-between ${
-            isProgress 
-              ? 'bg-emerald-500/10 border-emerald-500/30' 
-              : isDark ? 'bg-slate-850 border-slate-800' : 'bg-slate-50 border-slate-200'
-          }`}>
-            <div className="flex items-center gap-2">
+    const cardId = cardType === 'atual' 
+      ? 'professional-current-appointment-card'
+      : cardType === 'proximo'
+        ? 'professional-next-appointment-card'
+        : 'professional-confirmation-appointment-card';
+
+    return (
+      <div
+        key={`${appKey}-${cardType}`}
+        id={cardId}
+        className={`w-full rounded border select-none transition-all duration-200 overflow-hidden ${
+          isDark 
+            ? isProgress && cardType === 'atual'
+              ? 'bg-slate-900 border-emerald-500/80 ring-1 ring-emerald-500/40' 
+              : 'bg-slate-900 border-slate-800' 
+            : isProgress && cardType === 'atual'
+              ? 'bg-white border-emerald-500 shadow-xs ring-1 ring-emerald-500/40' 
+              : 'bg-white border-slate-200 shadow-xs'
+        }`}
+      >
+        {/* Faixa Superior: Status + Horário + Controles Rápidos */}
+        <div className={`px-3 py-2 border-b flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap ${
+          isProgress && cardType === 'atual'
+            ? 'bg-emerald-500/10 border-emerald-500/30' 
+            : isDark ? 'bg-slate-850 border-slate-800' : 'bg-slate-50 border-slate-200'
+        }`}>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* 1. Atendimento Atual */}
+            {cardType === 'atual' && (
               <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
                 isProgress
                   ? 'bg-emerald-500 text-white'
                   : isPaused
                     ? 'bg-amber-500 text-white'
-                    : isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-800'
+                    : 'bg-emerald-600 text-white'
               }`}>
                 {isProgress ? (
                   <>
@@ -787,82 +767,138 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                   </>
                 ) : (
                   <>
-                    <Clock className="w-2.5 h-2.5" />
-                    <span>Próximo Atendimento</span>
+                    <Clock className="w-2.5 h-2.5 text-white" />
+                    <span>Atendimento Atual</span>
                   </>
                 )}
               </span>
+            )}
 
-              <span className="font-mono text-xs font-bold text-slate-400">
-                {startTimeStr} → {endTimeHhMm} ({durationHhMm})
-              </span>
+            {/* 2. Próximo Atendimento com Status "A caminho: Sim" ou "Não" */}
+            {cardType === 'proximo' && (
+              <>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
+                  isDark ? 'bg-slate-800 text-slate-200 border border-slate-700' : 'bg-slate-100 text-slate-700 border border-slate-200'
+                }`}>
+                  <Clock className="w-2.5 h-2.5 text-slate-400" />
+                  <span>Próximo Atendimento</span>
+                </span>
+
+                {isEnRoute ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-emerald-500 text-white shadow-2xs">
+                    <Navigation className="w-2.5 h-2.5 fill-white text-white" />
+                    <span>A caminho: Sim</span>
+                  </span>
+                ) : (
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
+                    isDark ? 'bg-slate-800 text-slate-400 border border-slate-700' : 'bg-slate-100 text-slate-500 border border-slate-200'
+                  }`}>
+                    <Clock className="w-2.5 h-2.5 text-slate-400" />
+                    <span>A caminho: Não</span>
+                  </span>
+                )}
+              </>
+            )}
+
+            {/* 3. Confirmação de Atendimento */}
+            {cardType === 'confirmacao' && (
+              <>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
+                  isDark ? 'bg-slate-800 text-slate-200 border border-slate-700' : 'bg-slate-100 text-slate-700 border border-slate-200'
+                }`}>
+                  <span>Confirmação de Atendimento</span>
+                </span>
+
+                {isConfirmed ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-emerald-500 text-white">
+                    <CheckCircle2 className="w-2.5 h-2.5 text-white" />
+                    <span>Confirmado</span>
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-amber-500 text-white">
+                    <Clock className="w-2.5 h-2.5 text-white" />
+                    <span>Aguardando Confirmação</span>
+                  </span>
+                )}
+              </>
+            )}
+
+            <span className="font-mono text-xs font-bold text-slate-400">
+              {startTimeStr} → {endTimeHhMm} ({durationHhMm})
+            </span>
+          </div>
+
+          {/* Valor do Serviço */}
+          <div className="flex items-center gap-1 font-mono font-black text-xs text-emerald-600 dark:text-emerald-400 shrink-0">
+            <span>R$ {Number(app.totalPrice || 45).toFixed(2).replace('.', ',')}</span>
+          </div>
+        </div>
+
+        {/* Corpo: Mini-Ficha do Cliente (Foto + Nome + Serviço + Badges Operacionais) */}
+        <div className="p-3 flex items-center justify-between gap-3">
+          <div 
+            onClick={() => handleOpenActionModal(app)}
+            className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer"
+            title="Clique para abrir detalhes do atendimento"
+          >
+            {/* Foto ou Avatar com Inicial */}
+            <div className={`w-11 h-11 rounded shrink-0 flex items-center justify-center font-bold text-xs shadow-2xs overflow-hidden border ${
+              isDark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-700'
+            }`}>
+              <User className="w-6 h-6 stroke-[1.75]" />
             </div>
 
-            {/* Valor do Serviço */}
-            <div className="flex items-center gap-1 font-mono font-black text-xs text-emerald-600 dark:text-emerald-400">
-              <span>R$ {Number(app.totalPrice || 45).toFixed(2).replace('.', ',')}</span>
+            {/* Nome + Serviço + Tag de Ficha */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h3 className={`font-bold text-sm truncate leading-tight ${
+                  isDark ? 'text-white' : 'text-slate-900'
+                }`}>
+                  {rawFullName}
+                </h3>
+                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
+                  isDark ? 'bg-slate-800/80 border-slate-700 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
+                }`}>
+                  {cardType === 'atual' 
+                    ? (isProgress ? 'Na Cadeira' : 'Atendimento Atual')
+                    : cardType === 'proximo'
+                      ? 'Próximo da Fila'
+                      : (isConfirmed ? 'Presença Confirmada' : 'Aguardando Resposta')}
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                <Scissors className="w-3 h-3 shrink-0 text-slate-400" />
+                <span>{serviceText}</span>
+              </p>
             </div>
           </div>
 
-          {/* Corpo: Mini-Ficha do Cliente (Foto + Nome + Serviço + Badges Operacionais) */}
-          <div className="p-3 flex items-center justify-between gap-3">
-            <div 
-              onClick={() => handleOpenActionModal(app)}
-              className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer"
-              title="Clique para abrir detalhes do atendimento"
-            >
-              {/* Foto ou Avatar com Inicial */}
-              <div className={`w-11 h-11 rounded shrink-0 flex items-center justify-center font-bold text-xs shadow-2xs overflow-hidden border ${
-                isDark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-700'
-              }`}>
-                <User className="w-6 h-6 stroke-[1.75]" />
-              </div>
+          {/* Ações Rápidas de Bancada: WhatsApp + Botão de Ação */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {whatsappUrl && (
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  hapticLight();
+                }}
+                className={`w-9 h-9 rounded border flex items-center justify-center transition active:scale-95 cursor-pointer ${
+                  isDark 
+                    ? 'bg-slate-800 border-slate-700 text-emerald-400 hover:bg-slate-750' 
+                    : 'bg-slate-100 border-slate-200 text-emerald-600 hover:bg-slate-200'
+                }`}
+                title={`Enviar WhatsApp para ${firstName}`}
+              >
+                <MessageCircle className="w-4 h-4 fill-emerald-500/20" />
+              </a>
+            )}
 
-              {/* Nome + Serviço + Tag de Ficha */}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <h3 className={`font-bold text-sm truncate leading-tight ${
-                    isDark ? 'text-white' : 'text-slate-900'
-                  }`}>
-                    {rawFullName}
-                  </h3>
-                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
-                    isDark ? 'bg-slate-800/80 border-slate-700 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
-                  }`}>
-                    Cliente Cadastrado
-                  </span>
-                </div>
-
-                <p className="text-xs text-slate-500 truncate flex items-center gap-1 mt-0.5">
-                  <Scissors className="w-3 h-3 shrink-0 text-slate-400" />
-                  <span>{serviceText}</span>
-                </p>
-              </div>
-            </div>
-
-            {/* Ações Rápidas de Bancada: WhatsApp + Iniciar / Concluir */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              {whatsappUrl && (
-                <a
-                  href={whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    hapticLight();
-                  }}
-                  className={`w-9 h-9 rounded border flex items-center justify-center transition active:scale-95 cursor-pointer ${
-                    isDark 
-                      ? 'bg-slate-800 border-slate-700 text-emerald-400 hover:bg-slate-750' 
-                      : 'bg-slate-100 border-slate-200 text-emerald-600 hover:bg-slate-200'
-                  }`}
-                  title={`Enviar WhatsApp para ${firstName}`}
-                >
-                  <MessageCircle className="w-4 h-4 fill-emerald-500/20" />
-                </a>
-              )}
-
-              {isProgress ? (
+            {/* Ação Card 1: Finalizar ou Iniciar */}
+            {cardType === 'atual' && (
+              isProgress ? (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -890,123 +926,116 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                   <Play className="w-3.5 h-3.5 fill-white" />
                   <span>Iniciar</span>
                 </button>
-              )}
-            </div>
-          </div>
-        </div>
-      );
-    }
+              )
+            )}
 
-    // Card 2: Subsequente Sintético Compacto
-    return (
-      <button
-        key={appKey}
-        id="professional-subsequent-appointment-card"
-        type="button"
-        onClick={() => handleOpenActionModal(app)}
-        style={{ height: '62px' }}
-        title={`Subsequente: ${rawFullName} às ${startTimeStr}`}
-        className={`grid grid-cols-[0.8fr_0.8fr_1.4fr_1fr] rounded border overflow-hidden select-none w-full text-left cursor-pointer active:scale-[0.99] transition hover:shadow-xs ${
-          isDark 
-            ? 'bg-slate-900 border-slate-800 text-white hover:border-slate-700' 
-            : 'bg-white border-slate-200 text-slate-900 shadow-xs hover:border-slate-300'
-        }`}
-      >
-        {/* Coluna 1: Horário */}
-        <div className={`flex flex-col items-center justify-center text-center p-0.5 border-r overflow-hidden ${
-          isDark ? 'bg-slate-900 border-slate-800 text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-900'
-        }`}>
-          <span className="text-[7.5px] font-bold uppercase tracking-wider text-slate-500 leading-none mb-0.5">
-            Seguinte
-          </span>
-          <span className="font-mono font-black text-sm leading-none">
-            {startTimeStr}
-          </span>
-        </div>
+            {/* Ação Card 2: Iniciar ou Ver Ficha */}
+            {cardType === 'proximo' && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const protocolCode = app.protocolCode || app.id;
+                  handleStartAppointment(protocolCode);
+                }}
+                className="h-9 px-3 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
+                title="Iniciar Próximo Atendimento"
+              >
+                <Play className="w-3.5 h-3.5 fill-white" />
+                <span>Iniciar</span>
+              </button>
+            )}
 
-        {/* Coluna 2: Foto + Nome */}
-        <div className={`flex flex-col h-full w-full p-0 border-r overflow-hidden ${
-          isDark ? 'border-slate-800' : 'border-slate-200'
-        }`}>
-          <div className={`h-[65%] w-full flex items-center justify-center p-0.5 border-b ${
-            isDark ? 'bg-slate-800/80 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-700'
-          }`}>
-            <div className={`w-[90%] h-[90%] max-w-[34px] max-h-[34px] aspect-square rounded flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden ${
-              isDark ? 'bg-slate-900 text-slate-300' : 'bg-white text-slate-700'
-            }`}>
-              <User className="w-[65%] h-[65%] stroke-[1.75]" />
-            </div>
-          </div>
-          <div className={`h-[35%] w-full flex items-center justify-center px-0.5 ${
-            isDark ? 'bg-slate-900/60' : 'bg-white'
-          }`}>
-            <span className={`font-bold truncate max-w-full text-[9px] leading-tight text-center ${
-              isDark ? 'text-slate-200' : 'text-slate-800'
-            }`}>
-              {firstName}
-            </span>
-          </div>
-        </div>
-
-        {/* Coluna 3: Serviço */}
-        <div className={`flex items-center justify-center text-center px-1.5 py-0.5 border-r overflow-hidden ${
-          isDark ? 'border-slate-800' : 'border-slate-200'
-        }`}>
-          <p className={`text-[10px] font-bold text-center leading-snug line-clamp-2 ${
-            isDark ? 'text-slate-200' : 'text-slate-800'
-          }`}>
-            {serviceText}
-          </p>
-        </div>
-
-        {/* Coluna 4: Duração e Término */}
-        <div className="flex flex-col h-full w-full p-0 overflow-hidden">
-          <div className={`flex-1 w-full flex items-center justify-center border-b px-1 font-mono text-[10px] font-bold ${
-            isDark ? 'bg-slate-850 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
-          }`}>
-            <span>{durationHhMm}</span>
-          </div>
-          <div className={`flex-1 w-full flex items-center justify-center px-1 font-mono text-[10.5px] font-bold ${
-            isDark ? 'bg-slate-900 text-emerald-400' : 'bg-slate-50 text-emerald-600'
-          }`}>
-            <span>térm. {endTimeHhMm}</span>
+            {/* Ação Card 3: Confirmar ou Confirmado */}
+            {cardType === 'confirmacao' && (
+              !isConfirmed ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const protocolCode = app.protocolCode || app.id;
+                    handleConfirmAppointment(protocolCode);
+                  }}
+                  className="h-9 px-3 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
+                  title="Confirmar Presença do Cliente"
+                >
+                  <Check className="w-3.5 h-3.5 stroke-[2.5] text-white" />
+                  <span>Confirmar</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleOpenActionModal(app)}
+                  className={`h-9 px-3 rounded font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer border shadow-xs ${
+                    isDark 
+                      ? 'bg-slate-800 hover:bg-slate-750 text-emerald-400 border-emerald-500/30' 
+                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                  }`}
+                  title="Atendimento Já Confirmado"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Confirmado</span>
+                </button>
+              )
+            )}
           </div>
         </div>
-      </button>
+      </div>
     );
   };
 
-  const renderEmptyAppointmentCard = (cardIndex: number) => {
-    if (cardIndex === 1) {
+  const renderEmptyAppointmentCard = (cardType: 'atual' | 'proximo' | 'confirmacao') => {
+    if (cardType === 'atual') {
       return (
         <div 
-          id="professional-next-appointment-card"
-          style={{ height: '65px' }}
-          className={`p-2 rounded border flex flex-col items-center justify-center select-none w-full text-center ${
+          id="professional-current-appointment-card-empty"
+          style={{ minHeight: '65px' }}
+          className={`p-3 rounded border flex flex-col items-center justify-center select-none w-full text-center ${
             isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 shadow-xs text-slate-900'
           }`}
         >
           <Clock className={`w-4 h-4 mb-0.5 ${isDark ? 'text-slate-600' : 'text-slate-400'}`} />
           <p className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
+            Atendimento Atual
+          </p>
+          <p className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+            Nenhum atendimento na cadeira no momento
+          </p>
+        </div>
+      );
+    }
+
+    if (cardType === 'proximo') {
+      return (
+        <div 
+          id="professional-next-appointment-card-empty"
+          style={{ minHeight: '65px' }}
+          className={`p-3 rounded border border-dashed flex flex-col items-center justify-center select-none w-full text-center ${
+            isDark ? 'bg-slate-900/40 border-slate-800/80 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-500'
+          }`}
+        >
+          <Navigation className="w-4 h-4 mb-0.5 opacity-60 text-emerald-500" />
+          <p className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
             Próximo Atendimento
           </p>
-          <p className={`text-[9px] ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-            Sem atendimento agendado no momento
-          </p>
+          <span className="text-[10px] font-medium text-slate-500">Sem próximo cliente na fila</span>
         </div>
       );
     }
 
     return (
       <div 
-        id="professional-subsequent-appointment-card-empty"
-        style={{ height: '65px' }}
-        className={`p-2 rounded border border-dashed flex items-center justify-center gap-2 select-none w-full text-center ${
+        id="professional-confirmation-appointment-card-empty"
+        style={{ minHeight: '65px' }}
+        className={`p-3 rounded border border-dashed flex flex-col items-center justify-center select-none w-full text-center ${
           isDark ? 'bg-slate-900/40 border-slate-800/80 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-500'
         }`}
       >
-        <Clock className="w-3.5 h-3.5 opacity-60" />
-        <span className="text-[10.5px] font-medium">Sem agendamento subsequente na fila</span>
+        <CheckCircle2 className="w-4 h-4 mb-0.5 opacity-60 text-emerald-500" />
+        <p className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+          Confirmação de Atendimento
+        </p>
+        <span className="text-[10px] font-medium text-slate-500">Nenhum atendimento pendente de confirmação</span>
       </div>
     );
   };
@@ -1017,7 +1046,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     }`}>
       {/* 2. Conteúdo Rolável: Fila & Agenda seguido de Dashboard & Metas */}
       <div className="p-2 flex flex-col gap-3 flex-1">
-        {/* Bloco de Atendimentos Prioritários: Atual / Próximo e Subsequente (Acima de Próximas Vagas Livres) */}
+        {/* Bloco de Atendimentos Prioritários: Atual / Próximo e Confirmação */}
         <div className="space-y-2">
           {/* Título do Grupo de Atendimento */}
           <div className="flex items-center justify-between px-0.5 pt-0.5">
@@ -1027,18 +1056,25 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
             </span>
           </div>
 
-          {/* Card 1: Próximo / Em Atendimento */}
-          {firstCardAppointment ? (
-            renderAppointmentButtonCard(firstCardAppointment, 1)
+          {/* Card 1: Atendimento Atual (Na Cadeira / Em Atendimento) */}
+          {currentCardAppointment ? (
+            renderAppointmentCard(currentCardAppointment, 'atual')
           ) : (
-            renderEmptyAppointmentCard(1)
+            renderEmptyAppointmentCard('atual')
           )}
 
-          {/* Card 2: Próximo Atendimento após este (Subsequente) */}
-          {secondCardAppointment ? (
-            renderAppointmentButtonCard(secondCardAppointment, 2)
+          {/* Card 2: Próximo Atendimento (com status "A caminho: Sim" ou "Não") */}
+          {nextCardAppointment ? (
+            renderAppointmentCard(nextCardAppointment, 'proximo')
           ) : (
-            firstCardAppointment && renderEmptyAppointmentCard(2)
+            renderEmptyAppointmentCard('proximo')
+          )}
+
+          {/* Card 3: Confirmação de Atendimento */}
+          {confirmationCardAppointment ? (
+            renderAppointmentCard(confirmationCardAppointment, 'confirmacao')
+          ) : (
+            renderEmptyAppointmentCard('confirmacao')
           )}
         </div>
 
@@ -1081,74 +1117,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 </p>
               </div>
             </div>
-
-            {/* Ticket Médio */}
-            <div className={`p-3 rounded border flex flex-col justify-between ${
-              isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-            }`}>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Ticket Médio</span>
-                <ArrowUpRight className="w-3.5 h-3.5 text-cyan-400" />
-              </div>
-              <div className="mt-1">
-                <span className={`text-base font-black font-mono tracking-tight ${
-                  isDark ? 'text-slate-100' : 'text-slate-900'
-                }`}>
-                  R$ {financialQuickSummary.averageTicket.toFixed(2).replace('.', ',')}
-                </span>
-                <p className="text-[10px] text-slate-500 mt-0.5">Por cliente atendido</p>
-              </div>
-            </div>
-
-            {/* Lucro Líquido do Salão / Meu Bolso */}
-            <div className={`p-3 rounded border flex flex-col justify-between ${
-              isDark ? 'bg-slate-900/90 border-emerald-500/40' : 'bg-white border-emerald-300 shadow-2xs'
-            }`}>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
-                  {financialQuickSummary.isOwner ? 'Lucro Líquido' : 'Meu Bolso'}
-                </span>
-                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              </div>
-              <div className="mt-1">
-                <span className="text-base font-black font-mono tracking-tight text-emerald-400">
-                  R$ {financialQuickSummary.netProfitOrCommission.toFixed(2).replace('.', ',')}
-                </span>
-                <p className="text-[10px] text-slate-500 mt-0.5">
-                  {financialQuickSummary.isOwner ? 'Após repasses & taxas' : 'Livre de comissão'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* 2. Grupo: Metas & Turnos */}
-          <div className="space-y-1.5">
-            {/* Cabeçalho do Grupo de Metas & Turnos */}
-            <div className="flex items-center justify-between px-0.5">
-              <div className="flex items-center gap-1.5">
-                <div className="w-5 h-5 rounded bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-                  <Target className="w-3 h-3 text-emerald-400" />
-                </div>
-                <span className="text-xs font-bold font-['Poppins']">
-                  Metas & Turnos
-                </span>
-              </div>
-            </div>
-
-            {/* Card Unificado: Velocímetro de Metas e Evolução por Turno Lado a Lado */}
-            <GoalsAndShiftsCard
-              currentAmount={financialQuickSummary.realizedRevenue}
-              dailyAmount={dailyRealizedRevenue}
-              weeklyAmount={weeklyRealizedRevenue}
-              targetAmount={targetAmount}
-              averageTicket={financialQuickSummary.averageTicket}
-              remainingDays={10}
-              appointments={appointments}
-              activeProId={activeProId}
-              selectedFilterPro={selectedFilterPro}
-              matchesSelectedPro={matchesSelectedPro}
-              onUpdateTarget={handleUpdateTarget}
-            />
           </div>
         </div>
       </div>

@@ -4,7 +4,7 @@ import {
   ArrowUpRight, Share2, 
   Sparkles, CheckCircle2,
   Wallet, Banknote, QrCode, Receipt, Target,
-  PieChart, Users, Printer, Plus, Trash2, Star
+  PieChart, Users, Printer, Plus, Trash2, Star, X
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { 
@@ -50,6 +50,7 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
   // Sub-Aba do Módulo Financeiro (Caixa, PIX & Placa, Despesas, Balanço)
   const [activeTab, setActiveTab] = useState<'caixa' | 'despesas' | 'balanco' | 'pix_billing'>(initialTab);
   const [isPixPrintModalOpen, setIsPixPrintModalOpen] = useState(false);
+  const [isPixQuickModalOpen, setIsPixQuickModalOpen] = useState(false);
 
   // Estado de Chaves PIX (hidratado de adminSettings ou localStorage)
   const [pixKeys, setPixKeys] = useState<SalonPixKeyItem[]>(() => {
@@ -579,33 +580,40 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
         </div>
       )}
 
-      {/* 2. Sub-Abas do Financeiro em 2 Linhas de Mini-Cards: [Caixa & Entradas] | [PIX & Placa] / [Custos & Despesas] | [Balanço & Metas] */}
+      {/* 2. Sub-Abas do Financeiro: no modo Caixa exibe apenas [PIX & Placa]; no menu Financeiro exibe todas as sub-abas */}
       {!hideTabs && (
         <div className={` shrink-0 ${
           hideHeader
             ? 'pb-2'
             : `px-3 py-2 border-b ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'}`
         }`}>
-          <div className="grid grid-cols-2 gap-1.5">
-            {(
-              [
-                { id: 'caixa', label: 'Caixa & Entradas', icon: DollarSign },
-                { id: 'pix_billing', label: 'PIX & Placa', icon: QrCode },
-                { id: 'despesas', label: 'Custos & Despesas', icon: Receipt },
-                { id: 'balanco', label: 'Balanço & Metas', icon: Target },
-              ] as const
+          <div className={variant === 'caixa' ? 'flex items-center' : 'grid grid-cols-2 gap-1.5'}>
+            {(variant === 'caixa'
+              ? ([{ id: 'pix_billing', label: 'PIX & Placa', icon: QrCode }] as const)
+              : ([
+                  { id: 'caixa', label: 'Caixa & Entradas', icon: DollarSign },
+                  { id: 'pix_billing', label: 'PIX & Placa', icon: QrCode },
+                  { id: 'despesas', label: 'Custos & Despesas', icon: Receipt },
+                  { id: 'balanco', label: 'Balanço & Metas', icon: Target },
+                ] as const)
             ).map((tab) => {
               const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
+              const isActive = variant === 'caixa' && tab.id === 'pix_billing'
+                ? isPixQuickModalOpen
+                : activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
                   type="button"
                   onClick={() => {
                     hapticLight();
-                    setActiveTab(tab.id);
+                    if (variant === 'caixa' && tab.id === 'pix_billing') {
+                      setIsPixQuickModalOpen(true);
+                    } else {
+                      setActiveTab(tab.id);
+                    }
                   }}
-                  className={`py-2 px-2.5 rounded-[4px] text-[11px] font-bold border transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                  className={`${variant === 'caixa' ? 'w-full ' : ''}py-2 px-2.5 rounded-[4px] text-[11px] font-bold border transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
                     isActive
                       ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
                       : isDark
@@ -675,13 +683,10 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Caixa Realizado</span>
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                 </div>
-                <div className="mt-1">
-                  <span className="text-lg font-black font-mono tracking-tight text-emerald-400">
+                <div className="mt-1.5">
+                  <span className="text-[28px] sm:text-3xl leading-none font-black font-mono tracking-tighter text-emerald-400 block">
                     R$ {totalRealizedRevenue.toFixed(2).replace('.', ',')}
                   </span>
-                  <p className="text-[10px] text-slate-500 mt-0.5">
-                    {completedAppointments.length} {completedAppointments.length === 1 ? 'atendimento' : 'atendimentos'}
-                  </p>
                 </div>
               </div>
 
@@ -693,13 +698,10 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Previsão Aberta</span>
                   <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
                 </div>
-                <div className="mt-1">
-                  <span className="text-lg font-black font-mono tracking-tight text-amber-400">
+                <div className="mt-1.5">
+                  <span className="text-[28px] sm:text-3xl leading-none font-black font-mono tracking-tighter text-amber-400 block">
                     R$ {totalForecastRevenue.toFixed(2).replace('.', ',')}
                   </span>
-                  <p className="text-[10px] text-slate-500 mt-0.5">
-                    {pendingAppointments.length} {pendingAppointments.length === 1 ? 'agendamento' : 'agendamentos'}
-                  </p>
                 </div>
               </div>
 
@@ -711,13 +713,12 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Ticket Médio</span>
                   <ArrowUpRight className="w-3.5 h-3.5 text-cyan-400" />
                 </div>
-                <div className="mt-1">
-                  <span className={`text-base font-black font-mono tracking-tight ${
+                <div className="mt-1.5">
+                  <span className={`text-[28px] sm:text-3xl leading-none font-black font-mono tracking-tighter block ${
                     isDark ? 'text-slate-100' : 'text-slate-900'
                   }`}>
                     R$ {averageTicket.toFixed(2).replace('.', ',')}
                   </span>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Por cliente atendido</p>
                 </div>
               </div>
 
@@ -727,13 +728,11 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
               }`}>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Lucro Líquido</span>
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
                 </div>
-                <div className="mt-1">
-                  <span className="text-base font-black font-mono tracking-tight text-emerald-400">
+                <div className="mt-1.5">
+                  <span className="text-[28px] sm:text-3xl leading-none font-black font-mono tracking-tighter text-emerald-400 block">
                     R$ {salonNetProfit.toFixed(2).replace('.', ',')}
                   </span>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Após repasses & taxas</p>
                 </div>
               </div>
             </div>
@@ -920,217 +919,334 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
 
         {/* ABA 4: PIX & PLACA */}
         {activeTab === 'pix_billing' && (
-          <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
-            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-          }`}>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800/60 gap-2">
-              <div className="flex items-center gap-2">
-                <QrCode className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
-                  PIX & Placa ({pixKeys.length})
-                </h3>
-              </div>
-              {pixKeys.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    hapticLight();
-                    setIsPixPrintModalOpen(true);
-                  }}
-                  className="px-2.5 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow-xs"
-                >
-                  <Printer className="w-3.5 h-3.5 text-white" />
-                  <span className="text-white">Gerar Plaquinha QR</span>
-                </button>
-              )}
-            </div>
+          variant === 'caixa' ? (
+            <div className={`p-5 rounded-[4px] border flex flex-col items-center text-center space-y-3 ${
+              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+            }`}>
+              {pixKeys.length > 0 ? (() => {
+                const primaryItem = pixKeys.find((k) => k.isPrimary) || pixKeys[0];
+                const qrCodeUrl = getPixQrCodeUrl({
+                  pixKey: primaryItem.key,
+                  keyType: primaryItem.type,
+                  merchantName: primaryItem.holderName || adminSettings?.salonName || salonName || 'ESTABELECIMENTO',
+                  merchantCity: adminSettings?.cidade || 'BRASIL',
+                }, 240);
 
-            {pixKeys.length > 0 && (() => {
-              const primaryItem = pixKeys.find((k) => k.isPrimary) || pixKeys[0];
-              const previewQrUrl = getPixQrCodeUrl({
-                pixKey: primaryItem.key,
-                keyType: primaryItem.type,
-                merchantName: primaryItem.holderName || adminSettings?.salonName || salonName || 'ESTABELECIMENTO',
-                merchantCity: adminSettings?.cidade || 'BRASIL',
-              }, 160);
-
-              return (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-2 border-b border-slate-800/60">
-                  <div className="flex items-center gap-3">
-                    {previewQrUrl && (
-                      <div className="p-1.5 rounded-[4px] bg-white shrink-0">
+                return (
+                  <>
+                    {qrCodeUrl && (
+                      <div className="p-3 rounded-[4px] bg-white">
                         <img
-                          src={previewQrUrl}
-                          alt="QR Code PIX BACEN"
-                          className="w-16 h-16 object-contain"
+                          src={qrCodeUrl}
+                          alt="QR Code PIX"
+                          className="w-52 h-52 object-contain mx-auto"
                         />
                       </div>
                     )}
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
-                        QR Code Oficial BACEN Ativo
-                      </span>
-                      <p className="text-xs font-mono font-bold">
+                    <div className="space-y-1 pt-1">
+                      <p className="text-sm font-bold font-['Poppins']">
+                        {primaryItem.holderName || adminSettings?.salonName || salonName}
+                      </p>
+                      <p className="text-xs font-mono font-bold text-emerald-500">
                         {primaryItem.type.toUpperCase()}: {primaryItem.key}
                       </p>
-                      <p className="text-[10px] text-slate-400">
-                        Usado na Plaquinha de Balcão e no Checkout Pós-Serviço
-                      </p>
+                      {primaryItem.institution && (
+                        <p className="text-[11px] text-slate-400">
+                          {primaryItem.institution}
+                        </p>
+                      )}
                     </div>
-                  </div>
+                  </>
+                );
+              })() : (
+                <p className="text-xs text-slate-400 py-4">
+                  Nenhuma chave PIX configurada na Gestão Financeira.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
+              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+            }`}>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800/60 gap-2">
+                <div className="flex items-center gap-2">
+                  <QrCode className="w-4 h-4 text-emerald-400" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                    PIX & Placa ({pixKeys.length})
+                  </h3>
+                </div>
+                {pixKeys.length > 0 && (
                   <button
                     type="button"
                     onClick={() => {
                       hapticLight();
                       setIsPixPrintModalOpen(true);
                     }}
-                    className="w-full sm:w-auto px-3 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                    className="px-2.5 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow-xs"
                   >
-                    <QrCode className="w-3.5 h-3.5 text-white" />
-                    <span className="text-white">Abrir Plaquinha Acrílico</span>
+                    <Printer className="w-3.5 h-3.5 text-white" />
+                    <span className="text-white">Gerar Plaquinha QR</span>
                   </button>
-                </div>
-              );
-            })()}
+                )}
+              </div>
 
-            {pixKeys.length > 0 && (
-              <div className="divide-y divide-slate-800/60">
-                {pixKeys.map((item) => (
-                  <div
-                    key={item.id}
-                    className="py-2.5 flex items-center justify-between gap-2"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-[4px] bg-slate-800 text-slate-200">
-                          {item.type.toUpperCase()}
+              {pixKeys.length > 0 && (() => {
+                const primaryItem = pixKeys.find((k) => k.isPrimary) || pixKeys[0];
+                const previewQrUrl = getPixQrCodeUrl({
+                  pixKey: primaryItem.key,
+                  keyType: primaryItem.type,
+                  merchantName: primaryItem.holderName || adminSettings?.salonName || salonName || 'ESTABELECIMENTO',
+                  merchantCity: adminSettings?.cidade || 'BRASIL',
+                }, 160);
+
+                return (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-2 border-b border-slate-800/60">
+                    <div className="flex items-center gap-3">
+                      {previewQrUrl && (
+                        <div className="p-1.5 rounded-[4px] bg-white shrink-0">
+                          <img
+                            src={previewQrUrl}
+                            alt="QR Code PIX BACEN"
+                            className="w-16 h-16 object-contain"
+                          />
+                        </div>
+                      )}
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
+                          QR Code Oficial BACEN Ativo
                         </span>
-                        <span className="text-xs font-mono font-bold truncate">
-                          {item.key}
-                        </span>
-                        {item.isPrimary && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-[4px] bg-emerald-500 text-white whitespace-nowrap">
-                            Principal
+                        <p className="text-xs font-mono font-bold">
+                          {primaryItem.type.toUpperCase()}: {primaryItem.key}
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          Usado na Plaquinha de Balcão e no Checkout Pós-Serviço
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setIsPixPrintModalOpen(true);
+                      }}
+                      className="w-full sm:w-auto px-3 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                    >
+                      <QrCode className="w-3.5 h-3.5 text-white" />
+                      <span className="text-white">Abrir Plaquinha Acrílico</span>
+                    </button>
+                  </div>
+                );
+              })()}
+
+              {pixKeys.length > 0 && (
+                <div className="divide-y divide-slate-800/60">
+                  {pixKeys.map((item) => (
+                    <div
+                      key={item.id}
+                      className="py-2.5 flex items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-[4px] bg-slate-800 text-slate-200">
+                            {item.type.toUpperCase()}
                           </span>
+                          <span className="text-xs font-mono font-bold truncate">
+                            {item.key}
+                          </span>
+                          {item.isPrimary && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-[4px] bg-emerald-500 text-white whitespace-nowrap">
+                              Principal
+                            </span>
+                          )}
+                        </div>
+                        {(item.holderName || item.institution) && (
+                          <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                            {[item.holderName, item.institution].filter(Boolean).join(' • ')}
+                          </p>
                         )}
                       </div>
-                      {(item.holderName || item.institution) && (
-                        <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                          {[item.holderName, item.institution].filter(Boolean).join(' • ')}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {!item.isPrimary && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {!item.isPrimary && (
+                          <button
+                            type="button"
+                            onClick={() => handleSetPrimaryPixKey(item.id)}
+                            className="px-2 py-1 rounded-[4px] text-[10px] font-bold bg-slate-800 hover:bg-emerald-500 text-slate-300 hover:text-white transition cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                            title="Definir como Chave Principal"
+                          >
+                            <Star className="w-3 h-3" />
+                            <span>Tornar Principal</span>
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={() => handleSetPrimaryPixKey(item.id)}
-                          className="px-2 py-1 rounded-[4px] text-[10px] font-bold bg-slate-800 hover:bg-emerald-500 text-slate-300 hover:text-white transition cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                          title="Definir como Chave Principal"
+                          onClick={() => handleRemovePixKey(item.id)}
+                          className="p-1.5 rounded-[4px] text-slate-400 hover:text-rose-400 transition cursor-pointer"
+                          title="Remover chave PIX"
                         >
-                          <Star className="w-3 h-3" />
-                          <span>Tornar Principal</span>
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePixKey(item.id)}
-                        className="p-1.5 rounded-[4px] text-slate-400 hover:text-rose-400 transition cursor-pointer"
-                        title="Remover chave PIX"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Tipo de Chave
-                </label>
-                <select
-                  value={newPixType}
-                  onChange={(e) => setNewPixType(e.target.value as PixKeyType)}
-                  className={`w-full px-2.5 py-2 rounded-[4px] border text-xs font-bold outline-hidden ${
-                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                  }`}
-                >
-                  <option value="cpf">CPF</option>
-                  <option value="cnpj">CNPJ</option>
-                  <option value="phone">Celular</option>
-                  <option value="email">E-mail</option>
-                  <option value="evp">Aleatória (EVP)</option>
-                </select>
-              </div>
-              <div className="sm:col-span-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Chave PIX
-                </label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="text"
-                    value={newPixKey}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (newPixType === 'cpf') setNewPixKey(formatCpf(v));
-                      else if (newPixType === 'cnpj') setNewPixKey(formatCnpj(v));
-                      else if (newPixType === 'phone') setNewPixKey(formatPhone(v));
-                      else setNewPixKey(v);
-                    }}
-                    placeholder={
-                      newPixType === 'cpf'
-                        ? '000.000.000-00'
-                        : newPixType === 'cnpj'
-                        ? '00.000.000/0000-00'
-                        : newPixType === 'phone'
-                        ? '(00) 00000-0000'
-                        : newPixType === 'email'
-                        ? 'pix@estabelecimento.com'
-                        : 'Chave aleatória EVP'
-                    }
-                    className={`flex-1 px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
-                      isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Tipo de Chave
+                  </label>
+                  <select
+                    value={newPixType}
+                    onChange={(e) => setNewPixType(e.target.value as PixKeyType)}
+                    className={`w-full px-2.5 py-2 rounded-[4px] border text-xs font-bold outline-hidden ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                     }`}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddPixKey}
-                    className="px-3 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer shrink-0 whitespace-nowrap"
                   >
-                    <Plus className="w-3.5 h-3.5 text-white" />
-                    <span className="text-white">Adicionar</span>
-                  </button>
+                    <option value="cpf">CPF</option>
+                    <option value="cnpj">CNPJ</option>
+                    <option value="phone">Celular</option>
+                    <option value="email">E-mail</option>
+                    <option value="evp">Aleatória (EVP)</option>
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Chave PIX
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={newPixKey}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (newPixType === 'cpf') setNewPixKey(formatCpf(v));
+                        else if (newPixType === 'cnpj') setNewPixKey(formatCnpj(v));
+                        else if (newPixType === 'phone') setNewPixKey(formatPhone(v));
+                        else setNewPixKey(v);
+                      }}
+                      placeholder={
+                        newPixType === 'cpf'
+                          ? '000.000.000-00'
+                          : newPixType === 'cnpj'
+                          ? '00.000.000/0000-00'
+                          : newPixType === 'phone'
+                          ? '(00) 00000-0000'
+                          : newPixType === 'email'
+                          ? 'pix@estabelecimento.com'
+                          : 'Chave aleatória EVP'
+                      }
+                      className={`flex-1 px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
+                        isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddPixKey}
+                      className="px-3 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer shrink-0 whitespace-nowrap"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-white" />
+                      <span className="text-white">Adicionar</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <input
-                type="text"
-                value={newPixHolder}
-                onChange={(e) => setNewPixHolder(e.target.value)}
-                placeholder="Titular da conta (opcional)"
-                className={`w-full px-3 py-1.5 rounded-[4px] border text-xs outline-hidden transition ${
-                  isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
-              <input
-                type="text"
-                value={newPixInstitution}
-                onChange={(e) => setNewPixInstitution(e.target.value)}
-                placeholder="Banco / Instituição (opcional)"
-                className={`w-full px-3 py-1.5 rounded-[4px] border text-xs outline-hidden transition ${
-                  isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={newPixHolder}
+                  onChange={(e) => setNewPixHolder(e.target.value)}
+                  placeholder="Titular da conta (opcional)"
+                  className={`w-full px-3 py-1.5 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+                <input
+                  type="text"
+                  value={newPixInstitution}
+                  onChange={(e) => setNewPixInstitution(e.target.value)}
+                  placeholder="Banco / Instituição (opcional)"
+                  className={`w-full px-3 py-1.5 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
             </div>
-          </div>
+          )
         )}
 
       </div>
+
+      {/* Modal Popup de Escaneamento Rápido do QR Code PIX (Seção Caixa) */}
+      {isPixQuickModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setIsPixQuickModalOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full max-w-xs rounded-[4px] border p-5 flex flex-col items-center text-center space-y-3.5 shadow-xl relative ${
+              isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                hapticLight();
+                setIsPixQuickModalOpen(false);
+              }}
+              className={`absolute top-3 right-3 p-1.5 rounded-[4px] transition cursor-pointer ${
+                isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              }`}
+              aria-label="Fechar QR Code PIX"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {pixKeys.length > 0 ? (() => {
+              const primaryItem = pixKeys.find((k) => k.isPrimary) || pixKeys[0];
+              const qrCodeUrl = getPixQrCodeUrl({
+                pixKey: primaryItem.key,
+                keyType: primaryItem.type,
+                merchantName: primaryItem.holderName || adminSettings?.salonName || salonName || 'ESTABELECIMENTO',
+                merchantCity: adminSettings?.cidade || 'BRASIL',
+              }, 240);
+
+              return (
+                <>
+                  {qrCodeUrl && (
+                    <div className="p-3 rounded-[4px] bg-white mt-2">
+                      <img
+                        src={qrCodeUrl}
+                        alt="QR Code PIX"
+                        className="w-52 h-52 object-contain mx-auto"
+                      />
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold font-['Poppins']">
+                      {primaryItem.holderName || adminSettings?.salonName || salonName}
+                    </p>
+                    <p className="text-xs font-mono font-bold text-emerald-500">
+                      {primaryItem.type.toUpperCase()}: {primaryItem.key}
+                    </p>
+                    {primaryItem.institution && (
+                      <p className="text-[11px] text-slate-400">
+                        {primaryItem.institution}
+                      </p>
+                    )}
+                  </div>
+                </>
+              );
+            })() : (
+              <p className="text-xs text-slate-400 py-6">
+                Nenhuma chave PIX configurada na Gestão Financeira.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal de Impressão da Plaquinha Acrílica PIX */}
       <SalonPixPrintModal

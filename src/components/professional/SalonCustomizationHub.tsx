@@ -128,8 +128,11 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
         onUpdateProfessionals={onUpdateProfessionals}
         onBack={() => {
           hapticLight();
-          if (onBack) onBack();
-          else setSelectedCard(null);
+          if (initialSubTab === 'dados') {
+            if (onBack) onBack();
+          } else {
+            setSelectedCard(null);
+          }
         }}
       />
     );
@@ -143,8 +146,11 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
         onUpdateSettings={onUpdateSettings}
         onBack={() => {
           hapticLight();
-          if (onBack) onBack();
-          else setSelectedCard(null);
+          if (initialSubTab === 'visual') {
+            if (onBack) onBack();
+          } else {
+            setSelectedCard(null);
+          }
         }}
       />
     );
@@ -158,8 +164,11 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
         onUpdateSettings={onUpdateSettings}
         onBack={() => {
           hapticLight();
-          if (onBack) onBack();
-          else setSelectedCard(null);
+          if (initialSubTab === 'layout') {
+            if (onBack) onBack();
+          } else {
+            setSelectedCard(null);
+          }
         }}
       />
     );
@@ -179,13 +188,16 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
               type="button"
               onClick={() => {
                 hapticLight();
-                if (onBack) onBack();
-                else setSelectedCard(null);
+                if (initialSubTab === 'servicos') {
+                  if (onBack) onBack();
+                } else {
+                  setSelectedCard(null);
+                }
               }}
               className={`p-1.5 rounded transition cursor-pointer active:scale-95 ${
                 isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
               }`}
-              title="Voltar ao Painel"
+              title="Voltar ao Menu"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -220,13 +232,16 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
               type="button"
               onClick={() => {
                 hapticLight();
-                if (onBack) onBack();
-                else setSelectedCard(null);
+                if (initialSubTab === 'equipe') {
+                  if (onBack) onBack();
+                } else {
+                  setSelectedCard(null);
+                }
               }}
               className={`p-1.5 rounded transition cursor-pointer active:scale-95 ${
                 isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
               }`}
-              title="Voltar ao Painel"
+              title="Voltar ao Menu"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -262,8 +277,11 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
         onUpdateProfessionals={onUpdateProfessionals}
         onBack={() => {
           hapticLight();
-          if (onBack) onBack();
-          else setSelectedCard(null);
+          if (initialSubTab === 'espaco') {
+            if (onBack) onBack();
+          } else {
+            setSelectedCard(null);
+          }
         }}
       />
     );
@@ -356,8 +374,8 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
               className={`p-1.5 rounded transition cursor-pointer active:scale-95 ${
                 isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
               }`}
-              title="Voltar ao Painel"
-              aria-label="Voltar ao Painel"
+              title="Voltar ao Menu"
+              aria-label="Voltar ao Menu"
             >
               <ArrowLeft className="w-4 h-4" style={sectionHeaderStyleData.iconStyle} />
             </button>

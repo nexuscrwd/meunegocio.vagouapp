@@ -515,7 +515,7 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
               hideHeader={true}
               hideTabs={false}
               initialTab="caixa"
-              variant="caixa"
+              variant="full"
               adminSettings={adminSettings}
               onUpdateSettings={onUpdateSettings}
             />

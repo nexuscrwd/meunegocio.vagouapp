@@ -1,12 +1,12 @@
 import React from 'react';
-import { Home, Calendar, LayoutDashboard, LayoutGrid, Users, Store, Wrench, Wallet } from 'lucide-react';
+import { Home, Calendar, LayoutDashboard, LayoutGrid, Users, Store, Wrench, Wallet, CirclePause } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight } from '../utils/haptics';
 import { UserPersona } from '../types';
 
 export interface SalonNavContext {
-  activeTab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual';
-  onSelectTab: (tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual') => void;
+  activeTab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'pausar';
+  onSelectTab: (tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'pausar') => void;
   ServicesIcon?: React.ComponentType<{ className?: string }>;
   SpaceIcon?: React.ComponentType<{ className?: string }>;
   spaceTabLabel?: string;
@@ -16,6 +16,7 @@ export interface SalonNavContext {
   isProAdmin?: boolean;
   isOwnerOrManager?: boolean;
   isProfessionalStaff?: boolean;
+  hasPausedSlots?: boolean;
   navStyle?: 'minimal' | 'solid' | 'boxed';
   navShape?: 'square' | 'circle';
   navBorder?: 'bordered' | 'none';
@@ -33,8 +34,8 @@ export interface SalonNavContext {
 
 interface BottomNavProps {
   salonContext?: SalonNavContext | null;
-  activeTab?: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual';
-  onSelectTab?: (tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual') => void;
+  activeTab?: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'pausar';
+  onSelectTab?: (tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'pausar') => void;
   ServicesIcon?: React.ComponentType<{ className?: string }>;
   SpaceIcon?: React.ComponentType<{ className?: string }>;
   spaceTabLabel?: string;
@@ -44,6 +45,7 @@ interface BottomNavProps {
   isProAdmin?: boolean;
   isOwnerOrManager?: boolean;
   isProfessionalStaff?: boolean;
+  hasPausedSlots?: boolean;
   navStyle?: 'minimal' | 'solid' | 'boxed';
   navShape?: 'square' | 'circle';
   navBorder?: 'bordered' | 'none';
@@ -71,6 +73,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   currentPersona: propPersona,
   isOwnerOrManager: propIsOwnerOrManager,
   isProfessionalStaff: propIsProfessionalStaff,
+  hasPausedSlots: propHasPausedSlots,
   navStyle: propNavStyle,
   navShape: propNavShape,
   navBorder: propNavBorder,
@@ -92,6 +95,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const currentPersona = propPersona || salonContext?.currentPersona || (propIsProfessionalMode ? 'pro' : 'cliente');
   const isOwnerOrManager = propIsOwnerOrManager ?? salonContext?.isOwnerOrManager ?? (currentPersona !== 'cliente');
   const isProfessionalStaff = propIsProfessionalStaff ?? salonContext?.isProfessionalStaff ?? false;
+  const hasPausedSlots = propHasPausedSlots ?? salonContext?.hasPausedSlots ?? false;
   const vagasTabLabel = propVagasTabLabel || salonContext?.vagasTabLabel || (isOwnerOrManager || isProfessionalStaff ? 'Agenda' : 'Agendar');
   const spaceTabLabel = propSpaceTabLabel || salonContext?.spaceTabLabel || 'Espaço';
   const ServicesIconComponent = propServicesIcon || salonContext?.ServicesIcon || LayoutGrid;
@@ -205,7 +209,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   }
 
   let establishmentTabs: Array<{
-    id: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout';
+    id: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout' | 'pausar';
     label: string;
     icon: React.ComponentType<{ className?: string }>;
   }> = [];
@@ -215,12 +219,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       { id: 'home', label: 'Painel', icon: LayoutDashboard },
       { id: 'caixa', label: 'Caixa', icon: Wallet },
       { id: 'vagas', label: vagasTabLabel, icon: Calendar },
-      { id: 'utilidades', label: 'Utilidades', icon: Wrench },
+      { id: 'pausar', label: 'Pausar', icon: CirclePause },
     ];
   } else if (isProfessionalStaff) {
     establishmentTabs = [
       { id: 'home', label: 'Painel', icon: LayoutDashboard },
       { id: 'vagas', label: vagasTabLabel, icon: Calendar },
+      { id: 'pausar', label: 'Pausar', icon: CirclePause },
     ];
   } else {
     establishmentTabs = [
@@ -278,7 +283,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 fontFamily: navBtnFont,
                 color: isActive ? resolvedActiveFg : resolvedInactiveFg,
               }}
-              className={`flex flex-col items-center justify-center gap-1 h-[50px] px-1.5 sm:px-3.5 transition-all active:scale-95 cursor-pointer flex-1 min-w-0 max-w-[96px] ${
+              className={`relative flex flex-col items-center justify-center gap-1 h-[50px] px-1.5 sm:px-3.5 transition-all active:scale-95 cursor-pointer flex-1 min-w-0 max-w-[96px] ${
                 navShape === 'circle' ? 'rounded-full' : 'rounded-[4px]'
               } ${
                 navBorder === 'bordered'
@@ -300,6 +305,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
               }`}
             >
+              {tab.id === 'pausar' && hasPausedSlots && (
+                <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-slate-950 animate-pulse" />
+              )}
               <Icon 
                 className="w-5 h-5 stroke-[2.2] shrink-0"
                 style={{
@@ -341,7 +349,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 fontFamily: navBtnFont,
                 color: isActive ? resolvedActiveFg : resolvedInactiveFg,
               }}
-              className={`flex flex-col items-center justify-center gap-1 py-1 px-1.5 sm:px-3 transition active:scale-95 cursor-pointer group flex-1 min-w-0 max-w-[100px] ${
+              className={`relative flex flex-col items-center justify-center gap-1 py-1 px-1.5 sm:px-3 transition active:scale-95 cursor-pointer group flex-1 min-w-0 max-w-[100px] ${
                 navShape === 'circle' ? 'rounded-2xl' : 'rounded-[4px]'
               } ${
                 navBorder === 'bordered'
@@ -355,6 +363,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                   : 'border-0'
               }`}
             >
+              {tab.id === 'pausar' && hasPausedSlots && (
+                <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-slate-950 animate-pulse" />
+              )}
               <div 
                 style={
                   isActive
@@ -457,6 +468,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 : ''
             }`}
           >
+            {tab.id === 'pausar' && hasPausedSlots && (
+              <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-slate-950 animate-pulse" />
+            )}
             {/* Indicador Luminoso Superior na Cor do Tema */}
             <span
               style={isActive ? { backgroundColor: navActiveColor } : undefined}

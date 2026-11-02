@@ -1210,7 +1210,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isUploadingAvatar}
-                      className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white flex items-center justify-center shadow-md border-2 border-slate-950 transition cursor-pointer"
+                      className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white flex items-center justify-center shadow-md transition cursor-pointer"
                       title="Alterar foto de perfil"
                       aria-label="Alterar foto de perfil"
                     >

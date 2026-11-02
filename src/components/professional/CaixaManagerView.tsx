@@ -7,7 +7,6 @@ import { BookingAppointment, UserPersona, SalonAdminSettings } from '../../types
 import { hapticLight } from '../../utils/haptics';
 import { FinancialManagerView } from './FinancialManagerView';
 import { GoalsAndShiftsCard } from './dashboard/GoalsAndShiftsCard';
-import { WeeklyGoalsAndDaysCard } from './dashboard/WeeklyGoalsAndDaysCard';
 
 export interface CaixaManagerViewProps {
   appointments: BookingAppointment[];
@@ -70,44 +69,6 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
     return total;
   }, [appointments, matchesSelectedPro]);
 
-  // Faturamento Realizado na Semana Atual (Segunda a Domingo)
-  const weekRealizedRevenue = useMemo(() => {
-    const now = new Date();
-    const currentDay = now.getDay();
-    const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
-    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + distanceToMonday);
-    monday.setHours(0, 0, 0, 0);
-    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 23, 59, 59, 999);
-
-    let total = 0;
-    appointments.forEach((app) => {
-      if (matchesSelectedPro && !matchesSelectedPro(app)) return;
-
-      const st = (app.status || '').toUpperCase();
-      if (st === 'CANCELADO') return;
-
-      let appDate = new Date();
-      if (app.dateIso) {
-        appDate = new Date(app.dateIso + 'T00:00:00');
-      } else {
-        const match = app.dateTime?.match(/(\d{2})\/(\d{2})/);
-        if (match) {
-          appDate = new Date(now.getFullYear(), parseInt(match[2], 10) - 1, parseInt(match[1], 10));
-        } else if (app.dayGroup === 'Hoje' || app.dateTime?.includes('Hoje')) {
-          appDate = new Date();
-        }
-      }
-
-      if (appDate >= monday && appDate <= sunday) {
-        if (st === 'CONCLUÍDO' || st === 'CONFIRMADO' || st === 'FINALIZADO') {
-          total += Number(app.totalPrice) || 50;
-        }
-      }
-    });
-
-    return total;
-  }, [appointments, matchesSelectedPro]);
-
   return (
     <div className={`w-full h-full flex flex-col min-h-0 select-none overflow-hidden ${
       isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
@@ -130,8 +91,8 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
                   ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' 
                   : 'bg-slate-200/80 hover:bg-slate-200 text-slate-700'
               }`}
-              title="Voltar ao Painel"
-              aria-label="Voltar"
+              title="Voltar ao Menu"
+              aria-label="Voltar ao Menu"
             >
               <ArrowLeft className="w-4 h-4 text-emerald-500" />
             </button>
@@ -139,7 +100,7 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
 
           <div className="flex items-center gap-1.5 min-w-0">
             <h1 className="text-xs sm:text-sm font-bold font-['Poppins'] tracking-tight truncate">
-              Financeiro & Caixa
+              Caixa
             </h1>
           </div>
         </div>
@@ -163,13 +124,6 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
         {/* Bloco 1: Metas e Evolução Financeira por Turno (Hoje: Manhã, Tarde, Noite) */}
         <GoalsAndShiftsCard
           dailyAmount={todayRealizedRevenue}
-          appointments={appointments}
-          matchesSelectedPro={matchesSelectedPro}
-        />
-
-        {/* Bloco 2: Metas e Ganhos Semanais (Segunda a Domingo) */}
-        <WeeklyGoalsAndDaysCard
-          weeklyAmount={weekRealizedRevenue}
           appointments={appointments}
           matchesSelectedPro={matchesSelectedPro}
         />

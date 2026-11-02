@@ -161,18 +161,9 @@ export const GoalsAndShiftsCard: React.FC<GoalsAndShiftsCardProps> = ({
             <Target className="w-3 h-3 text-emerald-500" />
           </div>
           <span className="text-xs font-bold font-['Poppins']">
-            Progresso & Distribuição Financeira
+            Evolução Caixa
           </span>
         </div>
-
-        {/* Badge Informativo de Escopo Diário */}
-        <span
-          className={`px-2 py-0.5 text-[10px] font-bold rounded font-mono ${
-            isDark ? 'bg-slate-950 border border-slate-800 text-slate-300' : 'bg-slate-100 border border-slate-200 text-slate-700'
-          }`}
-        >
-          Meta Diária
-        </span>
       </div>
 
       {/* Grade 2 Colunas: Metas do Dia e Turnos de Atendimento com Mesmo Tamanho (50% / 50%) */}

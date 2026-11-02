@@ -39,6 +39,7 @@ import { getSalonLogo } from '../utils/salonLogos';
 import { DEFAULT_ROTA99_LOGO_DARK, DEFAULT_ROTA99_LOGO_LIGHT, DEFAULT_ROTA99_ICON, DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
 import { updateDynamicPwaAssets } from '../utils/pwaAssets';
 import { BottomNav } from './BottomNav';
+import { PauseSlotsModal } from './professional/PauseSlotsModal';
 import { ProfileDrawer } from './ProfileDrawer';
 import { SalonClientAuthModal } from './SalonClientAuthModal';
 import { hapticSuccess, hapticLight, hapticMedium } from '../utils/haptics';
@@ -1516,8 +1517,25 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
   }, [userName]);
 
-  const [activeTab, setActiveTab] = useState<'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout' | 'pausar'>('home');
   const [previewTestTab, setPreviewTestTab] = useState<'home' | 'servicos' | 'vagas' | 'espaco'>('home');
+  const [isPauseSlotsModalOpen, setIsPauseSlotsModalOpen] = useState(false);
+
+  // Monitora se há horários pausados hoje para exibir indicador na barra inferior
+  const hasPausedSlotsToday = useMemo(() => {
+    const today = new Date();
+    const todayIso = today.toISOString().split('T')[0];
+    const shortToday = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}`;
+    return appointmentsList.some((a) => {
+      const isToday =
+        a.dateIso === todayIso ||
+        a.dayGroup === 'Hoje' ||
+        a.dayGroup === shortToday ||
+        (typeof a.dateTime === 'string' && (a.dateTime.includes('Hoje') || a.dateTime.includes(shortToday)));
+      const isBlocked = a.isBlockedSlot || (a.status || '').toUpperCase() === 'BLOQUEADO';
+      return isToday && isBlocked;
+    });
+  }, [appointmentsList]);
 
   // Reset de abas de gestão seguro: NÃO reseta enquanto role === 'loading'
   useEffect(() => {
@@ -1656,7 +1674,18 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const ServicesIcon = LayoutGrid;
 
   // Navegação direta entre abas tanto no modo público quanto no modo gerenciamento (sem efeito swap vertical)
-  const handleSelectTab = useCallback((tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout') => {
+  const handleSelectTab = useCallback((tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout' | 'pausar') => {
+    // Ação do Botão Pausar Agendamentos (Abre Modal de Emergência)
+    if (tab === 'pausar') {
+      if (!isOwnerOrManager && !isProfessional) {
+        setIsClientAuthModalOpen(true);
+        return;
+      }
+      hapticLight();
+      setIsPauseSlotsModalOpen(true);
+      return;
+    }
+
     // Abas de gestão só para owner e manager
     if (tab === 'caixa' || tab === 'financeiro' || tab === 'utilidades' || tab === 'personalizar' || tab === 'equipe' || tab === 'dados' || tab === 'visual' || tab === 'preferencias' || tab === 'layout') {
       if (!isOwnerOrManager) {
@@ -1708,6 +1737,14 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
     setActiveTab(tab);
   }, [isGerMode, isOwnerOrManager, isUserLoggedInState, checkHasActiveSession]);
+
+  // Retorna diretamente para a tela de Opções do Menu (ProfileDrawer) sem fechar o menu por completo
+  const handleBackToMenu = useCallback(() => {
+    hapticLight();
+    setActiveTab('home');
+    setProfileDrawerInitialTab('menu');
+    setIsProfileDrawerOpen(true);
+  }, []);
 
   // Catálogo completo de serviços conectado ao estado dinâmico gerenciável
   const filteredCatalogServices = useMemo(() => {
@@ -2299,7 +2336,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 onUpdateProfessionals={handleUpdateProfessionals}
                 appointments={appointmentsList}
                 onUpdateAppointments={handleUpdateAppointments}
-                onBack={() => handleSelectTab('home')}
+                onBack={handleBackToMenu}
               />
             </div>
           )}
@@ -2320,7 +2357,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   return !selectedName || selectedName === 'Todos' || appProName.toLowerCase().includes(selectedName.toLowerCase());
                 }}
                 onNavigateTab={handleSelectTab}
-                onBack={() => handleSelectTab('home')}
+                onBack={handleBackToMenu}
                 adminSettings={adminSettings}
                 onUpdateSettings={handleUpdateSettings}
               />
@@ -2340,7 +2377,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 onUpdateAppointments={handleUpdateAppointments}
                 adminSettings={adminSettings}
                 onUpdateSettings={handleUpdateSettings}
-                onBack={() => handleSelectTab('home')}
+                onBack={handleBackToMenu}
               />
             </div>
           )}
@@ -2358,7 +2395,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 onUpdateAppointments={handleUpdateAppointments}
                 adminSettings={adminSettings}
                 onUpdateSettings={handleUpdateSettings}
-                onBack={() => handleSelectTab('home')}
+                onBack={handleBackToMenu}
               />
             </div>
           )}
@@ -3443,6 +3480,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 isProAdmin={isEditingMode ? false : isActiveProAdmin}
                 isOwnerOrManager={isEditingMode ? false : isGerMode}
                 isProfessionalStaff={isEditingMode ? false : (isGerMode && isProfessional)}
+                hasPausedSlots={hasPausedSlotsToday}
                 navStyle={adminSettings.navStyle || 'minimal'}
                 navShape={adminSettings.navShape || 'square'}
                 navBorder={adminSettings.navBorder || 'bordered'}
@@ -3767,6 +3805,20 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           }}
         />
       )}
+
+      {/* Modal de Pausa Emergencial de Agendamentos */}
+      <PauseSlotsModal
+        isOpen={isPauseSlotsModalOpen}
+        onClose={() => setIsPauseSlotsModalOpen(false)}
+        appointments={appointmentsList}
+        onUpdateAppointments={handleUpdateAppointments}
+        salonName={salonInfo.name}
+        activeProName={
+          teamMembersList.find((m) => m.id === activeProId)?.name ||
+          professionalsList.find((p) => p.id === activeProId)?.name ||
+          'Profissional'
+        }
+      />
     </div>
   );
 };

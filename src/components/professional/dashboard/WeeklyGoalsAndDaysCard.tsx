@@ -139,15 +139,6 @@ export const WeeklyGoalsAndDaysCard: React.FC<WeeklyGoalsAndDaysCardProps> = ({
             Progresso & Ganhos Semanais
           </span>
         </div>
-
-        {/* Badge Informativo de Escopo Semanal */}
-        <span
-          className={`px-2 py-0.5 text-[10px] font-bold rounded font-mono ${
-            isDark ? 'bg-slate-950 border border-slate-800 text-slate-300' : 'bg-slate-100 border border-slate-200 text-slate-700'
-          }`}
-        >
-          Seg — Dom
-        </span>
       </div>
 
       {/* Grade 2 Colunas: Metas da Semana e 7 Dias da Semana com Mesmo Tamanho (50% / 50%) */}
