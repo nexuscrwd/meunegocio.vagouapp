@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Zap, 
   Package, 
@@ -15,6 +15,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { BookingAppointment, CatalogServiceItem, UserPersona, SalonAdminSettings } from '../../types';
 import { hapticLight } from '../../utils/haptics';
 import { FinancialManagerView } from './FinancialManagerView';
+import { GoalsAndShiftsCard } from './dashboard/GoalsAndShiftsCard';
+import { WeeklyGoalsAndDaysCard } from './dashboard/WeeklyGoalsAndDaysCard';
 import { ServicesAndSuppliesForecast } from './dashboard/ServicesAndSuppliesForecast';
 import { EnergyMeterManager } from './consumption/EnergyMeterManager';
 import { WaterConsumptionManager } from './consumption/WaterConsumptionManager';
@@ -129,14 +131,52 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
     });
   }, []);
 
+  // Faturamento Realizado no Dia e na Semana para o Financeiro & Caixa
+  const { todayRealizedRevenue, weekRealizedRevenue } = useMemo(() => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const currentDay = now.getDay();
+    const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + distanceToMonday);
+    monday.setHours(0, 0, 0, 0);
+    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 23, 59, 59, 999);
+
+    let todayTotal = 0;
+    let weekTotal = 0;
+
+    appointments.forEach((app) => {
+      const st = (app.status || '').toUpperCase();
+      if (st === 'CANCELADO') return;
+
+      let appDate = new Date();
+      if (app.dateIso) {
+        appDate = new Date(app.dateIso + 'T00:00:00');
+      } else {
+        const match = app.dateTime?.match(/(\d{2})\/(\d{2})/);
+        if (match) {
+          appDate = new Date(now.getFullYear(), parseInt(match[2], 10) - 1, parseInt(match[1], 10));
+        } else if (app.dayGroup === 'Hoje' || app.dateTime?.includes('Hoje')) {
+          appDate = new Date();
+        }
+      }
+
+      if (st === 'CONCLUÍDO' || st === 'CONFIRMADO' || st === 'FINALIZADO') {
+        const val = Number(app.totalPrice) || 50;
+        if (appDate >= todayStart && appDate <= todayEnd) {
+          todayTotal += val;
+        }
+        if (appDate >= monday && appDate <= sunday) {
+          weekTotal += val;
+        }
+      }
+    });
+
+    return { todayRealizedRevenue: todayTotal, weekRealizedRevenue: weekTotal };
+  }, [appointments]);
+
   // CARDS DA PORTA DE ENTRADA PRINCIPAL DE UTILIDADES (LAYOUT PLANO: ÍCONE E TÍTULO)
   const mainHubCards = [
-    {
-      id: 'consumo_hub' as const,
-      name: 'Gestão de Consumo',
-      icon: Gauge,
-      iconColor: 'text-amber-400',
-    },
     {
       id: 'financeiro' as const,
       name: 'Financeiro',
@@ -144,16 +184,16 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
       iconColor: 'text-emerald-400',
     },
     {
+      id: 'consumo_hub' as const,
+      name: 'Gestão de Consumo',
+      icon: Gauge,
+      iconColor: 'text-amber-400',
+    },
+    {
       id: 'insumos' as const,
       name: 'Insumos & Estoque',
       icon: Package,
       iconColor: 'text-purple-400',
-    },
-    {
-      id: 'workspace' as const,
-      name: 'Google Workspace',
-      icon: Mail,
-      iconColor: 'text-cyan-400',
     },
   ];
 
@@ -355,8 +395,8 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
         {/* PORTA DE ENTRADA PRINCIPAL: CARDS QUADRADOS DAS FERRAMENTAS */}
         {activeSubTab === 'hub' && (
           <div className="space-y-4 animate-in fade-in duration-150 py-1">
-            {/* GRADE DE 2x2 CARDS LADO A LADO - COMPACTO E PROPORCIONAL */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+            {/* GRADE DE 3 CARDS LADO A LADO - COMPACTO E PROPORCIONAL */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {mainHubCards.map((tool) => {
                 const Icon = tool.icon;
                 return (
@@ -464,16 +504,28 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
           </div>
         )}
 
-        {/* FERRAMENTA GERAL 1: GESTÃO FINANCEIRA (DRE, PIX & Placa, Despesas, Balanço, Comissões) */}
+        {/* FERRAMENTA GERAL 1: FINANCEIRO (CAIXA, PIX & PLACA, DESPESAS, REPASSES E METAS) */}
         {activeSubTab === 'financeiro' && (
-          <div className="animate-in fade-in duration-150">
+          <div className="animate-in fade-in duration-150 space-y-4">
             <FinancialManagerView
               appointments={appointments}
               onUpdateAppointments={onUpdateAppointments}
               salonName={salonName}
               currentPersona={currentPersona}
+              hideHeader={true}
+              hideTabs={false}
+              initialTab="caixa"
+              variant="caixa"
               adminSettings={adminSettings}
               onUpdateSettings={onUpdateSettings}
+            />
+            <GoalsAndShiftsCard
+              dailyAmount={todayRealizedRevenue}
+              appointments={appointments}
+            />
+            <WeeklyGoalsAndDaysCard
+              weeklyAmount={weekRealizedRevenue}
+              appointments={appointments}
             />
           </div>
         )}

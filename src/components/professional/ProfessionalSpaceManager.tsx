@@ -1,569 +1,1093 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
-  Store, Phone, MapPin, Clock, 
-  KeyRound, Save, Check, Palette,
-  Upload, Trash2, Smartphone, Image as ImageIcon,
-  CheckCircle2, Sparkles, RefreshCw
+  Store, Phone, MapPin, Save, Check,
+  Sparkles, Search, Loader2, Plus, X,
+  QrCode, Printer, Copy, ExternalLink,
+  Mail, Globe, Instagram, Facebook,
+  Wifi, Wind, Coffee, Car, Accessibility,
+  Baby, Tv, Plug, Wine, PawPrint, ArrowLeft,
+  Armchair, Gamepad2, Music, Flame, ShieldCheck,
+  Gift, Heart, Star, Award
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { SalonAdminSettings, SalonProfessionalItem } from '../../types';
-import { hapticSuccess, hapticLight } from '../../utils/haptics';
-import { updateDynamicPwaAssets } from '../../utils/pwaAssets';
-import { compressImageFile } from '../../utils/imageCompressor';
-import { getThemeColorPresets } from '../../utils/colorPresets';
+import { hapticSuccess, hapticLight, hapticMedium } from '../../utils/haptics';
+import { getSectionHeaderStyleData } from '../../utils/sectionHeaderStyle';
+
+export type SpaceManagementTabId = 'estrutura' | 'localizacao' | 'contatos';
 
 export interface ProfessionalSpaceManagerProps {
   adminSettings: SalonAdminSettings;
-  onUpdateSettings: (settings: Partial<SalonAdminSettings>) => void;
-  professionals: SalonProfessionalItem[];
-  onUpdateProfessionals: (professionals: SalonProfessionalItem[]) => void;
+  onUpdateSettings: (settings: Partial<SalonAdminSettings>) => Promise<any> | void;
+  professionals?: SalonProfessionalItem[];
+  onUpdateProfessionals?: (professionals: SalonProfessionalItem[]) => void;
+  onBack?: () => void;
+  initialTab?: SpaceManagementTabId;
 }
+
+export const PREDEFINED_SPACE_AMENITIES = [
+  { label: 'Wi-Fi de Alta Velocidade', icon: Wifi },
+  { label: 'Ambiente Climatizado', icon: Wind },
+  { label: 'Café Expresso & Bebidas', icon: Coffee },
+  { label: 'Estacionamento Próprio', icon: Car },
+  { label: 'Acessibilidade', icon: Accessibility },
+  { label: 'Espaço Kids', icon: Baby },
+  { label: 'TV & Música Ambiente', icon: Tv },
+  { label: 'Carregadores / Tomadas', icon: Plug },
+  { label: 'Bebidas & Bar', icon: Wine },
+  { label: 'Pet Friendly', icon: PawPrint },
+];
+
+export const DEFAULT_SPACE_AMENITIES = [
+  'Wi-Fi de Alta Velocidade',
+  'Ambiente Climatizado',
+  'Café Expresso & Bebidas',
+  'Estacionamento Próprio',
+];
+
+export const CUSTOM_SPACE_ICON_OPTIONS = [
+  { key: 'sparkles', label: 'Destaque', icon: Sparkles },
+  { key: 'armchair', label: 'Poltrona', icon: Armchair },
+  { key: 'gamepad', label: 'Games', icon: Gamepad2 },
+  { key: 'flame', label: 'Spa / Quente', icon: Flame },
+  { key: 'music', label: 'Música', icon: Music },
+  { key: 'shield', label: 'Biossegurança', icon: ShieldCheck },
+  { key: 'gift', label: 'Cortesia', icon: Gift },
+  { key: 'wine', label: 'Bar / Chopp', icon: Wine },
+  { key: 'coffee', label: 'Café / Lanche', icon: Coffee },
+  { key: 'tv', label: 'TV / Telão', icon: Tv },
+  { key: 'plug', label: 'Tomada / USB', icon: Plug },
+  { key: 'car', label: 'Vaga / Valet', icon: Car },
+  { key: 'wind', label: 'Climatizado', icon: Wind },
+  { key: 'wifi', label: 'Wi-Fi', icon: Wifi },
+  { key: 'baby', label: 'Kids', icon: Baby },
+  { key: 'paw', label: 'Pet', icon: PawPrint },
+  { key: 'accessibility', label: 'Acessível', icon: Accessibility },
+  { key: 'heart', label: 'Bem-estar', icon: Heart },
+  { key: 'star', label: 'VIP', icon: Star },
+  { key: 'award', label: 'Premium', icon: Award },
+] as const;
+
+export type CustomSpaceIconKey = typeof CUSTOM_SPACE_ICON_OPTIONS[number]['key'];
+
+const CUSTOM_AMENITY_ICONS_STORAGE_KEY = 'vagou_custom_amenity_icons';
+
+const getSavedCustomAmenityIconsMap = (): Record<string, CustomSpaceIconKey> => {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(CUSTOM_AMENITY_ICONS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+export const detectIconKeyFromText = (text: string): CustomSpaceIconKey => {
+  const t = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (/poltrona|massagem|cadeira|sofa|descanso|relax/.test(t)) return 'armchair';
+  if (/game|jogo|playstation|ps5|ps4|xbox|fliperama|sinuca|bilhar/.test(t)) return 'gamepad';
+  if (/toalha|quente|vapor|ozonio|spa|sauna|barboterapia/.test(t)) return 'flame';
+  if (/musica|som|spotify|fone|audio|ambiente|dj/.test(t)) return 'music';
+  if (/esteriliz|autoclave|seguranca|camera|higien|biosseguranca|descartave/.test(t)) return 'shield';
+  if (/brinde|cortesia|mimo|presente|kit/.test(t)) return 'gift';
+  if (/cerveja|chopp|bar|whisky|vinho|drink|bebida|gelada/.test(t)) return 'wine';
+  if (/cafe|expresso|capuccino|cha|agua|lanche|biscoito|snack/.test(t)) return 'coffee';
+  if (/tv|televisao|telao|futebol|streaming|netflix/.test(t)) return 'tv';
+  if (/tomada|carregador|usb|energia|bateria/.test(t)) return 'plug';
+  if (/estacionamento|garagem|manobrista|valet|vaga|moto/.test(t)) return 'car';
+  if (/ar-condicionado|climatiz|ventil|ar condicionado/.test(t)) return 'wind';
+  if (/wifi|wi-fi|internet|rede/.test(t)) return 'wifi';
+  if (/kids|crianca|infantil|brinquedo|fraldario/.test(t)) return 'baby';
+  if (/pet|cachorro|animal|cao|gato/.test(t)) return 'paw';
+  if (/acessibilidade|rampa|cadeirante|pcd|elevador/.test(t)) return 'accessibility';
+  if (/cuid|estetica|pele|massoterap|bem-estar/.test(t)) return 'heart';
+  if (/vip|exclusiv|prime|lounge/.test(t)) return 'star';
+  if (/premio|certificad|excelencia|master/.test(t)) return 'award';
+  return 'sparkles';
+};
+
+export const resolveSpaceAmenityIcon = (label: string) => {
+  const cleanLabel = (label || '').trim();
+  const predefined = PREDEFINED_SPACE_AMENITIES.find(
+    (item) => item.label.toLowerCase() === cleanLabel.toLowerCase()
+  );
+  if (predefined) return predefined.icon;
+
+  const savedMap = getSavedCustomAmenityIconsMap();
+  const savedKey = savedMap[cleanLabel.toLowerCase()];
+  if (savedKey) {
+    const found = CUSTOM_SPACE_ICON_OPTIONS.find((opt) => opt.key === savedKey);
+    if (found) return found.icon;
+  }
+
+  const autoKey = detectIconKeyFromText(cleanLabel);
+  const autoFound = CUSTOM_SPACE_ICON_OPTIONS.find((opt) => opt.key === autoKey);
+  return autoFound ? autoFound.icon : Sparkles;
+};
 
 export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> = ({
   adminSettings,
   onUpdateSettings,
+  onBack,
+  initialTab = 'estrutura',
 }) => {
-  const { isDark, setAccentColor: setAccentColorContext } = useTheme();
-
-  // Estados dos dados do espaço
-  const [salonName, setSalonName] = useState(adminSettings.salonName || '');
-  const [pwaName, setPwaName] = useState(adminSettings.pwaName || adminSettings.salonName || '');
-  const [salonPhone, setSalonPhone] = useState(adminSettings.salonPhone || '');
-  const [salonAddress, setSalonAddress] = useState(adminSettings.salonAddress || '');
-  const [openingHours, setOpeningHours] = useState(adminSettings.openingHours || 'Seg a Sáb • 09:00 às 20:00');
-  
-  // Ativos visuais separados: Logo Retangular (Cabeçalho) vs Ícone Quadrado (PWA)
-  const [salonLogo, setSalonLogo] = useState(adminSettings.salonLogo || '');
-  const [salonLogoLight, setSalonLogoLight] = useState(adminSettings.salonLogoLight || '');
-  const [salonLogoDark, setSalonLogoDark] = useState(adminSettings.salonLogoDark || '');
-  const [salonIcon, setSalonIcon] = useState(adminSettings.salonIcon || '');
-  const [accentColor, setAccentColor] = useState(adminSettings.accentColor || '#10b981');
+  const { isDark } = useTheme();
+  const [activeTab, setActiveTab] = useState<SpaceManagementTabId>(initialTab);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
-  // Refs para inputs de arquivo ocultos
-  const logoInputRef = useRef<HTMLInputElement>(null);
-  const iconInputRef = useRef<HTMLInputElement>(null);
+  // ==============================================================
+  // 1. ABA ESTRUTURA (Lista Pré-definida + Inserir Mais Itens + Descrição)
+  // ==============================================================
+  const [spaceDescription, setSpaceDescription] = useState(
+    adminSettings.spaceDescription ||
+    adminSettings.bio ||
+    'Espaço premium especializado em estética masculina e feminina de alta precisão, barboterapia, cortes modernos e bem-estar.'
+  );
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>(() => {
+    if (Array.isArray(adminSettings.amenities) && adminSettings.amenities.length > 0) {
+      return adminSettings.amenities;
+    }
+    return DEFAULT_SPACE_AMENITIES;
+  });
+  const [customAmenityInput, setCustomAmenityInput] = useState('');
+  const [selectedCustomIconKey, setSelectedCustomIconKey] = useState<CustomSpaceIconKey>('sparkles');
+  const [hasManualIconSelection, setHasManualIconSelection] = useState(false);
+  const [customIconsMap, setCustomIconsMap] = useState<Record<string, CustomSpaceIconKey>>(() =>
+    getSavedCustomAmenityIconsMap()
+  );
 
-  // Processamento de Upload do Logo Retangular com compressão
-  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && (file.type.startsWith('image/') || file.name.endsWith('.svg'))) {
-      try {
-        const compressed = await compressImageFile(file, { maxWidth: 640, maxHeight: 180, quality: 0.88 });
-        setSalonLogo(compressed);
-        hapticSuccess();
-      } catch (err) {
-        console.error('Erro ao comprimir logo:', err);
-      }
+  const predefinedLabels = useMemo(
+    () => new Set(PREDEFINED_SPACE_AMENITIES.map((a) => a.label)),
+    []
+  );
+
+  const customAmenities = useMemo(
+    () => selectedAmenities.filter((item) => !predefinedLabels.has(item)),
+    [selectedAmenities, predefinedLabels]
+  );
+
+  const toggleAmenity = (label: string) => {
+    hapticLight();
+    setSelectedAmenities((prev) =>
+      prev.includes(label) ? prev.filter((item) => item !== label) : [...prev, label]
+    );
+  };
+
+  const handleCustomInputChange = (value: string) => {
+    setCustomAmenityInput(value);
+    if (!hasManualIconSelection) {
+      setSelectedCustomIconKey(detectIconKeyFromText(value));
+    }
+    if (!value.trim()) {
+      setHasManualIconSelection(false);
+      setSelectedCustomIconKey('sparkles');
     }
   };
 
-  // Processamento de Upload do Ícone Quadrado (PWA) com compressão
-  const handleIconFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && (file.type.startsWith('image/') || file.name.endsWith('.svg'))) {
-      try {
-        const compressed = await compressImageFile(file, { maxWidth: 256, maxHeight: 256, quality: 0.9, mimeType: 'image/png' });
-        setSalonIcon(compressed);
+  const handleAddCustomAmenity = () => {
+    const clean = customAmenityInput.trim();
+    if (!clean) return;
+    hapticSuccess();
+    const resolvedKey = hasManualIconSelection
+      ? selectedCustomIconKey
+      : detectIconKeyFromText(clean);
+
+    const updatedMap = {
+      ...customIconsMap,
+      [clean.toLowerCase()]: resolvedKey,
+    };
+    setCustomIconsMap(updatedMap);
+    try {
+      localStorage.setItem(CUSTOM_AMENITY_ICONS_STORAGE_KEY, JSON.stringify(updatedMap));
+    } catch {}
+
+    setSelectedAmenities((prev) => (prev.includes(clean) ? prev : [...prev, clean]));
+    setCustomAmenityInput('');
+    setHasManualIconSelection(false);
+    setSelectedCustomIconKey('sparkles');
+  };
+
+  const handleRemoveCustomAmenity = (label: string) => {
+    hapticLight();
+    setSelectedAmenities((prev) => prev.filter((item) => item !== label));
+  };
+
+  // ==============================================================
+  // 2. ABA LOCALIZAÇÃO (CEP, Endereço, Número, Compl., Bairro, Cidade, UF — movido de Dados do Negócio)
+  // ==============================================================
+  const [cep, setCep] = useState(adminSettings.cep || '');
+  const [logradouro, setLogradouro] = useState(adminSettings.logradouro || adminSettings.salonAddress || '');
+  const [numero, setNumero] = useState(adminSettings.numero || '');
+  const [complemento, setComplemento] = useState(adminSettings.complemento || '');
+  const [bairro, setBairro] = useState(adminSettings.bairro || '');
+  const [cidade, setCidade] = useState(adminSettings.cidade || '');
+  const [uf, setUf] = useState(adminSettings.uf || '');
+  const [isSearchingCep, setIsSearchingCep] = useState(false);
+  const [cepError, setCepError] = useState('');
+
+  // ==============================================================
+  // 3. ABA CONTATOS (WhatsApp, Tel. Fixo, E-mail, Site, Instagram, Facebook — movido de Dados do Negócio)
+  // ==============================================================
+  const [salonPhone, setSalonPhone] = useState(adminSettings.salonPhone || adminSettings.legalManagerPhone || '');
+  const [phoneLandline, setPhoneLandline] = useState(adminSettings.phoneLandline || '');
+  const [commercialEmail, setCommercialEmail] = useState(
+    adminSettings.email || adminSettings.legalManagerEmail || (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_email') || '' : '')
+  );
+  const [websiteUrl, setWebsiteUrl] = useState(adminSettings.websiteUrl || '');
+  const [instagramUrl, setInstagramUrl] = useState(adminSettings.instagramUrl || '');
+  const [facebookUrl, setFacebookUrl] = useState(adminSettings.facebookUrl || '');
+  const [isStorefrontQrModalOpen, setIsStorefrontQrModalOpen] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  // Máscaras de formatação
+  const formatCep = (v: string) => {
+    const raw = v.replace(/\D/g, '').slice(0, 8);
+    return raw.replace(/^(\d{5})(\d)/, '$1-$2');
+  };
+
+  const formatPhone = (v: string) => {
+    const raw = v.replace(/\D/g, '').slice(0, 11);
+    if (raw.length <= 10) {
+      return raw
+        .replace(/^(\d{2})(\d)/, '($1) $2')
+        .replace(/(\d{4})(\d)/, '$1-$2');
+    }
+    return raw
+      .replace(/^(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{5})(\d)/, '$1-$2');
+  };
+
+  const formatLandline = (v: string) => {
+    const raw = v.replace(/\D/g, '').slice(0, 10);
+    return raw
+      .replace(/^(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{4})(\d)/, '$1-$2');
+  };
+
+  // Busca automática por CEP via ViaCEP
+  const searchCepAddress = async (cepValue: string) => {
+    const cleanCep = cepValue.replace(/\D/g, '');
+    if (cleanCep.length !== 8) return;
+
+    setIsSearchingCep(true);
+    setCepError('');
+
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await response.json();
+
+      if (data.erro) {
+        setCepError('CEP não encontrado. Verifique o número digitado.');
+        hapticMedium();
+      } else {
+        setLogradouro(data.logradouro || '');
+        setBairro(data.bairro || '');
+        setCidade(data.localidade || '');
+        setUf(data.uf || '');
+        if (data.complemento && !complemento) {
+          setComplemento(data.complemento);
+        }
         hapticSuccess();
-      } catch (err) {
-        console.error('Erro ao comprimir ícone:', err);
       }
+    } catch {
+      setCepError('Erro ao buscar o CEP. Preencha os campos manualmente.');
+    } finally {
+      setIsSearchingCep(false);
     }
   };
 
-  // Drag & Drop para o Logo Retangular
-  const handleLogoDrop = async (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file && (file.type.startsWith('image/') || file.name.endsWith('.svg'))) {
-      try {
-        const compressed = await compressImageFile(file, { maxWidth: 640, maxHeight: 180, quality: 0.88 });
-        setSalonLogo(compressed);
-        hapticSuccess();
-      } catch (err) {
-        console.error('Erro ao comprimir logo:', err);
-      }
+  const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const masked = formatCep(e.target.value);
+    setCep(masked);
+    const raw = masked.replace(/\D/g, '');
+    if (raw.length === 8) {
+      searchCepAddress(masked);
+    } else {
+      setCepError('');
     }
   };
 
-  // Drag & Drop para o Ícone do PWA
-  const handleIconDrop = async (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file && (file.type.startsWith('image/') || file.name.endsWith('.svg'))) {
-      try {
-        const compressed = await compressImageFile(file, { maxWidth: 256, maxHeight: 256, quality: 0.9, mimeType: 'image/png' });
-        setSalonIcon(compressed);
-        hapticSuccess();
-      } catch (err) {
-        console.error('Erro ao comprimir ícone:', err);
-      }
-    }
+  const resolvedSlug =
+    adminSettings.salonSlug ||
+    (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') || '' : '') ||
+    (adminSettings.salonName || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-');
+
+  const storefrontUrl = resolvedSlug
+    ? `https://${resolvedSlug}.vagouapp.com`
+    : (typeof window !== 'undefined' ? window.location.origin : 'https://vagouapp.com');
+
+  const storefrontQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=8&data=${encodeURIComponent(storefrontUrl)}`;
+
+  const handleCopyStorefrontLink = async () => {
+    hapticSuccess();
+    try {
+      await navigator.clipboard.writeText(storefrontUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2200);
+    } catch {}
   };
 
-  // Salvar configurações
+  // Salvar configurações da seção Espaço
   const handleSaveSettings = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     hapticSuccess();
 
+    const fullAddress = [
+      logradouro,
+      numero ? `Nº ${numero}` : '',
+      complemento,
+      bairro,
+      cidade && uf ? `${cidade} - ${uf}` : cidade || uf,
+      cep ? `CEP: ${cep}` : '',
+    ]
+      .filter(Boolean)
+      .join(', ');
+
     const updatedSettings: Partial<SalonAdminSettings> = {
-      salonName,
-      pwaName: pwaName.trim() || salonName,
-      salonPhone,
-      salonAddress,
-      openingHours,
-      salonLogo,
-      salonLogoLight,
-      salonLogoDark,
-      salonIcon,
-      accentColor,
+      spaceDescription: spaceDescription.trim(),
+      amenities: selectedAmenities,
+      cep: cep.trim(),
+      logradouro: logradouro.trim(),
+      numero: numero.trim(),
+      complemento: complemento.trim(),
+      bairro: bairro.trim(),
+      cidade: cidade.trim(),
+      uf: uf.trim(),
+      salonAddress: fullAddress || adminSettings.salonAddress,
+      salonPhone: salonPhone.trim(),
+      phoneLandline: phoneLandline.trim(),
+      email: commercialEmail.trim().toLowerCase(),
+      websiteUrl: websiteUrl.trim(),
+      instagramUrl: instagramUrl.trim(),
+      facebookUrl: facebookUrl.trim(),
     };
 
     onUpdateSettings(updatedSettings);
-
-    // Atualiza imediatamente os ativos do PWA no navegador
-    updateDynamicPwaAssets(pwaName.trim() || salonName, salonIcon);
 
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);
   };
 
-  // Presets rápidos de cores elegantes baseadas no tema
-  const COLOR_PRESETS = getThemeColorPresets(accentColor);
+  const sectionHeaderStyleData = useMemo(() => {
+    return getSectionHeaderStyleData(adminSettings, isDark);
+  }, [adminSettings, isDark]);
 
   return (
     <div className={`w-full h-full flex flex-col justify-between overflow-y-auto no-scrollbar ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
-      {/* Conteúdo Principal com Rolagem */}
-      <form onSubmit={handleSaveSettings} className="p-3.5 space-y-4 pb-20">
-        
-        {/* Cabeçalho da Seção */}
-        <div className="flex items-center justify-between">
+      {/* Barra de Topo Fixa com as 3 Abas: Estrutura | Localização | Contatos */}
+      <div
+        className={`${sectionHeaderStyleData.containerClass} flex-col gap-2`}
+        style={sectionHeaderStyleData.containerStyle}
+      >
+        <div className="flex items-center justify-between gap-2 w-full">
           <div className="flex items-center gap-2">
-            <Store className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
-              Identidade Visual & Espaço
-            </h3>
+            {onBack && (
+              <button
+                type="button"
+                onClick={() => {
+                  hapticLight();
+                  onBack();
+                }}
+                className={`p-1.5 rounded-[4px] transition cursor-pointer active:scale-95 ${
+                  isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
+                }`}
+                title="Voltar"
+              >
+                <ArrowLeft className="w-4 h-4" style={sectionHeaderStyleData.iconStyle} />
+              </button>
+            )}
+            <div className="flex items-center gap-1.5">
+              <Store className="w-4 h-4 shrink-0" style={sectionHeaderStyleData.iconStyle} />
+              <h2 className="text-xs sm:text-sm font-bold font-['Poppins']" style={sectionHeaderStyleData.titleStyle}>
+                Gestão do Espaço
+              </h2>
+            </div>
           </div>
 
           {savedSuccess && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-emerald-500 px-2 py-0.5 rounded shadow-xs animate-in fade-in">
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-emerald-500 px-2 py-0.5 rounded-[4px] shadow-xs animate-in fade-in">
               <Check className="w-3 h-3 text-white" />
-              Salvo com Sucesso
+              Salvo
             </span>
           )}
         </div>
 
-        {/* 1. SEÇÃO DO LOGO RETANGULAR DO CABEÇALHO */}
-        <div className={`p-3 rounded-xl border flex flex-col gap-2.5 ${
-          isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <ImageIcon className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs font-bold uppercase tracking-wider">
-                Logo do Cabeçalho
-              </span>
-            </div>
-            <span className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
-              isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'
-            }`}>
-              Formato Retangular (Topo do App)
-            </span>
-          </div>
-
-          <p className="text-[10.5px] text-slate-400 leading-snug">
-            Este logo substitui o nome no topo do aplicativo para clientes e profissionais. 
-            Recomendamos imagem horizontal com fundo transparente (PNG/SVG, proporção ~3:1 ou 4:1).
-          </p>
-
-          {/* Pré-visualização em Tempo Real do Topo do App */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-wider text-slate-400 px-0.5">
-              <span>Prévia no Cabeçalho do App</span>
-              <span className="text-emerald-400 flex items-center gap-0.5">
-                <Sparkles className="w-2.5 h-2.5" /> Ao Vivo
-              </span>
-            </div>
-
-            {/* Mockup Fiel da Barra Superior do App */}
-            <div className={`h-12 sm:h-13 rounded-lg border px-3 flex items-center justify-between overflow-hidden shadow-inner ${
-              isDark ? 'bg-[#151A1E] border-slate-800' : 'bg-white border-slate-200'
-            }`}>
-              {/* Lado Esquerdo: O Logo Retangular ou Tipografia Fallback */}
-              <div className="h-full flex items-center max-w-[160px] sm:max-w-[200px] overflow-hidden">
-                {salonLogo ? (
-                  <img 
-                    src={salonLogo} 
-                    alt="Logo Cabeçalho" 
-                    className="max-h-7 sm:max-h-8 w-auto max-w-full object-contain object-left" 
-                  />
-                ) : (
-                  <span className={`text-xs font-extrabold uppercase tracking-tight leading-tight truncate ${
-                    isDark ? 'text-white' : 'text-slate-900'
-                  }`}>
-                    <span className="text-emerald-500">{salonName.split(' ')[0]}</span>{' '}
-                    {salonName.split(' ').slice(1).join(' ')}
-                  </span>
-                )}
-              </div>
-
-              {/* Lado Direito: Simulação dos Controles do Cabeçalho */}
-              <div className="flex items-center gap-1 opacity-70 scale-90 origin-right">
-                <div className="flex items-center p-0.5 rounded border border-slate-700 bg-slate-800/80 text-[9px] font-black uppercase text-slate-300">
-                  <span className="px-1.5 py-0.5 rounded bg-emerald-500 text-white">Ger.</span>
-                  <span className="px-1.5 py-0.5">Púb.</span>
-                </div>
-                <div className="w-6 h-6 rounded bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 text-[9px]">
-                  🔔
-                </div>
-                <div className="w-6 h-6 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-[9px] text-white font-bold">
-                  ✂️
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Área de Ação / Dropzone para o Logo Retangular */}
-          <div 
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={handleLogoDrop}
-            className={`p-2.5 rounded-lg border border-dashed flex items-center justify-between gap-2 transition ${
-              isDark ? 'border-slate-700 bg-slate-950/40 hover:border-emerald-500/60' : 'border-slate-300 bg-slate-50 hover:border-emerald-500'
-            }`}
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                <ImageIcon className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-bold truncate">
-                  {salonLogo ? 'Logo horizontal carregado' : 'Nenhum logo enviado'}
-                </p>
-                <p className="text-[9.5px] text-slate-400 truncate">
-                  {salonLogo ? 'Clique para substituir ou use o botão de remover' : 'Arraste a imagem aqui ou selecione no aparelho'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              {salonLogo && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    hapticLight();
-                    setSalonLogo('');
-                  }}
-                  className="p-1.5 rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/10 transition cursor-pointer"
-                  title="Remover logo e voltar ao texto"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              )}
+        {/* 3 Abas Dedicadas: Estrutura | Localização | Contatos */}
+        <div className="grid grid-cols-3 gap-1.5 w-full">
+          {[
+            { id: 'estrutura' as SpaceManagementTabId, label: 'Estrutura', icon: Sparkles },
+            { id: 'localizacao' as SpaceManagementTabId, label: 'Localização', icon: MapPin },
+            { id: 'contatos' as SpaceManagementTabId, label: 'Contatos', icon: Phone },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isSel = activeTab === tab.id;
+            return (
               <button
+                key={tab.id}
                 type="button"
-                onClick={() => logoInputRef.current?.click()}
-                className="px-2.5 py-1.5 rounded-md bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-wider transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                onClick={() => {
+                  hapticLight();
+                  setActiveTab(tab.id);
+                }}
+                className={`py-2 px-2 rounded-[4px] text-[11px] font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  isSel
+                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                    : isDark
+                    ? 'bg-slate-950 border-slate-800 text-slate-300 hover:border-emerald-500/40'
+                    : 'bg-slate-100 border-slate-200 text-slate-700 hover:border-emerald-500/40'
+                }`}
               >
-                <Upload className="w-3 h-3 text-white" />
-                <span>{salonLogo ? 'Substituir' : 'Subir Logo'}</span>
+                <Icon className={`w-3.5 h-3.5 shrink-0 ${isSel ? 'text-white' : 'text-emerald-400'}`} />
+                <span className={isSel ? 'text-white' : ''}>{tab.label}</span>
               </button>
-              <input 
-                ref={logoInputRef}
-                type="file" 
-                accept="image/png,image/jpeg,image/svg+xml,image/webp" 
-                className="hidden" 
-                onChange={handleLogoFileChange} 
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Formulário Principal */}
+      <form onSubmit={handleSaveSettings} className="p-3.5 space-y-4 pb-24 flex-1">
+        {/* ============================================================== */}
+        {/* ABA 1: ESTRUTURA (Lista Pré-definida + Inserir Mais Itens + Sobre o Espaço) */}
+        {/* ============================================================== */}
+        {activeTab === 'estrutura' && (
+          <div className={`p-3.5 rounded-[4px] border space-y-4 ${
+            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+          }`}>
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                  Estrutura & Comodidades
+                </h3>
+              </div>
+              <span className="text-[10px] font-bold text-emerald-400">
+                {selectedAmenities.length} ativos
+              </span>
+            </div>
+
+            {/* Descrição / Sobre o Espaço */}
+            <div>
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Sobre o Espaço
+              </label>
+              <textarea
+                rows={2}
+                value={spaceDescription}
+                onChange={(e) => setSpaceDescription(e.target.value)}
+                placeholder="Descreva a estrutura e o ambiente do seu estabelecimento..."
+                className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition resize-none ${
+                  isDark
+                    ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                }`}
               />
             </div>
-          </div>
-        </div>
 
-        {/* 2. SEÇÃO DO ÍCONE & NOME PWA (INSTALAÇÃO NO SMARTPHONE) */}
-        <div className={`p-3 rounded-xl border flex flex-col gap-2.5 ${
-          isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Smartphone className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs font-bold uppercase tracking-wider">
-                Ícone & App PWA (Mobile)
+            {/* Lista Pré-definida de Itens de Estrutura */}
+            <div>
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
+                Itens Pré-definidos da Estrutura
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {PREDEFINED_SPACE_AMENITIES.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = selectedAmenities.includes(item.label);
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => toggleAmenity(item.label)}
+                      className={`py-2 px-2.5 rounded-[4px] text-xs font-bold transition flex items-center justify-between gap-2 cursor-pointer text-left ${
+                        isActive
+                          ? 'bg-emerald-500 text-white shadow-xs'
+                          : isDark
+                          ? 'bg-slate-950 text-slate-300 hover:text-white'
+                          : 'bg-slate-100 text-slate-700 hover:text-slate-900'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 min-w-0 truncate">
+                        <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-emerald-400'}`} />
+                        <span className={`truncate ${isActive ? 'text-white' : ''}`}>{item.label}</span>
+                      </span>
+                      {isActive && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Inserir Mais Itens Personalizados */}
+            <div className="pt-2 border-t border-slate-800/60 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Inserir Mais Itens na Estrutura
+                </label>
+                <span className="text-[10px] font-semibold text-emerald-400">
+                  {hasManualIconSelection ? 'Ícone selecionado' : 'Ícone automático por texto'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <div className="relative flex-1 flex items-center">
+                  {(() => {
+                    const ActiveInputIcon =
+                      CUSTOM_SPACE_ICON_OPTIONS.find((o) => o.key === selectedCustomIconKey)?.icon || Sparkles;
+                    return (
+                      <ActiveInputIcon className="w-3.5 h-3.5 text-emerald-400 absolute left-2.5 pointer-events-none shrink-0" />
+                    );
+                  })()}
+                  <input
+                    type="text"
+                    value={customAmenityInput}
+                    onChange={(e) => handleCustomInputChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddCustomAmenity();
+                      }
+                    }}
+                    placeholder="Ex: Poltrona de Massagem, Vídeo Game, Toalha Quente..."
+                    className={`w-full pl-8 pr-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                      isDark
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddCustomAmenity}
+                  className="px-3 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5 text-white" />
+                  <span className="text-white">Inserir</span>
+                </button>
+              </div>
+
+              {/* Seletor Rápido de Ícone para o Novo Item */}
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Escolha o Ícone do Item
+                </span>
+                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-1">
+                  {CUSTOM_SPACE_ICON_OPTIONS.map((opt) => {
+                    const OptIcon = opt.icon;
+                    const isIconSelected = selectedCustomIconKey === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          setSelectedCustomIconKey(opt.key);
+                          setHasManualIconSelection(true);
+                        }}
+                        title={opt.label}
+                        className={`px-2 py-1.5 rounded-[4px] text-[10px] font-bold transition flex items-center gap-1 shrink-0 cursor-pointer whitespace-nowrap ${
+                          isIconSelected
+                            ? 'bg-emerald-500 text-white shadow-xs'
+                            : isDark
+                            ? 'bg-slate-950 text-slate-300 hover:text-white'
+                            : 'bg-slate-100 text-slate-700 hover:text-slate-900'
+                        }`}
+                      >
+                        <OptIcon className={`w-3.5 h-3.5 shrink-0 ${isIconSelected ? 'text-white' : 'text-emerald-400'}`} />
+                        <span className={isIconSelected ? 'text-white' : ''}>{opt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Lista de Itens Personalizados Adicionados */}
+              {customAmenities.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {customAmenities.map((item) => {
+                    const CustomItemIcon =
+                      CUSTOM_SPACE_ICON_OPTIONS.find((o) => o.key === customIconsMap[item.toLowerCase()])?.icon ||
+                      resolveSpaceAmenityIcon(item);
+                    return (
+                      <span
+                        key={item}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] bg-emerald-500 text-white text-xs font-bold"
+                      >
+                        <CustomItemIcon className="w-3.5 h-3.5 text-white shrink-0" />
+                        <span className="text-white">{item}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCustomAmenity(item)}
+                          className="p-0.5 rounded-[4px] hover:bg-emerald-600 text-white transition cursor-pointer"
+                          title="Remover item"
+                        >
+                          <X className="w-3 h-3 text-white" />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* ABA 2: LOCALIZAÇÃO & ENDEREÇO (Movida de Dados do Negócio) */}
+        {/* ============================================================== */}
+        {activeTab === 'localizacao' && (
+          <div className={`p-3.5 rounded-[4px] border space-y-3 ${
+            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+          }`}>
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                  Localização & Endereço
+                </h3>
+              </div>
+              <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-emerald-400" />
+                ViaCEP + Maps
               </span>
             </div>
-            <span className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
-              isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'
-            }`}>
-              Quadrado (1:1) • Tela Inicial
-            </span>
-          </div>
 
-          <p className="text-[10.5px] text-slate-400 leading-snug">
-            Ícone e nome que aparecerão no smartphone dos seus clientes quando eles instalarem 
-            o aplicativo do seu estabelecimento na tela inicial.
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-            {/* Simulador da Tela Inicial do Celular */}
-            <div className={`rounded-xl p-3 border flex flex-col items-center justify-center gap-1.5 relative overflow-hidden ${
-              isDark 
-                ? 'bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 border-slate-800' 
-                : 'bg-gradient-to-b from-slate-100 to-slate-200 border-slate-300'
-            }`}>
-              {/* Barra de Status do Celular */}
-              <div className="w-full flex items-center justify-between text-[8px] text-slate-500 font-mono px-1">
-                <span>09:41</span>
-                <span>5G 🔋</span>
-              </div>
-
-              {/* Ícone Squircle Estilo Mobile */}
-              <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-slate-900 border border-white/20 shadow-lg flex items-center justify-center overflow-hidden my-1 relative">
-                {salonIcon ? (
-                  <img 
-                    src={salonIcon} 
-                    alt="Ícone do PWA" 
-                    className="w-full h-full object-cover" 
+            <div className="grid grid-cols-3 gap-2.5">
+              <div className="col-span-1">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  CEP <span className="text-rose-400">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={cep}
+                    onChange={handleCepChange}
+                    placeholder="00000-000"
+                    className={`w-full pl-2.5 pr-8 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
+                      isDark
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    }`}
                   />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center bg-emerald-600 text-white">
-                    <Store className="w-6 h-6 text-white" />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                    {isSearchingCep ? (
+                      <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+                    ) : (
+                      <Search className="w-3.5 h-3.5 text-slate-500" />
+                    )}
                   </div>
-                )}
-              </div>
-
-              {/* Nome do Aplicativo na Tela Inicial */}
-              <div className="text-center w-full px-1">
-                <span className={`text-[10.5px] font-bold truncate block tracking-tight ${
-                  isDark ? 'text-white' : 'text-slate-900'
-                }`}>
-                  {pwaName || salonName}
-                </span>
-                <span className="text-[8px] text-emerald-400 font-semibold uppercase tracking-wider block">
-                  Instalado no Celular
-                </span>
-              </div>
-            </div>
-
-            {/* Controles de Upload do Ícone PWA e Nome do Aplicativo */}
-            <div className="space-y-2.5">
-              {/* Campo do Nome PWA */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Nome do App no Celular
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hapticLight();
-                      setPwaName(salonName);
-                    }}
-                    className="text-[9px] text-emerald-400 hover:underline flex items-center gap-0.5 cursor-pointer"
-                  >
-                    <RefreshCw className="w-2.5 h-2.5" /> Sincronizar
-                  </button>
                 </div>
+              </div>
+
+              <div className="col-span-2">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Endereço <span className="text-rose-400">*</span>
+                </label>
                 <input
                   type="text"
-                  maxLength={18}
-                  value={pwaName}
-                  placeholder="Ex: Meu Salão"
-                  onChange={(e) => setPwaName(e.target.value)}
-                  className={`w-full px-3 py-1.5 rounded-lg border text-xs font-semibold outline-hidden transition ${
-                    isDark 
-                      ? 'bg-slate-900 border-slate-700 text-white focus:border-emerald-500' 
-                      : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-500'
+                  required
+                  value={logradouro}
+                  onChange={(e) => setLogradouro(e.target.value)}
+                  placeholder="Rua, Avenida, Alameda..."
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
                   }`}
                 />
-                <p className="text-[9px] text-slate-500 mt-0.5">
-                  Recomendado até 12 caracteres para não quebrar no celular.
-                </p>
+              </div>
+            </div>
+
+            {cepError && (
+              <p className="text-[11px] text-rose-400 font-medium">{cepError}</p>
+            )}
+
+            <div className="grid grid-cols-3 gap-2.5">
+              <div className="col-span-1">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Número <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={numero}
+                  onChange={(e) => setNumero(e.target.value)}
+                  placeholder="123"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
               </div>
 
-              {/* Botões de Ação do Ícone PWA */}
-              <div 
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={handleIconDrop}
-                className="flex items-center gap-2 pt-0.5"
-              >
-                <button
-                  type="button"
-                  onClick={() => iconInputRef.current?.click()}
-                  className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs"
-                >
-                  <Upload className="w-3 h-3 text-white" />
-                  <span>{salonIcon ? 'Substituir Ícone' : 'Subir Ícone (1:1)'}</span>
-                </button>
-                
-                {salonIcon && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hapticLight();
-                      setSalonIcon('');
-                    }}
-                    className="p-2 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-slate-700 transition cursor-pointer"
-                    title="Remover ícone do PWA"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
+              <div className="col-span-2">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Compl.
+                </label>
+                <input
+                  type="text"
+                  value={complemento}
+                  onChange={(e) => setComplemento(e.target.value)}
+                  placeholder="Sala 2, Loja B, Galeria..."
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+            </div>
 
-                <input 
-                  ref={iconInputRef}
-                  type="file" 
-                  accept="image/png,image/jpeg,image/svg+xml,image/webp" 
-                  className="hidden" 
-                  onChange={handleIconFileChange} 
+            <div className="grid grid-cols-6 gap-2.5">
+              <div className="col-span-3">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Bairro <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={bairro}
+                  onChange={(e) => setBairro(e.target.value)}
+                  placeholder="Centro"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+
+              <div className="col-span-2">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Cidade <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={cidade}
+                  onChange={(e) => setCidade(e.target.value)}
+                  placeholder="São Paulo"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+
+              <div className="col-span-1">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  UF <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  maxLength={2}
+                  value={uf}
+                  onChange={(e) => setUf(e.target.value.toUpperCase())}
+                  placeholder="SP"
+                  className={`w-full px-2 py-2 rounded-[4px] border text-xs font-mono text-center uppercase outline-hidden transition ${
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
                 />
               </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* 3. COR DE DESTAQUE DO ESTABELECIMENTO */}
-        <div className={`p-3 rounded-xl border flex flex-col gap-2 ${
-          isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Palette className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs font-bold uppercase tracking-wider">
-                Cor de Destaque
-              </span>
+        {/* ============================================================== */}
+        {/* ABA 3: CONTATOS & REDES SOCIAIS (Movida de Dados do Negócio) */}
+        {/* ============================================================== */}
+        {activeTab === 'contatos' && (
+          <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
+            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+          }`}>
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+              <Phone className="w-4 h-4 text-emerald-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
+                Contato & Canais Digitais
+              </h3>
             </div>
-            <span className="text-[10px] font-mono font-bold text-slate-400">
-              {accentColor}
-            </span>
-          </div>
 
-          <div className="flex items-center gap-2 pt-1">
-            {/* Presets Rápidos */}
-            <div className="flex items-center gap-1.5 flex-1">
-              {COLOR_PRESETS.map((preset) => (
+            {/* Link Exclusivo & QR Code da Vitrine */}
+            <div className="space-y-2 pb-3 border-b border-slate-800/60">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Link Exclusivo & QR Code da Vitrine</span>
+                </span>
                 <button
-                  key={preset.hex}
                   type="button"
                   onClick={() => {
                     hapticLight();
-                    setAccentColor(preset.hex);
-                    setAccentColorContext(preset.hex);
+                    setIsStorefrontQrModalOpen(true);
                   }}
-                  title={preset.label}
-                  className={`w-7 h-7 rounded-full transition cursor-pointer border flex items-center justify-center ${
-                    accentColor.toLowerCase() === preset.hex.toLowerCase()
-                      ? 'border-white scale-110 shadow-md'
-                      : 'border-transparent opacity-80 hover:opacity-100'
-                  }`}
-                  style={{ backgroundColor: preset.hex }}
+                  className="px-2.5 py-1 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] text-white text-[10px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  {accentColor.toLowerCase() === preset.hex.toLowerCase() && (
-                    <Check className="w-3 h-3 text-white stroke-[3]" />
-                  )}
+                  <Printer className="w-3 h-3 text-white" />
+                  <span className="text-white">Placa QR Code</span>
                 </button>
-              ))}
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-mono font-bold text-emerald-400 truncate">
+                    {storefrontUrl}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleCopyStorefrontLink}
+                    className="flex-1 sm:flex-initial px-2.5 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer whitespace-nowrap"
+                  >
+                    {copiedLink ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-white" />
+                        <span className="text-white">Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-white" />
+                        <span className="text-white">Copiar Link</span>
+                      </>
+                    )}
+                  </button>
+                  <a
+                    href={storefrontUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`px-2.5 py-1.5 rounded-[4px] border text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer whitespace-nowrap ${
+                      isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Abrir</span>
+                  </a>
+                </div>
+              </div>
             </div>
 
-            {/* Seletor Customizado Nativo */}
-            <div className="flex items-center gap-1.5 shrink-0 pl-2 border-l border-slate-700">
-              <label className="text-[9.5px] font-bold uppercase text-slate-400 cursor-pointer">
-                Personalizar:
-              </label>
-              <input
-                type="color"
-                value={accentColor}
-                onChange={(e) => {
-                  const newColor = e.target.value;
-                  setAccentColor(newColor);
-                  setAccentColorContext(newColor);
-                }}
-                className="w-7 h-7 rounded-md cursor-pointer bg-transparent border-0"
-              />
+            {/* WhatsApp, Tel. Fixo, E-mail */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+                  <Phone className="w-3 h-3 text-emerald-400" />
+                  <span>WhatsApp <span className="text-rose-400">*</span></span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={salonPhone}
+                  onChange={(e) => setSalonPhone(formatPhone(e.target.value))}
+                  placeholder="(00) 00000-0000"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Tel. Fixo
+                </label>
+                <input
+                  type="text"
+                  value={phoneLandline}
+                  onChange={(e) => setPhoneLandline(formatLandline(e.target.value))}
+                  placeholder="(00) 0000-0000"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+                  <Mail className="w-3 h-3 text-emerald-400" />
+                  <span>E-mail</span>
+                </label>
+                <input
+                  type="email"
+                  value={commercialEmail}
+                  onChange={(e) => setCommercialEmail(e.target.value)}
+                  placeholder="contato@salao.com"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+            </div>
+
+            {/* Site, Instagram e Facebook */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+                  <Globe className="w-3 h-3 text-emerald-400" />
+                  <span>Site</span>
+                </label>
+                <input
+                  type="text"
+                  value={websiteUrl}
+                  onChange={(e) => setWebsiteUrl(e.target.value)}
+                  placeholder="www.meusalao.com.br"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+                  <Instagram className="w-3 h-3 text-emerald-400" />
+                  <span>Instagram</span>
+                </label>
+                <input
+                  type="text"
+                  value={instagramUrl}
+                  onChange={(e) => setInstagramUrl(e.target.value)}
+                  placeholder="@meusalao"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+                  <Facebook className="w-3 h-3 text-emerald-400" />
+                  <span>Facebook</span>
+                </label>
+                <input
+                  type="text"
+                  value={facebookUrl}
+                  onChange={(e) => setFacebookUrl(e.target.value)}
+                  placeholder="facebook.com/meusalao"
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  }`}
+                />
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* 4. DADOS CADASTRAIS DO ESTABELECIMENTO */}
-        <div className={`p-3 rounded-xl border space-y-2.5 ${
-          isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-        }`}>
-          <div className="flex items-center gap-1.5 mb-1">
-            <Store className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs font-bold uppercase tracking-wider">
-              Dados do Estabelecimento
-            </span>
-          </div>
-
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-              Nome do Salão / Barbearia
-            </label>
-            <input
-              type="text"
-              value={salonName}
-              onChange={(e) => setSalonName(e.target.value)}
-              className={`w-full px-3 py-2 rounded-lg border text-xs font-medium outline-hidden ${
-                isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-emerald-500' : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-500'
-              }`}
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-              WhatsApp / Contato
-            </label>
-            <input
-              type="text"
-              value={salonPhone}
-              onChange={(e) => setSalonPhone(e.target.value)}
-              className={`w-full px-3 py-2 rounded-lg border text-xs font-medium outline-hidden ${
-                isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-emerald-500' : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-500'
-              }`}
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-              Endereço Completo
-            </label>
-            <input
-              type="text"
-              value={salonAddress}
-              onChange={(e) => setSalonAddress(e.target.value)}
-              className={`w-full px-3 py-2 rounded-lg border text-xs font-medium outline-hidden ${
-                isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-emerald-500' : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-500'
-              }`}
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-              Horário de Funcionamento
-            </label>
-            <input
-              type="text"
-              value={openingHours}
-              onChange={(e) => setOpeningHours(e.target.value)}
-              className={`w-full px-3 py-2 rounded-lg border text-xs font-medium outline-hidden ${
-                isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-emerald-500' : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-500'
-              }`}
-            />
-          </div>
-        </div>
+        )}
       </form>
 
-      {/* 5. RODAPÉ FIXO DE AÇÃO (STICKY BOTTOM-0 Z-20) */}
-      <div className={`sticky bottom-0 z-20 p-3 border-t backdrop-blur-md ${
-        isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200'
+      {/* Modal de Impressão da Placa QR Code de Agendamento da Vitrine */}
+      {isStorefrontQrModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setIsStorefrontQrModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-[4px] overflow-hidden flex flex-col max-h-[90dvh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <QrCode className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                  Placa QR Code da Vitrine
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsStorefrontQrModalOpen(false)}
+                className="p-1 rounded-[4px] text-slate-400 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 flex flex-col items-center text-center space-y-3 overflow-y-auto">
+              <span className="px-2.5 py-0.5 rounded-[4px] bg-[#20C933] text-white text-[10px] font-bold uppercase tracking-wider">
+                Agende Seu Horário Online
+              </span>
+              <h4 className="text-base font-black text-white">
+                {adminSettings.salonName || 'Meu Estabelecimento'}
+              </h4>
+              {adminSettings.slogan && (
+                <p className="text-[11px] text-slate-400">{adminSettings.slogan}</p>
+              )}
+              <div className="p-3 bg-white rounded-[4px] shadow-md">
+                <img
+                  src={storefrontQrUrl}
+                  alt={`QR Code Vitrine ${adminSettings.salonName}`}
+                  className="w-44 h-44 object-contain"
+                />
+              </div>
+              <p className="text-[11px] font-mono font-bold text-emerald-400 break-all">
+                {storefrontUrl}
+              </p>
+              <p className="text-[10px] text-slate-400">
+                Aponte a câmera do celular para ver os serviços e agendar sem fila.
+              </p>
+            </div>
+
+            <div className="p-3 border-t border-slate-800 bg-slate-950 sticky bottom-0 z-20 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopyStorefrontLink}
+                className="flex-1 py-2.5 px-3 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+              >
+                <Copy className="w-3.5 h-3.5 text-white" />
+                <span className="text-white">{copiedLink ? 'Link Copiado!' : 'Copiar Link'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex-1 py-2.5 px-3 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+              >
+                <Printer className="w-3.5 h-3.5 text-white" />
+                <span className="text-white">Imprimir Placa</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RODAPÉ FIXO DE AÇÃO (STICKY BOTTOM-0 Z-20) */}
+      <div className={`sticky bottom-0 z-20 p-3 border-t backdrop-blur-md flex items-center justify-between gap-3 ${
+        isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
       }`}>
+        {onBack && (
+          <button
+            type="button"
+            onClick={() => {
+              hapticLight();
+              onBack();
+            }}
+            className={`px-4 py-2.5 rounded-[4px] border text-xs font-bold transition cursor-pointer ${
+              isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-900' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            Cancelar
+          </button>
+        )}
         <button
           type="button"
           onClick={() => handleSaveSettings()}
-          className="w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 shadow-md active:scale-98"
+          className="flex-1 py-2.5 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98"
         >
-          <Save className="w-4 h-4 text-white stroke-[2.5]" />
-          <span>Salvar Identidade & Dados</span>
+          <Save className="w-4 h-4 text-white" />
+          <span className="text-white">Salvar Espaço</span>
         </button>
       </div>
     </div>

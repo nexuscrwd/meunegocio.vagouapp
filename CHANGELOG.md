@@ -13,6 +13,179 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ---
 
+### [2026-11-02] — Ícone de Grade em Serviços + Barra Inferior Cinza Claro Sólida com Botões com Borda (`bol-095`)
+- **Tipo:** `[Refactor — UI / Focus Mode (Barra de Navegação Inferior & Ícone de Serviços)]`
+- **Motivo / Solicitação:** Substituir o ícone da aba "Serviços" no modo cliente por um ícone de grade (`LayoutGrid`), representando o layout em grade 2x2 da seção de serviços, e definir por padrão a barra de menu inferior em cinza bem claro (`#f1f5f9`), preenchimento sólido (`solid`) e botões com borda (`bordered`).
+- **Arquivos Impactados:**
+  - `src/components/BottomNav.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/LayoutCardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Ícone de Grade (`LayoutGrid`):** Atualizado `ServicesIcon` em `SalonProfileView.tsx` e `BottomNav.tsx` para usar `LayoutGrid` da `lucide-react`.
+  2. **Padrão da Barra Inferior (`BottomNav.tsx` / `SalonProfileView.tsx` / `LayoutCardView.tsx`):** Definido `navBgStyle: 'solid'`, `navBgColor: '#f1f5f9'` (cinza bem claro) e `navBorder: 'bordered'` (botões com contorno nítido `border-slate-300` e alto contraste de ícones/texto).
+
+---
+
+### [2026-11-02] — Horário de Atendimento por Dia em Linha Única Clicável (`bol-094`)
+- **Tipo:** `[Refactor — UI / Focus Mode (Seção do Profissional - Atendimento)]`
+- **Motivo / Solicitação:** Refatorar a lista de horários de atendimento por dia na seção do profissional para exibir cada dia em uma única linha limpa (`Segunda-feira` e `08:00 às 12:00 | 13:00 às 18:00`) sem botões extras de "Editar", abrindo os campos de horário ao clicar diretamente sobre a linha do dia.
+- **Arquivos Impactados:**
+  - `src/components/professional/TeamManager.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Linha Única Clicável (`TeamManager.tsx`):** Removido o botão extra `Editar` para dar mais espaço e legibilidade ao horário (`text-xs font-mono`), mantendo apenas o dia à esquerda, os períodos à direita e o indicador `ChevronDown`.
+  2. **Toque Direto na Linha (`expandedScheduleDayKey`):** Clicar em qualquer ponto da linha do dia abre/fecha os campos de horário (`Das 08:00 às 12:00` e `Das 13:00 às 18:00`).
+
+---
+
+### [2026-11-02] — Cartão de Profissional Simplificado + Seção Dedicada de Edição do Profissional (`bol-093`)
+- **Tipo:** `[Feat / Refactor — UI / Focus Mode (Gestão de Equipe e Seção do Profissional)]`
+- **Motivo / Solicitação:** Remover os elementos extras dos cartões de profissionais na listagem (deixando cada profissional apenas como um botão limpo que leva à seção daquele profissional) e criar a seção dedicada do profissional contendo: Foto de perfil, Nome, Função (`Atendente`, `Recepcionista`, `Prof. Autônomo` ou `Outros` com campo de texto), Tipo (`Profissional`, `Administrador`, `Superadministrador`), Categorias atendidas, Serviços trabalhados e Atendimento (Dias de atendimento em botões-cards + Horário de atendimento por dia no formato `das 08:00 às 12:00` e `das 13:00 às 18:00`).
+- **Arquivos Impactados:**
+  - `src/types.ts`
+  - `src/components/professional/TeamManager.tsx`
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Listagem Limpa (`TeamManager.tsx`):** Removidos os botões de ação inline, selos de cargo/repasse e linha de telefone/turno dos cartões da equipe; cada item agora é um botão direto (Foto + Nome + `ChevronRight`) que abre a seção exclusiva do profissional.
+  2. **Seção Dedicada do Profissional (`activeView === 'detail'`):** Criada tela completa com:
+     - **Foto de Perfil** e **Nome**.
+     - **Função:** Botões `Atendente`, `Recepcionista`, `Prof. Autônomo` e `Outros` (exibindo `input` de texto quando `Outros` é selecionado).
+     - **Tipo:** Botões `Profissional`, `Administrador` e `Superadministrador`.
+     - **Categorias & Serviços:** Seleção interativa das categorias e dos serviços que o profissional realiza.
+     - **Atendimento:** Botões-cards de dias de atendimento + configuração individual por dia selecionado em dois turnos (`das 08:00 às 12:00` e `das 13:00 às 18:00`) com atalho para repetir o horário em todos os dias.
+
+---
+
+### [2026-11-02] — Limpeza Visual no Cabeçalho de "Serviços & Preços" (`bol-092`)
+- **Tipo:** `[Refactor — UI / Focus Mode (Gestão de Serviços)]`
+- **Motivo / Solicitação:** Remover o contador de serviços ativos (`p`), o ícone ao lado do título (`svg`) e o badge `X Ativos` (`span`) do cabeçalho da seção de gerenciamento de serviços.
+- **Arquivos Impactados:**
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `src/components/professional/ProfessionalServicesManager.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Removido o parágrafo redundante `{services.length} serviço(s) ativo(s)` abaixo de `Categorias & Serviços` em `ProfessionalServicesManager.tsx`.
+  2. Removido o ícone `Scissors` ao lado do título `Serviços & Preços` e o badge `{services.length} Ativos` no cabeçalho em `SalonCustomizationHub.tsx`.
+
+---
+
+### [2026-11-02] — Correção do Bind da Porta 3000 no Servidor de Desenvolvimento (`bol-091`)
+- **Tipo:** `[Fix — Infraestrutura / Dev Server (server.ts)]`
+- **Motivo / Solicitação:** Corrigir inicialização do servidor de desenvolvimento (`server.ts`) que tentava fazer bind na porta `8080` herdada de `process.env.PORT` do container (`EADDRINUSE`).
+- **Arquivos Impactados:**
+  - `server.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Ajustada a resolução de `PORT` em `server.ts` para usar sempre a porta `3000` em ambiente de desenvolvimento (`NODE_ENV !== 'production'`), reservando `process.env.PORT` exclusivamente para produção.
+  2. Configurado `hmr: false` no `createViteServer` para evitar conflito de porta WebSocket (`24678`).
+
+---
+
+### [2026-11-02] — Migração da Opção "Financeiro" para dentro de "Utilidades" (`bol-090`)
+- **Tipo:** `[Refactor — UI / Focus Mode (Menu de Gerenciamento ➔ Utilidades)]`
+- **Motivo / Solicitação:** Remover a opção `#menu-option-financeiro` do nível superior do menu de gerenciamento e inseri-la dentro da opção `Utilidades`.
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/professional/UtilitiesAndToolsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Removido o botão `#menu-option-financeiro` do menu lateral em `ProfileDrawer.tsx`, atualizando o subtítulo de `Utilidades` para `"Financeiro, gestão de consumo, insumos e estoque"`.
+  2. Inserido o card `Financeiro` (`Caixa, PIX & Placa, despesas, repasses e metas` — `FinancialManagerView` + `GoalsAndShiftsCard` + `WeeklyGoalsAndDaysCard`) na porta de entrada de `Utilidades` (`UtilitiesAndToolsView.tsx`).
+
+---
+
+### [2026-11-02] — Categoria do Serviço em Lista Suspensa Abaixo do Nome do Serviço (`bol-089`)
+- **Tipo:** `[Refactor — UI / Focus Mode (Modal de Criação/Edição de Serviço)]`
+- **Motivo / Solicitação:** Converter a seleção de categoria do serviço em uma lista suspensa (`<select>`) e posicioná-la logo abaixo do input `Nome do Serviço`.
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalServicesManager.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Reordenado o formulário do modal de serviço em `ProfessionalServicesManager.tsx` para iniciar com `1. Nome do Serviço *` seguido imediatamente abaixo por `2. Categoria do Serviço *`.
+  2. Convertida a grade de botões de categorias em uma lista suspensa (`<select>`) limpa e responsiva, preservando a opção `+ Criar Categoria`.
+
+---
+
+### [2026-11-02] — Remoção de "Vagas Relâmpagos" e Renomeação para "Utilidades" no Menu de Gerenciamento (`bol-088`)
+- **Tipo:** `[Refactor — UI / Focus Mode (Menu de Gerenciamento)]`
+- **Motivo / Solicitação:** Remover a opção `#menu-option-vagas-relampagos` ("Vagas Relâmpagos") e renomear `#menu-option-utilidades-workspace` de "Utilidades & Workspace" para "Utilidades" apenas.
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Removido o botão `#menu-option-vagas-relampagos` do menu de gerenciamento em `ProfileDrawer.tsx`.
+  2. Renomeado o botão `#menu-option-utilidades-workspace` para `Utilidades` (com subtítulo atualizado para `"Gestão de consumo, insumos e estoque"`).
+
+---
+
+### [2026-11-02] — Remoção dos Cards "Financeiro" e "Google Workspace" em Utilidades & Ferramentas (`bol-087`)
+- **Tipo:** `[Refactor — UI / Focus Mode (Utilidades & Ferramentas)]`
+- **Motivo / Solicitação:** Remover os botões `#tool-card-financeiro` e `#tool-card-workspace` da porta de entrada de `Utilidades & Ferramentas`.
+- **Arquivos Impactados:**
+  - `src/components/professional/UtilitiesAndToolsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Removidos os cards `Financeiro` (`#tool-card-financeiro`) e `Google Workspace` (`#tool-card-workspace`) da matriz `mainHubCards` em `UtilitiesAndToolsView.tsx`, mantendo `Gestão de Consumo` e `Insumos & Estoque` alinhados em grade de 2 colunas (`grid-cols-2`).
+
+---
+
+### [2026-11-02] — Seletor Inteligente e Auto-detecção de Ícones para Novos Itens na Estrutura (`bol-086`)
+- **Tipo:** `[Feat — Gestão do Espaço > Estrutura (Ícones Personalizados)]`
+- **Motivo / Solicitação:** Definir e implementar o sistema de ícones para quando mais itens personalizados forem inseridos na `Estrutura` do `Espaço`.
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalSpaceManager.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Auto-detecção Semântica por Palavra-Chave (`detectIconKeyFromText`):** Conforme o parceiro digita o novo item (ex: *"Poltrona de Massagem"* ➔ `Armchair`, *"PlayStation 5"* ➔ `Gamepad2`, *"Toalha Quente"* ➔ `Flame`, *"Chopp Gelado"* ➔ `Wine`, *"Autoclave"* ➔ `ShieldCheck`), o ícone correspondente de `lucide-react` é selecionado automaticamente em tempo real.
+  2. **Seletor Manual de Ícones (`CUSTOM_SPACE_ICON_OPTIONS`):** Adicionada barra horizontal de 20 ícones curados (`lucide-react`) logo abaixo do campo `"Inserir Mais Itens na Estrutura"`, permitindo escolher manualmente qualquer ícone com 1 toque antes de clicar em `+ Inserir`.
+  3. **Sincronização na Vitrine Pública (`resolveSpaceAmenityIcon`):** Exportado o resolvedor compartilhado para que `SalonProfileView.tsx` renderize o exato ícone escolhido/detectado na aba pública `Espaço ➔ Estrutura`, mantendo `adminSettings.amenities` como `string[]` limpo no Supabase.
+
+---
+
+### [2026-11-02] — Reestruturação da Seção "Espaço" (Estrutura, Localização e Contatos) + Gestão Dedicada e Migração de Endereço/Contatos (`bol-085`)
+- **Tipo:** `[Feat / Refactor — Seção Espaço Pública e Painel de Gestão do Espaço]`
+- **Motivo / Solicitação:** Na seção pública `Espaço`, remover a aba `Estúdio 3D` e manter `Estrutura`, `Localização` e `Contatos` (telefones fixos, WhatsApp, e-mail e redes sociais). Criar a seção de gestão do `Espaço` (com acesso no menu de gerenciamento logo abaixo de `Serviços`) contendo: (1) `Estrutura` com lista pré-definida e opção de inserir mais itens; (2) `Localização` movida de `Dados do Negócio`; e (3) `Contatos` movida de `Dados do Negócio` (excluindo `Endereço` e `Contato` de `Dados do Negócio`).
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/ProfessionalSpaceManager.tsx`
+  - `src/components/professional/BusinessDataCardView.tsx`
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Seção Pública `Espaço` (`SalonProfileView.tsx`):** Removida a aba `Estúdio 3D` e o botão `Ver em 3D`; consolidadas as 3 abas `Estrutura`, `Localização` e `Contatos` (WhatsApp, Telefone Fixo, E-mail, Instagram, Facebook e Site), conectadas dinamicamente a `adminSettings.amenities`, `adminSettings.spaceDescription` e canais de contato.
+  2. **Menu de Gerenciamento (`ProfileDrawer.tsx`):** Adicionada a opção `Espaço` (`id="menu-option-espaco"`) logo abaixo da opção `Serviços`.
+  3. **Gestão do Espaço (`ProfessionalSpaceManager.tsx`):** Estruturada com as 3 abas `Estrutura` (lista pré-definida de 10 comodidades + campo para inserir itens personalizados + descrição do espaço), `Localização` (CEP com busca ViaCEP + Maps, Endereço, Número, Compl., Bairro, Cidade e UF) e `Contatos` (Link/QR Code da Vitrine, WhatsApp, Telefone Fixo, E-mail, Site, Instagram e Facebook).
+  4. **Dados do Negócio (`BusinessDataCardView.tsx`):** Excluídas as abas `Endereço` e `Contato` (migradas para a gestão do `Espaço`), mantendo apenas `Informações` e `Atendimento`.
+
+---
+
+### [2026-11-02] — Seção Agendar com Agenda Mensal Direta + Cabeçalho de Profissionais Condicional (`bol-084`)
+- **Tipo:** `[Feat / Refactor — Simplificação da Seção Agendar e Seleção de Profissionais]`
+- **Motivo / Solicitação:** Na seção `Agendar` (`Agendamento & Vagas`), remover a listagem de serviços e as abas de etapas (`Serviço | Data | Horário`), mantendo apenas a **Agenda Mensal**, e inserir o **Cabeçalho de Profissionais** visível apenas para salões com múltiplos profissionais (oculto quando for salão com profissional único).
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Agenda Mensal Direta:** Removidas as abas (`Serviço | Data | Horário`) e a listagem redundante de serviços da seção `Agendar`, exibindo diretamente o calendário mensal interativo (`currentStep === 'date'`).
+  2. **Cabeçalho de Profissionais Condicional (`hasMultipleProfessionals`):** Inserido cabeçalho no topo da seção `Agendar` listando os profissionais ativos (`salonActiveProfessionals.length > 1`) com avatar e nome (`bg-emerald-500 text-white` quando selecionado). Quando o salão possui apenas um profissional (`<= 1`), o cabeçalho fica totalmente oculto.
+
+---
+
+### [2026-11-02] — Remoção do Badge de Modo de Mídia no Card de Serviço (`bol-083`)
+- **Tipo:** `[Refactor / Clean UI — Remoção de Badge Redundante]`
+- **Motivo / Solicitação:** Remover o `span` do badge de modo de publicação (`Foto`, `Slide`, `Vídeo 5s`, `Sem mídia`) ao lado do título do serviço na lista de serviços (`ProfessionalServicesManager.tsx`).
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalServicesManager.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Removido o elemento `span:nth-of-type(1)` ao lado do título `<h4>` dentro do card de serviço, deixando o layout mais limpo e direto conforme a diretriz de síntese mobile.
+
+---
+
 ### [2026-11-02] — Três Abas de Mídia no Cadastro/Edição de Serviço (`Fotos Prontas`, `Escolher da galeria`, `Do Dispositivo`) (`bol-082`)
 - **Tipo:** `[Feat / UX — Gestão de Mídia de Serviços em 3 Abas]`
 - **Motivo / Solicitação:** Inserir 3 abas na seção de mídia do formulário de serviço (`form > div:nth-of-type(5)` em `ProfessionalServicesManager.tsx`):

@@ -387,11 +387,28 @@ export interface ServiceCategoryItem {
   isCustom?: boolean;
 }
 
+export interface ProfessionalDayScheduleSlot {
+  dayKey: string; // 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab' | 'dom'
+  morningStart: string; // ex: '08:00'
+  morningEnd: string;   // ex: '12:00'
+  afternoonStart: string; // ex: '13:00'
+  afternoonEnd: string;   // ex: '18:00'
+}
+
+export type ProfessionalAccessType = 'professional' | 'admin' | 'superadmin';
+export type ProfessionalJobFunctionType = 'atendente' | 'recepcionista' | 'autonomo' | 'outros';
+
 export interface SalonProfessionalItem {
   id?: string;
   name: string;
   role?: string;
-  systemRole?: 'admin' | 'member';
+  systemRole?: 'admin' | 'member' | 'superadmin';
+  accessType?: ProfessionalAccessType;
+  jobFunctionType?: ProfessionalJobFunctionType;
+  customJobFunction?: string;
+  categories?: string[];
+  serviceIds?: string[];
+  serviceNames?: string[];
   avatar?: string;
   avatarUrl?: string;
   rating?: number;
@@ -421,7 +438,7 @@ export interface CatalogServiceItem {
   professionalId?: string; // Multi-tenant RBAC: vincula o serviço a um profissional específico
 }
 
-export type ProfessionalRole = 'admin' | 'professional' | 'receptionist';
+export type ProfessionalRole = 'admin' | 'professional' | 'receptionist' | 'superadmin';
 
 export interface FinancialExpense {
   id: string;
@@ -439,13 +456,20 @@ export interface ProfessionalWorkSchedule {
   shiftLabel?: string;
   days: string[]; // e.g. ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom']
   startTime: string; // e.g. '08:00'
-  endTime: string; // e.g. '14:00'
+  endTime: string; // e.g. '18:00'
+  dailySchedules?: Record<string, ProfessionalDayScheduleSlot>;
 }
 
 export interface ProfessionalTeamMember {
   id: string;
   name: string;
   role: ProfessionalRole;
+  accessType?: ProfessionalAccessType;
+  jobFunctionType?: ProfessionalJobFunctionType;
+  customJobFunction?: string;
+  categories?: string[];
+  serviceIds?: string[];
+  serviceNames?: string[];
   avatarUrl?: string;
   phone?: string;
   email?: string;

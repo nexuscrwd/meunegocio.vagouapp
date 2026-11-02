@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   X, Calendar, Clock, User, Users, CheckCircle2, ChevronLeft, ChevronRight,
   Scissors, ArrowLeft, AlertCircle,
-  Check, Video, Images, Plus, Navigation, MapPin, Search,
+  Check, Plus, Navigation, MapPin, Search,
   Sun, Sunset, Moon, Bookmark, RotateCcw, Loader2, Car, Home,
   Bike, Bus, Smartphone, ExternalLink, Footprints
 } from 'lucide-react';
@@ -103,7 +103,7 @@ interface SalonBookingModalProps {
   }) => Promise<{ success: boolean; error?: string } | void> | void;
 }
 
-type Step = 'service' | 'date' | 'professionals_and_time';
+type Step = 'date' | 'professionals_and_time';
 
 const PREP_BUFFER_MINUTES = 15;
 
@@ -141,12 +141,29 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   // 1. Selected Services State
   const [selectedServices, setSelectedServices] = useState<CatalogServiceItem[]>(() => {
     if (initialService) return [initialService];
+    if (services.length > 0) return [services[0]];
     return [];
   });
 
-  // Objeto consolidado de serviços selecionados
-  const selectedService = useMemo(() => {
-    if (selectedServices.length === 0) return null;
+  useEffect(() => {
+    if (selectedServices.length === 0 && services.length > 0) {
+      setSelectedServices([services[0]]);
+    }
+  }, [services, selectedServices.length]);
+
+  // Objeto consolidado de serviços selecionados (com fallback para permitir uso direto da agenda mensal)
+  const selectedService = useMemo<CatalogServiceItem>(() => {
+    if (selectedServices.length === 0) {
+      return (
+        services[0] || {
+          id: 'agenda-mensal-direta',
+          title: 'Atendimento',
+          price: 0,
+          duration: '40 min',
+          category: 'Geral',
+        }
+      );
+    }
     if (selectedServices.length === 1) return selectedServices[0];
 
     const totalPrice = selectedServices.reduce((sum, s) => sum + s.price, 0);
@@ -174,13 +191,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       duration: combinedDuration,
       category: selectedServices[0]?.category || 'Combo',
     } as CatalogServiceItem;
-  }, [selectedServices]);
+  }, [selectedServices, services]);
 
-  // Step state: se o serviço já veio selecionado da seção Serviços, avança direto para Data e Horário ('date')
+  // Step state: inicia diretamente na agenda mensal ('date')
   const [currentStep, setCurrentStep] = useState<Step>(() => {
     if (initialTimeSlot) return 'professionals_and_time';
-    if (initialService) return skipDateStep ? 'professionals_and_time' : 'date';
-    return 'service';
+    if (initialService && skipDateStep) return 'professionals_and_time';
+    return 'date';
   });
 
   const pendingAuthActionRef = useRef<'start_booking' | 'confirm_final'>('start_booking');
@@ -608,34 +625,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     return false;
   };
 
-  // Abre o modal "Para você / Dependente" ao selecionar um serviço, exigindo login/cadastro caso ainda não autenticado
-  const proceedWithConfirmedServiceBooking = async (srv: CatalogServiceItem, bypassAuth = false) => {
-    hapticMedium();
-    setSelectedServices([srv]);
-    if (initialDateIso) setSelectedDateIso(initialDateIso);
-
-    if (!bypassAuth) {
-      const isLogged = checkIsClientAuthenticatedSync() || (await checkIsClientAuthenticated());
-      if (!isLogged) {
-        pendingAuthActionRef.current = 'start_booking';
-        setIsAuthModalOpen(true);
-        return;
-      }
-    }
-
-    if (initialTimeSlot) {
-      setSelectedTimeSlot(initialTimeSlot);
-      setCurrentStep('professionals_and_time');
-      setIsSummaryModalOpen(true);
-    } else {
-      setSelectedTimeSlot(null);
-      setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
-      setIsOriginModalOpen(false);
-      setReturnToSummaryAfterBeneficiary(false);
-      setIsBeneficiaryModalOpen(true);
-    }
-  };
-
   // Reagir imediatamente quando o usuário clica em um Serviço na seção Serviços (abre o modal de Beneficiário)
   const prevBookingTriggerRef = useRef<number>(bookingTrigger);
   const prevInitialServiceIdRef = useRef<string | undefined>(initialService?.id);
@@ -669,14 +658,16 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           setIsBeneficiaryModalOpen(true);
         }
       } else {
-        setSelectedServices([]);
+        if (services.length > 0) {
+          setSelectedServices([services[0]]);
+        }
         setSelectedTimeSlot(null);
-        setCurrentStep('service');
+        setCurrentStep('date');
         setIsOriginModalOpen(false);
         setIsBeneficiaryModalOpen(false);
       }
     }
-  }, [bookingTrigger, initialService, skipDateStep, initialTimeSlot, initialDateIso]);
+  }, [bookingTrigger, initialService, skipDateStep, initialTimeSlot, initialDateIso, services]);
 
   // Restaurar rascunho pré-salvo quando solicitado pelo cliente (Banner Flutuante ou Minha Agenda)
   useEffect(() => {
@@ -717,8 +708,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           setIsBeneficiaryModalOpen(true);
         }
       } else {
-        setSelectedServices([]);
-        setCurrentStep('service');
+        if (services.length > 0) {
+          setSelectedServices([services[0]]);
+        }
+        setCurrentStep('date');
       }
       if (initialTimeSlot) {
         setSelectedTimeSlot(initialTimeSlot);
@@ -729,7 +722,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       }
     }
     prevIsOpenRef.current = isOpen;
-  }, [inline, isOpen, skipDateStep, initialTimeSlot, initialDateIso, initialService, resumeDraft]);
+  }, [inline, isOpen, skipDateStep, initialTimeSlot, initialDateIso, initialService, resumeDraft, services]);
 
   // Handler para salvar novo dependente inline sem sair do fluxo de agendamento
   const handleSaveInlineDependent = async (e: React.FormEvent) => {
@@ -799,9 +792,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       setReturnToRouteModalAfterOrigin(false);
       setOriginModalMode('choice');
       setIsOriginModalOpen(true);
-    }
-    if (currentStep === 'service') {
-      setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
     }
     hapticSuccess();
   };
@@ -1154,16 +1144,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     return null;
   }, [today, etaMinutes, selectedProfessional, busySlotsFromDb, availableProfessionalsForDate, currentTimeTick, selectedDateIso]);
 
-  // Agrupar serviços por categoria
-  const groupedServices = useMemo(() => {
-    const groups: Record<string, CatalogServiceItem[]> = {};
-    services.forEach((srv) => {
-      const cat = srv.category?.trim() || 'Geral';
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(srv);
-    });
-    return groups;
-  }, [services]);
+  // Profissionais ativos do salão para o cabeçalho (visível apenas quando houver múltiplos profissionais; oculto quando profissional único)
+  const salonActiveProfessionals = useMemo(
+    () => professionals.filter((p) => p.isActive !== false && !String(p.role || '').toLowerCase().includes('recep')),
+    [professionals]
+  );
+  const hasMultipleProfessionals = salonActiveProfessionals.length > 1;
 
   if (!isOpen) return null;
 
@@ -1414,417 +1400,85 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       role={inline ? undefined : 'dialog'}
       aria-modal={inline ? undefined : 'true'}
     >
-      {/* Header Limpo & Stepper Inteligente com Seleções Reais */}
-      <div className={`px-3 py-2 border-b sticky top-0 z-10 transition-colors space-y-2 ${
-        isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-slate-100/95 border-slate-200'
-      }`}>
-        {/* Linha 1: Sub-Cabeçalho com Botão Voltar + Detalhe Completo do Serviço ao lado */}
-        {(currentStep !== 'service' || !inline) && (
-          <div className="flex items-center justify-between gap-2 min-h-7">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              {currentStep !== 'service' && (
+      {/* Cabeçalho de Profissionais: Visível apenas para salões com múltiplos profissionais; oculto para profissional único */}
+      {hasMultipleProfessionals && (
+        <div
+          className={`px-3 py-2 border-b shrink-0 transition-colors ${
+            isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
+          }`}
+        >
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            {salonActiveProfessionals.map((prof, idx) => {
+              const isSelected = selectedProfessional === prof.name;
+              const profImg = prof.avatar || prof.avatarUrl;
+              const firstName = (prof.name || 'Profissional').trim().split(/\s+/)[0];
+              return (
                 <button
-                  type="button"
-                  onClick={() => {
-                    hapticMedium();
-                    if (currentStep === 'date') {
-                      setCurrentStep('service');
-                    } else if (currentStep === 'professionals_and_time') {
-                      setCurrentStep('date');
-                    }
-                  }}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-bold transition cursor-pointer shrink-0 ${
-                    isDark
-                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-100 hover:text-white'
-                      : 'bg-slate-200 hover:bg-slate-300 text-slate-800 hover:text-slate-950'
-                  }`}
-                  title="Voltar etapa"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span>Voltar</span>
-                </button>
-              )}
-
-              {!inline && onClose && currentStep === 'service' && (
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-bold transition cursor-pointer shrink-0 ${
-                    isDark
-                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-100 hover:text-white'
-                      : 'bg-slate-200 hover:bg-slate-300 text-slate-800 hover:text-slate-950'
-                  }`}
-                >
-                  <ArrowLeft className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span>Voltar</span>
-                </button>
-              )}
-
-              {/* Detalhe/Descrição completa do serviço ao lado do botão Voltar */}
-              {currentStep !== 'service' && selectedService && (
-                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                  <span
-                    className={`text-xs font-extrabold truncate font-['Poppins'] ${
-                      isDark ? 'text-white' : 'text-slate-900'
-                    }`}
-                    title={selectedService.title}
-                  >
-                    {selectedService.title}
-                  </span>
-                  <span
-                    className={`text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded-[4px] whitespace-nowrap ${
-                      isDark ? 'bg-slate-800 text-emerald-400' : 'bg-emerald-50 text-emerald-700'
-                    }`}
-                  >
-                    {selectedService.duration} • R$ {selectedService.price.toFixed(0)}
-                  </span>
-                </div>
-              )}
-
-              {!inline && selectedService && (
-                <button
+                  key={prof.id || idx}
                   type="button"
                   onClick={() => {
                     hapticLight();
-                    setIsBeneficiaryModalOpen(true);
+                    setSelectedProfessional(prof.name);
+                    setSelectedTimeSlot(null);
                   }}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] font-bold text-xs transition cursor-pointer shrink-0 whitespace-nowrap ${
-                    isDependentBooking
-                      ? 'bg-emerald-500 text-white'
+                  className={`flex-shrink-0 py-1.5 px-3 rounded-[4px] border text-left flex items-center gap-2 transition cursor-pointer ${
+                    isSelected
+                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
                       : isDark
-                      ? 'bg-slate-800 text-slate-100 hover:bg-slate-700'
-                      : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+                      ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
                   }`}
-                  title="Alterar para quem é o agendamento"
                 >
-                  {isDependentBooking ? (
-                    <Users className="w-3.5 h-3.5 text-white shrink-0" />
+                  {profImg && !profImg.startsWith('data:image/svg+xml') ? (
+                    <img
+                      src={profImg}
+                      alt={firstName}
+                      className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                      referrerPolicy="no-referrer"
+                    />
                   ) : (
-                    <User className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <div
+                      className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                        isSelected
+                          ? 'bg-white/20 text-white'
+                          : isDark
+                          ? 'bg-slate-800 text-slate-300'
+                          : 'bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <User className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : ''}`} />
+                    </div>
                   )}
-                  <span className={isDependentBooking ? 'text-white' : ''}>
-                    {isDependentBooking && dependentName ? dependentName : 'Para Você'}
-                  </span>
-                </button>
-              )}
-            </div>
-
-            {!inline && onClose && (
-              <div className="flex items-center justify-end gap-1.5 ml-auto shrink-0">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
-                    isDark
-                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white'
-                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700 hover:text-slate-950'
-                  }`}
-                  aria-label="Fechar modal"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Linha 2: Abas Dinâmicas Exibindo o Nome Resumido do Serviço (ex: Corte, Unha) | Data | Horário */}
-        <div className="grid grid-cols-3 gap-1.5">
-          {(() => {
-            // 1. Nome resumido de 1 palavra na aba (ex: "Corte Navalhado" -> "Corte", "Unha em Gel" -> "Unha")
-            const getAbbreviatedServiceLabel = (): string => {
-              if (!selectedServices.length) return 'Serviço';
-              const rawTitle = selectedServices[0].title.trim();
-              const lower = rawTitle.toLowerCase();
-              if (lower.includes('corte') || lower.includes('degrad') || lower.includes('navalha')) return 'Corte';
-              if (lower.includes('unha') || lower.includes('manicure') || lower.includes('pedicure') || lower.includes('gel') || lower.includes('fibra')) return 'Unha';
-              if (lower.includes('barba') || lower.includes('bigode')) return 'Barba';
-              if (lower.includes('sobrancelha') || lower.includes('cilio') || lower.includes('cílio')) return 'Sobrancelha';
-              if (lower.includes('escova') || lower.includes('chapinha') || lower.includes('prancha')) return 'Escova';
-              if (lower.includes('hidrata') || lower.includes('cronograma') || lower.includes('botox') || lower.includes('progressiva')) return 'Cabelo';
-              if (lower.includes('limpeza') || lower.includes('pele') || lower.includes('facial')) return 'Estética';
-              if (lower.includes('massagem') || lower.includes('drenagem')) return 'Massagem';
-              if (lower.includes('depila')) return 'Depilação';
-              const firstWord = rawTitle.split(/[\s+/,-]+/)[0] || 'Serviço';
-              return firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
-            };
-
-            // 2. Data: se o cliente ainda não chegou na seção de data, mostra "Data"; senão, mostra a data selecionada
-            const dateStepLabel =
-              currentStep !== 'service' && selectedDateIso ? shortDateFormatted : 'Data';
-
-            // 3. Horário: se não houver horário selecionado, mostra "Horário"; quando selecionado, mostra o horário
-            const timeStepLabel = selectedTimeSlot ? selectedTimeSlot : 'Horário';
-
-            const dynamicSteps: Array<{
-              key: Step;
-              label: string;
-              hasValue: boolean;
-              Icon: React.ElementType;
-            }> = [
-              {
-                key: 'service',
-                label: getAbbreviatedServiceLabel(),
-                hasValue: selectedServices.length > 0,
-                Icon: Scissors,
-              },
-              {
-                key: 'date',
-                label: dateStepLabel,
-                hasValue: currentStep !== 'service' && Boolean(selectedDateIso),
-                Icon: Calendar,
-              },
-              {
-                key: 'professionals_and_time',
-                label: timeStepLabel,
-                hasValue: Boolean(selectedTimeSlot),
-                Icon: Clock,
-              },
-            ];
-
-            const stepOrder: Record<Step, number> = {
-              service: 1,
-              date: 2,
-              professionals_and_time: 3,
-            };
-            const currentOrder = stepOrder[currentStep];
-
-            return dynamicSteps.map((st, idx) => {
-              const thisOrder = idx + 1;
-              const isPassed = thisOrder < currentOrder;
-              const isCurrent = thisOrder === currentOrder;
-              const StepIcon = st.Icon;
-
-              return (
-                <button
-                  key={st.key}
-                  type="button"
-                  disabled={!isPassed}
-                  onClick={() => {
-                    if (isPassed) {
-                      hapticLight();
-                      setCurrentStep(st.key);
-                    }
-                  }}
-                  title={st.label}
-                  className={`flex flex-col gap-1 min-w-0 ${
-                    isPassed ? 'cursor-pointer' : 'cursor-default'
-                  }`}
-                >
-                  <div
-                    className={`flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-[4px] min-w-0 w-full transition-colors ${
-                      isCurrent
-                        ? isDark
-                          ? 'text-emerald-400'
-                          : 'text-emerald-700'
-                        : isPassed || st.hasValue
-                        ? isDark
-                          ? 'text-slate-100'
-                          : 'text-slate-800'
-                        : isDark
-                        ? 'text-slate-500'
-                        : 'text-slate-400'
+                  <span
+                    className={`text-xs font-bold whitespace-nowrap leading-none ${
+                      isSelected ? 'text-white' : isDark ? 'text-slate-200' : 'text-slate-800'
                     }`}
                   >
-                    <StepIcon
-                      className={`w-3 h-3 shrink-0 ${
-                        isCurrent || isPassed || st.hasValue
-                          ? 'text-emerald-500'
-                          : isDark
-                          ? 'text-slate-600'
-                          : 'text-slate-400'
-                      }`}
-                    />
-                    <span className="text-[11px] sm:text-xs font-extrabold truncate">
-                      {st.label}
-                    </span>
-                  </div>
-                  <div
-                    className={`h-1.5 w-full rounded-[4px] transition-all duration-300 ${
-                      isCurrent
-                        ? 'bg-emerald-500'
-                        : isPassed
-                        ? 'bg-emerald-600'
-                        : isDark
-                        ? 'bg-slate-800'
-                        : 'bg-slate-200'
-                    }`}
-                  />
+                    {firstName}
+                  </span>
                 </button>
               );
-            });
-          })()}
+            })}
+            {isLoadingBusySlots && (
+              <Loader2 className="w-4 h-4 animate-spin text-emerald-500 shrink-0 ml-1" />
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Scrollable Content Body */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 no-scrollbar">
         {/* ============================================================ */}
-        {/* ETAPA 1: SELEÇÃO DE SERVIÇO (OU ADICIONAR MAIS SERVIÇOS) */}
-        {/* ============================================================ */}
-        {currentStep === 'service' && (
-          <div className="space-y-3 animate-in fade-in duration-200">
-            {services.length === 0 ? (
-              <div className={`p-8 rounded-[4px] border text-center my-4 ${
-                isDark ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'
-              }`}>
-                <Scissors className="w-8 h-8 mx-auto mb-2 text-amber-400" />
-                <p className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  Não há serviço cadastrado neste estabelecimento
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {(Object.entries(groupedServices) as [string, CatalogServiceItem[]][]).map(([categoryName, catServices]) => (
-                  <div key={categoryName} className="space-y-1.5">
-                    <div className="flex items-center gap-2 px-1 pt-1 pb-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      <h3 className={`text-[11px] font-black uppercase tracking-wider font-['Poppins'] ${
-                        isDark ? 'text-slate-300' : 'text-slate-700'
-                      }`}>
-                        {categoryName}
-                      </h3>
-                      <span className={`text-[10px] font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                        ({catServices.length})
-                      </span>
-                    </div>
-
-                    <div className="space-y-2">
-                      {catServices.map((srv) => {
-                        const isSelected = selectedServices.some((s) => s.id === srv.id);
-                        const isVideoMode = (srv.displayMode === 'video' || srv.mediaType === 'video') && !!srv.videoUrl;
-                        const isSlideshowMode = srv.displayMode === 'slideshow' && !!(srv.photos && srv.photos.length > 1);
-                        return (
-                          <button
-                            key={srv.id}
-                            type="button"
-                            onClick={() => proceedWithConfirmedServiceBooking(srv)}
-                            className={`w-full p-2.5 rounded-[4px] transition-all flex items-center justify-between gap-3 text-left cursor-pointer border ${
-                              isSelected
-                                ? isDark
-                                  ? 'bg-emerald-500/10 border-emerald-500/50 text-white'
-                                  : 'bg-emerald-50/80 border-emerald-500/50 text-slate-900'
-                                : isDark
-                                ? 'bg-slate-900/60 hover:bg-slate-900 border-slate-800 text-slate-200'
-                                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
-                            }`}
-                          >
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5">
-                                <h4 className={`text-xs font-bold leading-snug truncate ${
-                                  isSelected
-                                    ? isDark ? 'text-emerald-400' : 'text-emerald-800'
-                                    : isDark ? 'text-white' : 'text-slate-900'
-                                }`}>
-                                  {srv.title}
-                                </h4>
-                                {isVideoMode && (
-                                  <span className="shrink-0 px-1 py-0.2 rounded-[4px] bg-emerald-500 text-white text-[8px] font-black uppercase flex items-center gap-0.5">
-                                    <Video className="w-2.5 h-2.5 text-white" />
-                                    <span className="text-white">5s</span>
-                                  </span>
-                                )}
-                                {isSlideshowMode && (
-                                  <span className="shrink-0 px-1 py-0.2 rounded-[4px] bg-emerald-500 text-white text-[8px] font-black uppercase flex items-center gap-0.5">
-                                    <Images className="w-2.5 h-2.5 text-white" />
-                                    <span className="text-white">Slide</span>
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className="flex items-center gap-2 mt-1 text-[10px]">
-                                <span className={`inline-flex items-center gap-1 font-medium ${
-                                  isDark ? 'text-slate-400' : 'text-slate-500'
-                                }`}>
-                                  <Clock className="w-3 h-3 text-emerald-400" />
-                                  <span>{srv.duration}</span>
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="shrink-0 text-right">
-                              <span className={`text-sm font-extrabold ${
-                                isSelected
-                                  ? isDark ? 'text-emerald-400' : 'text-emerald-700'
-                                  : isDark ? 'text-slate-100' : 'text-slate-900'
-                              }`}>
-                                R$ {srv.price.toFixed(0)}
-                              </span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Barra Compacta de Origem Calculada & Sugestão do Dia/Horário Mais Propício */}
-        {currentStep !== 'service' && selectedService && (
-          <div className={`px-2.5 py-2 rounded-[4px] flex items-center justify-between gap-2 text-xs ${
-            isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'
-          }`}>
-            <button
-              type="button"
-              onClick={() => {
-                hapticLight();
-                setReturnToRouteModalAfterOrigin(false);
-                setOriginModalMode('choice');
-                setIsOriginModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 min-w-0 flex-1 text-left cursor-pointer"
-              title="Alterar endereço de partida"
-            >
-              <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              {isCalculatingRoute ? (
-                <Loader2 className="w-3.5 h-3.5 text-emerald-500 animate-spin shrink-0" />
-              ) : (
-                <span className="truncate font-bold">
-                  {originType === 'home' ? 'De Casa' : resolvedAddressLabel} ({distanceKm.toFixed(1).replace('.', ',')} km)
-                </span>
-              )}
-            </button>
-
-            {propitiousSuggestion && (
-              <button
-                type="button"
-                onClick={() => {
-                  hapticMedium();
-                  const [py, pm] = propitiousSuggestion.dateIso.split('-').map(Number);
-                  setCurrentViewMonth(new Date(py, pm - 1, 1));
-                  setSelectedDateIso(propitiousSuggestion.dateIso);
-                  setSelectedTimeSlot(propitiousSuggestion.timeSlot);
-                  setCurrentStep('professionals_and_time');
-                }}
-                className="px-2 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10px] flex items-center gap-1 shrink-0 transition cursor-pointer whitespace-nowrap"
-                title="Selecionar o dia e horário mais propício para sua distância"
-              >
-                <Clock className="w-3 h-3 text-white shrink-0" />
-                <span className="text-white">
-                  Ideal: {propitiousSuggestion.shortDate} às {propitiousSuggestion.timeSlot}
-                </span>
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* ============================================================ */}
-        {/* ETAPA 2: CALENDÁRIO MENSAL DE DATAS */}
+        {/* AGENDA MENSAL DE DATAS */}
         {/* ============================================================ */}
         {currentStep === 'date' && (
           <div className="space-y-3 animate-in fade-in duration-200">
-            <div className={`space-y-3 transition-all ${
-              !selectedService ? 'pointer-events-none opacity-40 select-none' : ''
-            }`}>
+            <div className="space-y-3 transition-all">
               <div className="flex items-center justify-between px-1 py-1">
                 <button
                   type="button"
-                  disabled={!selectedService}
                   onClick={handlePrevMonth}
-                  className={`p-2 rounded-[4px] transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+                  className={`p-2 rounded-[4px] transition cursor-pointer ${
                     isDark
                       ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
                       : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
@@ -1843,9 +1497,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
 
                 <button
                   type="button"
-                  disabled={!selectedService}
                   onClick={handleNextMonth}
-                  className={`p-2 rounded-[4px] transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+                  className={`p-2 rounded-[4px] transition cursor-pointer ${
                     isDark
                       ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
                       : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
@@ -1869,8 +1522,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     return <div key={`empty-${index}`} className="h-10" />;
                   }
 
-                  const isSelected = selectedService && selectedDateIso === item.isoString;
-                  const isDayDisabled = !selectedService || item.isDisabled;
+                  const isSelected = selectedDateIso === item.isoString;
+                  const isDayDisabled = item.isDisabled;
 
                   return (
                     <button
@@ -1878,7 +1531,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                       type="button"
                       disabled={isDayDisabled}
                       onClick={() => {
-                        if (item.isoString && selectedService) {
+                        if (item.isoString) {
                           hapticMedium();
                           setSelectedDateIso(item.isoString);
                           setSelectedTimeSlot(null);
@@ -1915,59 +1568,36 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         )}
 
         {/* ============================================================ */}
-        {/* ETAPA 3: PROFISSIONAIS (FOTO + 1º NOME) + TURNOS + HORÁRIOS */}
+        {/* TURNOS + HORÁRIOS DO DIA SELECIONADO */}
         {/* ============================================================ */}
         {currentStep === 'professionals_and_time' && (
           <div className="space-y-3 animate-in fade-in duration-200">
-            {/* Linha 1: Botões dos Profissionais que fazem o tipo do serviço (apenas Foto + Primeiro Nome, sem tumultuar com turnos) */}
-            {professionalsForSelectedService.length > 0 && (
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                {professionalsForSelectedService.map((prof, idx) => {
-                  const isSelected = selectedProfessional === prof.name;
-                  const profImg = prof.avatar || prof.avatarUrl;
-                  const firstName = (prof.name || 'Profissional').trim().split(/\s+/)[0];
-                  return (
-                    <button
-                      key={prof.id || idx}
-                      type="button"
-                      onClick={() => {
-                        hapticLight();
-                        setSelectedProfessional(prof.name);
-                        setSelectedTimeSlot(null);
-                      }}
-                      className={`flex-shrink-0 py-1.5 px-3 rounded-[4px] border text-left flex items-center gap-2 transition cursor-pointer ${
-                        isSelected
-                          ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
-                          : isDark
-                          ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
-                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
-                      }`}
-                    >
-                      {profImg && !profImg.startsWith('data:image/svg+xml') ? (
-                        <img
-                          src={profImg}
-                          alt={firstName}
-                          className="w-6 h-6 rounded-full object-cover flex-shrink-0"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-                          isSelected ? 'bg-white/20 text-white' : isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200 text-slate-700'
-                        }`}>
-                          <User className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : ''}`} />
-                        </div>
-                      )}
-                      <span className={`text-xs font-bold whitespace-nowrap leading-none ${
-                        isSelected ? 'text-white' : isDark ? 'text-slate-200' : 'text-slate-800'
-                      }`}>
-                        {firstName}
-                      </span>
-                    </button>
-                  );
-                })}
-                {isLoadingBusySlots && <Loader2 className="w-4 h-4 animate-spin text-emerald-500 shrink-0 ml-1" />}
-              </div>
-            )}
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  hapticMedium();
+                  setCurrentStep('date');
+                }}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-bold transition cursor-pointer shrink-0 ${
+                  isDark
+                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-100 hover:text-white'
+                    : 'bg-slate-200 hover:bg-slate-300 text-slate-800 hover:text-slate-950'
+                }`}
+              >
+                <ArrowLeft className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span>Agenda Mensal</span>
+              </button>
+
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-extrabold ${
+                  isDark ? 'bg-slate-900 text-emerald-400' : 'bg-emerald-50 text-emerald-700'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span>{shortDateFormatted}</span>
+              </span>
+            </div>
 
             {/* Linha 2: Abas de Turnos dedicadas em largura total (Manhã | Tarde | Noite | Todos) */}
             <div className={`grid grid-cols-4 gap-1 p-1 rounded-[4px] border ${
@@ -2111,9 +1741,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 setOriginModalMode('choice');
                 setIsOriginModalOpen(true);
               }
-              if (currentStep === 'service') {
-                setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
-              }
             }}
             className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
               !isDependentBooking
@@ -2186,9 +1813,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                             setReturnToRouteModalAfterOrigin(false);
                             setOriginModalMode('choice');
                             setIsOriginModalOpen(true);
-                          }
-                          if (currentStep === 'service') {
-                            setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
                           }
                         }}
                         className={`w-full p-2.5 rounded-[4px] border text-left flex items-center justify-between gap-2 transition cursor-pointer ${
@@ -3725,7 +3349,19 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         } else {
           const targetSrv = selectedService || initialService;
           if (targetSrv) {
-            proceedWithConfirmedServiceBooking(targetSrv, true);
+            setSelectedServices([targetSrv]);
+            if (initialDateIso) setSelectedDateIso(initialDateIso);
+            if (initialTimeSlot) {
+              setSelectedTimeSlot(initialTimeSlot);
+              setCurrentStep('professionals_and_time');
+              setIsSummaryModalOpen(true);
+            } else {
+              setSelectedTimeSlot(null);
+              setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
+              setIsOriginModalOpen(false);
+              setReturnToSummaryAfterBeneficiary(false);
+              setIsBeneficiaryModalOpen(true);
+            }
           }
         }
       }}

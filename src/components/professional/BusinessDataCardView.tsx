@@ -1,10 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Building2, MapPin, Clock, UserCheck, 
+  Building2, Clock, UserCheck, 
   Save, Check, Search, Loader2, Sparkles, 
-  ArrowLeft, AlertCircle, QrCode, Plus, Trash2, Printer, FileText,
-  Copy, ExternalLink, Phone, Mail, Tag, X,
-  Globe, Instagram, Facebook, Users
+  ArrowLeft, AlertCircle, Plus, FileText,
+  Tag, X, Users
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { 
@@ -103,8 +102,6 @@ function minutesToTime(mins: number): string {
 
 /**
  * Calcula a união matemática dos horários de todos os profissionais para a aba "Geral".
- * Exemplo: Se Profissional 1 trabalha das 09:00 às 12:00 e Profissional 2 trabalha das 12:00 às 20:00,
- * a união resulta em 09:00 às 20:00 contínuo na aba Geral.
  */
 function computeUnionGeneralSchedule(
   proIds: string[],
@@ -163,7 +160,6 @@ function computeUnionGeneralSchedule(
       };
     }
 
-    // Ordenar e mesclar intervalos sobrepostos ou adjacentes (ex: [09:00, 12:00] + [12:00, 20:00] => [09:00, 20:00])
     intervals.sort((a, b) => a[0] - b[0]);
     const merged: Array<[number, number]> = [intervals[0]];
     for (let i = 1; i < intervals.length; i++) {
@@ -214,27 +210,15 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
   initialTab = 'comercial',
 }) => {
   const { isDark } = useTheme();
-  const [activeSubTab, setActiveSubTab] = useState<BusinessDataTabId>(initialTab);
-  const [isStorefrontQrModalOpen, setIsStorefrontQrModalOpen] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
+  const normalizedInitialTab: 'comercial' | 'horarios' =
+    initialTab === 'horarios' ? 'horarios' : 'comercial';
+  const [activeSubTab, setActiveSubTab] = useState<'comercial' | 'horarios'>(normalizedInitialTab);
 
   // 1. INFORMAÇÕES COMERCIAIS
   const [salonName, setSalonName] = useState(adminSettings.salonName || '');
   const [category, setCategory] = useState(adminSettings.category || 'Barbearia');
 
-  // 2. LOCALIZAÇÃO & ENDEREÇO + MAPS
-  const [cep, setCep] = useState(adminSettings.cep || '');
-  const [logradouro, setLogradouro] = useState(adminSettings.logradouro || adminSettings.salonAddress || '');
-  const [numero, setNumero] = useState(adminSettings.numero || '');
-  const [complemento, setComplemento] = useState(adminSettings.complemento || '');
-  const [bairro, setBairro] = useState(adminSettings.bairro || '');
-  const [cidade, setCidade] = useState(adminSettings.cidade || '');
-  const [uf, setUf] = useState(adminSettings.uf || '');
-  const mapsUrl = adminSettings.mapsUrl || '';
-  const [isSearchingCep, setIsSearchingCep] = useState(false);
-  const [cepError, setCepError] = useState('');
-
-  // 3. HORÁRIOS DE ATENDIMENTO (Aba "Geral" + Abas por Profissional + 2 Turnos / Pausas de Urgência)
+  // 2. HORÁRIOS DE ATENDIMENTO (Aba "Geral" + Abas por Profissional + 2 Turnos / Pausas de Urgência)
   const [localProfessionals, setLocalProfessionals] = useState<SalonProfessionalItem[]>(() => {
     if (Array.isArray(professionals) && professionals.length > 0) {
       return professionals;
@@ -294,7 +278,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
 
   const hasMultipleProfessionals = localProfessionals.length > 1;
 
-  // Quando há mais de 1 profissional, a aba "Geral" calcula automaticamente a união dos turnos da equipe
   const computedGeneralDays = useMemo(() => {
     if (!hasMultipleProfessionals) return days;
     return computeUnionGeneralSchedule(proIds, professionalSchedules, days);
@@ -305,17 +288,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
       ? computedGeneralDays
       : (professionalSchedules[activeScheduleTab] || createDefaultDays('09:00', '20:00', false));
 
-  // 4. CONTATO (Link Exclusivo & QR Code, WhatsApp, Tel. Fixo, E-mail, Site, Instagram, Facebook)
-  const [salonPhone, setSalonPhone] = useState(adminSettings.salonPhone || adminSettings.legalManagerPhone || '');
-  const [phoneLandline, setPhoneLandline] = useState(adminSettings.phoneLandline || '');
-  const [commercialEmail, setCommercialEmail] = useState(
-    adminSettings.email || adminSettings.legalManagerEmail || (typeof window !== 'undefined' ? localStorage.getItem('vagou_user_email') || '' : '')
-  );
-  const [websiteUrl, setWebsiteUrl] = useState(adminSettings.websiteUrl || '');
-  const [instagramUrl, setInstagramUrl] = useState(adminSettings.instagramUrl || '');
-  const [facebookUrl, setFacebookUrl] = useState(adminSettings.facebookUrl || '');
-
-  // 5. FISCAL (Autônomo vs CNPJ + BrasilAPI + Responsável Legal CPF)
+  // 3. FISCAL (Autônomo vs CNPJ + BrasilAPI + Responsável Legal CPF)
   const initialCnpjDigits = (adminSettings.cnpj || '').replace(/\D/g, '');
   const [hasCnpj, setHasCnpj] = useState<boolean>(initialCnpjDigits.length === 14);
   const [razaoSocial, setRazaoSocial] = useState(initialCnpjDigits.length === 14 ? (adminSettings.razaoSocial || '') : '');
@@ -363,18 +336,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
       .replace(/(\d{5})(\d)/, '$1-$2');
   };
 
-  const formatLandline = (v: string) => {
-    const raw = v.replace(/\D/g, '').slice(0, 10);
-    return raw
-      .replace(/^(\d{2})(\d)/, '($1) $2')
-      .replace(/(\d{4})(\d)/, '$1-$2');
-  };
-
-  const formatCep = (v: string) => {
-    const raw = v.replace(/\D/g, '').slice(0, 8);
-    return raw.replace(/^(\d{5})(\d)/, '$1-$2');
-  };
-
   // Consulta Automática de CNPJ via BrasilAPI
   const searchCnpjBrasilApi = async (cnpjValue: string) => {
     const clean = cnpjValue.replace(/\D/g, '');
@@ -398,13 +359,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
       const data = await res.json();
       if (data.razao_social) setRazaoSocial(data.razao_social);
       if (data.nome_fantasia && (!salonName || salonName === 'Meu Estabelecimento')) setSalonName(data.nome_fantasia);
-      if (data.cep && !cep) setCep(formatCep(String(data.cep)));
-      if (data.logradouro && !logradouro) setLogradouro(data.logradouro);
-      if (data.numero && !numero) setNumero(String(data.numero));
-      if (data.complemento && !complemento) setComplemento(data.complemento);
-      if (data.bairro && !bairro) setBairro(data.bairro);
-      if (data.municipio && !cidade) setCidade(data.municipio);
-      if (data.uf && !uf) setUf(data.uf);
       setCnpjFeedback({ type: 'success', message: 'Dados sincronizados da Receita Federal (BrasilAPI).' });
       hapticSuccess();
     } catch {
@@ -436,54 +390,10 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     }
   };
 
-  // Busca automática por CEP via ViaCEP
-  const searchCepAddress = async (cepValue: string) => {
-    const cleanCep = cepValue.replace(/\D/g, '');
-    if (cleanCep.length !== 8) return;
-
-    setIsSearchingCep(true);
-    setCepError('');
-
-    try {
-      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
-      const data = await response.json();
-
-      if (data.erro) {
-        setCepError('CEP não encontrado. Verifique o número digitado.');
-        hapticMedium();
-      } else {
-        setLogradouro(data.logradouro || '');
-        setBairro(data.bairro || '');
-        setCidade(data.localidade || '');
-        setUf(data.uf || '');
-        if (data.complemento && !complemento) {
-          setComplemento(data.complemento);
-        }
-        hapticSuccess();
-      }
-    } catch {
-      setCepError('Erro ao buscar o CEP. Preencha os campos manualmente.');
-    } finally {
-      setIsSearchingCep(false);
-    }
-  };
-
-  const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const masked = formatCep(e.target.value);
-    setCep(masked);
-    const raw = masked.replace(/\D/g, '');
-    if (raw.length === 8) {
-      searchCepAddress(masked);
-    } else {
-      setCepError('');
-    }
-  };
-
   // Atualização de Dias e Horários (Geral ou por Profissional)
   const mutateActiveSchedule = (updater: (prev: DayOperatingHours[]) => DayOperatingHours[]) => {
     if (activeScheduleTab === 'geral') {
       if (hasMultipleProfessionals) {
-        // Se o salão tem múltiplos profissionais e o usuário clica para abrir/fechar um dia na aba Geral, propaga para a equipe
         setProfessionalSchedules((prevMap) => {
           const nextMap: Record<string, DayOperatingHours[]> = {};
           proIds.forEach((pid) => {
@@ -580,26 +490,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     return `${openDays.map((d) => d.dayLabel).join(', ')} • ${hoursLabel}`;
   };
 
-  const resolvedSlug =
-    adminSettings.salonSlug ||
-    (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') || '' : '') ||
-    salonName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-');
-
-  const storefrontUrl = resolvedSlug
-    ? `https://${resolvedSlug}.vagouapp.com`
-    : (typeof window !== 'undefined' ? window.location.origin : 'https://vagouapp.com');
-
-  const storefrontQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=8&data=${encodeURIComponent(storefrontUrl)}`;
-
-  const handleCopyStorefrontLink = async () => {
-    hapticSuccess();
-    try {
-      await navigator.clipboard.writeText(storefrontUrl);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2200);
-    } catch {}
-  };
-
   // Salvar Dados
   const handleSave = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -622,17 +512,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
 
     hapticSuccess();
 
-    const fullAddress = [
-      logradouro,
-      numero ? `Nº ${numero}` : '',
-      complemento,
-      bairro,
-      cidade && uf ? `${cidade} - ${uf}` : cidade || uf,
-      cep ? `CEP: ${cep}` : '',
-    ]
-      .filter(Boolean)
-      .join(', ');
-
     const finalGeneralDays = computedGeneralDays;
 
     const operatingSchedule: OperatingSchedule = {
@@ -646,30 +525,15 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     const isValidCnpj = hasCnpj && rawCnpjDigits.length === 14;
     const finalCnpj = isValidCnpj ? cnpj.trim() : '';
     const finalRazaoSocial = isValidCnpj ? razaoSocial.trim() : '';
-    const resolvedEmail = (commercialEmail.trim() || legalManagerEmail.trim()).toLowerCase();
-    const resolvedWhatsapp = salonPhone.trim() || legalManagerPhone.trim();
+    const resolvedEmail = (legalManagerEmail.trim() || adminSettings.email || '').toLowerCase();
+    const resolvedWhatsapp = legalManagerPhone.trim() || adminSettings.salonPhone || '';
 
     onUpdateSettings({
       salonName: salonName.trim() || 'Meu Estabelecimento',
       category: category.trim() || 'Barbearia',
-      email: resolvedEmail,
-      salonPhone: resolvedWhatsapp,
-      phoneLandline: phoneLandline.trim(),
-      websiteUrl: websiteUrl.trim(),
-      instagramUrl: instagramUrl.trim(),
-      facebookUrl: facebookUrl.trim(),
-      mapsUrl: mapsUrl.trim(),
       razaoSocial: finalRazaoSocial,
       cnpj: finalCnpj,
       ownerCpf: legalManagerCpf.trim(),
-      cep: cep.trim(),
-      logradouro: logradouro.trim(),
-      numero: numero.trim(),
-      complemento: complemento.trim(),
-      bairro: bairro.trim(),
-      cidade: cidade.trim(),
-      uf: uf.trim(),
-      salonAddress: fullAddress || adminSettings.salonAddress,
       operatingSchedule,
       operatingHoursJson: operatingSchedule as any,
       openingHours: generateOpeningHoursSummary(),
@@ -685,8 +549,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
 
   const showComercial = activeSubTab === 'comercial';
   const showHorarios = activeSubTab === 'horarios';
-  const showEndereco = activeSubTab === 'endereco';
-  const showContato = activeSubTab === 'contato';
 
   const sectionHeaderStyleData = useMemo(() => {
     return getSectionHeaderStyleData(adminSettings, isDark);
@@ -732,13 +594,11 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
           )}
         </div>
 
-        {/* 4 Abas Dedicadas na Nova Ordem: Informações | Atendimento | Endereço | Contato */}
+        {/* 2 Abas Dedicadas: Informações | Atendimento (Endereço e Contatos foram movidos para Espaço) */}
         <div className="grid grid-cols-2 gap-1.5">
           {[
-            { id: 'comercial' as BusinessDataTabId, label: 'Informações', icon: Building2 },
-            { id: 'horarios' as BusinessDataTabId, label: 'Atendimento', icon: Clock },
-            { id: 'endereco' as BusinessDataTabId, label: 'Endereço', icon: MapPin },
-            { id: 'contato' as BusinessDataTabId, label: 'Contato', icon: Phone },
+            { id: 'comercial' as const, label: 'Informações', icon: Building2 },
+            { id: 'horarios' as const, label: 'Atendimento', icon: Clock },
           ].map((tab) => {
             const Icon = tab.icon;
             const isSel = activeSubTab === tab.id;
@@ -1062,175 +922,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
         )}
 
         {/* ============================================================== */}
-        {/* 2. LOCALIZAÇÃO & ENDEREÇO (CEP, Endereço, Número, Compl., Bairro, Cidade, UF, Maps) */}
-        {/* ============================================================== */}
-        {showEndereco && (
-            <div className={`p-3.5 rounded-[4px] border space-y-3 ${
-              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-            }`}>
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-emerald-400" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
-                    Localização & Endereço
-                  </h3>
-                </div>
-                <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-emerald-400" />
-                  ViaCEP + Maps
-                </span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2.5">
-                <div className="col-span-1">
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    CEP <span className="text-rose-400">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      required
-                      value={cep}
-                      onChange={handleCepChange}
-                      placeholder="00000-000"
-                      className={`w-full pl-2.5 pr-8 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
-                        isDark 
-                          ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                          : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                      }`}
-                    />
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                      {isSearchingCep ? (
-                        <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
-                      ) : (
-                        <Search className="w-3.5 h-3.5 text-slate-500" />
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="col-span-2">
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Endereço <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={logradouro}
-                    onChange={(e) => setLogradouro(e.target.value)}
-                    placeholder="Rua, Avenida, Alameda..."
-                    className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
-                      isDark 
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              {cepError && (
-                <p className="text-[11px] text-rose-400 font-medium">{cepError}</p>
-              )}
-
-              <div className="grid grid-cols-3 gap-2.5">
-                <div className="col-span-1">
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Número <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={numero}
-                    onChange={(e) => setNumero(e.target.value)}
-                    placeholder="123"
-                    className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
-                      isDark 
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                    }`}
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Compl.
-                  </label>
-                  <input
-                    type="text"
-                    value={complemento}
-                    onChange={(e) => setComplemento(e.target.value)}
-                    placeholder="Sala 2, Loja B, Galeria..."
-                    className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
-                      isDark 
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-6 gap-2.5">
-                <div className="col-span-3">
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Bairro <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={bairro}
-                    onChange={(e) => setBairro(e.target.value)}
-                    placeholder="Centro"
-                    className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
-                      isDark 
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                    }`}
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    Cidade <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={cidade}
-                    onChange={(e) => setCidade(e.target.value)}
-                    placeholder="São Paulo"
-                    className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
-                      isDark 
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                    }`}
-                  />
-                </div>
-
-                <div className="col-span-1">
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    UF <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={2}
-                    value={uf}
-                    onChange={(e) => setUf(e.target.value.toUpperCase())}
-                    placeholder="SP"
-                    className={`w-full px-2 py-2 rounded-[4px] border text-xs font-mono text-center uppercase outline-hidden transition ${
-                      isDark 
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                    }`}
-                  />
-                </div>
-              </div>
-
-            </div>
-        )}
-
-        {/* ============================================================== */}
-        {/* 3. HORÁRIOS DE ATENDIMENTO (Abas Geral + Profissionais, Dias e Turnos com Intervalo/Pausa) */}
+        {/* 2. HORÁRIOS DE ATENDIMENTO (Abas Geral + Profissionais, Dias e Turnos com Intervalo/Pausa) */}
         {/* ============================================================== */}
         {showHorarios && (
             <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
@@ -1397,7 +1089,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                           {d.isOpen ? (
                             <div className="flex items-center gap-1.5 flex-wrap">
                               {d.hasBreak ? (
-                                /* Formato 2 Turnos: 09:00 às 12:00 - 13:00 às 20:00 */
                                 <>
                                   <div className="flex items-center gap-1">
                                     <input
@@ -1457,7 +1148,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                                   )}
                                 </>
                               ) : (
-                                /* Turno Contínuo + Botão de Inserir Intervalo/Pausa */
                                 <>
                                   <input
                                     type="time"
@@ -1505,269 +1195,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
               </div>
             </div>
         )}
-
-        {/* ============================================================== */}
-        {/* 4. CONTATO (Link Exclusivo & QR Code, WhatsApp, Tel. Fixo, E-mail, Site, Instagram e Facebook) */}
-        {/* ============================================================== */}
-        {showContato && (
-          <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
-            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
-          }`}>
-            <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
-              <Phone className="w-4 h-4 text-emerald-400" />
-              <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
-                Contato & Canais Digitais
-              </h3>
-            </div>
-
-            {/* Link Exclusivo & QR Code da Vitrine */}
-            <div className="space-y-2 pb-3 border-b border-slate-800/60">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <QrCode className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Link Exclusivo & QR Code da Vitrine</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    hapticLight();
-                    setIsStorefrontQrModalOpen(true);
-                  }}
-                  className="px-2.5 py-1 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] text-white text-[10px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0"
-                >
-                  <Printer className="w-3 h-3 text-white" />
-                  <span className="text-white">Placa QR Code</span>
-                </button>
-              </div>
-
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-mono font-bold text-emerald-400 truncate">
-                    {storefrontUrl}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleCopyStorefrontLink}
-                    className="flex-1 sm:flex-initial px-2.5 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer whitespace-nowrap"
-                  >
-                    {copiedLink ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-white" />
-                        <span className="text-white">Copiado!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5 text-white" />
-                        <span className="text-white">Copiar Link</span>
-                      </>
-                    )}
-                  </button>
-                  <a
-                    href={storefrontUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`px-2.5 py-1.5 rounded-[4px] border text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer whitespace-nowrap ${
-                      isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Abrir</span>
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            {/* WhatsApp, Tel. Fixo, E-mail */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
-                  <Phone className="w-3 h-3 text-emerald-400" />
-                  <span>WhatsApp <span className="text-rose-400">*</span></span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={salonPhone}
-                  onChange={(e) => setSalonPhone(formatPhone(e.target.value))}
-                  placeholder="(00) 00000-0000"
-                  className={`w-full px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
-                    isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Tel. Fixo
-                </label>
-                <input
-                  type="text"
-                  value={phoneLandline}
-                  onChange={(e) => setPhoneLandline(formatLandline(e.target.value))}
-                  placeholder="(00) 0000-0000"
-                  className={`w-full px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
-                    isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
-                  <Mail className="w-3 h-3 text-emerald-400" />
-                  <span>E-mail</span>
-                </label>
-                <input
-                  type="email"
-                  value={commercialEmail}
-                  onChange={(e) => setCommercialEmail(e.target.value)}
-                  placeholder="contato@salao.com"
-                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
-                    isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                  }`}
-                />
-              </div>
-            </div>
-
-            {/* Site, Instagram e Facebook */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
-                  <Globe className="w-3 h-3 text-emerald-400" />
-                  <span>Site</span>
-                </label>
-                <input
-                  type="text"
-                  value={websiteUrl}
-                  onChange={(e) => setWebsiteUrl(e.target.value)}
-                  placeholder="www.meusalao.com.br"
-                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
-                    isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
-                  <Instagram className="w-3 h-3 text-emerald-400" />
-                  <span>Instagram</span>
-                </label>
-                <input
-                  type="text"
-                  value={instagramUrl}
-                  onChange={(e) => setInstagramUrl(e.target.value)}
-                  placeholder="@meusalao"
-                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
-                    isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
-                  <Facebook className="w-3 h-3 text-emerald-400" />
-                  <span>Facebook</span>
-                </label>
-                <input
-                  type="text"
-                  value={facebookUrl}
-                  onChange={(e) => setFacebookUrl(e.target.value)}
-                  placeholder="facebook.com/meusalao"
-                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
-                    isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                  }`}
-                />
-              </div>
-            </div>
-          </div>
-        )}
       </form>
-
-      {/* Modal de Impressão da Placa QR Code de Agendamento da Vitrine */}
-      {isStorefrontQrModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200"
-          onClick={() => setIsStorefrontQrModalOpen(false)}
-        >
-          <div
-            className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-[4px] overflow-hidden flex flex-col max-h-[90dvh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <QrCode className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-                  Placa QR Code da Vitrine
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsStorefrontQrModalOpen(false)}
-                className="p-1 rounded-[4px] text-slate-400 hover:text-white transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-5 flex flex-col items-center text-center space-y-3 overflow-y-auto">
-              <span className="px-2.5 py-0.5 rounded-[4px] bg-[#20C933] text-white text-[10px] font-bold uppercase tracking-wider">
-                Agende Seu Horário Online
-              </span>
-              <h4 className="text-base font-black text-white">
-                {salonName || adminSettings.salonName || 'Meu Estabelecimento'}
-              </h4>
-              {adminSettings.slogan && (
-                <p className="text-[11px] text-slate-400">{adminSettings.slogan}</p>
-              )}
-              <div className="p-3 bg-white rounded-[4px] shadow-md">
-                <img
-                  src={storefrontQrUrl}
-                  alt={`QR Code Vitrine ${salonName}`}
-                  className="w-44 h-44 object-contain"
-                />
-              </div>
-              <p className="text-[11px] font-mono font-bold text-emerald-400 break-all">
-                {storefrontUrl}
-              </p>
-              <p className="text-[10px] text-slate-400">
-                Aponte a câmera do celular para ver os serviços e agendar sem fila.
-              </p>
-            </div>
-
-            <div className="p-3 border-t border-slate-800 bg-slate-950 sticky bottom-0 z-20 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleCopyStorefrontLink}
-                className="flex-1 py-2.5 px-3 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
-              >
-                <Copy className="w-3.5 h-3.5 text-white" />
-                <span className="text-white">{copiedLink ? 'Link Copiado!' : 'Copiar Link'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="flex-1 py-2.5 px-3 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
-              >
-                <Printer className="w-3.5 h-3.5 text-white" />
-                <span className="text-white">Imprimir Placa</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* RODAPÉ FIXO DE AÇÃO */}
       <div className={`p-3 border-t shrink-0 sticky bottom-0 z-20 flex items-center justify-between gap-3 ${

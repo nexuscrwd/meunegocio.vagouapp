@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Calendar, LayoutDashboard, Scissors, Users, Store, Wrench, Wallet } from 'lucide-react';
+import { Home, Calendar, LayoutDashboard, LayoutGrid, Users, Store, Wrench, Wallet } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight } from '../utils/haptics';
 import { UserPersona } from '../types';
@@ -94,14 +94,14 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const isProfessionalStaff = propIsProfessionalStaff ?? salonContext?.isProfessionalStaff ?? false;
   const vagasTabLabel = propVagasTabLabel || salonContext?.vagasTabLabel || (isOwnerOrManager || isProfessionalStaff ? 'Agenda' : 'Agendar');
   const spaceTabLabel = propSpaceTabLabel || salonContext?.spaceTabLabel || 'Espaço';
-  const ServicesIconComponent = propServicesIcon || salonContext?.ServicesIcon || Scissors;
+  const ServicesIconComponent = propServicesIcon || salonContext?.ServicesIcon || LayoutGrid;
   const SpaceIconComponent = propSpaceIcon || salonContext?.SpaceIcon || Store;
   const navStyle = propNavStyle || salonContext?.navStyle || 'minimal';
   const navShape = propNavShape || salonContext?.navShape || 'square';
   const navBorder = propNavBorder || salonContext?.navBorder || 'bordered';
   const navIconBorder = propNavIconBorder || salonContext?.navIconBorder || 'none';
-  const navBgStyle = propNavBgStyle || salonContext?.navBgStyle || 'glass';
-  const navBgColor = propNavBgColor || salonContext?.navBgColor;
+  const navBgStyle = propNavBgStyle || salonContext?.navBgStyle || 'solid';
+  const navBgColor = propNavBgColor || salonContext?.navBgColor || '#f1f5f9';
   const navBtnBgColor = propNavBtnBgColor || salonContext?.navBtnBgColor;
   const navBtnActiveBgColor = propNavBtnActiveBgColor || salonContext?.navBtnActiveBgColor;
   const navActiveColor = propNavActiveColor || salonContext?.navActiveColor || '#10b981';
@@ -109,6 +109,24 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const navBtnShadow = propNavBtnShadow || salonContext?.navBtnShadow || 'none';
   const navBtnBlur = propNavBtnBlur || salonContext?.navBtnBlur || 'none';
   const navBtnFont = propNavBtnFont || salonContext?.navBtnFont || 'Poppins';
+
+  // Detecta se a barra inferior tem fundo claro (ex.: cinza bem claro #f1f5f9 padrão) para garantir contraste de bordas e textos
+  const isLightNavBg = React.useMemo(() => {
+    if (navBgStyle === 'transparent') return !isDark;
+    const hex = (navBgColor || '').trim().toLowerCase();
+    if (!hex) return true;
+    return (
+      hex === '#f1f5f9' ||
+      hex === '#f8fafc' ||
+      hex === '#ffffff' ||
+      hex === '#e2e8f0' ||
+      hex === '#e5e7eb' ||
+      hex === '#f3f4f6' ||
+      hex.startsWith('#f') ||
+      hex.startsWith('#e') ||
+      hex.startsWith('#d')
+    );
+  }, [navBgColor, navBgStyle, isDark]);
 
   const btnShadowCss = React.useMemo(() => {
     if (navBtnShadow === 'subtle') return '0 2px 8px -2px rgba(0,0,0,0.3)';
@@ -137,17 +155,17 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     }
     if (navBgColor) {
       if (navBgStyle === 'glass') {
-        const hex = navBgColor.startsWith('#') ? navBgColor : '#0f172a';
+        const hex = navBgColor.startsWith('#') ? navBgColor : '#f1f5f9';
         return {
-          backgroundColor: `color-mix(in srgb, ${hex} 45%, transparent)`,
-          borderColor: `color-mix(in srgb, ${hex} 25%, transparent)`,
+          backgroundColor: `color-mix(in srgb, ${hex} 75%, transparent)`,
+          borderColor: `color-mix(in srgb, ${hex} 45%, #cbd5e1)`,
           backdropFilter: 'blur(16px) saturate(160%)',
           WebkitBackdropFilter: 'blur(16px) saturate(160%)',
         };
       }
       return {
         backgroundColor: navBgColor,
-        borderColor: `color-mix(in srgb, ${navBgColor} 45%, #334155)`,
+        borderColor: isLightNavBg ? '#cbd5e1' : `color-mix(in srgb, ${navBgColor} 45%, #334155)`,
       };
     }
     if (navBgStyle === 'glass') {
@@ -157,7 +175,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       };
     }
     return undefined;
-  }, [navBgStyle, navBgColor]);
+  }, [navBgStyle, navBgColor, isLightNavBg]);
 
   const navContainerClasses = React.useMemo(() => {
     if (navBgStyle === 'transparent') {
@@ -166,21 +184,21 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     if (navBgStyle === 'solid') {
       return `backdrop-blur-none border-t ${
         navBgColor
-          ? ''
-          : isDark
-            ? 'bg-slate-950 border-slate-800 shadow-[0_-4px_20px_rgba(0,0,0,0.45)]'
-            : 'bg-white border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] text-slate-800'
+          ? isLightNavBg
+            ? 'shadow-[0_-4px_20px_rgba(0,0,0,0.06)] text-slate-800'
+            : 'shadow-[0_-4px_20px_rgba(0,0,0,0.45)]'
+          : 'bg-slate-100 border-slate-300 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] text-slate-800'
       }`;
     }
-    // Default: 'glass' (alpha-vidro jateado translúcido real)
+    // 'glass' (alpha-vidro jateado translúcido real)
     return `backdrop-blur-md backdrop-saturate-150 border-t ${
       navBgColor
         ? ''
         : isDark
           ? 'bg-slate-900/50 border-white/10 shadow-[0_-4px_20px_rgba(0,0,0,0.3)]'
-          : 'bg-white/60 border-slate-200/60 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] text-slate-800'
+          : 'bg-slate-100/80 border-slate-300/80 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] text-slate-800'
     }`;
-  }, [navBgStyle, navBgColor, isDark]);
+  }, [navBgStyle, navBgColor, isDark, isLightNavBg]);
 
   if (!onSelectTab) {
     return null;
@@ -265,19 +283,21 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               } ${
                 navBorder === 'bordered'
                   ? isActive
-                    ? 'border border-white/35 shadow-sm'
-                    : isDark
-                      ? 'border border-slate-800/80'
-                      : 'border border-slate-200'
+                    ? isLightNavBg
+                      ? 'border border-emerald-600/40 shadow-sm'
+                      : 'border border-white/35 shadow-sm'
+                    : isLightNavBg
+                      ? 'border border-slate-300 bg-white/70'
+                      : 'border border-slate-800/80'
                   : 'border-0'
               } ${
                 isActive
                   ? 'shadow-sm'
                   : resolvedInactiveFg
                     ? 'hover:opacity-90'
-                    : isDark
-                      ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80'
+                    : isLightNavBg
+                      ? 'text-slate-700 hover:text-slate-950 hover:bg-white'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
               }`}
             >
               <Icon 
@@ -296,9 +316,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                     ? ''
                     : resolvedInactiveFg
                       ? ''
-                      : isDark
-                        ? 'text-slate-400'
-                        : 'text-slate-500'
+                      : isLightNavBg
+                        ? 'text-slate-700'
+                        : 'text-slate-400'
                 }`}
               >
                 {tab.label}
@@ -326,10 +346,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               } ${
                 navBorder === 'bordered'
                   ? isActive
-                    ? 'border border-white/35 shadow-xs'
-                    : isDark
-                      ? 'border border-slate-800/80'
-                      : 'border border-slate-200'
+                    ? isLightNavBg
+                      ? 'border border-emerald-500/60 bg-white shadow-xs'
+                      : 'border border-white/35 shadow-xs'
+                    : isLightNavBg
+                      ? 'border border-slate-300 bg-white/70'
+                      : 'border border-slate-800/80'
                   : 'border-0'
               }`}
             >
@@ -360,9 +382,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                     ? 'scale-105 shadow-xs'
                     : resolvedInactiveFg
                       ? navIconBorder === 'bordered' ? 'border-white/25 bg-slate-950/30' : 'bg-slate-950/30 border-transparent'
-                      : isDark
-                        ? `text-slate-400 hover:text-slate-200 bg-slate-950/70 ${navIconBorder === 'bordered' ? 'border-slate-800 hover:border-emerald-500/40' : 'border-transparent'}`
-                        : `text-slate-500 hover:text-slate-800 bg-slate-50 ${navIconBorder === 'bordered' ? 'border-slate-200 hover:border-emerald-500/40' : 'border-transparent'}`
+                      : isLightNavBg
+                        ? `text-slate-700 hover:text-slate-950 bg-slate-100 ${navIconBorder === 'bordered' ? 'border-slate-300 hover:border-emerald-500/40' : 'border-transparent'}`
+                        : `text-slate-400 hover:text-slate-200 bg-slate-950/70 ${navIconBorder === 'bordered' ? 'border-slate-800 hover:border-emerald-500/40' : 'border-transparent'}`
                 }`}
               >
                 <Icon 
@@ -380,7 +402,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 className={`text-[10px] tracking-wide font-bold truncate max-w-full transition-colors ${
                   isActive || resolvedInactiveFg
                     ? ''
-                    : isDark ? 'text-slate-400' : 'text-slate-500'
+                    : isLightNavBg ? 'text-slate-700' : 'text-slate-400'
                 }`}
               >
                 {tab.label}
@@ -389,12 +411,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           );
         }
 
-        // Padrão 'minimal' (Clean Line — Zero Box-in-Box + Indicador Luminoso no Topo)
+        // Padrão 'minimal' (Clean Line — Botões com Borda Nítida + Indicador Luminoso no Topo)
         const minimalActiveFg = (() => {
           if (navBtnActiveBgColor && navBtnActiveBgColor !== 'transparent') {
             return resolvedActiveFg;
           }
-          return navActiveColor || (isDark ? '#ffffff' : '#10b981');
+          return navActiveColor || (isLightNavBg ? '#10b981' : '#ffffff');
         })();
 
         return (
@@ -422,8 +444,16 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             } ${
               navBorder === 'bordered'
                 ? isActive
-                  ? navShape === 'circle' ? 'rounded-full border border-white/35' : 'rounded-[4px] border border-white/35'
-                  : 'border border-white/25'
+                  ? isLightNavBg
+                    ? navShape === 'circle'
+                      ? 'rounded-full border border-emerald-500/60 bg-white shadow-xs'
+                      : 'rounded-[4px] border border-emerald-500/60 bg-white shadow-xs'
+                    : navShape === 'circle'
+                      ? 'rounded-full border border-white/35'
+                      : 'rounded-[4px] border border-white/35'
+                  : isLightNavBg
+                    ? 'border border-slate-300 bg-white/60 hover:bg-white'
+                    : 'border border-white/25'
                 : ''
             }`}
           >
@@ -446,9 +476,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                   ? 'stroke-[2.4] -translate-y-0.5'
                   : resolvedInactiveFg
                     ? 'stroke-[2]'
-                    : isDark
-                      ? 'text-slate-400 group-hover:text-slate-200 stroke-[2]'
-                      : 'text-slate-500 group-hover:text-slate-800 stroke-[2]'
+                    : isLightNavBg
+                      ? 'text-slate-700 group-hover:text-slate-950 stroke-[2]'
+                      : 'text-slate-400 group-hover:text-slate-200 stroke-[2]'
               }`}
             />
 
@@ -462,9 +492,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                   ? 'font-extrabold'
                   : resolvedInactiveFg
                     ? ''
-                    : isDark
-                      ? 'text-slate-400 group-hover:text-slate-300'
-                      : 'text-slate-500 group-hover:text-slate-800'
+                    : isLightNavBg
+                      ? 'text-slate-700 group-hover:text-slate-950'
+                      : 'text-slate-400 group-hover:text-slate-300'
               }`}
             >
               {tab.label}

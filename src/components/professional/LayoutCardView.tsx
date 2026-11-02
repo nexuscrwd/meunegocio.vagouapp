@@ -89,10 +89,10 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
     adminSettings.navIconBorder || 'none'
   );
   const [navBgStyle, setNavBgStyle] = useState<'solid' | 'glass' | 'transparent'>(
-    adminSettings.navBgStyle || 'glass'
+    adminSettings.navBgStyle || 'solid'
   );
   const [navBgColor, setNavBgColor] = useState<string>(
-    adminSettings.navBgColor || (isDark ? '#020617' : '#ffffff')
+    adminSettings.navBgColor || '#f1f5f9'
   );
   const [navBtnBgColor, setNavBtnBgColor] = useState<string>(
     adminSettings.navBtnBgColor || ''
@@ -104,7 +104,7 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
     adminSettings.navActiveColor || '#10b981'
   );
   const [navTextColor, setNavTextColor] = useState<string>(
-    adminSettings.navTextColor || (isDark ? '#94a3b8' : '#64748b')
+    adminSettings.navTextColor || '#334155'
   );
 
   // 6. Faixa de boas-vindas

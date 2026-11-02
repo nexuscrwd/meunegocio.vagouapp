@@ -931,9 +931,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               <Scissors className="w-4 h-4 text-emerald-400" />
               <span>Categorias & Serviços</span>
             </h2>
-            <p className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'} truncate`}>
-              {services.length} {services.length === 1 ? 'serviço ativo' : 'serviços ativos'}
-            </p>
           </div>
 
           {/* Botão ÚNICO Primário de Ação: Novo */}
@@ -1120,28 +1117,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                           <h4 className={`text-xs font-bold truncate group-hover/info:text-emerald-400 transition ${isDark ? 'text-white' : 'text-slate-900'}`}>
                             {srv.title}
                           </h4>
-                          
-                          {/* Badge do Modo de Publicação */}
-                          {isVideoMode ? (
-                            <span className="shrink-0 px-1 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[9px] font-extrabold flex items-center gap-0.5">
-                              <Film className="w-2.5 h-2.5 text-emerald-400" />
-                              <span>Vídeo 5s</span>
-                            </span>
-                          ) : isSlideshowMode && photoCount > 1 ? (
-                            <span className="shrink-0 px-1 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[9px] font-extrabold flex items-center gap-0.5">
-                              <Images className="w-2.5 h-2.5 text-emerald-400" />
-                              <span>Slide ({photoCount})</span>
-                            </span>
-                          ) : photoCount > 0 ? (
-                            <span className="shrink-0 px-1 py-0.2 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[9px] font-semibold flex items-center gap-0.5">
-                              <ImageIcon className="w-2.5 h-2.5 text-slate-400" />
-                              <span>Foto</span>
-                            </span>
-                          ) : (
-                            <span className="shrink-0 px-1 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[8.5px] font-bold">
-                              Sem mídia
-                            </span>
-                          )}
                         </div>
 
                         {srv.description && (
@@ -1219,11 +1194,30 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
 
             {/* Formulário com Foco Passo a Passo */}
             <form onSubmit={handleSaveService} className="p-4 space-y-3.5 overflow-y-auto no-scrollbar flex-1">
-              {/* 1. SELEÇÃO OU CRIAÇÃO DE CATEGORIA */}
-              <div className="space-y-2">
+              {/* 1. NOME DO SERVIÇO */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  1. Nome do Serviço *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
+                  placeholder="Ex: Corte Degradê, Alinhamento de Fios, etc."
+                  className={`w-full px-3 py-2 rounded text-xs border ${
+                    isDark 
+                      ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-emerald-500' 
+                      : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-emerald-500'
+                  } outline-hidden`}
+                />
+              </div>
+
+              {/* 2. SELEÇÃO (LISTA SUSPENSA) OU CRIAÇÃO DE CATEGORIA */}
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    1. Categoria do Serviço *
+                    2. Categoria do Serviço *
                   </label>
                   {!isCreatingCategoryInline && (
                     <button
@@ -1240,7 +1234,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   )}
                 </div>
 
-                {/* Bloco inline de criação de categoria rápida */}
+                {/* Bloco inline de criação de categoria rápida ou Lista Suspensa */}
                 {isCreatingCategoryInline ? (
                   <div className={`p-2.5 rounded border space-y-2 ${isDark ? 'bg-slate-900/80 border-emerald-500/40' : 'bg-emerald-50/60 border-emerald-200'}`}>
                     <div className="flex items-center gap-1.5">
@@ -1272,44 +1266,31 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-28 overflow-y-auto no-scrollbar p-0.5">
-                    {categoryList.map((cat) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setFormCategory(cat)}
-                        className={`py-1.5 px-2 rounded text-[11px] font-bold transition cursor-pointer text-center truncate ${
-                          formCategory === cat
-                            ? 'bg-emerald-500 text-white shadow-xs'
-                            : isDark
-                            ? 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
-                            : 'bg-slate-100 border border-slate-200 text-slate-700'
-                        }`}
-                      >
-                        {cat}
-                      </button>
-                    ))}
+                  <div>
+                    <select
+                      value={formCategory}
+                      onChange={(e) => {
+                        hapticLight();
+                        setFormCategory(e.target.value);
+                      }}
+                      className={`w-full px-3 py-2 rounded text-xs font-bold border cursor-pointer outline-hidden transition ${
+                        isDark
+                          ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500'
+                          : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-emerald-500'
+                      }`}
+                    >
+                      {categoryList.map((cat) => (
+                        <option
+                          key={cat}
+                          value={cat}
+                          className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}
+                        >
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
-              </div>
-
-              {/* 2. NOME DO SERVIÇO */}
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  2. Nome do Serviço *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="Ex: Corte Degradê, Alinhamento de Fios, etc."
-                  className={`w-full px-3 py-2 rounded text-xs border ${
-                    isDark 
-                      ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-emerald-500'
-                  } outline-hidden`}
-                />
               </div>
 
               {/* 3. PREÇO E DURAÇÃO */}

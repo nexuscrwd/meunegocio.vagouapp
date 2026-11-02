@@ -1348,6 +1348,33 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
                     </button>
 
+                    {/* 1B. Espaço (Estrutura, Localização e Contatos) */}
+                    <button
+                      type="button"
+                      id="menu-option-espaco"
+                      onClick={() => {
+                        hapticLight();
+                        onClose();
+                        onNavigateTab?.('espaco');
+                      }}
+                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                          <Store className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold font-['Poppins']">Espaço</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Estrutura, localização e contatos
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                    </button>
+
                     {/* 2. Equipe */}
                     <button
                       type="button"
@@ -1375,34 +1402,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
                     </button>
 
-                    {/* 3. Financeiro */}
-                    <button
-                      type="button"
-                      id="menu-option-financeiro"
-                      onClick={() => {
-                        hapticLight();
-                        onClose();
-                        onNavigateTab?.('caixa');
-                      }}
-                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                          <DollarSign className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold font-['Poppins']">Financeiro</div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Caixa, PIX & Placa, despesas e repasses
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                    </button>
-
-                    {/* 4. Preferências (Criar Menu com Cards: Dados do negócio, Ident. Visual e Layout) */}
+                    {/* 3. Preferências (Criar Menu com Cards: Dados do negócio, Ident. Visual e Layout) */}
                     {isProAdmin && (
                       <button
                         type="button"
@@ -1431,34 +1431,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       </button>
                     )}
 
-                    {/* 5. Vagas Relâmpagos */}
-                    <button
-                      type="button"
-                      id="menu-option-vagas-relampagos"
-                      onClick={() => {
-                        hapticLight();
-                        onClose();
-                        onNavigateTab?.('vagas');
-                      }}
-                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-[4px] bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
-                          <Sparkles className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold font-['Poppins']">Vagas Relâmpagos</div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Publicar horários ociosos com vídeo/foto
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                    </button>
-
-                    {/* 6. Utilidades & Google Workspace */}
+                    {/* 4. Utilidades */}
                     <button
                       type="button"
                       id="menu-option-utilidades-workspace"
@@ -1476,9 +1449,9 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           <Mail className="w-4 h-4" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold font-['Poppins']">Utilidades & Workspace</div>
+                          <div className="text-xs font-bold font-['Poppins']">Utilidades</div>
                           <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Gmail, Chat, Drive, Sheets, Tasks e Consumo
+                            Financeiro, gestão de consumo, insumos e estoque
                           </div>
                         </div>
                       </div>
