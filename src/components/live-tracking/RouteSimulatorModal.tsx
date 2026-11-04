@@ -10,6 +10,7 @@ import {
   Loader2,
   Home,
   Search,
+  ChevronRight,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
@@ -308,7 +309,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xs animate-in fade-in"
+      className="fixed inset-0 z-50 flex justify-center bg-[#E6EEF6]/80 backdrop-blur-xs animate-in fade-in"
       onMouseDown={(e) => {
         backdropMouseDownRef.current = e.target === e.currentTarget;
       }}
@@ -320,50 +321,38 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
       }}
     >
       <div
-        className={`w-full max-w-lg rounded-[6px] border shadow-2xl flex flex-col overflow-hidden max-h-[92vh] transition ${
+        className={`w-full max-w-[430px] h-dvh max-h-dvh flex flex-col overflow-hidden shadow-lg transition ${
           isDark
-            ? 'bg-slate-950 border-slate-800 text-white'
-            : 'bg-white border-slate-200 text-slate-900'
+            ? 'bg-slate-950 text-white'
+            : 'bg-[#F7F9FC] text-[#1E293B]'
         }`}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Cabeçalho */}
+        {/* Barra Superior Institucional com Botão Voltar */}
         <div
-          className={`px-4 py-3.5 border-b flex items-center justify-between shrink-0 ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+          className={`px-3.5 py-3 border-b flex items-center justify-between shrink-0 ${
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E6EDF5]'
           }`}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-[4px] bg-emerald-500 flex items-center justify-center text-white shrink-0 shadow-xs">
-              <Navigation className="w-4 h-4 text-white" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-extrabold font-['Poppins'] truncate leading-tight">
-                  Trajeto (Simulador GPS)
-                </h3>
-                <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                  Teste Provisório
-                </span>
-              </div>
-              <p
-                className={`text-[10.5px] truncate ${
-                  isDark ? 'text-slate-400' : 'text-slate-500'
-                }`}
-              >
-                Defina partida e destino para testar a navegação estilo Uber
-              </p>
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] transition active:scale-95 cursor-pointer text-xs font-bold ${
+              isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-[#F1F5F9] text-[#1E293B]'
+            }`}
+          >
+            <ChevronRight className="w-4 h-4 rotate-180 text-[#2B82C9]" />
+            <span>Voltar</span>
+          </button>
 
           <button
             type="button"
             onClick={onClose}
-            className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
+            className={`w-8 h-8 rounded-[4px] border flex items-center justify-center transition cursor-pointer shrink-0 ${
               isDark
-                ? 'bg-slate-800 text-slate-400 hover:text-white'
-                : 'bg-slate-200 text-slate-600 hover:text-slate-900'
+                ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B]'
             }`}
             title="Fechar"
           >
@@ -372,252 +361,279 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
         </div>
 
         {/* Formulário Rolável */}
-        <form onSubmit={handleSubmit} className="p-4 overflow-y-auto space-y-4 text-xs">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-3.5 space-y-3.5 text-xs">
+          {/* Card de Apresentação da Ferramenta */}
+          <div className={`caixa-card p-3.5 rounded-[4px] flex items-center gap-3 ${
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
+          }`}>
+            <div className="caixa-icon-halo w-10 h-10 rounded-full shrink-0">
+              <Navigation className="w-5 h-5 text-[#2B82C9]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-xs font-bold text-[#1E293B] dark:text-white truncate leading-tight">
+                  Trajeto (Simulador GPS)
+                </h3>
+                <span className="px-1.5 py-0.5 rounded-[4px] text-[9px] font-black uppercase bg-amber-50 text-amber-700 border border-amber-200">
+                  Teste Provisório
+                </span>
+              </div>
+              <p
+                className={`text-[11px] truncate mt-0.5 ${
+                  isDark ? 'text-slate-400' : 'text-[#64748B]'
+                }`}
+              >
+                Defina partida e destino para testar a navegação GPS
+              </p>
+            </div>
+          </div>
+
           {/* Mensagem de Erro */}
           {errorMessage && (
-            <div className="p-2.5 rounded-[4px] bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs font-bold flex items-center gap-2">
-              <X className="w-4 h-4 shrink-0 text-rose-500" />
+            <div className="p-2.5 rounded-[4px] bg-[#FEF2F2] border border-[#FECACA] text-[#DC2626] text-xs font-bold flex items-center gap-2">
+              <X className="w-4 h-4 shrink-0 text-[#DC2626]" />
               <span>{errorMessage}</span>
             </div>
           )}
 
-          {/* CAMPO 1: DE ONDE VOCÊ VAI SAIR? */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <label className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                <span>De onde você vai sair?</span>
-              </label>
+          {/* Card Principal de Campos de Trajeto */}
+          <div className={`caixa-card p-4 rounded-[4px] space-y-4 ${
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
+          }`}>
+            {/* CAMPO 1: DE ONDE VOCÊ VAI SAIR? */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-[#1E293B] dark:text-slate-200 flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-[#2B82C9]" />
+                  <span>De onde você vai sair?</span>
+                </label>
 
-              <div className="flex items-center gap-1.5">
-                {/* Botão "Local Atual" */}
-                <button
-                  type="button"
-                  onClick={handleUseCurrentLocation}
-                  disabled={isLocatingOrigin}
-                  className="px-2.5 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10.5px] flex items-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
-                  title="Detectar endereço via GPS do celular"
-                >
-                  {isLocatingOrigin ? (
-                    <Loader2 className="w-3 h-3 text-white animate-spin" />
-                  ) : (
-                    <Compass className="w-3 h-3 text-white" />
-                  )}
-                  <span className="text-white">Local Atual</span>
-                </button>
-
-                {/* Botão "De Casa" */}
-                <button
-                  type="button"
-                  onClick={handleUseHomeAddress}
-                  className={`px-2.5 py-1 rounded-[4px] border font-bold text-[10.5px] flex items-center gap-1 transition cursor-pointer active:scale-95 ${
-                    isDark
-                      ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-emerald-500/50'
-                      : 'bg-slate-100 border-slate-300 text-slate-800 hover:border-emerald-500/50'
-                  }`}
-                  title="Usar endereço de casa salvo"
-                >
-                  <Home className="w-3 h-3 text-emerald-500" />
-                  <span>De Casa</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="relative">
-              <input
-                type="text"
-                value={originAddress}
-                onChange={(e) =>
-                  handleSmartInputChange(
-                    e.target.value,
-                    setOriginAddress,
-                    setOriginCoords,
-                    setOriginSuggestions,
-                    setIsSearchingOrigin
-                  )
-                }
-                placeholder={isLocatingOrigin ? '' : 'Digite o endereço ou CEP de partida'}
-                className={`w-full px-3 py-2.5 pr-9 rounded-[4px] border text-xs outline-hidden transition ${
-                  isDark
-                    ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500'
-                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
-              <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
-                {isLocatingOrigin || isSearchingOrigin ? (
-                  <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
-                ) : (
-                  <Search className="w-3.5 h-3.5 text-slate-500" />
-                )}
-              </div>
-
-              {/* Sugestões de Endereço Inteligente (Places API) */}
-              {originSuggestions.length > 0 && (
-                <div
-                  className={`mt-1 rounded-[4px] border divide-y overflow-hidden shadow-xl ${
-                    isDark
-                      ? 'bg-slate-900 border-slate-700 divide-slate-800'
-                      : 'bg-white border-slate-200 divide-slate-100'
-                  }`}
-                >
-                  {originSuggestions.map((place) => (
-                    <button
-                      key={place.id}
-                      type="button"
-                      onClick={() => {
-                        hapticLight();
-                        setOriginAddress(place.formattedAddress);
-                        setOriginCoords({ lat: place.lat, lng: place.lng });
-                        setOriginSuggestions([]);
-                      }}
-                      className={`w-full px-3 py-2 text-left text-xs flex items-start gap-2 transition cursor-pointer ${
-                        isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-slate-50 text-slate-800'
-                      }`}
-                    >
-                      <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                      <div className="min-w-0 flex-1">
-                        <span className="font-bold block truncate">{place.title}</span>
-                        <span
-                          className={`text-[10.5px] block truncate ${
-                            isDark ? 'text-slate-400' : 'text-slate-500'
-                          }`}
-                        >
-                          {place.formattedAddress}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* CAMPO 2: ENDEREÇO DE DESTINO (ENDEREÇO INTELIGENTE COM SUGESTÕES & CEP) */}
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
-              <Navigation className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Para onde você vai?</span>
-            </label>
-
-            <div className="relative">
-              <input
-                type="text"
-                value={destAddress}
-                onChange={(e) =>
-                  handleSmartInputChange(
-                    e.target.value,
-                    setDestAddress,
-                    setDestCoords,
-                    setDestSuggestions,
-                    setIsSearchingDest
-                  )
-                }
-                placeholder="Ex: Rod. Hélio Smidt, Aeroporto de Guarulhos ou CEP"
-                className={`w-full px-3 py-2.5 pr-9 rounded-[4px] border text-xs outline-hidden transition ${
-                  isDark
-                    ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500'
-                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
-                }`}
-              />
-              <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
-                {isSearchingDest ? (
-                  <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
-                ) : (
-                  <Search className="w-3.5 h-3.5 text-slate-500" />
-                )}
-              </div>
-
-              {/* Sugestões de Endereço Inteligente para Destino (Places API) */}
-              {destSuggestions.length > 0 && (
-                <div
-                  className={`mt-1 rounded-[4px] border divide-y overflow-hidden shadow-xl ${
-                    isDark
-                      ? 'bg-slate-900 border-slate-700 divide-slate-800'
-                      : 'bg-white border-slate-200 divide-slate-100'
-                  }`}
-                >
-                  {destSuggestions.map((place) => (
-                    <button
-                      key={place.id}
-                      type="button"
-                      onClick={() => {
-                        hapticLight();
-                        setDestAddress(place.formattedAddress);
-                        setDestCoords({ lat: place.lat, lng: place.lng });
-                        setDestSuggestions([]);
-                      }}
-                      className={`w-full px-3 py-2 text-left text-xs flex items-start gap-2 transition cursor-pointer ${
-                        isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-slate-50 text-slate-800'
-                      }`}
-                    >
-                      <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                      <div className="min-w-0 flex-1">
-                        <span className="font-bold block truncate">{place.title}</span>
-                        <span
-                          className={`text-[10.5px] block truncate ${
-                            isDark ? 'text-slate-400' : 'text-slate-500'
-                          }`}
-                        >
-                          {place.formattedAddress}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* CAMPO 3: MODALIDADE */}
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-bold uppercase tracking-wider block">
-              Modalidade de Deslocamento
-            </label>
-            <div className="grid grid-cols-4 gap-1.5">
-              {[
-                { key: 'car' as TransportMode, label: 'Carro', icon: Car },
-                { key: 'motorcycle' as TransportMode, label: 'Moto', icon: Navigation },
-                { key: 'bicycling' as TransportMode, label: 'Bike', icon: Bike },
-                { key: 'walking' as TransportMode, label: 'A pé', icon: Footprints },
-              ].map((m) => {
-                const IconComponent = m.icon;
-                const isSel = transportMode === m.key;
-                return (
+                <div className="flex items-center gap-1.5">
+                  {/* Botão "Local Atual" */}
                   <button
-                    key={m.key}
                     type="button"
-                    onClick={() => {
-                      hapticLight();
-                      setTransportMode(m.key);
-                    }}
-                    className={`p-2 rounded-[4px] border flex flex-col items-center justify-center gap-1 transition cursor-pointer ${
-                      isSel
-                        ? 'bg-emerald-500 border-emerald-400 text-white font-bold shadow-xs'
-                        : isDark
-                        ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
-                        : 'bg-slate-100 border-slate-200 text-slate-700 hover:border-slate-300'
+                    onClick={handleUseCurrentLocation}
+                    disabled={isLocatingOrigin}
+                    className="px-2.5 py-1.5 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] text-white font-bold text-[10.5px] flex items-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                    title="Detectar endereço via GPS do celular"
+                  >
+                    {isLocatingOrigin ? (
+                      <Loader2 className="w-3 h-3 text-white animate-spin" />
+                    ) : (
+                      <Compass className="w-3 h-3 text-white" />
+                    )}
+                    <span className="text-white">Local Atual</span>
+                  </button>
+
+                  {/* Botão "De Casa" */}
+                  <button
+                    type="button"
+                    onClick={handleUseHomeAddress}
+                    className={`px-2.5 py-1.5 rounded-[4px] border font-bold text-[10.5px] flex items-center gap-1 transition cursor-pointer active:scale-95 ${
+                      isDark
+                        ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-[#2B82C9]'
+                        : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#2B82C9] hover:text-[#1E293B]'
+                    }`}
+                    title="Usar endereço de casa salvo"
+                  >
+                    <Home className="w-3 h-3 text-[#2B82C9]" />
+                    <span>De Casa</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative">
+                <input
+                  type="text"
+                  value={originAddress}
+                  onChange={(e) =>
+                    handleSmartInputChange(
+                      e.target.value,
+                      setOriginAddress,
+                      setOriginCoords,
+                      setOriginSuggestions,
+                      setIsSearchingOrigin
+                    )
+                  }
+                  placeholder={isLocatingOrigin ? '' : 'Digite o endereço ou CEP de partida'}
+                  className="caixa-input pr-9 text-xs"
+                />
+                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+                  {isLocatingOrigin || isSearchingOrigin ? (
+                    <Loader2 className="w-4 h-4 text-[#2B82C9] animate-spin" />
+                  ) : (
+                    <Search className="w-3.5 h-3.5 text-[#64748B]" />
+                  )}
+                </div>
+
+                {/* Sugestões de Endereço Inteligente (Places API) */}
+                {originSuggestions.length > 0 && (
+                  <div
+                    className={`mt-1 rounded-[4px] border divide-y overflow-hidden shadow-lg ${
+                      isDark
+                        ? 'bg-slate-900 border-slate-700 divide-slate-800'
+                        : 'bg-white border-[#E6EDF5] divide-[#EDF2F7]'
                     }`}
                   >
-                    <IconComponent
-                      className={`w-4 h-4 ${isSel ? 'text-white' : 'text-emerald-400'}`}
-                    />
-                    <span className={`text-[10px] ${isSel ? 'text-white' : ''}`}>{m.label}</span>
-                  </button>
-                );
-              })}
+                    {originSuggestions.map((place) => (
+                      <button
+                        key={place.id}
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          setOriginAddress(place.formattedAddress);
+                          setOriginCoords({ lat: place.lat, lng: place.lng });
+                          setOriginSuggestions([]);
+                        }}
+                        className={`w-full px-3 py-2 text-left text-xs flex items-start gap-2 transition cursor-pointer ${
+                          isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-[#F7F9FC] text-[#1E293B]'
+                        }`}
+                      >
+                        <MapPin className="w-3.5 h-3.5 text-[#2B82C9] shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <span className="font-bold block truncate">{place.title}</span>
+                          <span
+                            className={`text-[10.5px] block truncate ${
+                              isDark ? 'text-slate-400' : 'text-[#64748B]'
+                            }`}
+                          >
+                            {place.formattedAddress}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-[#EDF2F7] dark:border-slate-800" />
+
+            {/* CAMPO 2: ENDEREÇO DE DESTINO (ENDEREÇO INTELIGENTE COM SUGESTÕES & CEP) */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[#1E293B] dark:text-slate-200 flex items-center gap-1.5">
+                <Navigation className="w-3.5 h-3.5 text-[#2B82C9]" />
+                <span>Para onde você vai?</span>
+              </label>
+
+              <div className="relative">
+                <input
+                  type="text"
+                  value={destAddress}
+                  onChange={(e) =>
+                    handleSmartInputChange(
+                      e.target.value,
+                      setDestAddress,
+                      setDestCoords,
+                      setDestSuggestions,
+                      setIsSearchingDest
+                    )
+                  }
+                  placeholder="Ex: Rod. Hélio Smidt, Aeroporto de Guarulhos ou CEP"
+                  className="caixa-input pr-9 text-xs"
+                />
+                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+                  {isSearchingDest ? (
+                    <Loader2 className="w-4 h-4 text-[#2B82C9] animate-spin" />
+                  ) : (
+                    <Search className="w-3.5 h-3.5 text-[#64748B]" />
+                  )}
+                </div>
+
+                {/* Sugestões de Endereço Inteligente para Destino (Places API) */}
+                {destSuggestions.length > 0 && (
+                  <div
+                    className={`mt-1 rounded-[4px] border divide-y overflow-hidden shadow-lg ${
+                      isDark
+                        ? 'bg-slate-900 border-slate-700 divide-slate-800'
+                        : 'bg-white border-[#E6EDF5] divide-[#EDF2F7]'
+                    }`}
+                  >
+                    {destSuggestions.map((place) => (
+                      <button
+                        key={place.id}
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          setDestAddress(place.formattedAddress);
+                          setDestCoords({ lat: place.lat, lng: place.lng });
+                          setDestSuggestions([]);
+                        }}
+                        className={`w-full px-3 py-2 text-left text-xs flex items-start gap-2 transition cursor-pointer ${
+                          isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-[#F7F9FC] text-[#1E293B]'
+                        }`}
+                      >
+                        <MapPin className="w-3.5 h-3.5 text-[#2B82C9] shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <span className="font-bold block truncate">{place.title}</span>
+                          <span
+                            className={`text-[10.5px] block truncate ${
+                              isDark ? 'text-slate-400' : 'text-[#64748B]'
+                            }`}
+                          >
+                            {place.formattedAddress}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-[#EDF2F7] dark:border-slate-800" />
+
+            {/* CAMPO 3: MODALIDADE */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[#1E293B] dark:text-slate-200 block">
+                Modalidade de Deslocamento
+              </label>
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { key: 'car' as TransportMode, label: 'Carro', icon: Car },
+                  { key: 'motorcycle' as TransportMode, label: 'Moto', icon: Navigation },
+                  { key: 'bicycling' as TransportMode, label: 'Bike', icon: Bike },
+                  { key: 'walking' as TransportMode, label: 'A pé', icon: Footprints },
+                ].map((m) => {
+                  const IconComponent = m.icon;
+                  const isSel = transportMode === m.key;
+                  return (
+                    <button
+                      key={m.key}
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setTransportMode(m.key);
+                      }}
+                      className={`p-2.5 rounded-[4px] border flex flex-col items-center justify-center gap-1 transition cursor-pointer ${
+                        isSel
+                          ? 'bg-[#2B82C9] border-[#2B82C9] text-white font-bold shadow-xs'
+                          : isDark
+                          ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                          : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#CBD5E1]'
+                      }`}
+                    >
+                      <IconComponent
+                        className={`w-4 h-4 ${isSel ? 'text-white' : 'text-[#2B82C9]'}`}
+                      />
+                      <span className={`text-[10px] ${isSel ? 'text-white font-bold' : ''}`}>{m.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
           {/* RODAPÉ FIXO: BOTÃO IR */}
           <div
-            className={`pt-3 border-t sticky bottom-0 z-10 ${
-              isDark ? 'bg-slate-950/95' : 'bg-white/95'
+            className={`pt-3 border-t sticky bottom-0 z-20 ${
+              isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-[#F7F9FC]/95 border-[#E6EDF5]'
             }`}
           >
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-3 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 active:scale-98 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer shadow-md disabled:opacity-50"
+              className="w-full py-3 px-4 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] active:scale-98 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer shadow-xs disabled:opacity-50"
             >
               {isSubmitting ? (
                 <>

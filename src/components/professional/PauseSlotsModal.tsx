@@ -6,7 +6,8 @@ import {
   Lock,
   Unlock,
   RotateCcw,
-  Check
+  Check,
+  ChevronRight
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { BookingAppointment } from '../../types';
@@ -40,7 +41,7 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
   activeProName = 'Profissional',
 }) => {
   const { isDark, accentColor } = useTheme();
-  const themeHex = accentColor || '#20C933';
+  const themeHex = accentColor || '#2B82C9';
 
   // Determinar data de hoje
   const today = useMemo(() => new Date(), []);
@@ -239,45 +240,38 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex justify-center bg-[#E6EEF6]/80 backdrop-blur-xs animate-in fade-in duration-200">
       <div 
-        className={`w-full max-w-md border rounded-t-xl sm:rounded-[4px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden animate-in slide-in-from-bottom-4 duration-200 ${
-          isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+        className={`w-full max-w-[430px] h-dvh max-h-dvh shadow-lg flex flex-col overflow-hidden animate-in fade-in duration-200 ${
+          isDark ? 'bg-slate-950 text-slate-100' : 'bg-[#F7F9FC] text-[#1E293B]'
         }`}
       >
-        {/* Cabeçalho que acompanha o tema */}
-        <div className={`p-3.5 border-b flex items-center justify-between shrink-0 ${
-          isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
+        {/* Barra Superior Institucional com Botão Voltar */}
+        <div className={`px-3.5 py-3 border-b flex items-center justify-between shrink-0 ${
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E6EDF5]'
         }`}>
-          <div className="flex items-center gap-2.5">
-            <div 
-              className="w-8 h-8 rounded-[4px] flex items-center justify-center border shrink-0"
-              style={{
-                backgroundColor: `${themeHex}20`,
-                borderColor: `${themeHex}40`,
-                color: themeHex,
-              }}
-            >
-              <CirclePause className="w-4 h-4 stroke-[2.2]" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold tracking-tight leading-tight font-['Poppins']">
-                Pausar Agendamentos
-              </h2>
-              <p className={`text-[11px] flex items-center gap-1.5 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                <Calendar className="w-3 h-3 text-slate-400" />
-                Hoje • {formattedToday}
-              </p>
-            </div>
-          </div>
           <button
             type="button"
             onClick={() => {
               hapticLight();
               onClose();
             }}
-            className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition active:scale-95 cursor-pointer ${
-              isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] transition active:scale-95 cursor-pointer text-xs font-bold ${
+              isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-[#F1F5F9] text-[#1E293B]'
+            }`}
+          >
+            <ChevronRight className="w-4 h-4 rotate-180 text-[#2B82C9]" />
+            <span>Voltar</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              hapticLight();
+              onClose();
+            }}
+            className={`w-8 h-8 rounded-[4px] border flex items-center justify-center transition active:scale-95 cursor-pointer ${
+              isDark ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white' : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B]'
             }`}
             title="Fechar"
           >
@@ -287,15 +281,34 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
 
         {/* Conteúdo Despoluído e Otimizado */}
         <div className="p-3.5 overflow-y-auto space-y-3.5 flex-1 no-scrollbar">
+          {/* Card de Cabeçalho da Seção */}
+          <div className={`caixa-card p-3.5 rounded-[4px] flex items-center justify-between gap-3 ${
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
+          }`}>
+            <div className="flex items-center gap-2.5">
+              <div className="caixa-icon-halo w-10 h-10 rounded-full shrink-0">
+                <CirclePause className="w-5 h-5 text-[#2B82C9] stroke-[2.2]" />
+              </div>
+              <div>
+                <h2 className="text-xs font-bold text-[#1E293B] dark:text-white tracking-tight leading-tight">
+                  Pausar Agendamentos
+                </h2>
+                <p className={`text-[11px] flex items-center gap-1.5 mt-0.5 font-mono-tabular ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
+                  <Calendar className="w-3 h-3 text-[#2B82C9]" />
+                  Hoje • {formattedToday}
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Ações Rápidas no Topo */}
           <div className="flex flex-col sm:flex-row gap-2">
-            {/* Botão Pausar Todos os Horários Futuros (Cor do Tema com Texto Branco) */}
+            {/* Botão Pausar Todos os Horários Futuros */}
             <button
               type="button"
               onClick={handlePauseAllUpcoming}
               disabled={stats.futureAvailableCount === 0}
-              style={{ backgroundColor: stats.futureAvailableCount > 0 ? themeHex : undefined }}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-[4px] disabled:opacity-40 disabled:pointer-events-none text-white font-bold text-xs transition active:scale-98 shadow-xs cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] disabled:opacity-40 disabled:pointer-events-none text-white font-bold text-xs transition active:scale-98 shadow-xs cursor-pointer"
             >
               <Lock className="w-3.5 h-3.5 text-white stroke-[2.4]" />
               <span className="text-white">Pausar Todos ({stats.futureAvailableCount} livres)</span>
@@ -309,11 +322,11 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
               className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-[4px] disabled:opacity-40 disabled:pointer-events-none font-bold text-xs border transition active:scale-98 cursor-pointer ${
                 isDark 
                   ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-200' 
-                  : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+                  : 'bg-white hover:bg-[#F1F5F9] border-[#E2E8F0] text-[#1E293B]'
               }`}
               title="Desbloqueia os horários a partir de 1 hora da hora atual"
             >
-              <Unlock className="w-3.5 h-3.5" style={{ color: themeHex }} />
+              <Unlock className="w-3.5 h-3.5 text-[#2B82C9]" />
               <span>Despausar (&gt; 1h)</span>
             </button>
 
@@ -325,7 +338,7 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
                 className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-[4px] font-bold text-xs border transition active:scale-98 cursor-pointer ${
                   isDark
                     ? 'bg-rose-950/30 hover:bg-rose-900/40 border-rose-500/40 text-rose-300'
-                    : 'bg-rose-50 hover:bg-rose-100 border-rose-300 text-rose-700'
+                    : 'bg-[#FEF2F2] hover:bg-rose-100 border-[#FECACA] text-[#DC2626]'
                 }`}
                 title="Remove todos os bloqueios de pausa de hoje"
               >
@@ -335,20 +348,22 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
             )}
           </div>
 
-          {/* Grade de Horários Elegíveis (Apenas futuros livres ou pausados) */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between px-0.5">
-              <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+          {/* Grade de Horários Elegíveis dentro de .caixa-card */}
+          <div className={`caixa-card p-4 rounded-[4px] space-y-3 ${
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
+          }`}>
+            <div className="flex items-center justify-between">
+              <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-[#1E293B]'}`}>
                 Horários Restantes de Hoje
               </label>
-              <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                Toque no horário para alternar
+              <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
+                Toque para alternar
               </span>
             </div>
 
             {eligibleSlots.length === 0 ? (
               <div className={`p-6 rounded-[4px] border text-center ${
-                isDark ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'
+                isDark ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-[#F7F9FC] border-[#E6EDF5] text-[#64748B]'
               }`}>
                 <p className="text-xs font-medium">Nenhum horário livre restante para pausar hoje.</p>
               </div>
@@ -361,20 +376,20 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
                         key={s.time}
                         type="button"
                         onClick={() => handleToggleSlot(s.time)}
-                        className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-[4px] border transition active:scale-95 cursor-pointer shadow-xs ${
+                        className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-[4px] border transition active:scale-95 cursor-pointer ${
                           isDark 
                             ? 'bg-rose-950/40 border-rose-500/60 hover:bg-rose-900/50 text-white' 
-                            : 'bg-rose-50 border-rose-300 hover:bg-rose-100 text-rose-950'
+                            : 'bg-[#FEF2F2] border-[#FECACA] hover:bg-rose-100 text-[#DC2626]'
                         }`}
                         title="Toque para despausar este horário"
                       >
                         <div className="flex items-center gap-1">
-                          <CirclePause className={`w-3.5 h-3.5 stroke-[2.5] ${isDark ? 'text-rose-400' : 'text-rose-600'}`} />
-                          <span className={`text-xs font-mono font-bold ${isDark ? 'text-white' : 'text-rose-950'}`}>
+                          <CirclePause className={`w-3.5 h-3.5 stroke-[2.5] ${isDark ? 'text-rose-400' : 'text-[#DC2626]'}`} />
+                          <span className={`text-xs font-mono-tabular font-bold ${isDark ? 'text-white' : 'text-[#DC2626]'}`}>
                             {s.time}
                           </span>
                         </div>
-                        <span className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>
+                        <span className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${isDark ? 'text-rose-300' : 'text-[#DC2626]'}`}>
                           Pausado
                         </span>
                       </button>
@@ -390,16 +405,15 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
                       className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-[4px] border transition active:scale-95 cursor-pointer ${
                         isDark 
                           ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white hover:border-slate-700' 
-                          : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-900 hover:border-slate-300'
+                          : 'bg-[#F7F9FC] hover:bg-[#EBF5FF] border-[#D5E0EC] text-[#1E293B] hover:border-[#2B82C9]'
                       }`}
                       title="Toque para pausar este horário"
                     >
-                      <span className="text-xs font-mono font-bold">
+                      <span className="text-xs font-mono-tabular font-bold">
                         {s.time}
                       </span>
                       <span 
-                        className="text-[9px] font-bold uppercase tracking-wider mt-0.5"
-                        style={{ color: themeHex }}
+                        className="text-[9px] font-bold uppercase tracking-wider mt-0.5 text-[#2B82C9]"
                       >
                         Vago
                       </span>
@@ -413,11 +427,11 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
 
         {/* Rodapé Fixo */}
         <div className={`p-3 border-t shrink-0 sticky bottom-0 z-20 flex items-center justify-between gap-3 ${
-          isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
+          isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white border-[#E6EDF5]'
         }`}>
-          <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-            <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{stats.futureAvailableCount}</span> livres •{' '}
-            <span className="font-bold text-rose-400">{stats.pausedCount}</span> pausados
+          <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
+            <span className={`font-bold font-mono-tabular ${isDark ? 'text-white' : 'text-[#1E293B]'}`}>{stats.futureAvailableCount}</span> livres •{' '}
+            <span className="font-bold font-mono-tabular text-[#DC2626]">{stats.pausedCount}</span> pausados
           </div>
 
           <button
@@ -426,8 +440,7 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
               hapticLight();
               onClose();
             }}
-            style={{ backgroundColor: themeHex }}
-            className="py-2 px-5 rounded-[4px] text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-xs cursor-pointer"
+            className="py-2 px-5 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-xs cursor-pointer"
           >
             <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
             <span className="text-white">Concluir</span>

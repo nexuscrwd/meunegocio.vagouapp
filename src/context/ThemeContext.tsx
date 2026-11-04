@@ -14,36 +14,62 @@ export const ThemeContext = createContext<ThemeContextType>({
   isDark: false,
   toggleTheme: () => {},
   setTheme: () => {},
-  accentColor: '#20C933',
+  accentColor: '#2B82C9',
   setAccentColor: () => {},
 });
 
+const isAchromaticOrGreyHex = (hexStr: string): boolean => {
+  const clean = hexStr.replace('#', '').trim();
+  const full =
+    clean.length === 3
+      ? clean
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : clean;
+  if (full.length !== 6) return true;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return true;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  // Rejeita qualquer tom acinzentado/neutro (saturação baixa), branco ou preto
+  if (max - min < 38) return true;
+  if (max < 45 || min > 225) return true;
+  return false;
+};
+
 export const sanitizeAccentColor = (rawColor?: string | null): string => {
-  if (!rawColor) return '#20C933';
+  if (!rawColor) return '#2B82C9';
   const trimmed = rawColor.trim().toLowerCase();
   if (
     !trimmed ||
     trimmed === 'transparent' ||
     trimmed === '#ffffff' ||
     trimmed === '#fff' ||
-    trimmed === 'white'
+    trimmed === 'white' ||
+    trimmed === '#005ca9'
   ) {
-    return '#20C933';
+    return '#2B82C9';
   }
   const colorMap: Record<string, string> = {
-    emerald: '#20C933',
-    blue: '#3b82f6',
+    emerald: '#2B82C9',
+    blue: '#2B82C9',
     rose: '#ef4444',
     amber: '#f59e0b',
     violet: '#8b5cf6',
   };
   if (colorMap[trimmed]) return colorMap[trimmed];
-  return rawColor.startsWith('#') ? rawColor.trim() : '#20C933';
+  if (!rawColor.startsWith('#')) return '#2B82C9';
+  if (isAchromaticOrGreyHex(trimmed)) {
+    return '#2B82C9';
+  }
+  return rawColor.trim();
 };
 
 export const applyAccentColorToDom = (color: string) => {
-  if (!color) return;
-  const hex = sanitizeAccentColor(color);
+  const hex = sanitizeAccentColor(color || '#2B82C9');
 
   try {
     localStorage.setItem('vagou_accent_color', hex);

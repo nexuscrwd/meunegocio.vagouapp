@@ -3,7 +3,7 @@ import { SalonAdminSettings } from '../types';
 export function getSectionHeaderStyleData(adminSettings: Partial<SalonAdminSettings>, isDark: boolean) {
   const bgCol = adminSettings.sectionHeaderBgColor;
   const txtCol = adminSettings.sectionHeaderTextColor;
-  const iconCol = adminSettings.sectionHeaderIconColor || (isDark ? '#10b981' : '#005CA9');
+  const iconCol = adminSettings.sectionHeaderIconColor || (isDark ? '#10b981' : '#2B82C9');
   const bgStyle = adminSettings.sectionHeaderBgStyle || 'glass';
   const border = adminSettings.sectionHeaderBorder || 'bordered';
 

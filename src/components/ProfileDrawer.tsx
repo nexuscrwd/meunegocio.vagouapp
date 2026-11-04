@@ -1108,7 +1108,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-xs transition-opacity animate-in fade-in duration-200 cursor-pointer overflow-hidden"
+      className="fixed inset-0 z-50 flex justify-center bg-[#E6EEF6]/80 backdrop-blur-xs transition-opacity animate-in fade-in duration-200 cursor-pointer overflow-hidden"
       onMouseDown={(e) => {
         backdropMouseDownRef.current = e.target === e.currentTarget;
       }}
@@ -1121,10 +1121,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
       aria-modal="true"
       role="dialog"
     >
-      {/* Container do Drawer com limite de largura mobile */}
+      {/* Container do Drawer dentro do Shell Mobile Centralizado (430px • #F7F9FC) */}
       <div 
-        className={`w-full max-w-md h-dvh max-h-dvh flex flex-col shadow-2xl transition-transform animate-in slide-in-from-right duration-250 cursor-default overflow-hidden ${
-          isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
+        className={`w-full max-w-[430px] h-dvh max-h-dvh flex flex-col shadow-lg transition-transform animate-in fade-in duration-200 cursor-default overflow-hidden ${
+          isDark ? 'bg-slate-950 text-white' : 'bg-[#F7F9FC] text-[#1E293B]'
         }`}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
@@ -1132,7 +1132,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         {/* 1. CABEÇALHO COMPACTO SOMENTE NAS SUB-TELAS (AGENDA, DADOS, ETC.) */}
         {activeSubTab !== 'menu' && (
           <div className={`p-3.5 border-b flex items-center justify-between shrink-0 ${
-            isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+            isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-[#E6EDF5]'
           }`}>
             <button
               type="button"
@@ -1142,12 +1142,12 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 setIsEditing(false);
               }}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] transition active:scale-95 cursor-pointer text-xs font-bold ${
-                isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
+                isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-[#F1F5F9] text-[#1E293B]'
               }`}
               title="Voltar ao Menu"
               aria-label="Voltar ao Menu"
             >
-              <ChevronRight className="w-4 h-4 rotate-180 text-emerald-500" />
+              <ChevronRight className="w-4 h-4 rotate-180 text-[#2B82C9]" />
               <span>Voltar</span>
             </button>
 
@@ -1157,10 +1157,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 hapticLight();
                 onClose();
               }}
-              className={`w-8 h-8 rounded-[4px] flex items-center justify-center transition active:scale-95 cursor-pointer ${
+              className={`w-8 h-8 rounded-[4px] border flex items-center justify-center transition active:scale-95 cursor-pointer ${
                 isDark 
-                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white' 
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900'
+                  ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300 hover:text-white' 
+                  : 'bg-[#F1F5F9] hover:bg-[#E2E8F0] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B]'
               }`}
               title="Fechar menu"
               aria-label="Fechar menu"
@@ -1205,13 +1205,13 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
           {activeSubTab === 'menu' && (
             <div className="space-y-4">
               {/* CARD DE IDENTIFICAÇÃO DO USUÁRIO COM BOTÃO DE TEMA E FECHAR NO LADO DIREITO OPOSTO */}
-              <div className={`p-3.5 sm:p-4 rounded-[4px] border flex items-center justify-between gap-3 ${
-                isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+              <div className={`caixa-card p-3.5 sm:p-4 rounded-[4px] flex items-center justify-between gap-3 ${
+                isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E6EDF5]'
               }`}>
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="relative group shrink-0">
-                    <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-[4px] flex items-center justify-center shrink-0 border overflow-hidden ${
-                      isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+                    <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center shrink-0 border overflow-hidden ${
+                      isDark ? 'bg-slate-900 border-slate-800' : 'bg-[#F1F5F9] border-[#E2E8F0]'
                     }`}>
                       {resolveTriadeAvatar({
                         professionalAvatar: currentPersona === 'profissional' ? (profile.avatarUrl || userAvatarUrl) : null,
@@ -1231,7 +1231,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           referrerPolicy="no-referrer"
                         />
                       ) : (
-                        <User className={`w-6 h-6 stroke-[1.8] ${isDark ? 'text-slate-300' : 'text-slate-700'}`} />
+                        <User className={`w-6 h-6 stroke-[1.8] ${isDark ? 'text-slate-300' : 'text-[#2B82C9]'}`} />
                       )}
                     </div>
                     {/* Botão de Câmera de Toque Imediato no Celular */}
@@ -1239,7 +1239,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isUploadingAvatar}
-                      className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white flex items-center justify-center shadow-md transition cursor-pointer"
+                      className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#2B82C9] hover:bg-[#1F6FB0] active:scale-95 text-white flex items-center justify-center shadow-sm transition cursor-pointer"
                       title="Alterar foto de perfil"
                       aria-label="Alterar foto de perfil"
                     >
@@ -1252,12 +1252,12 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <h3 className="text-sm font-bold truncate">{profile.name}</h3>
+                      <h3 className="text-sm font-bold text-[#1E293B] dark:text-white truncate">{profile.name}</h3>
                     </div>
-                    <p className={`text-xs truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    <p className={`text-xs truncate ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
                       {profile.email}
                     </p>
-                    <p className={`text-[11px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    <p className={`text-[11px] font-mono-tabular truncate ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
                       {profile.phone}
                     </p>
                   </div>
@@ -1275,7 +1275,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     className={`px-2 py-1.5 rounded-[4px] border flex flex-col items-center justify-center gap-0.5 transition active:scale-95 cursor-pointer shrink-0 ${
                       isDark 
                         ? 'bg-slate-800/90 hover:bg-slate-750 text-amber-400 border-slate-700' 
-                        : 'bg-slate-100 hover:bg-slate-200 text-amber-600 border-slate-200 shadow-xs'
+                        : 'bg-[#F7F9FC] hover:bg-[#EDF2F7] text-amber-600 border-[#E2E8F0]'
                     }`}
                     title={isDark ? "Mudar para Modo Claro" : "Mudar para Modo Escuro"}
                     aria-label="Alternar Modo Claro / Escuro"
@@ -1299,7 +1299,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     className={`w-8 h-8 rounded-[4px] border flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
                       isDark 
                         ? 'bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white border-slate-700' 
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border-slate-200 shadow-xs'
+                        : 'bg-[#F7F9FC] hover:bg-[#EDF2F7] text-[#5F6C7B] hover:text-[#1E293B] border-[#E2E8F0]'
                     }`}
                     title="Fechar menu"
                     aria-label="Fechar menu"
@@ -1310,7 +1310,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               </div>
 
               {/* LISTA DE OPÇÕES CONTEXTUAIS DO MENU */}
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {/* ============================================================ */}
                 {/* 📊 ESTRUTURA QUANDO NO MODO GESTÃO */}
                 {/* ============================================================ */}
@@ -1325,27 +1325,23 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           onClose();
                           onToggleMode();
                         }}
-                        className={`w-full p-3 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                          isDark 
-                            ? 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-400' 
-                            : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-700 shadow-xs'
-                        }`}
+                        className="w-full p-3 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] text-white font-bold text-xs flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer shadow-xs"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-[4px] bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                            <LayoutDashboard className="w-4 h-4 text-emerald-400" />
+                          <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white shrink-0">
+                            <LayoutDashboard className="w-4 h-4 text-white" />
                           </div>
                           <div>
-                            <div className="text-xs font-bold font-['Poppins']">MODO SALÃO</div>
+                            <div className="text-xs font-bold text-white">MODO SALÃO</div>
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 opacity-70" />
+                        <ChevronRight className="w-4 h-4 text-white" />
                       </button>
                     )}
 
                     {/* SEÇÃO 1: GESTÃO DO ESTABELECIMENTO */}
                     <div className="pt-2 px-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                      <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider font-mono">
                         Gestão do Estabelecimento
                       </span>
                     </div>
@@ -1359,22 +1355,22 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         onClose();
                         onNavigateTab?.('servicos');
                       }}
-                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-[4px] bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
-                          <Scissors className="w-4 h-4" />
+                        <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
+                          <Scissors className="w-4 h-4 text-[#2B82C9]" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold font-['Poppins']">Serviços</div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <div className="text-xs font-bold text-[#1E293B] dark:text-white">Serviços</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
                             Valores, durações e procedimentos
                           </div>
                         </div>
                       </div>
-                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                     </button>
 
                     {/* 1B. Espaço (Estrutura, Localização e Contatos) */}
@@ -1386,22 +1382,22 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         onClose();
                         onNavigateTab?.('espaco');
                       }}
-                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                          <Store className="w-4 h-4" />
+                        <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
+                          <Store className="w-4 h-4 text-[#2B82C9]" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold font-['Poppins']">Espaço</div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <div className="text-xs font-bold text-[#1E293B] dark:text-white">Espaço</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
                             Estrutura, localização e contatos
                           </div>
                         </div>
                       </div>
-                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                     </button>
 
                     {/* 2. Equipe */}
@@ -1413,25 +1409,25 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         onClose();
                         onNavigateTab?.('equipe');
                       }}
-                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-[4px] bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
-                          <Users className="w-4 h-4" />
+                        <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
+                          <Users className="w-4 h-4 text-[#2B82C9]" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold font-['Poppins']">Equipe</div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <div className="text-xs font-bold text-[#1E293B] dark:text-white">Equipe</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
                             Colaboradores, permissões e comissões
                           </div>
                         </div>
                       </div>
-                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                     </button>
 
-                    {/* 3. Preferências (Criar Menu com Cards: Dados do negócio, Ident. Visual e Layout) */}
+                    {/* 3. Preferências */}
                     {isProAdmin && (
                       <button
                         type="button"
@@ -1441,22 +1437,22 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           onClose();
                           onNavigateTab?.('preferencias');
                         }}
-                        className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                          isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                        className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                          isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                            <Sliders className="w-4 h-4" />
+                          <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
+                            <Sliders className="w-4 h-4 text-[#2B82C9]" />
                           </div>
                           <div>
-                            <div className="text-xs font-bold font-['Poppins']">Preferências</div>
-                            <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            <div className="text-xs font-bold text-[#1E293B] dark:text-white">Preferências</div>
+                            <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
                               Dados do negócio, ident. visual e layout
                             </div>
                           </div>
                         </div>
-                        <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                        <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                       </button>
                     )}
 
@@ -1469,22 +1465,22 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         onClose();
                         onNavigateTab?.('utilidades');
                       }}
-                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-[4px] bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0">
-                          <Mail className="w-4 h-4" />
+                        <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
+                          <Mail className="w-4 h-4 text-[#2B82C9]" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold font-['Poppins']">Utilidades</div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <div className="text-xs font-bold text-[#1E293B] dark:text-white">Utilidades</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
                             Financeiro, gestão de consumo, insumos e estoque
                           </div>
                         </div>
                       </div>
-                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                     </button>
                   </>
                 )}
@@ -1503,14 +1499,14 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           onClose();
                           onToggleMode();
                         }}
-                        className="w-full p-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-between transition active:scale-[0.99] cursor-pointer shadow-sm"
+                        className="w-full p-3 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] text-white font-bold text-xs flex items-center justify-between transition active:scale-[0.99] cursor-pointer shadow-xs"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-[4px] bg-white/20 flex items-center justify-center text-white shrink-0">
+                          <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white shrink-0">
                             <Store className="w-4 h-4 text-white" />
                           </div>
                           <div className="text-left">
-                            <div className="text-white font-bold font-['Poppins']">MODO CLIENTE</div>
+                            <div className="text-white font-bold">MODO CLIENTE</div>
                           </div>
                         </div>
                         <ChevronRight className="w-4 h-4 text-white" />
@@ -1519,7 +1515,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
                     {/* Seção Minha Conta exclusiva do Modo Cliente */}
                     <div className="pt-2 px-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                      <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider font-mono">
                         Minha Conta
                       </span>
                     </div>
@@ -1537,24 +1533,24 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           setActiveSubTab('agenda');
                         }
                       }}
-                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                      className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
                         isDark 
                           ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
-                          : 'bg-white hover:bg-emerald-50/50 border-emerald-200 text-slate-900 shadow-xs'
+                          : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                          <Calendar className="w-4 h-4 text-emerald-400" />
+                        <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
+                          <Calendar className="w-4 h-4 text-[#2B82C9]" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold font-['Poppins']">Minha Agenda</div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <div className="text-xs font-bold text-[#1E293B] dark:text-white">Minha Agenda</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
                             Ver agendamentos e propostas de permuta
                           </div>
                         </div>
                       </div>
-                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                     </button>
 
                     {/* Trajeto (Simulador GPS / Teste Provisório) */}
@@ -1565,29 +1561,29 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         hapticLight();
                         setIsRouteSimulatorOpen(true);
                       }}
-                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                      className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
                         isDark 
                           ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
-                          : 'bg-white hover:bg-emerald-50/50 border-slate-200 text-slate-900 shadow-xs'
+                          : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                          <Navigation className="w-4 h-4 text-emerald-400" />
+                        <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
+                          <Navigation className="w-4 h-4 text-[#2B82C9]" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold font-['Poppins'] flex items-center gap-1.5">
+                          <div className="text-xs font-bold text-[#1E293B] dark:text-white flex items-center gap-1.5">
                             <span>Trajeto</span>
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                            <span className="px-1.5 py-0.2 rounded-[4px] text-[9px] font-black uppercase bg-amber-50 text-amber-700 border border-amber-200">
                               Teste
                             </span>
                           </div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
                             Inserir partida e destino para testar navegação GPS
                           </div>
                         </div>
                       </div>
-                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                     </button>
 
                     {/* Conta Família & Dependentes */}
@@ -1597,29 +1593,29 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         hapticLight();
                         setActiveSubTab('dependentes');
                       }}
-                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                      className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-[4px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
-                          <Users className="w-4 h-4" />
+                        <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
+                          <Users className="w-4 h-4 text-[#2B82C9]" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold font-['Poppins'] flex items-center gap-1.5">
+                          <div className="text-xs font-bold text-[#1E293B] dark:text-white flex items-center gap-1.5">
                             <span>Conta Família • Dependentes</span>
                             {dependents.length > 0 && (
-                              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-500 text-white">
+                              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#2B82C9] text-white">
                                 {dependents.length}
                               </span>
                             )}
                           </div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
                             Cadastrar filhos, cônjuge ou familiares
                           </div>
                         </div>
                       </div>
-                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                     </button>
 
                     {/* Meus Dados Pessoais */}
@@ -1634,24 +1630,24 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           setActiveSubTab('dados');
                         }
                       }}
-                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                      className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
                         isDark 
                           ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
-                          : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                          : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-[4px] bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
-                          <User className="w-4 h-4" />
+                        <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
+                          <User className="w-4 h-4 text-[#2B82C9]" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold font-['Poppins']">Meus Dados Pessoais</div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <div className="text-xs font-bold text-[#1E293B] dark:text-white">Meus Dados Pessoais</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
                             Nome, e-mail, telefone e endereço
                           </div>
                         </div>
                       </div>
-                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                     </button>
 
                     {/* Chat no App com o Estabelecimento */}
@@ -1661,24 +1657,24 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         hapticLight();
                         setIsAppChatOpen(true);
                       }}
-                      className={`w-full p-3.5 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                      className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
                         isDark 
                           ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
-                          : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-900 shadow-xs'
+                          : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                          <MessageSquare className="w-4 h-4" />
+                        <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
+                          <MessageSquare className="w-4 h-4 text-[#2B82C9]" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold font-['Poppins']">Chat no App Vagou</div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <div className="text-xs font-bold text-[#1E293B] dark:text-white">Chat no App Vagou</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
                             Mensagens diretas com a equipe
                           </div>
                         </div>
                       </div>
-                      <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                     </button>
                   </>
                 )}
@@ -1697,12 +1693,12 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     className={`w-full p-3 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer mt-3 ${
                       isDark 
                         ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400' 
-                        : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700'
+                        : 'bg-[#FEF2F2] hover:bg-rose-100 border-[#FECACA] text-[#DC2626]'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <LogOut className="w-4 h-4" />
-                      <span className="text-xs font-bold font-['Poppins']">Sair da Conta Pro</span>
+                      <span className="text-xs font-bold">Sair da Conta Pro</span>
                     </div>
                     <span className="text-[10px] uppercase font-bold">Desconectar</span>
                   </button>
@@ -1719,12 +1715,12 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     className={`w-full p-3 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer mt-3 ${
                       isDark 
                         ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400' 
-                        : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700'
+                        : 'bg-[#FEF2F2] hover:bg-rose-100 border-[#FECACA] text-[#DC2626]'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <LogOut className="w-4 h-4" />
-                      <span className="text-xs font-bold font-['Poppins']">Sair da Conta</span>
+                      <span className="text-xs font-bold">Sair da Conta</span>
                     </div>
                     <span className="text-[10px] uppercase font-bold">Desconectar</span>
                   </button>
@@ -2398,18 +2394,18 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
           {activeSubTab === 'dependentes' && (
             <div className="space-y-4">
               {/* Card de Apresentação da Conta Família */}
-              <div className={`p-3.5 rounded-[4px] border flex items-center justify-between gap-3 ${
-                isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+              <div className={`caixa-card p-3.5 rounded-[4px] flex items-center justify-between gap-3 ${
+                isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
               }`}>
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="w-10 h-10 rounded-[4px] bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
-                    <Users className="w-5 h-5 text-indigo-400" />
+                  <div className="caixa-icon-halo w-10 h-10 rounded-full shrink-0">
+                    <Users className="w-5 h-5 text-[#2B82C9]" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h4 className="text-xs font-bold font-['Poppins'] text-slate-900 dark:text-white truncate">
+                    <h4 className="text-xs font-bold text-[#1E293B] dark:text-white truncate">
                       Conta Família • Dependentes
                     </h4>
-                    <p className={`text-[11px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    <p className={`text-[11px] truncate ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
                       Agende serviços para familiares pelo seu login
                     </p>
                   </div>
@@ -2421,7 +2417,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     hapticLight();
                     setIsAddingDependent(!isAddingDependent);
                   }}
-                  className="px-3 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 shrink-0"
+                  className="px-3 py-1.5 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 shrink-0"
                 >
                   <Plus className="w-3.5 h-3.5 text-white stroke-[2.5]" />
                   <span className="text-white">{isAddingDependent ? 'Fechar' : 'Novo'}</span>
@@ -2430,8 +2426,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
               {/* Feedback de Ação */}
               {dependentFeedback && (
-                <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-[4px] flex items-center gap-2 text-emerald-400 text-xs font-semibold animate-in fade-in">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <div className="p-3 bg-[#EBF5FF] border border-[#2B82C9]/30 rounded-[4px] flex items-center gap-2 text-[#2B82C9] text-xs font-semibold animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-[#2B82C9] shrink-0" />
                   <span>{dependentFeedback}</span>
                 </div>
               )}
@@ -2440,20 +2436,20 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               {isAddingDependent && (
                 <form 
                   onSubmit={handleAddDependent} 
-                  className={`p-4 rounded-[4px] border space-y-3 animate-in fade-in slide-in-from-top-2 ${
-                    isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+                  className={`caixa-card p-4 rounded-[4px] space-y-3 animate-in fade-in slide-in-from-top-2 ${
+                    isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
                   }`}
                 >
-                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80">
-                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 font-mono">
-                      <UserPlus className="w-3.5 h-3.5 text-emerald-400" />
+                  <div className="flex items-center justify-between pb-1.5 border-b border-[#EDF2F7] dark:border-slate-800/80">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#2B82C9] flex items-center gap-1.5 font-mono">
+                      <UserPlus className="w-3.5 h-3.5 text-[#2B82C9]" />
                       Novo Dependente
                     </span>
                   </div>
 
                   {/* Nome Completo */}
                   <div className="space-y-1">
-                    <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-[#5F6C7B]'}`}>
                       Nome Completo *
                     </label>
                     <input
@@ -2462,17 +2458,13 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       placeholder="Ex: Pedro Henrique Silva"
                       value={newDepName}
                       onChange={(e) => setNewDepName(e.target.value)}
-                      className={`w-full px-3 py-2 text-xs rounded-[4px] border outline-hidden transition ${
-                        isDark 
-                          ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                          : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-600'
-                      }`}
+                      className="caixa-input text-xs"
                     />
                   </div>
 
                   {/* Grau de Parentesco */}
                   <div className="space-y-1">
-                    <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-[#5F6C7B]'}`}>
                       Grau de Parentesco *
                     </label>
                     <div className="grid grid-cols-3 gap-1.5">
@@ -2492,10 +2484,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           }}
                           className={`py-1.5 px-2 rounded-[4px] text-xs font-semibold border transition cursor-pointer text-center ${
                             newDepRel === item.id
-                              ? 'bg-emerald-500 border-emerald-500 text-white font-bold'
+                              ? 'bg-[#2B82C9] border-[#2B82C9] text-white font-bold'
                               : isDark
                               ? 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
-                              : 'bg-slate-100 border-slate-200 text-slate-700 hover:border-slate-300'
+                              : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#CBD5E1]'
                           }`}
                         >
                           <span className={newDepRel === item.id ? 'text-white' : ''}>{item.label}</span>
@@ -2506,24 +2498,20 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
                   {/* Data de Nascimento */}
                   <div className="space-y-1">
-                    <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-[#5F6C7B]'}`}>
                       Data de Nascimento (Opcional)
                     </label>
                     <input
                       type="date"
                       value={newDepBirthDate}
                       onChange={(e) => setNewDepBirthDate(e.target.value)}
-                      className={`w-full px-3 py-2 text-xs rounded-[4px] border outline-hidden transition ${
-                        isDark 
-                          ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                          : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-600'
-                      }`}
+                      className="caixa-input text-xs"
                     />
                   </div>
 
                   {/* Observações / Cuidados */}
                   <div className="space-y-1">
-                    <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-[#5F6C7B]'}`}>
                       Observações / Cuidados (Opcional)
                     </label>
                     <input
@@ -2531,18 +2519,14 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       placeholder="Ex: Corte infantil na tesoura, alergia a produtos..."
                       value={newDepNotes}
                       onChange={(e) => setNewDepNotes(e.target.value)}
-                      className={`w-full px-3 py-2 text-xs rounded-[4px] border outline-hidden transition ${
-                        isDark 
-                          ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                          : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-600'
-                      }`}
+                      className="caixa-input text-xs"
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={isSavingDep || !newDepName.trim()}
-                    className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white font-bold text-xs rounded-[4px] transition uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                    className="w-full py-2.5 bg-[#2B82C9] hover:bg-[#1F6FB0] active:scale-[0.99] text-white font-bold text-xs rounded-[4px] transition uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
                   >
                     <Check className="w-4 h-4 text-white stroke-[2.5]" />
                     <span className="text-white">{isSavingDep ? 'Salvando...' : 'Salvar Dependente'}</span>
@@ -2553,18 +2537,20 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               {/* Lista de Dependentes Vinculados */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between px-1">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
+                  <span className="text-xs font-bold text-[#64748B] uppercase tracking-wider font-mono">
                     Dependentes Cadastrados ({dependents.length})
                   </span>
                 </div>
 
                 {dependents.length === 0 ? (
-                  <div className={`p-8 text-center rounded-[4px] border border-dashed ${
-                    isDark ? 'border-slate-800 text-slate-500' : 'border-slate-200 text-slate-400'
+                  <div className={`caixa-card p-8 text-center rounded-[4px] ${
+                    isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white text-[#64748B]'
                   }`}>
-                    <Users className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-400" />
-                    <p className="text-xs font-bold text-slate-300">Nenhum dependente cadastrado</p>
-                    <p className="text-[11px] mt-1 text-slate-500">
+                    <div className="caixa-icon-halo w-12 h-12 rounded-full mx-auto mb-2.5">
+                      <Users className="w-6 h-6 text-[#2B82C9]" />
+                    </div>
+                    <p className="text-xs font-bold text-[#1E293B] dark:text-slate-200">Nenhum dependente cadastrado</p>
+                    <p className="text-[11px] mt-1 text-[#64748B]">
                       Toque em "Novo" acima para vincular filhos ou familiares à sua conta.
                     </p>
                   </div>
@@ -2573,20 +2559,20 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     {dependents.map((dep) => (
                       <div
                         key={dep.id}
-                        className={`p-3 rounded-[4px] border flex items-center justify-between gap-3 transition ${
-                          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+                        className={`caixa-card p-3 rounded-[4px] flex items-center justify-between gap-3 transition ${
+                          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <div className="w-9 h-9 rounded-[4px] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold text-xs shrink-0">
+                          <div className="caixa-icon-halo w-9 h-9 rounded-full font-bold text-xs shrink-0">
                             {dep.full_name.charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                              <h5 className="text-xs font-bold text-[#1E293B] dark:text-white truncate">
                                 {dep.full_name}
                               </h5>
-                              <span className="px-1.5 py-0.5 rounded-[4px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[9px] font-mono font-medium shrink-0">
+                              <span className="px-1.5 py-0.5 rounded-[4px] bg-[#EBF5FF] text-[#2B82C9] text-[9px] font-mono font-bold shrink-0">
                                 {dep.relationship === 'son' 
                                   ? 'Filho(a)' 
                                   : dep.relationship === 'daughter' 
@@ -2599,12 +2585,12 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                               </span>
                             </div>
                             {dep.notes && (
-                              <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                              <p className="text-[11px] text-[#64748B] truncate mt-0.5">
                                 {dep.notes}
                               </p>
                             )}
                             {dep.birth_date && (
-                              <p className="text-[10px] text-slate-500 mt-0.5">
+                              <p className="text-[10px] text-[#64748B] font-mono-tabular mt-0.5">
                                 Nasc: {dep.birth_date.split('-').reverse().join('/')}
                               </p>
                             )}
@@ -2614,7 +2600,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         <button
                           type="button"
                           onClick={() => handleRemoveDependent(dep.id, dep.full_name)}
-                          className="p-1.5 rounded-[4px] hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 transition cursor-pointer shrink-0"
+                          className="p-1.5 rounded-[4px] hover:bg-rose-500/10 text-[#64748B] hover:text-[#DC2626] transition cursor-pointer shrink-0"
                           title={`Remover ${dep.full_name}`}
                           aria-label={`Remover ${dep.full_name}`}
                         >
@@ -2787,56 +2773,78 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         </div>
       </div>
 
-      {/* Modal do Chat Interno no App (Cliente -> Salão) */}
+      {/* Seção em Tela Inteira: Chat Interno no App (Cliente -> Salão) */}
       {isAppChatOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className={`w-full max-w-md h-[85vh] sm:h-[550px] rounded-t-[4px] sm:rounded-[4px] border flex flex-col overflow-hidden shadow-2xl ${
-            isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
-          }`}>
-            {/* Cabeçalho do Chat */}
-            <div className={`p-3 border-b shrink-0 flex items-center justify-between ${
-              isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+        <div
+          className="fixed inset-0 z-50 flex justify-center bg-[#E6EEF6]/80 backdrop-blur-xs"
+          onClick={() => setIsAppChatOpen(false)}
+        >
+          <div
+            className={`w-full max-w-[430px] h-dvh max-h-dvh flex flex-col overflow-hidden shadow-lg ${
+              isDark ? 'bg-slate-950 text-white' : 'bg-[#F7F9FC] text-[#1E293B]'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Barra Superior Institucional com Botão Voltar */}
+            <div className={`px-3.5 py-3 border-b shrink-0 flex items-center justify-between ${
+              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E6EDF5]'
             }`}>
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-[4px] bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-black shrink-0">
-                  <Scissors className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <h3 className={`font-bold text-xs truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                      {salonName}
-                    </h3>
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" title="Online no Vagou" />
-                  </div>
-                  <p className="text-[10px] text-slate-400 truncate flex items-center gap-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>Chat Oficial Vagou</span>
-                  </p>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => setIsAppChatOpen(false)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] transition active:scale-95 cursor-pointer text-xs font-bold ${
+                  isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-[#F1F5F9] text-[#1E293B]'
+                }`}
+              >
+                <ChevronRight className="w-4 h-4 rotate-180 text-[#2B82C9]" />
+                <span>Voltar</span>
+              </button>
 
               <button
                 type="button"
                 onClick={() => setIsAppChatOpen(false)}
-                className={`p-1.5 rounded-[4px] border transition cursor-pointer ${
-                  isDark ? 'border-slate-800 hover:bg-slate-800 text-slate-400' : 'border-slate-200 hover:bg-slate-200 text-slate-600'
+                className={`w-8 h-8 rounded-[4px] border flex items-center justify-center transition cursor-pointer ${
+                  isDark ? 'border-slate-800 hover:bg-slate-800 text-slate-400' : 'bg-[#F1F5F9] border-[#E2E8F0] hover:bg-[#E2E8F0] text-[#5F6C7B]'
                 }`}
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
+            {/* Card de Identificação do Salão no Chat */}
+            <div className="px-3.5 pt-3 shrink-0">
+              <div className={`caixa-card p-3 rounded-[4px] flex items-center justify-between ${
+                isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
+              }`}>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
+                    <Scissors className="w-4 h-4 text-[#2B82C9]" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <h3 className={`font-bold text-xs truncate ${isDark ? 'text-white' : 'text-[#1E293B]'}`}>
+                        {salonName}
+                      </h3>
+                      <span className="w-2 h-2 rounded-full bg-[#008B47] shrink-0" title="Online no Vagou" />
+                    </div>
+                    <p className="text-[10px] text-[#64748B] truncate flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
+                      <span>Chat Oficial Vagou</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Mensagens */}
-            <div className={`flex-1 overflow-y-auto p-3 space-y-3 min-h-0 ${
-              isDark ? 'bg-slate-950/40' : 'bg-slate-50/70'
-            }`}>
+            <div className="flex-1 overflow-y-auto p-3.5 space-y-3 min-h-0">
               {drawerChatMessages.map((msg) => {
                 if (msg.sender === 'system') {
                   return (
-                    <div key={msg.id} className={`my-2 p-2 rounded-[4px] border text-[10px] text-center flex items-center justify-center gap-1.5 ${
-                      isDark ? 'bg-slate-900/90 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600'
+                    <div key={msg.id} className={`caixa-card my-2 p-2.5 rounded-[4px] text-[10px] text-center flex items-center justify-center gap-1.5 ${
+                      isDark ? 'bg-slate-900/90 border-slate-800 text-slate-400' : 'bg-white text-[#64748B]'
                     }`}>
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
                       <span>{msg.text}</span>
                     </div>
                   );
@@ -2846,16 +2854,16 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
                 return (
                   <div key={msg.id} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-                    <div className={`max-w-[85%] p-2.5 rounded-[4px] text-xs ${
+                    <div className={`max-w-[85%] p-3 rounded-[4px] text-xs ${
                       isUser
-                        ? 'bg-emerald-500 text-white font-medium'
+                        ? 'bg-[#2B82C9] text-white font-medium shadow-xs'
                         : isDark
                         ? 'bg-slate-800 text-slate-100 border border-slate-700 font-medium'
-                        : 'bg-slate-100 text-slate-900 border border-slate-200 font-medium'
+                        : 'caixa-card bg-white text-[#1E293B] font-medium'
                     }`}>
-                      <p>{msg.text}</p>
-                      <span className={`block text-[9px] mt-1 text-right font-mono ${
-                        isUser ? 'text-white/80' : 'text-slate-400'
+                      <p className={isUser ? 'text-white' : ''}>{msg.text}</p>
+                      <span className={`block text-[9px] mt-1 text-right font-mono-tabular ${
+                        isUser ? 'text-white/80' : 'text-[#64748B]'
                       }`}>
                         {msg.timestamp}
                       </span>
@@ -2865,25 +2873,21 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               })}
             </div>
 
-            {/* Input Form */}
-            <form onSubmit={handleSendDrawerChatMessage} className={`p-2.5 border-t shrink-0 flex items-center gap-2 ${
-              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+            {/* Input Form Fixo no Rodapé */}
+            <form onSubmit={handleSendDrawerChatMessage} className={`p-3 border-t shrink-0 sticky bottom-0 z-20 flex items-center gap-2 ${
+              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E6EDF5]'
             }`}>
               <input
                 type="text"
                 value={inputDrawerChatMessage}
                 onChange={(e) => setInputDrawerChatMessage(e.target.value)}
                 placeholder="Digite sua mensagem no aplicativo..."
-                className={`flex-1 px-3 py-2 rounded-[4px] border text-xs font-medium outline-hidden transition ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-500 focus:border-emerald-500' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500'
-                }`}
+                className="caixa-input flex-1 text-xs"
               />
               <button
                 type="submit"
                 disabled={!inputDrawerChatMessage.trim()}
-                className="py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1 transition cursor-pointer active:scale-98"
+                className="py-2.5 px-3.5 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1 transition cursor-pointer active:scale-98"
               >
                 <Send className="w-3.5 h-3.5 text-white" />
               </button>
@@ -2892,41 +2896,49 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         </div>
       )}
 
-      {/* Modal de Solicitação de Troca de Horário com Cascata Prioritária (A -> B -> C -> D) */}
+      {/* Seção em Tela Inteira: Solicitação de Troca de Horário com Cascata Prioritária (A -> B -> C -> D) */}
       {isSwapModalOpen && swapTargetAppointment && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-150">
-          <div className={`w-full max-w-md max-h-[90vh] rounded-t-[4px] sm:rounded-[4px] border flex flex-col overflow-hidden shadow-2xl ${
-            isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-          }`}>
-            {/* Header do Modal */}
+        <div
+          className="fixed inset-0 z-50 flex justify-center bg-[#E6EEF6]/80 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setIsSwapModalOpen(false)}
+        >
+          <div
+            className={`w-full max-w-[430px] h-dvh max-h-dvh flex flex-col overflow-hidden shadow-lg ${
+              isDark ? 'bg-slate-950 text-white' : 'bg-[#F7F9FC] text-[#1E293B]'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header da Seção com Botão Voltar */}
             <div className={`p-3.5 border-b shrink-0 flex items-center justify-between ${
-              isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E6EDF5]'
             }`}>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                  <ArrowLeftRight className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-xs">Solicitar Troca em Cascata</h3>
-                  <p className="text-[10px] text-slate-400">Selecione até 3 horários em ordem de preferência</p>
-                </div>
-              </div>
               <button
                 type="button"
                 onClick={() => setIsSwapModalOpen(false)}
-                className={`p-1.5 rounded transition ${
-                  isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-200 text-slate-600'
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] transition active:scale-95 cursor-pointer text-xs font-bold ${
+                  isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-[#F1F5F9] text-[#1E293B]'
                 }`}
               >
-                <X className="w-4 h-4" />
+                <ChevronRight className="w-4 h-4 rotate-180 text-[#2B82C9]" />
+                <span>Voltar</span>
               </button>
+
+              <div className="flex items-center gap-2">
+                <div className="caixa-icon-halo w-8 h-8 rounded-full">
+                  <ArrowLeftRight className="w-4 h-4 text-[#2B82C9]" />
+                </div>
+                <div className="text-right">
+                  <h3 className="font-bold text-xs text-[#1E293B] dark:text-white">Solicitar Troca em Cascata</h3>
+                  <p className="text-[10px] text-[#64748B]">Selecione até 3 horários</p>
+                </div>
+              </div>
             </div>
 
             {/* Conteúdo com Rolagem */}
             <div className="p-4 space-y-4 overflow-y-auto flex-1">
               {/* Seu Horário Atual */}
-              <div className={`p-2.5 rounded border text-xs space-y-1 ${
-                isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+              <div className={`caixa-card p-3 rounded-[4px] text-xs space-y-1 ${
+                isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white'
               }`}>
                 <span className="text-[10px] uppercase font-bold text-slate-400">Seu Horário Atual:</span>
                 <div className="flex items-center justify-between">

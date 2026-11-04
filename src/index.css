@@ -6,7 +6,7 @@
     --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-sans: 'Public Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: 'IBM Plex Mono', monospace;
-    --accent-color: #005CA9;
+    --accent-color: #2B82C9;
     --color-emerald-50: color-mix(in srgb, var(--accent-color) 10%, white 90%);
     --color-emerald-100: color-mix(in srgb, var(--accent-color) 18%, white 82%);
     --color-emerald-200: color-mix(in srgb, var(--accent-color) 30%, white 70%);
@@ -69,9 +69,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Gradiente Principal de Cabeçalho */
+/* Gradiente Principal de Cabeçalho (Azul Institucional Mais Claro & Suave) */
 .caixa-header-gradient {
-  background: linear-gradient(115deg, #005CA9 0%, #0D79B4 52%, #39B29B 100%);
+  background: linear-gradient(115deg, #2B82C9 0%, #3A96DE 52%, #48BFA6 100%);
 }
 
 /* Card Padrão Universal — Branco Puro, Borda Fina e Sombra Concentrada */
@@ -99,7 +99,7 @@
 }
 
 .caixa-tile:hover {
-  box-shadow: 0 3px 7px -1px rgba(0, 92, 169, 0.18), 0 1px 3px 0 rgba(0, 92, 169, 0.12);
+  box-shadow: 0 3px 7px -1px rgba(43, 130, 201, 0.18), 0 1px 3px 0 rgba(43, 130, 201, 0.12);
   border-color: #C2DCF5;
 }
 
@@ -114,8 +114,8 @@
   width: 40px;
   height: 40px;
   border-radius: 9999px;
-  background-color: #EBF4FC;
-  color: #005CA9;
+  background-color: #EBF5FF;
+  color: #2B82C9;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -123,7 +123,7 @@
 }
 
 .dark .caixa-icon-halo {
-  background-color: rgba(0, 92, 169, 0.2);
+  background-color: rgba(43, 130, 201, 0.2);
   color: #38BDF8;
 }
 
@@ -142,7 +142,7 @@
 
 .caixa-input:focus {
   outline: none;
-  border-color: #005CA9;
+  border-color: #2B82C9;
   background-color: #FFFFFF;
 }
 
@@ -153,7 +153,7 @@
 }
 
 .dark .caixa-input:focus {
-  border-color: #005CA9;
+  border-color: #2B82C9;
   background-color: #1E293B;
 }
 
@@ -190,29 +190,42 @@ input[type="number"] {
   appearance: textfield;
 }
 
-/* Utilitários diretos de Cor de Destaque e Status */
+/* Utilitários diretos de Cor de Destaque e Status (Azul Claro #2B82C9 e Verde Confirmado #008B47) */
 .bg-accent,
-.status-green-bg {
-  background-color: var(--accent-color) !important;
+.status-blue-bg,
+.bg-\[\#005CA9\],
+.bg-\[\#2B82C9\] {
+  background-color: #2B82C9 !important;
   color: #ffffff !important;
 }
-.status-blue-bg {
-  background-color: #005CA9 !important;
-  color: #ffffff !important;
+.hover\:bg-\[\#004A88\]:hover,
+.hover\:bg-\[\#1F6FB0\]:hover {
+  background-color: #1F6FB0 !important;
 }
-.border-accent { border-color: var(--accent-color) !important; }
-.text-accent { color: var(--accent-color) !important; }
+.text-accent,
+.text-\[\#005CA9\],
+.text-\[\#2B82C9\] {
+  color: #2B82C9 !important;
+}
+.border-accent,
+.border-\[\#005CA9\],
+.border-\[\#2B82C9\] {
+  border-color: #2B82C9 !important;
+}
 
-/* Compatibilidade reativa para classes hexadecimais legadas */
-.bg-\[\#20C933\] {
+.status-green-bg,
+.bg-\[\#20C933\],
+.bg-\[\#008B47\] {
   background-color: #008B47 !important;
   color: #ffffff !important;
 }
 .hover\:bg-\[\#1bb32d\]:hover,
-.hover\:bg-\[\#1eb72e\]:hover {
+.hover\:bg-\[\#1eb72e\]:hover,
+.hover\:bg-\[\#00723A\]:hover,
+.hover\:bg-\[\#00753B\]:hover {
   background-color: #00723A !important;
 }
-.text-\[\#20C933\] { color: #008B47 !important; }
+.text-\[\#20C933\],
 .text-\[\#087A2A\] { color: #008B47 !important; }
 .border-\[\#20C933\] { border-color: #008B47 !important; }
 
@@ -248,7 +261,7 @@ html:not(.dark) .border-slate-700\/60:not([style*="border-color"]) {
   border-color: #D5E0EC;
 }
 
-/* Harmonização Automática de Superfícies (Camada 2 #F7F9FC e Camada 3 #FFFFFF) no Tema Claro */
+/* Harmonização Automática de Superfícies (Camada 2 #F7F9FC e Camada 3 #FFFFFF .caixa-card) no Tema Claro */
 html:not(.dark) .bg-slate-950:not([style*="background-color"]),
 html:not(.dark) .bg-slate-950\/95:not([style*="background-color"]),
 html:not(.dark) .bg-slate-950\/90:not([style*="background-color"]),
@@ -259,6 +272,12 @@ html:not(.dark) .bg-slate-950\/40:not([style*="background-color"]),
 html:not(.dark) .bg-slate-50:not([style*="background-color"]) {
   background-color: #F7F9FC;
   color: #1E293B;
+}
+
+html:not(.dark) .bg-white.border {
+  border-color: #E6EDF5;
+  border-radius: 4px;
+  box-shadow: 0 2px 5px -1px rgba(0, 45, 90, 0.14), 0 1px 2px 0 rgba(0, 45, 90, 0.09);
 }
 
 html:not(.dark) .bg-slate-900:not([style*="background-color"]),
@@ -297,10 +316,11 @@ html:not(.dark) .text-slate-600:not([style*="color"]) {
   color: #5F6C7B;
 }
 
-/* Regra inegociável de contraste: texto sobre fundo colorido sólido (#005CA9, #008B47, emerald) deve ser branco puro */
+/* Regra inegociável de contraste: texto sobre fundo colorido sólido (#2B82C9, #008B47, emerald) deve ser branco puro */
 .text-white,
 .dark .text-white,
 .bg-\[\#005CA9\],
+.bg-\[\#2B82C9\],
 .bg-\[\#008B47\],
 .bg-emerald-500,
 .bg-emerald-600,

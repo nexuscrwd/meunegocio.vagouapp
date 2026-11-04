@@ -1,6 +1,6 @@
 import React from 'react';
 import { Home, Calendar, LayoutDashboard, LayoutGrid, Users, Store, Wrench, Wallet, CirclePause } from 'lucide-react';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme, sanitizeAccentColor } from '../context/ThemeContext';
 import { hapticLight } from '../utils/haptics';
 import { UserPersona } from '../types';
 
@@ -108,7 +108,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const navBgColor = propNavBgColor || salonContext?.navBgColor || '#f1f5f9';
   const navBtnBgColor = propNavBtnBgColor || salonContext?.navBtnBgColor;
   const navBtnActiveBgColor = propNavBtnActiveBgColor || salonContext?.navBtnActiveBgColor;
-  const navActiveColor = propNavActiveColor || salonContext?.navActiveColor || '#10b981';
+  const navActiveColor = sanitizeAccentColor(propNavActiveColor || salonContext?.navActiveColor || '#2B82C9');
   const navTextColor = propNavTextColor || salonContext?.navTextColor;
   const navBtnShadow = propNavBtnShadow || salonContext?.navBtnShadow || 'none';
   const navBtnBlur = propNavBtnBlur || salonContext?.navBtnBlur || 'none';

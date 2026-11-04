@@ -708,7 +708,7 @@ export const App: React.FC = () => {
   if (isValidatingSubdomain) {
     return (
       <div className="min-h-screen w-full bg-[#E6EEF6] flex items-center justify-center font-sans">
-        <Loader2 className="w-7 h-7 animate-spin text-[#005CA9]" />
+        <Loader2 className="w-7 h-7 animate-spin text-[#2B82C9]" />
       </div>
     );
   }

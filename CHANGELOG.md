@@ -13,6 +13,29 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ---
 
+### [2026-11-04] — Extensão Universal do Design System Institucional (Menu, Trajeto GPS, Dependentes, Chat, Pausar e PIX) e Suavização do Azul Principal (`#2B82C9`) (`bol-115`)
+- **Tipo:** `[Refactor / Design System Institucional Mobile-First — Suavização para Azul Claro #2B82C9 e Cobertura 100% de Modais/Drawers]`
+- **Motivo / Solicitação:** Estender a refatoração visual institucional para todas as telas apontadas nos prints do usuário (`ProfileDrawer` Menu, `RouteSimulatorModal` Trajeto GPS, `Conta Família • Dependentes`, `Chat Oficial Vagou`, `PauseSlotsModal` e `PixCheckoutModal`) e suavizar o azul institucional para um tom mais claro e agradável (`#2B82C9`).
+- **Arquivos Impactados:**
+  - `src/index.css`
+  - `src/context/ThemeContext.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/live-tracking/RouteSimulatorModal.tsx`
+  - `src/components/professional/PauseSlotsModal.tsx`
+  - `src/components/professional/PixCheckoutModal.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/BottomNav.tsx`
+  - `src/utils/sectionHeaderStyle.ts`
+  - `src/App.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Suavização do Azul Institucional (`#2B82C9`):** Substituído o azul escuro `#005CA9` pelo azul institucional mais claro e luminoso `#2B82C9` (hover `#1F6FB0`, gradiente `linear-gradient(115deg, #2B82C9 0%, #3A96DE 52%, #48BFA6 100%)` e halo `.caixa-icon-halo` `#EBF5FF` com ícone `#2B82C9`).
+  2. **Bloqueio Definitivo de Cores Acromáticas/Cinzas (`ThemeContext.tsx`):** Adicionada validação `isAchromaticOrGreyHex` em `sanitizeAccentColor` para rejeitar valores hexadecimais acinzentados vindos de `localStorage` ou `salonRecord.primary_color` (como `#9A9A9A`), impedindo que botões primários (`MODO CLIENTE`, `Local Atual`, `Carro`, `+ Novo`) fiquem cinzas.
+  3. **Padronização de `ProfileDrawer`, `RouteSimulatorModal`, `PauseSlotsModal` e `PixCheckoutModal`:** Convertidos de modais flutuantes escuros para seções em tela inteira centralizadas no shell mobile (`w-full max-w-[430px] h-dvh bg-[#F7F9FC]`) com barra superior "Voltar", cards `.caixa-card`, halos `.caixa-icon-halo`, campos `.caixa-input` e botões ativos em `#2B82C9` / `#008B47` com texto `#FFFFFF`.
+
+---
+
 ### [2026-11-04] — Redesign Visual Completo e Padronização Universal de CSS Mobile-First Institucional (`bol-114`)
 - **Tipo:** `[Refactor / Design System Institucional Mobile-First — Arquitetura de 3 Camadas, .caixa-card e Raio 4px]`
 - **Motivo / Solicitação:** Aplicar Redesign Visual Completo e Padronização Universal de CSS em todo o aplicativo sem alterar nenhuma regra de negócio.

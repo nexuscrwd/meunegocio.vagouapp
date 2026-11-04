@@ -34,7 +34,7 @@ import { SalonCustomizationHub } from './professional/SalonCustomizationHub';
 import { UtilitiesAndToolsView } from './professional/UtilitiesAndToolsView';
 import { useSalonRole, SalonRole } from '../hooks/useSalonRole';
 import { useOwnerAccess } from '../hooks/useOwnerAccess';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme, sanitizeAccentColor } from '../context/ThemeContext';
 import { getSalonLogo } from '../utils/salonLogos';
 import { DEFAULT_ROTA99_LOGO_DARK, DEFAULT_ROTA99_LOGO_LIGHT, DEFAULT_ROTA99_ICON, DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
 import { updateDynamicPwaAssets } from '../utils/pwaAssets';
@@ -1190,9 +1190,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           const dbTimestamp = salonRecord.updated_at ? new Date(salonRecord.updated_at).getTime() : 0;
 
           // Se houver alteração de cor local mais recente que a atualização do banco, preserva a escolha local do usuário
-          const finalAccentColor = (localAccentColor && localTimestamp > dbTimestamp)
+          const rawAccentColor = (localAccentColor && localTimestamp > dbTimestamp)
             ? localAccentColor
-            : (resolvedDbColor || localAccentColor || '#20C933');
+            : (resolvedDbColor || localAccentColor || '#2B82C9');
+          const finalAccentColor = sanitizeAccentColor(rawAccentColor);
 
           if (finalAccentColor) {
             updatedSettings.accentColor = finalAccentColor;
@@ -2252,7 +2253,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               <div
                 className="w-8 h-8 rounded-[4px] flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-xs border border-white/25"
                 style={{
-                  backgroundColor: adminSettings.navActiveColor || adminSettings.accentColor || '#005CA9',
+                  backgroundColor: adminSettings.navActiveColor || adminSettings.accentColor || '#2B82C9',
                   fontFamily: activeBrandFontFamily,
                 }}
               >
@@ -2678,13 +2679,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   onClick={() => setSelectedPublicProfessional('any')}
                   className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] snap-center transition cursor-pointer ${
                     selectedPublicProfessional === 'any'
-                      ? 'bg-[#005CA9] text-white font-bold shadow-xs'
+                      ? 'bg-[#2B82C9] text-white font-bold shadow-xs'
                       : isDark
                         ? 'bg-slate-800 border border-slate-700 text-slate-300'
                         : 'bg-[#FFFFFF] border border-[#E2E8F0] text-[#5F6C7B]'
                   }`}
                 >
-                  <Users className={`w-3.5 h-3.5 shrink-0 ${selectedPublicProfessional === 'any' ? 'text-white' : 'text-[#005CA9]'}`} />
+                  <Users className={`w-3.5 h-3.5 shrink-0 ${selectedPublicProfessional === 'any' ? 'text-white' : 'text-[#2B82C9]'}`} />
                   <span className={`text-[11px] whitespace-nowrap ${selectedPublicProfessional === 'any' ? 'text-white font-bold' : ''}`}>
                     Qualquer Livre
                   </span>
@@ -2700,7 +2701,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                       onClick={() => setSelectedPublicProfessional(prof.name)}
                       className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] snap-center transition cursor-pointer ${
                         isSelected
-                          ? 'bg-[#005CA9] text-white font-bold shadow-xs'
+                          ? 'bg-[#2B82C9] text-white font-bold shadow-xs'
                           : isDark
                             ? 'bg-slate-800 border border-slate-700 text-slate-300'
                             : 'bg-[#FFFFFF] border border-[#E2E8F0] text-[#5F6C7B]'
@@ -2710,7 +2711,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         {prof.avatar || prof.avatarUrl ? (
                           <img src={prof.avatar || prof.avatarUrl} alt={prof.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         ) : (
-                          <User className={`w-3 h-3 ${isSelected ? 'text-white' : 'text-[#005CA9]'}`} />
+                          <User className={`w-3 h-3 ${isSelected ? 'text-white' : 'text-[#2B82C9]'}`} />
                         )}
                       </div>
                       <span className={`text-[11px] whitespace-nowrap ${isSelected ? 'text-white font-bold' : ''}`}>
@@ -2744,7 +2745,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                       <button
                         type="button"
                         onClick={() => setIsClientAuthModalOpen(true)}
-                        className="mt-1 px-4 py-2 rounded-[4px] bg-[#005CA9] hover:bg-[#004A88] text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer"
+                        className="mt-1 px-4 py-2 rounded-[4px] bg-[#2B82C9] hover:bg-[#004A88] text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer"
                       >
                         <span className="text-white">Sou o Proprietário • Entrar</span>
                       </button>
@@ -2818,7 +2819,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                             : 'bg-[#F7F9FC] border-[#D5E0EC] text-[#1E293B]'
                         }`}
                       >
-                        <span className="text-[#005CA9] font-extrabold">{servicePage + 1}</span>
+                        <span className="text-[#2B82C9] font-extrabold">{servicePage + 1}</span>
                         <span className="text-[#94A3B8]">/</span>
                         <span className="text-[#5F6C7B]">{totalServicePages}</span>
                       </div>
@@ -2859,7 +2860,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                             }}
                             className={`transition-all rounded-[4px] cursor-pointer ${
                               dotIdx === servicePage
-                                ? 'w-5 h-2 bg-[#005CA9]'
+                                ? 'w-5 h-2 bg-[#2B82C9]'
                                 : isDark
                                 ? 'w-2 h-2 bg-slate-800 hover:bg-slate-700'
                                 : 'w-2 h-2 bg-[#D5E0EC] hover:bg-[#94A3B8]'
@@ -2902,10 +2903,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSelectTab('servicos')}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-[4px] bg-[#FFFFFF] dark:bg-slate-800 border border-[#E2E8F0] dark:border-slate-700 text-[#005CA9] dark:text-slate-200 text-xs font-bold hover:bg-[#F1F5F9] transition cursor-pointer"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-[4px] bg-[#FFFFFF] dark:bg-slate-800 border border-[#E2E8F0] dark:border-slate-700 text-[#2B82C9] dark:text-slate-200 text-xs font-bold hover:bg-[#F1F5F9] transition cursor-pointer"
                     title="Voltar para Serviços"
                   >
-                    <ArrowLeft className="w-3.5 h-3.5 text-[#005CA9] dark:text-emerald-400" />
+                    <ArrowLeft className="w-3.5 h-3.5 text-[#2B82C9] dark:text-emerald-400" />
                     <span>Voltar</span>
                   </button>
                   <h2 className={`text-xs sm:text-sm font-bold font-display ${
@@ -2922,7 +2923,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     }}
                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] font-bold text-xs transition cursor-pointer shrink-0 whitespace-nowrap ${
                       bookingIsDependent
-                        ? 'bg-[#005CA9] text-white'
+                        ? 'bg-[#2B82C9] text-white'
                         : isDark
                         ? 'bg-slate-800 text-slate-100 hover:bg-slate-700'
                         : 'bg-[#FFFFFF] border border-[#E2E8F0] text-[#1E293B] hover:bg-[#F1F5F9]'
@@ -2932,7 +2933,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     {bookingIsDependent ? (
                       <Users className="w-3.5 h-3.5 text-white shrink-0" />
                     ) : (
-                      <User className="w-3.5 h-3.5 text-[#005CA9] shrink-0" />
+                      <User className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
                     )}
                     <span className={bookingIsDependent ? 'text-white font-bold' : ''}>
                       {bookingIsDependent && bookingDependentName ? bookingDependentName : 'Para Você'}
@@ -2963,7 +2964,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   salonLogo={activeLogo || adminSettings.salonLogo || adminSettings.salonLogoDark || adminSettings.salonLogoLight || adminSettings.salonIcon}
                   salonLogoLight={adminSettings.salonLogoLight || ''}
                   salonLogoDark={adminSettings.salonLogoDark || ''}
-                  primaryColor={adminSettings.accentColor || '#005CA9'}
+                  primaryColor={adminSettings.accentColor || '#2B82C9'}
                   services={catalogServices}
                   professionals={professionalsList}
                   initialService={bookingService}
@@ -3028,14 +3029,14 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     }}
                     className={`py-2 px-1 rounded-[4px] text-center transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                       espacoSlideIndex === 0
-                        ? 'bg-[#005CA9] text-white font-bold shadow-xs'
+                        ? 'bg-[#2B82C9] text-white font-bold shadow-xs'
                         : isDark
                           ? 'bg-slate-900/80 text-slate-400 hover:text-white font-medium border border-slate-800'
                           : 'bg-[#F1F5F9] text-[#5F6C7B] hover:text-[#1E293B] font-medium border border-[#E2E8F0]'
                     }`}
                   >
                     <Store className={`w-3.5 h-3.5 shrink-0 ${
-                      espacoSlideIndex === 0 ? 'text-white' : 'text-[#005CA9]'
+                      espacoSlideIndex === 0 ? 'text-white' : 'text-[#2B82C9]'
                     }`} />
                     <span className={`text-[11px] sm:text-xs tracking-tight truncate ${
                       espacoSlideIndex === 0 ? 'text-white font-bold' : ''
@@ -3053,14 +3054,14 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     }}
                     className={`py-2 px-1 rounded-[4px] text-center transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                       espacoSlideIndex === 1
-                        ? 'bg-[#005CA9] text-white font-bold shadow-xs'
+                        ? 'bg-[#2B82C9] text-white font-bold shadow-xs'
                         : isDark
                           ? 'bg-slate-900/80 text-slate-400 hover:text-white font-medium border border-slate-800'
                           : 'bg-[#F1F5F9] text-[#5F6C7B] hover:text-[#1E293B] font-medium border border-[#E2E8F0]'
                     }`}
                   >
                     <MapPin className={`w-3.5 h-3.5 shrink-0 ${
-                      espacoSlideIndex === 1 ? 'text-white' : 'text-[#005CA9]'
+                      espacoSlideIndex === 1 ? 'text-white' : 'text-[#2B82C9]'
                     }`} />
                     <span className={`text-[11px] sm:text-xs tracking-tight truncate ${
                       espacoSlideIndex === 1 ? 'text-white font-bold' : ''
@@ -3078,14 +3079,14 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     }}
                     className={`py-2 px-1 rounded-[4px] text-center transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                       espacoSlideIndex === 2
-                        ? 'bg-[#005CA9] text-white font-bold shadow-xs'
+                        ? 'bg-[#2B82C9] text-white font-bold shadow-xs'
                         : isDark
                           ? 'bg-slate-900/80 text-slate-400 hover:text-white font-medium border border-slate-800'
                           : 'bg-[#F1F5F9] text-[#5F6C7B] hover:text-[#1E293B] font-medium border border-[#E2E8F0]'
                     }`}
                   >
                     <Phone className={`w-3.5 h-3.5 shrink-0 ${
-                      espacoSlideIndex === 2 ? 'text-white' : 'text-[#005CA9]'
+                      espacoSlideIndex === 2 ? 'text-white' : 'text-[#2B82C9]'
                     }`} />
                     <span className={`text-[11px] sm:text-xs tracking-tight truncate ${
                       espacoSlideIndex === 2 ? 'text-white font-bold' : ''
@@ -3126,7 +3127,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                           <div className="space-y-2.5">
                             <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#EDF2F7] dark:border-slate-800">
                               <h3 className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-[#1E293B]'}`}>
-                                <Store className="w-4 h-4 text-[#005CA9]" />
+                                <Store className="w-4 h-4 text-[#2B82C9]" />
                                 <span>{salonInfo.isHomeCare ? 'Modalidade de Atendimento' : 'Estrutura do Espaço'}</span>
                               </h3>
                             </div>
@@ -3140,7 +3141,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                                     ? 'bg-slate-950 text-slate-300'
                                     : 'bg-[#F7F9FC] text-[#1E293B]'
                                 }`}>
-                                  <amenity.icon className="w-4 h-4 text-[#005CA9] shrink-0" />
+                                  <amenity.icon className="w-4 h-4 text-[#2B82C9] shrink-0" />
                                   <span className="truncate font-medium">{amenity.label}</span>
                                 </div>
                               ))}
@@ -3266,7 +3267,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                           <div className="space-y-3">
                             <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#EDF2F7] dark:border-slate-800/60">
                               <h3 className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-[#1E293B]'}`}>
-                                <Phone className="w-4 h-4 text-[#005CA9]" />
+                                <Phone className="w-4 h-4 text-[#2B82C9]" />
                                 <span>Canais de Contato & Redes Sociais</span>
                               </h3>
                             </div>
@@ -3609,7 +3610,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               onClick={() => setConfirmedBookingData(null)}
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] bg-[#F1F5F9] dark:bg-slate-800 text-[#1E293B] dark:text-slate-200 text-xs font-bold hover:bg-[#E2E8F0] transition cursor-pointer"
             >
-              <ArrowLeft className="w-3.5 h-3.5 text-[#005CA9]" />
+              <ArrowLeft className="w-3.5 h-3.5 text-[#2B82C9]" />
               <span>Voltar</span>
             </button>
             <span className="text-xs font-bold uppercase tracking-wider text-[#008B47]">
@@ -3638,7 +3639,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             }`}>
               <div className="flex items-center justify-between pb-2.5 border-b border-[#EDF2F7] dark:border-slate-800/80">
                 <span className="text-xs font-bold text-[#5F6C7B]">Código Protocolo</span>
-                <span className="text-xs font-mono-tabular font-bold text-white bg-[#005CA9] px-2.5 py-1 rounded-[4px]">
+                <span className="text-xs font-mono-tabular font-bold text-white bg-[#2B82C9] px-2.5 py-1 rounded-[4px]">
                   {confirmedBookingData.protocolCode}
                 </span>
               </div>
