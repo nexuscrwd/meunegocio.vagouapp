@@ -241,16 +241,45 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     return { ...DEFAULT_PROFILE, name: savedName, email: savedEmail, phone: savedPhone };
   });
 
-  // Sincronizar dados com o banco Supabase ao abrir o menu lateral
+  // Sincronizar dados com o banco Supabase ao abrir o menu lateral ou ao deslogar
+  useEffect(() => {
+    const handleAuthReset = (e?: Event) => {
+      const customEvt = e as CustomEvent<{ loggedOut?: boolean }> | undefined;
+      const hasSession = Boolean(
+        localStorage.getItem('vagou_user_email') ||
+        localStorage.getItem('vagou_client_session') ||
+        localStorage.getItem('vagou_auth_user_id')
+      );
+      if (customEvt?.detail?.loggedOut || !hasSession) {
+        setProfile({ ...DEFAULT_PROFILE, name: 'Usuário', email: '', phone: '', avatarUrl: '' });
+        setDependents([]);
+      }
+    };
+
+    window.addEventListener('vagou:auth-updated', handleAuthReset);
+    return () => window.removeEventListener('vagou:auth-updated', handleAuthReset);
+  }, []);
+
   useEffect(() => {
     if (!isOpen) return;
     let isMounted = true;
 
     async function syncDrawerFromDb() {
-      const currentName = localStorage.getItem('vagou_user_name') || userName || '';
+      const currentName = localStorage.getItem('vagou_user_name') || '';
       const currentEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
       const currentCpf = localStorage.getItem('vagou_user_cpf') || '';
-      if (!currentName && !currentEmail && !currentCpf) return;
+      const hasSession = Boolean(
+        currentEmail ||
+        currentCpf ||
+        localStorage.getItem('vagou_client_session') ||
+        localStorage.getItem('vagou_auth_user_id')
+      );
+      if (!hasSession) {
+        if (isMounted) {
+          setProfile({ ...DEFAULT_PROFILE, name: 'Usuário', email: '', phone: '', avatarUrl: '' });
+        }
+        return;
+      }
 
       const dbProfile = await fetchUserProfileFromDb({
         name: currentName,

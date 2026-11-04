@@ -264,7 +264,17 @@ export function useOwnerAccess({
   useEffect(() => {
     verifyAccess();
 
-    const handleAuthUpdated = () => {
+    const handleAuthUpdated = (e?: Event) => {
+      const customEvt = e as CustomEvent<{ loggedOut?: boolean }> | undefined;
+      if (customEvt?.detail?.loggedOut) {
+        setIsOwner(false);
+        setIsManagerOrPro(false);
+        setMatchedBy(null);
+        setUserEmail('');
+        setUserCpf('');
+        setIsLoading(false);
+        return;
+      }
       verifyAccess();
     };
 
@@ -273,7 +283,19 @@ export function useOwnerAccess({
 
     let sub: { unsubscribe: () => void } | null = null;
     if (isSupabaseConfigured && supabase) {
-      const { data } = supabase.auth.onAuthStateChange(() => {
+      const { data } = supabase.auth.onAuthStateChange((event) => {
+        if (event === 'SIGNED_OUT') {
+          const local = readLocalAuthState();
+          if (!local.email && !local.userId && !local.cpf && !local.isSuperadmin) {
+            setIsOwner(false);
+            setIsManagerOrPro(false);
+            setMatchedBy(null);
+            setUserEmail('');
+            setUserCpf('');
+            setIsLoading(false);
+            return;
+          }
+        }
         verifyAccess();
       });
       sub = data.subscription;

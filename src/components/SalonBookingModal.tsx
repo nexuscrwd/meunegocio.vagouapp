@@ -1324,22 +1324,22 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   ) => {
     const availableCount = slots.filter((s) => s.available).length;
     return (
-      <div key={periodKey} className="space-y-1.5">
+      <div key={periodKey} className="space-y-2 pt-2 first:pt-0">
         <div className="flex items-center justify-between px-0.5">
           <div className="flex items-center gap-1.5">
-            <PeriodIcon className={`w-3.5 h-3.5 ${isPeriodBlocked ? 'text-slate-500' : 'text-emerald-500'}`} />
-            <span className={`text-[11px] font-bold uppercase tracking-wider font-['Poppins'] ${
+            <PeriodIcon className={`w-3.5 h-3.5 ${isPeriodBlocked ? 'text-[#DC2626]' : 'text-[#005CA9]'}`} />
+            <span className={`text-[11px] font-bold uppercase tracking-wider font-display ${
               isPeriodBlocked
-                ? isDark ? 'text-slate-600 line-through' : 'text-slate-400 line-through'
-                : isDark ? 'text-slate-200' : 'text-slate-800'
+                ? 'text-[#DC2626] line-through'
+                : isDark ? 'text-slate-200' : 'text-[#1E293B]'
             }`}>
               {label}
             </span>
           </div>
-          <span className={`text-[10px] font-semibold ${
-            availableCount > 0 ? 'text-emerald-400' : 'text-rose-400'
+          <span className={`text-[10px] font-mono-tabular font-bold ${
+            availableCount > 0 ? 'text-[#008B47]' : 'text-[#DC2626]'
           }`}>
-            {isPeriodBlocked ? 'Período encerrado hoje' : `${availableCount} livres`}
+            {isPeriodBlocked ? 'Encerrado hoje' : `${availableCount} livres`}
           </span>
         </div>
 
@@ -1364,29 +1364,25 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                       ? 'Horário já ocupado no banco'
                       : slot.reason === 'travel_buffer'
                       ? `Insuficiente para deslocamento (${etaMinutes}m + 15m preparo)`
-                      : 'Horário já passou'
+                      : 'Horário indisponível'
                     : `Agendar às ${slot.time}`
                 }
-                className={`py-2 px-1 rounded-[4px] text-xs font-bold border transition flex items-center justify-center gap-1 cursor-pointer ${
+                className={`py-2 px-1 rounded-[4px] text-xs font-mono-tabular font-bold border transition flex items-center justify-center gap-1 cursor-pointer ${
                   isSelected
-                    ? 'bg-emerald-500 border-emerald-500 text-white font-black shadow-sm'
+                    ? 'bg-[#005CA9] border-[#005CA9] text-white font-bold shadow-sm'
                     : !isAvailable
-                    ? isDark
-                      ? 'bg-slate-900/30 border-slate-900 text-slate-600 line-through opacity-40 cursor-not-allowed'
-                      : 'bg-slate-100/60 border-slate-200 text-slate-300 line-through opacity-45 cursor-not-allowed'
+                    ? 'bg-[#FEF2F2] border-[#FECACA] text-[#DC2626] line-through opacity-70 cursor-not-allowed'
                     : isDark
-                    ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-emerald-500 hover:text-white'
-                    : 'bg-white border-slate-200 text-slate-800 hover:border-emerald-500 hover:text-emerald-700'
+                    ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-[#005CA9]'
+                    : 'bg-[#F7F9FC] border-[#D5E0EC] text-[#1E293B] hover:border-[#005CA9] hover:text-[#005CA9]'
                 }`}
               >
                 <Clock className={`w-3 h-3 ${
                   isSelected
                     ? 'text-white'
                     : isAvailable
-                    ? 'text-emerald-500'
-                    : isDark
-                    ? 'text-slate-600'
-                    : 'text-slate-300'
+                    ? 'text-[#005CA9]'
+                    : 'text-[#DC2626]'
                 }`} />
                 <span className={isSelected ? 'text-white' : ''}>{slot.time}</span>
               </button>
@@ -1399,19 +1395,18 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
 
   const bookingContent = (
     <div
-      className={`w-full flex flex-col overflow-hidden transition-colors ${
-        inline ? 'h-full border-0 rounded-none' : 'max-w-lg border rounded-[4px] max-h-[92vh] shadow-2xl'
+      className={`w-full flex flex-col overflow-hidden transition-colors relative ${
+        inline ? 'h-full border-0 rounded-none' : 'w-full h-full rounded-[4px]'
       } ${
-        isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-950' : 'bg-[#F7F9FC]'
       }`}
-      role={inline ? undefined : 'dialog'}
-      aria-modal={inline ? undefined : 'true'}
+      role={inline ? undefined : 'region'}
     >
       {/* Cabeçalho de Profissionais: Visível apenas para salões com múltiplos profissionais; oculto para profissional único */}
       {hasMultipleProfessionals && (
         <div
-          className={`px-3 py-2 border-b shrink-0 transition-colors ${
-            isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
+          className={`px-3.5 py-2.5 border-b shrink-0 transition-colors ${
+            isDark ? 'bg-slate-900 border-slate-800' : 'bg-[#F7F9FC] border-[#EDF2F7]'
           }`}
         >
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
@@ -1430,10 +1425,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   }}
                   className={`flex-shrink-0 py-1.5 px-3 rounded-[4px] border text-left flex items-center gap-2 transition cursor-pointer ${
                     isSelected
-                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                      ? 'bg-[#005CA9] border-[#005CA9] text-white font-bold shadow-xs'
                       : isDark
-                      ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
-                      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                      ? 'bg-slate-900 border-slate-800 text-slate-300'
+                      : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#005CA9]/40'
                   }`}
                 >
                   {profImg && !profImg.startsWith('data:image/svg+xml') ? (
@@ -1448,9 +1443,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                       className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
                         isSelected
                           ? 'bg-white/20 text-white'
-                          : isDark
-                          ? 'bg-slate-800 text-slate-300'
-                          : 'bg-slate-200 text-slate-700'
+                          : 'bg-[#EBF4FC] text-[#005CA9]'
                       }`}
                     >
                       <User className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : ''}`} />
@@ -1458,7 +1451,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   )}
                   <span
                     className={`text-xs font-bold whitespace-nowrap leading-none ${
-                      isSelected ? 'text-white' : isDark ? 'text-slate-200' : 'text-slate-800'
+                      isSelected ? 'text-white' : isDark ? 'text-slate-200' : 'text-[#5F6C7B]'
                     }`}
                   >
                     {firstName}
@@ -1467,149 +1460,135 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               );
             })}
             {isLoadingBusySlots && (
-              <Loader2 className="w-4 h-4 animate-spin text-emerald-500 shrink-0 ml-1" />
+              <Loader2 className="w-4 h-4 animate-spin text-[#005CA9] shrink-0 ml-1" />
             )}
           </div>
         </div>
       )}
 
       {/* Scrollable Content Body */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 no-scrollbar">
+      <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 no-scrollbar">
         {/* ============================================================ */}
-        {/* AGENDA MENSAL DE DATAS */}
+        {/* AGENDA MENSAL DE DATAS DENTRO DE .caixa-card */}
         {/* ============================================================ */}
         {currentStep === 'date' && (
-          <div className="space-y-3 animate-in fade-in duration-200">
-            <div className="space-y-3 transition-all">
-              <div className="flex items-center justify-between px-1 py-1">
-                <button
-                  type="button"
-                  onClick={handlePrevMonth}
-                  className={`p-2 rounded-[4px] transition cursor-pointer ${
-                    isDark
-                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                  }`}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
+          <section className="caixa-card p-4 space-y-3 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between pb-2.5 border-b border-[#EDF2F7] dark:border-slate-800">
+              <button
+                type="button"
+                onClick={handlePrevMonth}
+                className={`p-2 rounded-[4px] border transition cursor-pointer ${
+                  isDark
+                    ? 'bg-slate-800 border-slate-700 text-slate-200'
+                    : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B]'
+                }`}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
 
-                <div className="text-center">
-                  <h3 className={`text-sm font-black uppercase tracking-wider font-['Poppins'] ${
-                    isDark ? 'text-white' : 'text-slate-900'
-                  }`}>
-                    {monthData.monthLabel}
-                  </h3>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleNextMonth}
-                  className={`p-2 rounded-[4px] transition cursor-pointer ${
-                    isDark
-                      ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                      : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                  }`}
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+              <div className="text-center">
+                <h3 className={`text-sm font-extrabold uppercase tracking-wider font-display ${
+                  isDark ? 'text-white' : 'text-[#1E293B]'
+                }`}>
+                  {monthData.monthLabel}
+                </h3>
               </div>
 
-              <div className="grid grid-cols-7 gap-1 text-center">
-                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
-                  <div key={day} className={`text-[10px] font-bold py-1 uppercase ${
-                    isDark ? 'text-slate-500' : 'text-slate-400'
-                  }`}>
-                    {day}
-                  </div>
-                ))}
-
-                {monthData.daysGrid.map((item, index) => {
-                  if (item.dayNumber === null) {
-                    return <div key={`empty-${index}`} className="h-10" />;
-                  }
-
-                  const isSelected = selectedDateIso === item.isoString;
-                  const isDayDisabled = item.isDisabled;
-
-                  return (
-                    <button
-                      key={item.isoString || index}
-                      type="button"
-                      disabled={isDayDisabled}
-                      onClick={() => {
-                        if (item.isoString) {
-                          hapticMedium();
-                          setSelectedDateIso(item.isoString);
-                          setSelectedTimeSlot(null);
-                          setCurrentStep('professionals_and_time');
-                        }
-                      }}
-                      className={`h-11 rounded-[4px] font-bold text-xs transition-all relative flex flex-col items-center justify-center cursor-pointer ${
-                        isSelected
-                          ? 'bg-emerald-500 text-white font-black shadow-md z-10'
-                          : isDayDisabled
-                          ? isDark
-                            ? 'bg-slate-950/40 text-slate-700 cursor-not-allowed border border-slate-900/50 opacity-40'
-                            : 'bg-slate-100/50 text-slate-300 cursor-not-allowed border border-slate-200/40 opacity-40'
-                          : isDark
-                          ? 'bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 hover:border-emerald-500/40'
-                          : 'bg-slate-50 hover:bg-emerald-50/50 text-slate-800 border border-slate-200 hover:border-emerald-500/40'
-                      }`}
-                    >
-                      <span className={isSelected ? 'text-white' : ''}>{item.dayNumber}</span>
-                      {item.isToday && !isSelected && (
-                        <span className={`text-[8px] font-black uppercase ${
-                          isDark ? 'text-emerald-400' : 'text-emerald-700'
-                        }`}>Hoje</span>
-                      )}
-                      {item.isClosed && (
-                        <span className="text-[8px] text-rose-500 font-bold">Fechado</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                className={`p-2 rounded-[4px] border transition cursor-pointer ${
+                  isDark
+                    ? 'bg-slate-800 border-slate-700 text-slate-200'
+                    : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B]'
+                }`}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
-          </div>
+
+            <div className="grid grid-cols-7 gap-1.5 text-center">
+              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
+                <div key={day} className="text-[10px] font-bold py-1 uppercase text-[#5F6C7B]">
+                  {day}
+                </div>
+              ))}
+
+              {monthData.daysGrid.map((item, index) => {
+                if (item.dayNumber === null) {
+                  return <div key={`empty-${index}`} className="h-10" />;
+                }
+
+                const isSelected = selectedDateIso === item.isoString;
+                const isDayDisabled = item.isDisabled;
+
+                return (
+                  <button
+                    key={item.isoString || index}
+                    type="button"
+                    disabled={isDayDisabled}
+                    onClick={() => {
+                      if (item.isoString) {
+                        hapticMedium();
+                        setSelectedDateIso(item.isoString);
+                        setSelectedTimeSlot(null);
+                        setCurrentStep('professionals_and_time');
+                      }
+                    }}
+                    className={`h-11 rounded-[4px] font-mono-tabular font-bold text-xs transition-all relative flex flex-col items-center justify-center cursor-pointer border ${
+                      isSelected
+                        ? 'bg-[#005CA9] border-[#005CA9] text-white font-bold shadow-sm z-10'
+                        : isDayDisabled
+                        ? 'bg-[#FEF2F2] border-[#FECACA] text-[#DC2626] cursor-not-allowed'
+                        : isDark
+                        ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-[#005CA9]'
+                        : 'bg-[#F7F9FC] border-[#D5E0EC] text-[#1E293B] hover:border-[#005CA9]'
+                    }`}
+                  >
+                    <span className={isSelected ? 'text-white' : ''}>{item.dayNumber}</span>
+                    {item.isToday && !isSelected && !isDayDisabled && (
+                      <span className="text-[8px] font-bold uppercase text-[#005CA9]">Hoje</span>
+                    )}
+                    {item.isClosed && !isSelected && (
+                      <span className="text-[7.5px] text-[#DC2626] font-bold">Fechado</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         )}
 
         {/* ============================================================ */}
-        {/* TURNOS + HORÁRIOS DO DIA SELECIONADO */}
+        {/* TURNOS + HORÁRIOS DO DIA SELECIONADO DENTRO DE .caixa-card */}
         {/* ============================================================ */}
         {currentStep === 'professionals_and_time' && (
-          <div className="space-y-3 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between gap-2">
+          <section className="caixa-card p-4 space-y-3 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-[#EDF2F7] dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => {
                   hapticMedium();
                   setCurrentStep('date');
                 }}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-bold transition cursor-pointer shrink-0 ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-bold transition cursor-pointer shrink-0 ${
                   isDark
-                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-100 hover:text-white'
-                    : 'bg-slate-200 hover:bg-slate-300 text-slate-800 hover:text-slate-950'
+                    ? 'bg-slate-800 border-slate-700 text-slate-100'
+                    : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B]'
                 }`}
               >
-                <ArrowLeft className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                <span>Agenda Mensal</span>
+                <ArrowLeft className="w-3.5 h-3.5 text-[#005CA9] shrink-0" />
+                <span>Voltar ao Calendário</span>
               </button>
 
-              <span
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-extrabold ${
-                  isDark ? 'bg-slate-900 text-emerald-400' : 'bg-emerald-50 text-emerald-700'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                <span>{shortDateFormatted}</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs font-mono-tabular font-bold bg-[#005CA9] text-white">
+                <Calendar className="w-3.5 h-3.5 text-white shrink-0" />
+                <span className="text-white">{shortDateFormatted}</span>
               </span>
             </div>
 
             {/* Linha 2: Abas de Turnos dedicadas em largura total (Manhã | Tarde | Noite | Todos) */}
-            <div className={`grid grid-cols-4 gap-1 p-1 rounded-[4px] border ${
-              isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
-            }`}>
+            <div className="grid grid-cols-4 gap-1.5">
               {(
                 [
                   { key: 'manha', label: 'Manhã', disabled: isManhaPeriodDisabled },
@@ -1630,16 +1609,14 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                         setTimePeriodFilter(tab.key);
                       }
                     }}
-                    className={`py-1.5 px-2 rounded-[4px] text-[11px] font-bold transition whitespace-nowrap text-center ${
+                    className={`py-2 px-2 rounded-[4px] border text-[11px] font-bold transition whitespace-nowrap text-center ${
                       tab.disabled
-                        ? isDark
-                          ? 'text-slate-700 line-through cursor-not-allowed opacity-50'
-                          : 'text-slate-300 line-through cursor-not-allowed opacity-50'
+                        ? 'bg-[#FEF2F2] border-[#FECACA] text-[#DC2626] line-through cursor-not-allowed opacity-70'
                         : isActive
-                        ? 'bg-emerald-500 text-white font-extrabold cursor-pointer shadow-xs'
+                        ? 'bg-[#005CA9] border-[#005CA9] text-white font-bold cursor-pointer shadow-xs'
                         : isDark
-                        ? 'text-slate-400 hover:text-white cursor-pointer'
-                        : 'text-slate-600 hover:text-slate-900 cursor-pointer'
+                        ? 'bg-slate-900 border-slate-800 text-slate-400 cursor-pointer'
+                        : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B] cursor-pointer'
                     }`}
                   >
                     <span className={isActive && !tab.disabled ? 'text-white' : ''}>{tab.label}</span>
@@ -1649,7 +1626,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             </div>
 
             {/* Linha 3: Grade de Horários Classificada por Período (Manhã, Tarde, Noite) */}
-            <div className="space-y-3">
+            <div className="divide-y divide-[#EDF2F7] dark:divide-slate-800 space-y-3">
               {(timePeriodFilter === 'manha' || timePeriodFilter === 'todos') &&
                 renderPeriodSlotsBlock('manha', 'Manhã (08h às 11h30)', Sun, slotsByPeriod.manha, isManhaPeriodDisabled)}
 
@@ -1659,7 +1636,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               {(timePeriodFilter === 'noite' || timePeriodFilter === 'todos') &&
                 renderPeriodSlotsBlock('noite', 'Noite (18h às 20h30)', Moon, slotsByPeriod.noite, false)}
             </div>
-          </div>
+          </section>
         )}
       </div>
 
@@ -1667,8 +1644,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       {/* RODAPÉ FIXO DE AÇÃO (sticky bottom-0 z-20) */}
       {/* ============================================================ */}
       {currentStep === 'professionals_and_time' && Boolean(selectedTimeSlot) && (
-        <div className={`px-3.5 py-2 border-t shrink-0 sticky bottom-0 z-20 transition-colors ${
-          isDark ? 'bg-[#151A1E]/95 border-slate-800 backdrop-blur-md' : 'bg-white/95 border-slate-200 backdrop-blur-md'
+        <div className={`px-3.5 py-2.5 border-t shrink-0 sticky bottom-0 z-20 caixa-footer-shadow transition-colors ${
+          isDark ? 'bg-[#151A1E] border-slate-800' : 'bg-white border-[#E6EDF5]'
         }`}>
           <button
             id="btn-avancar-confirmacao"
@@ -1677,7 +1654,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               hapticMedium();
               setIsSummaryModalOpen(true);
             }}
-            className="w-full py-2 px-4 font-black text-xs uppercase tracking-wider rounded-[4px] transition flex items-center justify-center gap-1.5 font-['Poppins'] bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer active:scale-98"
+            className="w-full py-2.5 px-4 font-bold text-xs uppercase tracking-wider rounded-[4px] transition flex items-center justify-center gap-1.5 font-display bg-[#008B47] hover:bg-[#00753B] text-white cursor-pointer active:scale-98"
           >
             <span className="text-white">
               Revisar & Confirmar ({selectedTimeSlot})
@@ -1690,259 +1667,257 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   );
 
   // ============================================================================
-  // MODAL COMPACTO 1: "PARA VOCÊ OU DEPENDENTE?" (Logo após escolha do serviço)
+  // SEÇÃO EM TELA INTEIRA 1: "PARA VOCÊ OU DEPENDENTE?" (Fundo #F7F9FC + Voltar)
   // ============================================================================
   const beneficiaryModalNode = isBeneficiaryModalOpen && selectedService && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
-      <div
-        className={`w-full max-w-md my-auto border rounded-[4px] p-4 sm:p-5 shadow-2xl space-y-4 transition-colors ${
-          isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-        }`}
-      >
-        <div className="flex items-start justify-between gap-3 pb-2.5 border-b border-slate-800/60">
-          <div className="min-w-0 flex-1">
-            <h3 className="text-sm font-extrabold font-['Poppins'] leading-snug">
-              Para quem é o agendamento?
-            </h3>
-            <p className="text-[11px] text-emerald-400 font-semibold flex items-start gap-1.5 mt-1 leading-snug">
-              <Scissors className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-              <span className="break-words">{selectedService.title}</span>
-            </p>
+    <div className={`absolute inset-0 z-40 w-full h-full flex flex-col overflow-hidden animate-in fade-in duration-150 ${
+      isDark ? 'bg-slate-950 text-white' : 'bg-[#F7F9FC] text-[#333E48]'
+    }`}>
+      {/* Barra Superior Limpa Integrada com Botão Voltar */}
+      <div className={`px-3.5 py-2.5 border-b flex items-center justify-between gap-2 shrink-0 ${
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-[#F7F9FC] border-[#EDF2F7]'
+      }`}>
+        <button
+          type="button"
+          onClick={() => {
+            setIsBeneficiaryModalOpen(false);
+            if (returnToSummaryAfterBeneficiary) {
+              setReturnToSummaryAfterBeneficiary(false);
+              setIsSummaryModalOpen(true);
+            } else {
+              onClose?.();
+            }
+          }}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-bold transition cursor-pointer ${
+            isDark
+              ? 'bg-slate-800 border-slate-700 text-slate-200'
+              : 'bg-[#FFFFFF] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B]'
+          }`}
+        >
+          <ArrowLeft className="w-3.5 h-3.5 text-[#005CA9] shrink-0" />
+          <span>Voltar</span>
+        </button>
+
+        <span className="text-xs font-bold font-display text-[#1E293B] dark:text-white truncate">
+          Beneficiário do Atendimento
+        </span>
+      </div>
+
+      {/* Conteúdo em .caixa-card sobre #F7F9FC */}
+      <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 no-scrollbar">
+        <section className="caixa-card p-4 space-y-4">
+          <div className="flex items-center gap-3 pb-3 border-b border-[#EDF2F7] dark:border-slate-800">
+            <div className="caixa-icon-halo">
+              <Scissors className="w-5 h-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-extrabold font-display leading-snug">
+                Para quem é o agendamento?
+              </h3>
+              <p className="text-xs text-[#005CA9] font-bold mt-0.5 break-words">
+                {selectedService.title}
+              </p>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setIsBeneficiaryModalOpen(false);
-              if (returnToSummaryAfterBeneficiary) {
-                setReturnToSummaryAfterBeneficiary(false);
-                setIsSummaryModalOpen(true);
-              } else {
-                setReturnToRouteModalAfterOrigin(false);
-                setOriginModalMode('choice');
-                setIsOriginModalOpen(true);
-              }
-            }}
-            className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
-              isDark ? 'bg-slate-900 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
 
-        {/* Botões Principais em Colunas: Para Você vs Dependente */}
-        <div className="grid grid-cols-2 gap-2.5">
-          <button
-            type="button"
-            onClick={() => {
-              hapticMedium();
-              setIsDependentBooking(false);
-              setDependentId('');
-              setDependentName('');
-              setIsBeneficiaryModalOpen(false);
-              if (returnToSummaryAfterBeneficiary) {
-                setReturnToSummaryAfterBeneficiary(false);
-                setIsSummaryModalOpen(true);
-              } else {
-                setReturnToRouteModalAfterOrigin(false);
-                setOriginModalMode('choice');
-                setIsOriginModalOpen(true);
-              }
-            }}
-            className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
-              !isDependentBooking
-                ? 'bg-emerald-500 border-emerald-500 text-white'
-                : isDark
-                ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-emerald-500/50'
-                : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
-            }`}
-          >
-            <User className={`w-5 h-5 shrink-0 ${!isDependentBooking ? 'text-white' : 'text-emerald-500'}`} />
-            <span className={`leading-tight ${!isDependentBooking ? 'text-white' : ''}`}>Para Você</span>
-          </button>
+          {/* Botões Principais em Colunas: Para Você vs Dependente */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                hapticMedium();
+                setIsDependentBooking(false);
+                setDependentId('');
+                setDependentName('');
+                setIsBeneficiaryModalOpen(false);
+                if (returnToSummaryAfterBeneficiary) {
+                  setReturnToSummaryAfterBeneficiary(false);
+                  setIsSummaryModalOpen(true);
+                } else {
+                  setReturnToRouteModalAfterOrigin(false);
+                  setOriginModalMode('choice');
+                  setIsOriginModalOpen(true);
+                }
+              }}
+              className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
+                !isDependentBooking
+                  ? 'bg-[#005CA9] border-[#005CA9] text-white'
+                  : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#005CA9]'
+              }`}
+            >
+              <User className={`w-5 h-5 shrink-0 ${!isDependentBooking ? 'text-white' : 'text-[#005CA9]'}`} />
+              <span className={`leading-tight ${!isDependentBooking ? 'text-white' : ''}`}>Para Você</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              hapticLight();
-              setIsDependentBooking(true);
-              if (registeredDependents.length === 0) {
-                setIsCreatingDependentInline(true);
-              }
-            }}
-            className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
-              isDependentBooking
-                ? 'bg-emerald-500 border-emerald-500 text-white'
-                : isDark
-                ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-emerald-500/50'
-                : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
-            }`}
-          >
-            <Users className={`w-5 h-5 shrink-0 ${isDependentBooking ? 'text-white' : 'text-emerald-500'}`} />
-            <span className={`leading-tight ${isDependentBooking ? 'text-white' : ''}`}>Dependente</span>
-          </button>
-        </div>
-
-        {/* Lista de Dependentes do Banco + Botão "+ Cadastrar Dependente" */}
-        {isDependentBooking && (
-          <div className="space-y-2.5 pt-2 border-t border-slate-800/60 animate-in fade-in duration-150">
-            {registeredDependents.length > 0 && !isCreatingDependentInline && (
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Selecione o Dependente:
-                </span>
-                <div className="space-y-1.5 max-h-40 overflow-y-auto no-scrollbar">
-                  {registeredDependents.map((dep) => {
-                    const isSelectedDep = dependentName === dep.full_name;
-                    const relLabel =
-                      dep.relationship === 'son'
-                        ? 'Filho(a)'
-                        : dep.relationship === 'daughter'
-                        ? 'Filha'
-                        : dep.relationship === 'spouse'
-                        ? 'Cônjuge'
-                        : dep.relationship === 'parent'
-                        ? 'Pai / Mãe'
-                        : 'Familiar';
-                    return (
-                      <button
-                        key={dep.id}
-                        type="button"
-                        onClick={() => {
-                          hapticMedium();
-                          setDependentId(dep.id);
-                          setDependentName(dep.full_name);
-                          setIsBeneficiaryModalOpen(false);
-                          if (returnToSummaryAfterBeneficiary) {
-                            setReturnToSummaryAfterBeneficiary(false);
-                            setIsSummaryModalOpen(true);
-                          } else {
-                            setReturnToRouteModalAfterOrigin(false);
-                            setOriginModalMode('choice');
-                            setIsOriginModalOpen(true);
-                          }
-                        }}
-                        className={`w-full p-2.5 rounded-[4px] border text-left flex items-center justify-between gap-2 transition cursor-pointer ${
-                          isSelectedDep
-                            ? 'bg-emerald-500 border-emerald-500 text-white font-bold'
-                            : isDark
-                            ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-emerald-500/50'
-                            : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <User className={`w-4 h-4 shrink-0 ${isSelectedDep ? 'text-white' : 'text-emerald-500'}`} />
-                          <span className={`text-xs font-bold break-words ${isSelectedDep ? 'text-white' : ''}`}>
-                            {dep.full_name}
-                          </span>
-                        </div>
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[4px] shrink-0 ${
-                          isSelectedDep
-                            ? 'bg-white/20 text-white'
-                            : isDark
-                            ? 'bg-slate-800 text-slate-400'
-                            : 'bg-slate-200 text-slate-600'
-                        }`}>
-                          {relLabel}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Botão ou Formulário Inline "+ Cadastrar Dependente" */}
-            {!isCreatingDependentInline ? (
-              <button
-                type="button"
-                onClick={() => {
-                  hapticLight();
+            <button
+              type="button"
+              onClick={() => {
+                hapticLight();
+                setIsDependentBooking(true);
+                if (registeredDependents.length === 0) {
                   setIsCreatingDependentInline(true);
-                }}
-                className="w-full py-2.5 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
-              >
-                <Plus className="w-4 h-4 text-white shrink-0" />
-                <span className="text-white">Cadastrar Dependente</span>
-              </button>
-            ) : (
-              <form onSubmit={handleSaveInlineDependent} className="space-y-2 pt-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-emerald-400">Novo Dependente (Conta Família)</span>
-                  <button
-                    type="button"
-                    onClick={() => setIsCreatingDependentInline(false)}
-                    className="text-[10px] font-semibold text-slate-400 hover:text-white cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
+                }
+              }}
+              className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
+                isDependentBooking
+                  ? 'bg-[#005CA9] border-[#005CA9] text-white'
+                  : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#005CA9]'
+              }`}
+            >
+              <Users className={`w-5 h-5 shrink-0 ${isDependentBooking ? 'text-white' : 'text-[#005CA9]'}`} />
+              <span className={`leading-tight ${isDependentBooking ? 'text-white' : ''}`}>Dependente</span>
+            </button>
+          </div>
+
+          {/* Lista de Dependentes do Banco + Botão "+ Cadastrar Dependente" */}
+          {isDependentBooking && (
+            <div className="space-y-2.5 pt-3 border-t border-[#EDF2F7] dark:border-slate-800 animate-in fade-in duration-150">
+              {registeredDependents.length > 0 && !isCreatingDependentInline && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] block">
+                    Selecione o Dependente:
+                  </span>
+                  <div className="divide-y divide-[#EDF2F7] max-h-48 overflow-y-auto no-scrollbar">
+                    {registeredDependents.map((dep) => {
+                      const isSelectedDep = dependentName === dep.full_name;
+                      const relLabel =
+                        dep.relationship === 'son'
+                          ? 'Filho(a)'
+                          : dep.relationship === 'daughter'
+                          ? 'Filha'
+                          : dep.relationship === 'spouse'
+                          ? 'Cônjuge'
+                          : dep.relationship === 'parent'
+                          ? 'Pai / Mãe'
+                          : 'Familiar';
+                      return (
+                        <button
+                          key={dep.id}
+                          type="button"
+                          onClick={() => {
+                            hapticMedium();
+                            setDependentId(dep.id);
+                            setDependentName(dep.full_name);
+                            setIsBeneficiaryModalOpen(false);
+                            if (returnToSummaryAfterBeneficiary) {
+                              setReturnToSummaryAfterBeneficiary(false);
+                              setIsSummaryModalOpen(true);
+                            } else {
+                              setReturnToRouteModalAfterOrigin(false);
+                              setOriginModalMode('choice');
+                              setIsOriginModalOpen(true);
+                            }
+                          }}
+                          className={`w-full p-2.5 rounded-[4px] text-left flex items-center justify-between gap-2 transition cursor-pointer ${
+                            isSelectedDep
+                              ? 'bg-[#005CA9] text-white font-bold'
+                              : 'bg-[#F7F9FC] text-[#1E293B] hover:bg-[#EBF4FC]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <User className={`w-4 h-4 shrink-0 ${isSelectedDep ? 'text-white' : 'text-[#005CA9]'}`} />
+                            <span className={`text-xs font-bold break-words ${isSelectedDep ? 'text-white' : ''}`}>
+                              {dep.full_name}
+                            </span>
+                          </div>
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[4px] shrink-0 ${
+                            isSelectedDep
+                              ? 'bg-white/20 text-white'
+                              : 'bg-[#F1F5F9] text-[#5F6C7B]'
+                          }`}>
+                            {relLabel}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+              )}
 
-                <input
-                  type="text"
-                  required
-                  value={newDepFullName}
-                  onChange={(e) => setNewDepFullName(e.target.value)}
-                  placeholder="Nome completo do dependente"
-                  className={`w-full px-3 py-2 text-xs rounded-[4px] border outline-hidden ${
-                    isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                  }`}
-                />
-
-                <div className="grid grid-cols-2 gap-2">
-                  <select
-                    value={newDepRelationship}
-                    onChange={(e) => setNewDepRelationship(e.target.value as any)}
-                    className={`w-full px-2.5 py-2 text-xs rounded-[4px] border outline-hidden ${
-                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                    }`}
-                  >
-                    <option value="son">Filho(a)</option>
-                    <option value="spouse">Cônjuge</option>
-                    <option value="parent">Pai / Mãe</option>
-                    <option value="other">Familiar</option>
-                  </select>
+              {/* Botão ou Formulário Inline "+ Cadastrar Dependente" */}
+              {!isCreatingDependentInline ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    setIsCreatingDependentInline(true);
+                  }}
+                  className="w-full py-2.5 px-3 rounded-[4px] bg-[#005CA9] hover:bg-[#0D79B4] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 text-white shrink-0" />
+                  <span className="text-white">Cadastrar Dependente</span>
+                </button>
+              ) : (
+                <form onSubmit={handleSaveInlineDependent} className="space-y-2.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-[#005CA9]">Novo Dependente (Conta Família)</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingDependentInline(false)}
+                      className="text-[10px] font-semibold text-[#5F6C7B] hover:text-[#1E293B] cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
 
                   <input
-                    type="date"
-                    value={newDepBirthDate}
-                    onChange={(e) => setNewDepBirthDate(e.target.value)}
-                    className={`w-full px-2.5 py-2 text-xs rounded-[4px] border outline-hidden ${
-                      isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                    }`}
+                    type="text"
+                    required
+                    value={newDepFullName}
+                    onChange={(e) => setNewDepFullName(e.target.value)}
+                    placeholder="Nome completo do dependente"
+                    className="caixa-input"
                   />
-                </div>
 
-                <input
-                  type="text"
-                  value={newDepNotes}
-                  onChange={(e) => setNewDepNotes(e.target.value)}
-                  placeholder="Observações (opcional)"
-                  className={`w-full px-3 py-2 text-xs rounded-[4px] border outline-hidden ${
-                    isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-                  }`}
-                />
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={newDepRelationship}
+                      onChange={(e) => setNewDepRelationship(e.target.value as any)}
+                      className="caixa-input"
+                    >
+                      <option value="son">Filho(a)</option>
+                      <option value="spouse">Cônjuge</option>
+                      <option value="parent">Pai / Mãe</option>
+                      <option value="other">Familiar</option>
+                    </select>
 
-                <button
-                  type="submit"
-                  disabled={isSavingInlineDependent || !newDepFullName.trim()}
-                  className="w-full py-2.5 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
-                >
-                  <Check className="w-4 h-4 text-white shrink-0" />
-                  <span className="text-white">
-                    {isSavingInlineDependent ? 'Salvando...' : 'Salvar e Continuar'}
-                  </span>
-                </button>
-              </form>
-            )}
-          </div>
-        )}
+                    <input
+                      type="date"
+                      value={newDepBirthDate}
+                      onChange={(e) => setNewDepBirthDate(e.target.value)}
+                      className="caixa-input"
+                    />
+                  </div>
+
+                  <input
+                    type="text"
+                    value={newDepNotes}
+                    onChange={(e) => setNewDepNotes(e.target.value)}
+                    placeholder="Observações (opcional)"
+                    className="caixa-input"
+                  />
+
+                  <button
+                    type="submit"
+                    disabled={isSavingInlineDependent || !newDepFullName.trim()}
+                    className="w-full py-2.5 px-3 rounded-[4px] bg-[#008B47] hover:bg-[#00753B] disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Check className="w-4 h-4 text-white shrink-0" />
+                    <span className="text-white">
+                      {isSavingInlineDependent ? 'Salvando...' : 'Salvar e Continuar'}
+                    </span>
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
 
   // ============================================================================
-  // MODAL SIMPLES 1.5: ORIGEM DO CLIENTE + MODAL DE TRANSPORTE (ANTES DO HORÁRIO)
+  // SEÇÃO EM TELA INTEIRA 1.5: ORIGEM DO CLIENTE + MODAL DE TRANSPORTE
   // ============================================================================
   const originHours = Math.floor(etaMinutes / 60);
   const originRemainderMinutes = etaMinutes % 60;
@@ -1996,7 +1971,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     { key: 'rideshare', label: 'Aplicativo', Icon: Smartphone },
   ];
 
-  const renderModeIcon = (mode: TransportMode, className = 'w-3.5 h-3.5 text-emerald-500 shrink-0') => {
+  const renderModeIcon = (mode: TransportMode, className = 'w-3.5 h-3.5 text-[#005CA9] shrink-0') => {
     if (mode === 'walking') return <Footprints className={className} />;
     if (mode === 'bicycling') return <Bike className={className} />;
     if (mode === 'motorcycle') return <Navigation className={className} />;
@@ -2018,7 +1993,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         if (!Number.isNaN(y) && !Number.isNaN(m) && !Number.isNaN(d) && !Number.isNaN(sh) && !Number.isNaN(sm)) {
           const appointmentMs = new Date(y, m - 1, d, sh, sm, 0).getTime();
           const maxDepartureMs = appointmentMs - modeEta * 60 * 1000;
-          // Não oferta o trajeto (ex: A pé) se o horário máximo de saída já tiver passado em relação ao horário atual
           return maxDepartureMs >= nowMs;
         }
       }
@@ -2047,7 +2021,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     return filtered;
   }, [distanceKm, selectedTimeSlot, selectedDateIso, currentTimeTick, todayIso]);
 
-  // Se o meio de deslocamento atual (ex: A pé) não for viável para o horário selecionado, alterna automaticamente para um modal viável (ex: Carro)
   useEffect(() => {
     const isCurrentFeasible = feasibleTransportModeOptions.some((opt) => opt.key === transportMode);
     if (!isCurrentFeasible && feasibleTransportModeOptions.length > 0) {
@@ -2063,7 +2036,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   // Grade compacta com as opções viáveis do Google Maps API + Aplicativo
   const renderTransportSelectorGrid = (preserveSlot = false) => (
     <div className="space-y-1.5">
-      <span className={`text-[10px] font-bold uppercase tracking-wider block leading-snug ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+      <span className="text-[10px] font-bold uppercase tracking-wider block leading-snug text-[#5F6C7B]">
         Meio de deslocamento (Google Maps API)
       </span>
       <div className={`grid gap-1.5 ${feasibleTransportModeOptions.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
@@ -2093,13 +2066,11 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               }}
               className={`py-2 px-1.5 rounded-[4px] border font-bold text-[11px] flex flex-col items-center justify-center gap-1 transition cursor-pointer text-center ${
                 isSelectedMode
-                  ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
-                  : isDark
-                  ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-emerald-500/50'
-                  : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
+                  ? 'bg-[#005CA9] border-[#005CA9] text-white shadow-xs'
+                  : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#005CA9]'
               }`}
             >
-              <ModeIcon className={`w-3.5 h-3.5 shrink-0 ${isSelectedMode ? 'text-white' : 'text-emerald-500'}`} />
+              <ModeIcon className={`w-3.5 h-3.5 shrink-0 ${isSelectedMode ? 'text-white' : 'text-[#005CA9]'}`} />
               <span className={`leading-tight whitespace-nowrap ${isSelectedMode ? 'text-white' : ''}`}>{opt.label}</span>
             </button>
           );
@@ -2121,36 +2092,50 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     : salonLogoLight || salonLogo || salonLogoDark;
 
   const originModalNode = isOriginModalOpen && selectedService && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
-      <div
-        className={`w-full max-w-md my-auto border rounded-[4px] p-4 sm:p-5 shadow-2xl space-y-4 transition-colors ${
-          isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-        }`}
-      >
-        <div className={`flex items-start justify-between gap-3 pb-2.5 border-b ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
-          <div className="flex items-start gap-2.5 min-w-0 flex-1">
-            {originModalMode === 'custom_cep' ? (
-              <button
-                type="button"
-                onClick={() => {
-                  hapticLight();
-                  setOriginModalMode('choice');
-                }}
-                className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 mt-0.5 ${
-                  isDark ? 'bg-slate-900 text-slate-300 hover:text-white' : 'bg-slate-100 text-slate-700 hover:text-slate-900'
-                }`}
-                title="Voltar"
-              >
-                <ArrowLeft className="w-4 h-4 text-emerald-500" />
-              </button>
-            ) : (
-              <Navigation className="w-4 h-4 text-emerald-500 shrink-0 mt-1" />
-            )}
+    <div className={`absolute inset-0 z-40 w-full h-full flex flex-col overflow-hidden animate-in fade-in duration-150 ${
+      isDark ? 'bg-slate-950 text-white' : 'bg-[#F7F9FC] text-[#333E48]'
+    }`}>
+      {/* Barra Superior Limpa Integrada com Botão Voltar */}
+      <div className={`px-3.5 py-2.5 border-b flex items-center justify-between gap-2 shrink-0 ${
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-[#F7F9FC] border-[#EDF2F7]'
+      }`}>
+        <button
+          type="button"
+          onClick={() => {
+            if (originModalMode === 'custom_cep') {
+              hapticLight();
+              setOriginModalMode('choice');
+            } else {
+              handleCloseOriginModal();
+            }
+          }}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-bold transition cursor-pointer ${
+            isDark
+              ? 'bg-slate-800 border-slate-700 text-slate-200'
+              : 'bg-[#FFFFFF] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B]'
+          }`}
+        >
+          <ArrowLeft className="w-3.5 h-3.5 text-[#005CA9] shrink-0" />
+          <span>Voltar</span>
+        </button>
+
+        <span className="text-xs font-bold font-display text-[#1E293B] dark:text-white truncate">
+          {originModalMode === 'choice' ? 'De onde você vai sair?' : 'Informe o local de partida'}
+        </span>
+      </div>
+
+      {/* Conteúdo em .caixa-card sobre #F7F9FC */}
+      <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 no-scrollbar">
+        <section className="caixa-card p-4 space-y-4">
+          <div className="flex items-center gap-3 pb-3 border-b border-[#EDF2F7] dark:border-slate-800">
+            <div className="caixa-icon-halo">
+              <Navigation className="w-5 h-5" />
+            </div>
             <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-extrabold font-['Poppins'] leading-snug">
+              <h3 className="text-sm font-extrabold font-display leading-snug">
                 {originModalMode === 'choice' ? 'De onde você vai sair?' : 'Informe o local de partida'}
               </h3>
-              <p className={`text-[11px] leading-snug mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <p className="text-[11px] text-[#5F6C7B] leading-snug mt-0.5">
                 {originModalMode === 'choice'
                   ? 'Calculamos a distância e oferecemos o dia e horário mais propício.'
                   : 'Digite o CEP ou Cidade/Estado para calcularmos o melhor dia e horário.'}
@@ -2158,455 +2143,403 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleCloseOriginModal}
-            className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
-              isDark ? 'bg-slate-900 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {originModalMode === 'choice' ? (
-          <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={async () => {
-                  hapticMedium();
-                  await handleDetectDeviceGpsOrigin();
-                }}
-                className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
-                  originType === 'gps'
-                    ? 'bg-emerald-500 border-emerald-500 text-white'
-                    : isDark
-                    ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-emerald-500/50'
-                    : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
-                }`}
-              >
-                <Navigation className={`w-4 h-4 shrink-0 ${originType === 'gps' ? 'text-white' : 'text-emerald-500'}`} />
-                <span className={`leading-tight whitespace-nowrap ${originType === 'gps' ? 'text-white' : ''}`}>Local Atual</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={async () => {
-                  hapticMedium();
-                  setOriginType('home');
-                  const savedHomeOrigin =
-                    localStorage.getItem('vagou_user_cep') ||
-                    localStorage.getItem('vagou_user_address') ||
-                    localStorage.getItem('vagou_client_test_address') ||
-                    '08235-770';
-                  setAddressQuery(savedHomeOrigin);
-                  await runRouteCalculation(savedHomeOrigin, salonDestQuery, transportMode, returnToRouteModalAfterOrigin);
-                }}
-                className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
-                  originType === 'home'
-                    ? 'bg-emerald-500 border-emerald-500 text-white'
-                    : isDark
-                    ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-emerald-500/50'
-                    : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
-                }`}
-              >
-                <Home className={`w-4 h-4 shrink-0 ${originType === 'home' ? 'text-white' : 'text-emerald-500'}`} />
-                <span className={`leading-tight whitespace-nowrap ${originType === 'home' ? 'text-white' : ''}`}>De Casa</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  hapticLight();
-                  setOriginType('other');
-                  setOriginModalMode('custom_cep');
-                }}
-                className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
-                  originType === 'other'
-                    ? 'bg-emerald-500 border-emerald-500 text-white'
-                    : isDark
-                    ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-emerald-500/50'
-                    : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-emerald-500/50'
-                }`}
-              >
-                <MapPin className={`w-4 h-4 shrink-0 ${originType === 'other' ? 'text-white' : 'text-emerald-500'}`} />
-                <span className={`leading-tight whitespace-nowrap ${originType === 'other' ? 'text-white' : ''}`}>Outro Local</span>
-              </button>
-            </div>
-
-            {(originType === 'gps' || originType === 'home') && (
-              <>
-                <div className={`p-3 rounded-[4px] text-xs font-bold ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'}`}>
-                  {isCalculatingRoute ? (
-                    <div className="py-4 flex items-center justify-center">
-                      <Loader2 className="w-5 h-5 text-emerald-500 animate-spin" />
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5 text-emerald-500 truncate">
-                        <Navigation className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                        <span className="truncate">{resolvedAddressLabel}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                        <span>Distância de {formattedDistanceComma} km</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {renderModeIcon(transportMode)}
-                        <span>Trajeto de {formattedEtaHoursAndMinutes}</span>
-                      </div>
-                      {propitiousSuggestion && !returnToRouteModalAfterOrigin && (
-                        <div className="flex items-center gap-1.5 text-emerald-500 pt-1">
-                          <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                          <span>
-                            Dia e horário mais propício: <strong>{propitiousSuggestion.shortDate} às {propitiousSuggestion.timeSlot}</strong>
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="pt-1 sticky bottom-0 z-20 space-y-2">
-                  {!returnToRouteModalAfterOrigin && !isCalculatingRoute && propitiousSuggestion && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        hapticMedium();
-                        const [py, pm] = propitiousSuggestion.dateIso.split('-').map(Number);
-                        setCurrentViewMonth(new Date(py, pm - 1, 1));
-                        setSelectedDateIso(propitiousSuggestion.dateIso);
-                        setSelectedTimeSlot(propitiousSuggestion.timeSlot);
-                        handleCloseOriginModal();
-                        setIsSummaryModalOpen(true);
-                      }}
-                      className="w-full py-3 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
-                    >
-                      <Check className="w-4 h-4 text-white shrink-0" />
-                      <span className="text-white uppercase font-bold tracking-wide">
-                        MAIS PRÓXIMO - {propitiousSuggestion.shortDate} {propitiousSuggestion.timeSlot}
-                      </span>
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    disabled={isCalculatingRoute}
-                    onClick={() => {
-                      hapticMedium();
-                      if (!returnToRouteModalAfterOrigin && propitiousSuggestion) {
-                        const [py, pm] = propitiousSuggestion.dateIso.split('-').map(Number);
-                        setCurrentViewMonth(new Date(py, pm - 1, 1));
-                        setSelectedDateIso(propitiousSuggestion.dateIso);
-                      }
-                      handleCloseOriginModal();
-                      if (!returnToRouteModalAfterOrigin) {
-                        setCurrentStep('date');
-                      }
-                    }}
-                    className={`w-full py-2.5 px-4 rounded-[4px] font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50 ${
-                      !returnToRouteModalAfterOrigin && propitiousSuggestion
-                        ? isDark
-                          ? 'bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200'
-                          : 'bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800'
-                        : 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                    }`}
-                  >
-                    <span className={
-                      !returnToRouteModalAfterOrigin && propitiousSuggestion
-                        ? ''
-                        : 'text-white'
-                    }>
-                      {returnToRouteModalAfterOrigin ? 'Confirmar Nova Origem' : 'ESCOLHER OUTRA DATA E HORÁRIO'}
-                    </span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-3 animate-in fade-in duration-150">
-            <form onSubmit={handleCalculateCustomCep} className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <MapPin className="w-3.5 h-3.5 text-emerald-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  value={customCepInput}
-                  onChange={(e) => {
-                    const rawVal = e.target.value;
-                    const hasLetters = /[a-zA-ZÀ-ÿ]/.test(rawVal);
-                    if (!hasLetters) {
-                      const digits = rawVal.replace(/\D/g, '').slice(0, 8);
-                      const formatted = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
-                      setCustomCepInput(formatted);
-                      if (digits.length === 8) {
-                        setAddressQuery(formatted);
-                        runRouteCalculation(formatted, salonDestQuery, transportMode, returnToRouteModalAfterOrigin).then(() => {
-                          setHasCalculatedCustomCep(true);
-                        });
-                      } else {
-                        setHasCalculatedCustomCep(false);
-                      }
-                    } else {
-                      setCustomCepInput(rawVal);
-                      setHasCalculatedCustomCep(false);
-                    }
+          {originModalMode === 'choice' ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    hapticMedium();
+                    await handleDetectDeviceGpsOrigin();
                   }}
-                  placeholder="CEP (00000-000), Rua, Bairro ou Local"
-                  className={`w-full pl-8 pr-3 py-2.5 text-xs rounded-[4px] border outline-hidden transition-colors ${
-                    isDark
-                      ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500'
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-600'
+                  className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
+                    originType === 'gps'
+                      ? 'bg-[#005CA9] border-[#005CA9] text-white'
+                      : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#005CA9]'
                   }`}
-                />
-              </div>
+                >
+                  <Navigation className={`w-4 h-4 shrink-0 ${originType === 'gps' ? 'text-white' : 'text-[#005CA9]'}`} />
+                  <span className={`leading-tight whitespace-nowrap ${originType === 'gps' ? 'text-white' : ''}`}>Local Atual</span>
+                </button>
 
-              <button
-                type="submit"
-                disabled={isCalculatingRoute || customCepInput.trim().length < 3}
-                className="py-2.5 px-3.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0"
-              >
-                {isCalculatingRoute ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white shrink-0" />
-                ) : (
-                  <Search className="w-3.5 h-3.5 text-white shrink-0" />
-                )}
-                <span className="text-white">Calcular</span>
-              </button>
-            </form>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    hapticMedium();
+                    setOriginType('home');
+                    const savedHomeOrigin =
+                      localStorage.getItem('vagou_user_cep') ||
+                      localStorage.getItem('vagou_user_address') ||
+                      localStorage.getItem('vagou_client_test_address') ||
+                      '08235-770';
+                    setAddressQuery(savedHomeOrigin);
+                    await runRouteCalculation(savedHomeOrigin, salonDestQuery, transportMode, returnToRouteModalAfterOrigin);
+                  }}
+                  className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
+                    originType === 'home'
+                      ? 'bg-[#005CA9] border-[#005CA9] text-white'
+                      : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#005CA9]'
+                  }`}
+                >
+                  <Home className={`w-4 h-4 shrink-0 ${originType === 'home' ? 'text-white' : 'text-[#005CA9]'}`} />
+                  <span className={`leading-tight whitespace-nowrap ${originType === 'home' ? 'text-white' : ''}`}>De Casa</span>
+                </button>
 
-            {/* Sugestões Instantâneas do Google Places API (New v1) */}
-            {placesSuggestions.length > 0 && (
-              <div className={`rounded-[4px] divide-y overflow-hidden ${isDark ? 'bg-slate-900 divide-slate-800' : 'bg-slate-100 divide-slate-200'}`}>
-                {placesSuggestions.map((place) => (
-                  <button
-                    key={place.id}
-                    type="button"
-                    onClick={() => {
-                      hapticLight();
-                      setCustomCepInput(place.formattedAddress);
-                      setAddressQuery(place.formattedAddress);
-                      setPlacesSuggestions([]);
-                      runRouteCalculation(
-                        place.formattedAddress,
-                        salonDestQuery,
-                        transportMode,
-                        returnToRouteModalAfterOrigin
-                      ).then(() => {
-                        setHasCalculatedCustomCep(true);
-                      });
-                    }}
-                    className={`w-full px-3 py-2 text-left text-xs flex items-start gap-2 transition cursor-pointer ${
-                      isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-slate-200 text-slate-800'
-                    }`}
-                  >
-                    <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      <span className="font-bold block truncate">{place.title}</span>
-                      <span className={`text-[10.5px] block truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        {place.formattedAddress}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {isCalculatingRoute ? (
-              <div className="py-3 flex items-center justify-center">
-                <Loader2 className="w-5 h-5 text-emerald-500 animate-spin" />
-              </div>
-            ) : (
-              <p className={`text-xs leading-relaxed font-bold break-words ${
-                hasCalculatedCustomCep
-                  ? isDark ? 'text-emerald-400' : 'text-emerald-700'
-                  : isDark ? 'text-slate-400' : 'text-slate-500'
-              }`}>
-                {hasCalculatedCustomCep && resolvedAddressLabel
-                  ? resolvedAddressLabel
-                  : 'Informe o CEP ou Cidade/Estado acima.'}
-              </p>
-            )}
-
-            {hasCalculatedCustomCep && !isCalculatingRoute && (
-              <div className={`p-3 rounded-[4px] space-y-1.5 text-xs font-bold ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'}`}>
-                <div className="flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span>Distância de {formattedDistanceComma} km</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {renderModeIcon(transportMode)}
-                  <span>Trajeto de {formattedEtaHoursAndMinutes}</span>
-                </div>
-                {propitiousSuggestion && !returnToRouteModalAfterOrigin && (
-                  <div className="flex items-center gap-1.5 text-emerald-500 pt-1">
-                    <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                    <span>
-                      Dia e horário mais propício: <strong>{propitiousSuggestion.shortDate} às {propitiousSuggestion.timeSlot}</strong>
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="pt-1 sticky bottom-0 z-20 space-y-2">
-              {!returnToRouteModalAfterOrigin && hasCalculatedCustomCep && !isCalculatingRoute && propitiousSuggestion && (
                 <button
                   type="button"
                   onClick={() => {
-                    hapticMedium();
-                    const [py, pm] = propitiousSuggestion.dateIso.split('-').map(Number);
-                    setCurrentViewMonth(new Date(py, pm - 1, 1));
-                    setSelectedDateIso(propitiousSuggestion.dateIso);
-                    setSelectedTimeSlot(propitiousSuggestion.timeSlot);
-                    handleCloseOriginModal();
-                    setIsSummaryModalOpen(true);
+                    hapticLight();
+                    setOriginType('other');
+                    setOriginModalMode('custom_cep');
                   }}
-                  className="w-full py-3 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                  className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
+                    originType === 'other'
+                      ? 'bg-[#005CA9] border-[#005CA9] text-white'
+                      : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#005CA9]'
+                  }`}
                 >
-                  <Check className="w-4 h-4 text-white shrink-0" />
-                  <span className="text-white uppercase font-bold tracking-wide">
-                    MAIS PRÓXIMO - {propitiousSuggestion.shortDate} {propitiousSuggestion.timeSlot}
-                  </span>
+                  <MapPin className={`w-4 h-4 shrink-0 ${originType === 'other' ? 'text-white' : 'text-[#005CA9]'}`} />
+                  <span className={`leading-tight whitespace-nowrap ${originType === 'other' ? 'text-white' : ''}`}>Outro Local</span>
                 </button>
+              </div>
+
+              {(originType === 'gps' || originType === 'home') && (
+                <>
+                  <div className="pt-3 border-t border-[#EDF2F7] dark:border-slate-800 text-xs font-bold">
+                    {isCalculatingRoute ? (
+                      <div className="py-4 flex items-center justify-center">
+                        <Loader2 className="w-5 h-5 text-[#005CA9] animate-spin" />
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-[#005CA9] truncate">
+                          <Navigation className="w-3.5 h-3.5 text-[#005CA9] shrink-0" />
+                          <span className="truncate">{resolvedAddressLabel}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[#1E293B] dark:text-slate-200">
+                          <MapPin className="w-3.5 h-3.5 text-[#005CA9] shrink-0" />
+                          <span>Distância de {formattedDistanceComma} km</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[#1E293B] dark:text-slate-200">
+                          {renderModeIcon(transportMode)}
+                          <span>Trajeto de {formattedEtaHoursAndMinutes}</span>
+                        </div>
+                        {propitiousSuggestion && !returnToRouteModalAfterOrigin && (
+                          <div className="flex items-center gap-1.5 text-[#008B47] pt-1">
+                            <Calendar className="w-3.5 h-3.5 text-[#008B47] shrink-0" />
+                            <span>
+                              Dia e horário mais propício: <strong className="font-mono-tabular">{propitiousSuggestion.shortDate} às {propitiousSuggestion.timeSlot}</strong>
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2 sticky bottom-0 z-20 space-y-2">
+                    {!returnToRouteModalAfterOrigin && !isCalculatingRoute && propitiousSuggestion && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          hapticMedium();
+                          const [py, pm] = propitiousSuggestion.dateIso.split('-').map(Number);
+                          setCurrentViewMonth(new Date(py, pm - 1, 1));
+                          setSelectedDateIso(propitiousSuggestion.dateIso);
+                          setSelectedTimeSlot(propitiousSuggestion.timeSlot);
+                          handleCloseOriginModal();
+                          setIsSummaryModalOpen(true);
+                        }}
+                        className="w-full py-3 px-4 rounded-[4px] bg-[#008B47] hover:bg-[#00753B] text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                      >
+                        <Check className="w-4 h-4 text-white shrink-0" />
+                        <span className="text-white uppercase font-bold tracking-wide font-mono-tabular">
+                          MAIS PRÓXIMO - {propitiousSuggestion.shortDate} {propitiousSuggestion.timeSlot}
+                        </span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      disabled={isCalculatingRoute}
+                      onClick={() => {
+                        hapticMedium();
+                        if (!returnToRouteModalAfterOrigin && propitiousSuggestion) {
+                          const [py, pm] = propitiousSuggestion.dateIso.split('-').map(Number);
+                          setCurrentViewMonth(new Date(py, pm - 1, 1));
+                          setSelectedDateIso(propitiousSuggestion.dateIso);
+                        }
+                        handleCloseOriginModal();
+                        if (!returnToRouteModalAfterOrigin) {
+                          setCurrentStep('date');
+                        }
+                      }}
+                      className={`w-full py-2.5 px-4 rounded-[4px] font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50 ${
+                        !returnToRouteModalAfterOrigin && propitiousSuggestion
+                          ? 'bg-[#F1F5F9] hover:bg-[#E2E8F0] border border-[#E2E8F0] text-[#5F6C7B]'
+                          : 'bg-[#005CA9] hover:bg-[#0D79B4] text-white'
+                      }`}
+                    >
+                      <span className={
+                        !returnToRouteModalAfterOrigin && propitiousSuggestion
+                          ? ''
+                          : 'text-white'
+                      }>
+                        {returnToRouteModalAfterOrigin ? 'Confirmar Nova Origem' : 'ESCOLHER OUTRA DATA E HORÁRIO'}
+                      </span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3 animate-in fade-in duration-150">
+              <form onSubmit={handleCalculateCustomCep} className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <MapPin className="w-3.5 h-3.5 text-[#005CA9] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={customCepInput}
+                    onChange={(e) => {
+                      const rawVal = e.target.value;
+                      const hasLetters = /[a-zA-ZÀ-ÿ]/.test(rawVal);
+                      if (!hasLetters) {
+                        const digits = rawVal.replace(/\D/g, '').slice(0, 8);
+                        const formatted = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+                        setCustomCepInput(formatted);
+                        if (digits.length === 8) {
+                          setAddressQuery(formatted);
+                          runRouteCalculation(formatted, salonDestQuery, transportMode, returnToRouteModalAfterOrigin).then(() => {
+                            setHasCalculatedCustomCep(true);
+                          });
+                        } else {
+                          setHasCalculatedCustomCep(false);
+                        }
+                      } else {
+                        setCustomCepInput(rawVal);
+                        setHasCalculatedCustomCep(false);
+                      }
+                    }}
+                    placeholder="CEP (00000-000), Rua, Bairro ou Local"
+                    className="caixa-input pl-8"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isCalculatingRoute || customCepInput.trim().length < 3}
+                  className="h-10 px-3.5 rounded-[4px] bg-[#005CA9] hover:bg-[#0D79B4] disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0"
+                >
+                  {isCalculatingRoute ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-white shrink-0" />
+                  ) : (
+                    <Search className="w-3.5 h-3.5 text-white shrink-0" />
+                  )}
+                  <span className="text-white">Calcular</span>
+                </button>
+              </form>
+
+              {/* Sugestões Instantâneas do Google Places API (New v1) */}
+              {placesSuggestions.length > 0 && (
+                <div className="rounded-[4px] divide-y divide-[#EDF2F7] overflow-hidden bg-[#F7F9FC]">
+                  {placesSuggestions.map((place) => (
+                    <button
+                      key={place.id}
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setCustomCepInput(place.formattedAddress);
+                        setAddressQuery(place.formattedAddress);
+                        setPlacesSuggestions([]);
+                        runRouteCalculation(
+                          place.formattedAddress,
+                          salonDestQuery,
+                          transportMode,
+                          returnToRouteModalAfterOrigin
+                        ).then(() => {
+                          setHasCalculatedCustomCep(true);
+                        });
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs flex items-start gap-2 transition cursor-pointer hover:bg-[#EBF4FC] text-[#1E293B]"
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-[#005CA9] shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <span className="font-bold block truncate">{place.title}</span>
+                        <span className="text-[10.5px] block truncate text-[#5F6C7B]">
+                          {place.formattedAddress}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               )}
 
-              <button
-                type="button"
-                disabled={isCalculatingRoute || !hasCalculatedCustomCep}
-                onClick={() => {
-                  hapticMedium();
-                  if (!returnToRouteModalAfterOrigin && propitiousSuggestion) {
-                    const [py, pm] = propitiousSuggestion.dateIso.split('-').map(Number);
-                    setCurrentViewMonth(new Date(py, pm - 1, 1));
-                    setSelectedDateIso(propitiousSuggestion.dateIso);
-                  }
-                  handleCloseOriginModal();
-                  if (!returnToRouteModalAfterOrigin) {
-                    setCurrentStep('date');
-                  }
-                }}
-                className={`w-full py-2.5 px-4 rounded-[4px] font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50 ${
-                  !returnToRouteModalAfterOrigin && hasCalculatedCustomCep && propitiousSuggestion
-                    ? isDark
-                      ? 'bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200'
-                      : 'bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800'
-                    : 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                }`}
-              >
-                <span className={
-                  !returnToRouteModalAfterOrigin && hasCalculatedCustomCep && propitiousSuggestion
-                    ? ''
-                    : 'text-white'
-                }>
-                  {returnToRouteModalAfterOrigin ? 'Confirmar Nova Origem' : 'ESCOLHER OUTRA DATA E HORÁRIO'}
-                </span>
-              </button>
+              {isCalculatingRoute ? (
+                <div className="py-3 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 text-[#005CA9] animate-spin" />
+                </div>
+              ) : (
+                <p className={`text-xs leading-relaxed font-bold break-words ${
+                  hasCalculatedCustomCep ? 'text-[#005CA9]' : 'text-[#5F6C7B]'
+                }`}>
+                  {hasCalculatedCustomCep && resolvedAddressLabel
+                    ? resolvedAddressLabel
+                    : 'Informe o CEP ou Cidade/Estado acima.'}
+                </p>
+              )}
+
+              {hasCalculatedCustomCep && !isCalculatingRoute && (
+                <div className="pt-3 border-t border-[#EDF2F7] space-y-1.5 text-xs font-bold text-[#1E293B]">
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-[#005CA9] shrink-0" />
+                    <span>Distância de {formattedDistanceComma} km</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {renderModeIcon(transportMode)}
+                    <span>Trajeto de {formattedEtaHoursAndMinutes}</span>
+                  </div>
+                  {propitiousSuggestion && !returnToRouteModalAfterOrigin && (
+                    <div className="flex items-center gap-1.5 text-[#008B47] pt-1">
+                      <Calendar className="w-3.5 h-3.5 text-[#008B47] shrink-0" />
+                      <span>
+                        Dia e horário mais propício: <strong className="font-mono-tabular">{propitiousSuggestion.shortDate} às {propitiousSuggestion.timeSlot}</strong>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="pt-2 sticky bottom-0 z-20 space-y-2">
+                {!returnToRouteModalAfterOrigin && hasCalculatedCustomCep && !isCalculatingRoute && propitiousSuggestion && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticMedium();
+                      const [py, pm] = propitiousSuggestion.dateIso.split('-').map(Number);
+                      setCurrentViewMonth(new Date(py, pm - 1, 1));
+                      setSelectedDateIso(propitiousSuggestion.dateIso);
+                      setSelectedTimeSlot(propitiousSuggestion.timeSlot);
+                      handleCloseOriginModal();
+                      setIsSummaryModalOpen(true);
+                    }}
+                    className="w-full py-3 px-4 rounded-[4px] bg-[#008B47] hover:bg-[#00753B] text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                  >
+                    <Check className="w-4 h-4 text-white shrink-0" />
+                    <span className="text-white uppercase font-bold tracking-wide font-mono-tabular">
+                      MAIS PRÓXIMO - {propitiousSuggestion.shortDate} {propitiousSuggestion.timeSlot}
+                    </span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  disabled={isCalculatingRoute || !hasCalculatedCustomCep}
+                  onClick={() => {
+                    hapticMedium();
+                    if (!returnToRouteModalAfterOrigin && propitiousSuggestion) {
+                      const [py, pm] = propitiousSuggestion.dateIso.split('-').map(Number);
+                      setCurrentViewMonth(new Date(py, pm - 1, 1));
+                      setSelectedDateIso(propitiousSuggestion.dateIso);
+                    }
+                    handleCloseOriginModal();
+                    if (!returnToRouteModalAfterOrigin) {
+                      setCurrentStep('date');
+                    }
+                  }}
+                  className={`w-full py-2.5 px-4 rounded-[4px] font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50 ${
+                    !returnToRouteModalAfterOrigin && hasCalculatedCustomCep && propitiousSuggestion
+                      ? 'bg-[#F1F5F9] hover:bg-[#E2E8F0] border border-[#E2E8F0] text-[#5F6C7B]'
+                      : 'bg-[#005CA9] hover:bg-[#0D79B4] text-white'
+                  }`}
+                >
+                  <span className={
+                    !returnToRouteModalAfterOrigin && hasCalculatedCustomCep && propitiousSuggestion
+                      ? ''
+                      : 'text-white'
+                  }>
+                    {returnToRouteModalAfterOrigin ? 'Confirmar Nova Origem' : 'ESCOLHER OUTRA DATA E HORÁRIO'}
+                  </span>
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </section>
       </div>
     </div>
   );
 
   // ============================================================================
-  // MODAL INDEPENDENTE 2: SEÇÃO DE CONFIRMAÇÃO — RESUMO DO AGENDAMENTO
+  // SEÇÃO EM TELA INTEIRA 2: RESUMO E CONFIRMAÇÃO DO AGENDAMENTO (Fundo #F7F9FC)
   // ============================================================================
   const summaryModalNode = isSummaryModalOpen && selectedService && selectedTimeSlot && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
-      <div
-        className={`w-full max-w-md my-auto border rounded-[4px] overflow-hidden shadow-2xl flex flex-col max-h-[90vh] transition-colors ${
-          isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-        }`}
-      >
-        {/* 1. Cabeçalho com Logomarca do Salão */}
-        <div className={`px-4 py-2.5 border-b flex items-center justify-between gap-2 ${
-          isDark ? 'bg-[#151A1E] border-slate-800' : 'bg-white border-slate-200'
-        }`}>
-          <div className="flex items-center gap-2 min-w-0 flex-1 h-9">
-            {resolvedSalonLogo ? (
-              <img
-                src={resolvedSalonLogo}
-                alt={salonName}
-                className="h-full w-auto max-w-[200px] object-contain object-left shrink-0"
-              />
-            ) : (
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-7 h-7 rounded-[4px] bg-emerald-500 flex items-center justify-center text-white text-xs font-black shrink-0">
-                  {salonName.slice(0, 2).toUpperCase()}
-                </div>
-                <span className="text-xs font-extrabold truncate font-['Poppins']">
-                  {salonName}
-                </span>
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsSummaryModalOpen(false)}
-            className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
-              isDark ? 'bg-slate-800 text-slate-300 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+    <div className={`absolute inset-0 z-40 w-full h-full flex flex-col overflow-hidden animate-in fade-in duration-150 ${
+      isDark ? 'bg-slate-950 text-white' : 'bg-[#F7F9FC] text-[#333E48]'
+    }`}>
+      {/* Barra Superior Limpa Integrada com Botão Voltar */}
+      <div className={`px-3.5 py-2.5 border-b flex items-center justify-between gap-2 shrink-0 ${
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-[#F7F9FC] border-[#EDF2F7]'
+      }`}>
+        <button
+          type="button"
+          onClick={() => setIsSummaryModalOpen(false)}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-bold transition cursor-pointer ${
+            isDark
+              ? 'bg-slate-800 border-slate-700 text-slate-200'
+              : 'bg-[#FFFFFF] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B]'
+          }`}
+        >
+          <ArrowLeft className="w-3.5 h-3.5 text-[#005CA9] shrink-0" />
+          <span>Voltar</span>
+        </button>
 
-        {/* 2. Cabeçalho de Título: Resumo do agendamento */}
-        <div className={`px-4 py-2.5 border-b flex items-center gap-2 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
-        }`}>
-          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-          <h3 className="text-xs sm:text-sm font-extrabold font-['Poppins'] leading-snug">
-            Resumo do agendamento
+        <div className="flex items-center gap-1.5">
+          <CheckCircle2 className="w-4 h-4 text-[#008B47] shrink-0" />
+          <h3 className="text-xs sm:text-sm font-extrabold font-display leading-snug">
+            Resumo do Agendamento
           </h3>
         </div>
+      </div>
 
-        {/* 3. Corpo da Seção de Confirmação */}
-        <div className="p-4 space-y-3.5 overflow-y-auto no-scrollbar text-xs">
-          {/* Data | Hora: Ambos grandes na mesma linha ocupando 50% de largura da linha cada qual e centralizados */}
-          <div className={`grid grid-cols-2 pb-3.5 border-b ${
-            isDark ? 'border-slate-800' : 'border-slate-200'
-          }`}>
+      {/* Corpo da Seção de Confirmação dentro de .caixa-card */}
+      <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 no-scrollbar text-xs">
+        <section className="caixa-card p-4 space-y-3.5 divide-y divide-[#EDF2F7] dark:divide-slate-800">
+          {/* Data | Hora */}
+          <div className="grid grid-cols-2 pb-3.5">
             <div className="flex flex-col items-center justify-center text-center min-w-0 px-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] flex items-center justify-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-[#005CA9] shrink-0" />
                 <span>Data</span>
               </span>
-              <span className="text-xl sm:text-2xl font-black text-emerald-500 leading-tight mt-0.5 font-['Poppins']">
+              <span className="text-xl sm:text-2xl font-mono-tabular font-black text-[#005CA9] leading-tight mt-0.5">
                 {shortDateFormatted}
               </span>
             </div>
 
-            <div className={`flex flex-col items-center justify-center text-center min-w-0 px-2 border-l ${
-              isDark ? 'border-slate-800' : 'border-slate-200'
-            }`}>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+            <div className="flex flex-col items-center justify-center text-center min-w-0 px-2 border-l border-[#EDF2F7] dark:border-slate-800">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] flex items-center justify-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-[#005CA9] shrink-0" />
                 <span>Hora</span>
               </span>
-              <span className="text-xl sm:text-2xl font-black text-emerald-500 leading-tight mt-0.5 font-['Poppins']">
+              <span className="text-xl sm:text-2xl font-mono-tabular font-black text-[#005CA9] leading-tight mt-0.5">
                 {selectedTimeSlot}
               </span>
             </div>
           </div>
 
-          {/* Serviço, Beneficiário, Profissional e Total (Sem Estabelecimento e Sem Telefone) */}
-          <div className="space-y-2.5">
+          {/* Serviço, Beneficiário, Profissional */}
+          <div className="space-y-2.5 pt-3.5">
             <div className="flex justify-between items-start gap-2">
-              <span className="flex items-center gap-1.5 text-slate-400 shrink-0">
-                <Scissors className="w-3.5 h-3.5 text-emerald-500" /> Serviço:
+              <span className="flex items-center gap-1.5 text-[#5F6C7B] shrink-0">
+                <Scissors className="w-3.5 h-3.5 text-[#005CA9]" /> Serviço:
               </span>
-              <span className="font-bold text-right break-words">{selectedService.title}</span>
+              <span className="font-bold text-right break-words text-[#1E293B] dark:text-white">{selectedService.title}</span>
             </div>
 
             <div className="flex justify-between items-start gap-2">
-              <span className="flex items-center gap-1.5 text-slate-400 shrink-0">
+              <span className="flex items-center gap-1.5 text-[#5F6C7B] shrink-0">
                 {isDependentBooking ? (
-                  <Users className="w-3.5 h-3.5 text-emerald-500" />
+                  <Users className="w-3.5 h-3.5 text-[#005CA9]" />
                 ) : (
-                  <User className="w-3.5 h-3.5 text-emerald-500" />
+                  <User className="w-3.5 h-3.5 text-[#005CA9]" />
                 )}
                 Beneficiário:
               </span>
@@ -2617,190 +2550,177 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   setReturnToSummaryAfterBeneficiary(true);
                   setIsBeneficiaryModalOpen(true);
                 }}
-                className="font-bold text-emerald-500 hover:underline cursor-pointer text-right break-words"
+                className="font-bold text-[#005CA9] hover:underline cursor-pointer text-right break-words"
               >
                 {isDependentBooking && dependentName ? `${dependentName} (Dependente)` : 'Para Você (Titular)'}
               </button>
             </div>
 
             <div className="flex justify-between items-start gap-2">
-              <span className="flex items-center gap-1.5 text-slate-400 shrink-0">
-                <User className="w-3.5 h-3.5 text-emerald-500" /> Profissional:
+              <span className="flex items-center gap-1.5 text-[#5F6C7B] shrink-0">
+                <User className="w-3.5 h-3.5 text-[#005CA9]" /> Profissional:
               </span>
-              <span className="font-bold text-right break-words">
+              <span className="font-bold text-right break-words text-[#1E293B] dark:text-white">
                 {selectedProfessional === 'any' ? resolvedProfessionalName : selectedProfessional}
               </span>
             </div>
+          </div>
 
-            <div className={`pt-3 border-t space-y-3 ${
-              isDark ? 'border-slate-800' : 'border-slate-200'
-            }`}>
-              <div className={`grid grid-cols-2 gap-3 pb-3 border-b ${
-                isDark ? 'border-slate-800' : 'border-slate-200'
-              }`}>
-                <div className="flex flex-col justify-start min-w-0 pr-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                    <Home className="w-3 h-3 text-emerald-500 shrink-0" />
-                    <span>Saída</span>
-                  </span>
-                  <span className="text-[11px] font-bold leading-snug mt-1 break-words">
-                    {resolvedAddressLabel && resolvedAddressLabel !== 'Endereço Residencial'
-                      ? resolvedAddressLabel
-                      : addressQuery || 'Endereço Residencial'}
-                  </span>
-                </div>
-
-                <div className={`flex flex-col justify-start min-w-0 pl-3 border-l ${
-                  isDark ? 'border-slate-800' : 'border-slate-200'
-                }`}>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                    <MapPin className="w-3 h-3 text-emerald-500 shrink-0" />
-                    <span className="truncate">Destino ({salonName})</span>
-                  </span>
-                  <span className="text-[11px] font-bold leading-snug mt-1 break-words">
-                    {salonAddress || resolvedSalonAddressLabel || salonCep || salonName}
-                  </span>
-                </div>
+          {/* Saída / Destino / Total */}
+          <div className="pt-3.5 space-y-3">
+            <div className="grid grid-cols-2 gap-3 pb-3 border-b border-[#EDF2F7] dark:border-slate-800">
+              <div className="flex flex-col justify-start min-w-0 pr-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] flex items-center gap-1">
+                  <Home className="w-3 h-3 text-[#005CA9] shrink-0" />
+                  <span>Saída</span>
+                </span>
+                <span className="text-[11px] font-bold leading-snug mt-1 break-words text-[#1E293B] dark:text-white">
+                  {resolvedAddressLabel && resolvedAddressLabel !== 'Endereço Residencial'
+                    ? resolvedAddressLabel
+                    : addressQuery || 'Endereço Residencial'}
+                </span>
               </div>
 
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-slate-400">Total a pagar no local:</span>
-                <span className="font-black text-base text-emerald-500">
-                  R$ {selectedService.price.toFixed(2).replace('.', ',')}
+              <div className="flex flex-col justify-start min-w-0 pl-3 border-l border-[#EDF2F7] dark:border-slate-800">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-[#005CA9] shrink-0" />
+                  <span className="truncate">Destino ({salonName})</span>
+                </span>
+                <span className="text-[11px] font-bold leading-snug mt-1 break-words text-[#1E293B] dark:text-white">
+                  {salonAddress || resolvedSalonAddressLabel || salonCep || salonName}
                 </span>
               </div>
             </div>
-          </div>
 
-          {/* Aviso de Erro */}
-          {bookingErrorMessage && (
-            <div className="p-2.5 bg-rose-500/10 border border-rose-500/30 rounded-[4px] text-rose-400 text-xs font-medium flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
-              <span>{bookingErrorMessage}</span>
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-[#5F6C7B]">Total a pagar no local:</span>
+              <span className="font-mono-tabular font-black text-base text-[#008B47]">
+                R$ {selectedService.price.toFixed(2).replace('.', ',')}
+              </span>
             </div>
-          )}
-
-          {/* Feedback de Pré-Salvamento */}
-          {draftSavedFeedback && (
-            <div className="p-2.5 bg-emerald-500 text-white rounded-[4px] text-xs font-bold flex items-center gap-2">
-              <Check className="w-4 h-4 text-white shrink-0" />
-              <span className="text-white">{draftSavedFeedback}</span>
-            </div>
-          )}
-        </div>
-
-        {/* 4. Rodapé Fixo: Pré-Salvar, Revisar e Cancelar no topo + Confirmar Agendamento abaixo */}
-        <div className={`p-3.5 border-t sticky bottom-0 z-20 space-y-2 ${
-          isDark ? 'bg-[#151A1E] border-slate-800' : 'bg-slate-50 border-slate-200'
-        }`}>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={handleSaveAsDraft}
-              className={`py-2.5 px-2 rounded-[4px] border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                isDark
-                  ? 'bg-slate-900 hover:bg-slate-800 border-amber-500/40 text-amber-400'
-                  : 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-800'
-              }`}
-              title="Salva o rascunho para concluir depois (não trava a vaga)"
-            >
-              <Bookmark className="w-3.5 h-3.5 shrink-0" />
-              <span>Pré-Salvar</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                hapticLight();
-                setIsSummaryModalOpen(false);
-              }}
-              className={`py-2.5 px-2 rounded-[4px] border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                isDark
-                  ? 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-300'
-                  : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-700'
-              }`}
-            >
-              <RotateCcw className="w-3.5 h-3.5 shrink-0" />
-              <span>Revisar</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                hapticLight();
-                setIsSummaryModalOpen(false);
-                setSelectedTimeSlot(null);
-              }}
-              className={`py-2.5 px-2 rounded-[4px] border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                isDark
-                  ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400'
-                  : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700'
-              }`}
-            >
-              <X className="w-3.5 h-3.5 shrink-0" />
-              <span>Cancelar</span>
-            </button>
           </div>
+        </section>
+
+        {/* Aviso de Erro */}
+        {bookingErrorMessage && (
+          <div className="p-2.5 bg-[#FEF2F2] border border-[#FECACA] rounded-[4px] text-[#DC2626] text-xs font-medium flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-[#DC2626] mt-0.5" />
+            <span>{bookingErrorMessage}</span>
+          </div>
+        )}
+
+        {/* Feedback de Pré-Salvamento */}
+        {draftSavedFeedback && (
+          <div className="p-2.5 bg-[#008B47] text-white rounded-[4px] text-xs font-bold flex items-center gap-2">
+            <Check className="w-4 h-4 text-white shrink-0" />
+            <span className="text-white">{draftSavedFeedback}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Rodapé Fixo com Sombra Institucional (.caixa-footer-shadow) */}
+      <div className={`p-3.5 border-t sticky bottom-0 z-20 space-y-2 caixa-footer-shadow ${
+        isDark ? 'bg-[#151A1E] border-slate-800' : 'bg-white border-[#E6EDF5]'
+      }`}>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={handleSaveAsDraft}
+            className="py-2.5 px-2 rounded-[4px] border border-[#E2E8F0] bg-[#F1F5F9] text-[#5F6C7B] hover:text-[#1E293B] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+            title="Salva o rascunho para concluir depois (não trava a vaga)"
+          >
+            <Bookmark className="w-3.5 h-3.5 text-[#005CA9] shrink-0" />
+            <span>Pré-Salvar</span>
+          </button>
 
           <button
-            id="btn-confirmar-agendamento-final"
             type="button"
-            disabled={isSubmittingBooking}
-            onClick={() => handleConfirmFinal(false)}
-            className={`w-full py-3 px-4 font-black text-xs uppercase tracking-wider rounded-[4px] transition flex items-center justify-center gap-2 font-['Poppins'] ${
-              isSubmittingBooking
-                ? 'bg-slate-700 text-slate-400 cursor-wait'
-                : 'bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer active:scale-98'
-            }`}
+            onClick={() => {
+              hapticLight();
+              setIsSummaryModalOpen(false);
+            }}
+            className="py-2.5 px-2 rounded-[4px] border border-[#E2E8F0] bg-[#FFFFFF] text-[#5F6C7B] hover:text-[#1E293B] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
           >
-            <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
-            <span className="text-white">{isSubmittingBooking ? 'Confirmando...' : 'Confirmar Agendamento'}</span>
+            <RotateCcw className="w-3.5 h-3.5 text-[#005CA9] shrink-0" />
+            <span>Revisar</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              hapticLight();
+              setIsSummaryModalOpen(false);
+              setSelectedTimeSlot(null);
+            }}
+            className="py-2.5 px-2 rounded-[4px] border border-[#FECACA] bg-[#FEF2F2] text-[#DC2626] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5 shrink-0" />
+            <span>Cancelar</span>
           </button>
         </div>
+
+        <button
+          id="btn-confirmar-agendamento-final"
+          type="button"
+          disabled={isSubmittingBooking}
+          onClick={() => handleConfirmFinal(false)}
+          className={`w-full py-3 px-4 font-bold text-xs uppercase tracking-wider rounded-[4px] transition flex items-center justify-center gap-2 font-display ${
+            isSubmittingBooking
+              ? 'bg-[#F1F5F9] text-[#5F6C7B] cursor-wait'
+              : 'bg-[#008B47] hover:bg-[#00753B] text-white cursor-pointer active:scale-98'
+          }`}
+        >
+          <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
+          <span className="text-white">{isSubmittingBooking ? 'Confirmando...' : 'Confirmar Agendamento'}</span>
+        </button>
       </div>
     </div>
   );
 
   // ============================================================================
-  // MODAL PÓS-CONFIRMAÇÃO 1: DIRECIONAMENTO PARA AGENDA (SEM "IR AGORA")
+  // SEÇÃO EM TELA INTEIRA PÓS-CONFIRMAÇÃO 1: DIRECIONAMENTO PARA AGENDA
   // ============================================================================
   const postConfirmChoiceModalNode = isPostConfirmChoiceModalOpen && selectedService && selectedTimeSlot && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150">
-      <div
-        className={`w-full max-w-md my-auto border rounded-[4px] p-4 sm:p-5 shadow-2xl space-y-4 transition-colors ${
-          isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-        }`}
-      >
-        <div className={`flex items-start justify-between gap-3 pb-2.5 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-[4px] bg-emerald-500 flex items-center justify-center shrink-0">
+    <div className={`absolute inset-0 z-40 w-full h-full flex flex-col overflow-hidden animate-in fade-in duration-150 ${
+      isDark ? 'bg-slate-950 text-white' : 'bg-[#F7F9FC] text-[#333E48]'
+    }`}>
+      <div className={`px-3.5 py-2.5 border-b flex items-center justify-between gap-2 shrink-0 ${
+        isDark ? 'bg-slate-900 border-slate-800' : 'bg-[#F7F9FC] border-[#EDF2F7]'
+      }`}>
+        <button
+          type="button"
+          onClick={() => {
+            setIsPostConfirmChoiceModalOpen(false);
+            onClose?.();
+          }}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-bold transition cursor-pointer ${
+            isDark
+              ? 'bg-slate-800 border-slate-700 text-slate-200'
+              : 'bg-[#FFFFFF] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B]'
+          }`}
+        >
+          <ArrowLeft className="w-3.5 h-3.5 text-[#005CA9] shrink-0" />
+          <span>Voltar</span>
+        </button>
+        <span className="text-xs font-bold font-display">Confirmação</span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3.5 sm:p-4">
+        <section className="caixa-card p-5 space-y-4">
+          <div className="flex items-center gap-3 pb-3 border-b border-[#EDF2F7] dark:border-slate-800">
+            <div className="w-10 h-10 rounded-[4px] bg-[#008B47] flex items-center justify-center shrink-0">
               <Check className="w-5 h-5 text-white stroke-[2.5]" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-extrabold font-['Poppins'] leading-snug">
+              <h3 className="text-sm font-extrabold font-display leading-snug">
                 Agendamento Confirmado!
               </h3>
-              <p className="text-[11px] font-bold text-emerald-400 truncate mt-0.5">
+              <p className="text-xs font-bold text-[#005CA9] truncate mt-0.5">
                 {selectedService.title} • {shortDateFormatted} às {selectedTimeSlot}
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setIsPostConfirmChoiceModalOpen(false);
-              onClose?.();
-            }}
-            className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition cursor-pointer shrink-0 ${
-              isDark ? 'bg-slate-900 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
 
-        {/* Botão Único Pós-Cadastro/Confirmação: Vai exclusivamente para a Agenda (Sem "Ir Agora") */}
-        <div className="pt-1 sticky bottom-0 z-20">
           <button
             type="button"
             onClick={() => {
@@ -2812,12 +2732,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 onClose?.();
               }
             }}
-            className="w-full py-3 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
+            className="w-full py-3 px-4 rounded-[4px] bg-[#005CA9] hover:bg-[#0D79B4] text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
           >
             <Calendar className="w-4 h-4 text-white shrink-0" />
             <span className="text-white uppercase tracking-wider">Ir para Agenda</span>
           </button>
-        </div>
+        </section>
       </div>
     </div>
   );

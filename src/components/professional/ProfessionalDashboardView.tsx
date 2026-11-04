@@ -808,31 +808,31 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       <div
         key={`${appKey}-${cardType}`}
         id={cardId}
-        className={`w-full rounded border select-none transition-all duration-200 overflow-hidden ${
+        className={`w-full rounded-[4px] select-none transition-all duration-200 overflow-hidden ${
           isDark 
             ? isProgress && cardType === 'atual'
-              ? 'bg-slate-900 border-emerald-500/80 ring-1 ring-emerald-500/40' 
-              : 'bg-slate-900 border-slate-800' 
+              ? 'bg-slate-900 border border-emerald-500/80 ring-1 ring-emerald-500/40' 
+              : 'bg-slate-900 border border-slate-800' 
             : isProgress && cardType === 'atual'
-              ? 'bg-white border-emerald-500 shadow-xs ring-1 ring-emerald-500/40' 
-              : 'bg-white border-slate-200 shadow-xs'
+              ? 'caixa-card ring-1 ring-[#008B47]/40' 
+              : 'caixa-card'
         }`}
       >
         {/* Faixa Superior: Status + Horário + Controles Rápidos */}
         <div className={`px-3 py-2 border-b flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap ${
           isProgress && cardType === 'atual'
-            ? 'bg-emerald-500/10 border-emerald-500/30' 
-            : isDark ? 'bg-slate-850 border-slate-800' : 'bg-slate-50 border-slate-200'
+            ? 'bg-[#008B47]/10 border-[#EDF2F7] dark:border-emerald-500/30' 
+            : isDark ? 'bg-slate-850 border-slate-800' : 'bg-[#F7F9FC] border-[#EDF2F7]'
         }`}>
           <div className="flex items-center gap-1.5 flex-wrap">
             {/* 1. Atendimento Atual */}
             {cardType === 'atual' && (
-              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
+              <span className={`px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
                 isProgress
-                  ? 'bg-emerald-500 text-white'
+                  ? 'bg-[#008B47] text-white'
                   : isPaused
                     ? 'bg-amber-500 text-white'
-                    : 'bg-emerald-600 text-white'
+                    : 'bg-[#005CA9] text-white'
               }`}>
                 {isProgress ? (
                   <>
@@ -1116,31 +1116,31 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       <div 
         id="professional-confirmation-appointment-card-empty"
         style={{ minHeight: '65px' }}
-        className={`p-3 rounded border border-dashed flex flex-col items-center justify-center select-none w-full text-center ${
-          isDark ? 'bg-slate-900/40 border-slate-800/80 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-500'
+        className={`p-3 rounded-[4px] border border-dashed flex flex-col items-center justify-center select-none w-full text-center ${
+          isDark ? 'bg-slate-900/40 border-slate-800/80 text-slate-500' : 'bg-[#FFFFFF] border-[#D5E0EC] text-[#5F6C7B]'
         }`}
       >
-        <CheckCircle2 className="w-4 h-4 mb-0.5 opacity-60 text-emerald-500" />
-        <p className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+        <CheckCircle2 className="w-4 h-4 mb-0.5 text-[#008B47]" />
+        <p className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-[#1E293B]'}`}>
           Confirmação de Atendimento
         </p>
-        <span className="text-[10px] font-medium text-slate-500">Nenhum atendimento pendente de confirmação</span>
+        <span className="text-[10px] font-medium text-[#5F6C7B]">Nenhum atendimento pendente de confirmação</span>
       </div>
     );
   };
 
   return (
     <div className={`w-full h-full flex-1 min-h-0 flex flex-col overflow-y-auto no-scrollbar ${
-      isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
+      isDark ? 'bg-slate-950 text-slate-100' : 'bg-[#F7F9FC] text-[#333E48]'
     }`}>
       {/* 2. Conteúdo Rolável: Fila & Agenda seguido de Dashboard & Metas */}
-      <div className="p-2 flex flex-col gap-3 flex-1">
+      <div className="p-2.5 flex flex-col gap-3 flex-1">
         {/* Bloco de Atendimentos Prioritários: Atual / Próximo e Confirmação */}
-        <div className="space-y-2 pb-6">
+        <div className="space-y-2.5 pb-6">
           {/* Título do Grupo de Atendimento */}
           <div className="flex items-center justify-between px-0.5 pt-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <CalendarCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] dark:text-slate-400 flex items-center gap-1.5">
+              <CalendarCheck className="w-3.5 h-3.5 text-[#005CA9] dark:text-emerald-400 shrink-0" />
               <span>Fila de Atendimento da Cadeira</span>
             </span>
           </div>
@@ -1168,7 +1168,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
         </div>
       </div>
 
-      {/* Modal Operacional de Atendimento (Iniciar, Pausar, Adicionar Mais Tempo, Concluir) */}
+      {/* Seção Operacional em Tela Inteira de Atendimento (Iniciar, Pausar, Adicionar Mais Tempo, Concluir) */}
       {isActionModalOpen && actionModalAppointment && (() => {
         const appKey = actionModalAppointment.protocolCode || actionModalAppointment.id || `${actionModalAppointment.time}-${actionModalAppointment.clientName}`;
         const effectiveStatus = (localAppointmentStatuses[appKey] || actionModalAppointment.status || '').toUpperCase();
@@ -1182,43 +1182,19 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
         return (
           <div 
             id="professional-appointment-action-modal-overlay"
-            className={`fixed inset-0 z-[9999] w-full max-w-md mx-auto h-full flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200 select-none ${
-              isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
+            className={`fixed inset-0 z-[9999] w-full max-w-[430px] mx-auto h-full flex flex-col overflow-hidden animate-in fade-in duration-150 select-none ${
+              isDark ? 'bg-slate-950 text-white' : 'bg-[#F7F9FC] text-[#333E48]'
             }`}
-            onClick={() => {
-              setIsActionModalOpen(false);
-              setActionModalAppointment(null);
-            }}
           >
             <div 
               id="professional-appointment-action-modal"
               className={`w-full h-full flex flex-col justify-between overflow-y-auto no-scrollbar relative p-4 gap-4 ${
-                isDark ? 'bg-slate-950 text-white' : 'bg-white text-slate-900'
+                isDark ? 'bg-slate-950 text-white' : 'bg-[#F7F9FC] text-[#333E48]'
               }`}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Cabeçalho do Modal com Status e Fechar */}
-              <div className="flex items-center justify-between border-b pb-2.5 border-slate-800/80">
-                <div className="flex items-center gap-2">
-                  {isProgress ? (
-                    <span className="px-2 py-0.5 rounded bg-emerald-500 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1">
-                      <Zap className="w-3 h-3 text-white fill-white animate-pulse" />
-                      <span>Em Atendimento</span>
-                    </span>
-                  ) : isPaused ? (
-                    <span className="px-2 py-0.5 rounded bg-amber-500 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1">
-                      <Pause className="w-3 h-3 text-white fill-white" />
-                      <span>Atendimento Pausado</span>
-                    </span>
-                  ) : (
-                    <span className={`px-2 py-0.5 rounded font-bold text-[10px] uppercase tracking-wider ${
-                      isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'
-                    }`}>
-                      Aguardando Início
-                    </span>
-                  )}
-                </div>
-
+              {/* Cabeçalho da Seção com Botão Voltar e Status */}
+              <div className="flex items-center justify-between border-b pb-2.5 border-[#EDF2F7] dark:border-slate-800/80">
                 <button 
                   type="button"
                   id="modal-close-action-button"
@@ -1227,27 +1203,46 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     setIsActionModalOpen(false);
                     setActionModalAppointment(null);
                   }}
-                  className={`p-1.5 rounded transition cursor-pointer ${
-                    isDark ? 'hover:bg-slate-800 text-slate-400 hover:text-white' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-900'
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs font-bold transition cursor-pointer ${
+                    isDark ? 'bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800' : 'bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#005CA9] border border-[#E2E8F0]'
                   }`}
-                  title="Fechar"
+                  title="Voltar"
                 >
-                  <X className="w-4 h-4" />
+                  <ArrowLeft className="w-3.5 h-3.5 text-[#005CA9] dark:text-emerald-400" />
+                  <span>Voltar</span>
                 </button>
+
+                <div className="flex items-center gap-2">
+                  {isProgress ? (
+                    <span className="px-2 py-0.5 rounded-[4px] bg-[#008B47] text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-white fill-white animate-pulse" />
+                      <span>Em Atendimento</span>
+                    </span>
+                  ) : isPaused ? (
+                    <span className="px-2 py-0.5 rounded-[4px] bg-amber-500 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1">
+                      <Pause className="w-3 h-3 text-white fill-white" />
+                      <span>Atendimento Pausado</span>
+                    </span>
+                  ) : (
+                    <span className={`px-2 py-0.5 rounded-[4px] font-bold text-[10px] uppercase tracking-wider ${
+                      isDark ? 'bg-slate-800 text-slate-300' : 'bg-[#005CA9] text-white'
+                    }`}>
+                      Aguardando Início
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Informações do Cliente e Serviço */}
-              <div className="flex items-center gap-3">
-                <div className={`w-11 h-11 rounded flex items-center justify-center shrink-0 ${
-                  isDark ? 'bg-slate-800 text-slate-300 border border-slate-700' : 'bg-slate-100 text-slate-700 border border-slate-200'
-                }`}>
-                  <User className="w-6 h-6 stroke-[1.75]" />
+              <div className={`p-3 flex items-center gap-3 ${isDark ? 'bg-slate-900 border border-slate-800 rounded-[4px]' : 'caixa-card'}`}>
+                <div className="caixa-icon-halo">
+                  <User className="w-5 h-5 stroke-[1.75]" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className="font-bold text-sm truncate leading-snug">
                     {clientFullName}
                   </h3>
-                  <p className="text-xs text-slate-500 truncate">
+                  <p className="text-xs text-[#5F6C7B] truncate">
                     {serviceName}
                   </p>
                 </div>

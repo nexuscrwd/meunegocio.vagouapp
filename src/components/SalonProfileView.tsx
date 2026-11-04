@@ -240,7 +240,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const [isCopied, setIsCopied] = useState<boolean>(false);
 
   React.useEffect(() => {
-    setCurrentUserName(userName);
+    setCurrentUserName(userName && userName.trim() !== '' ? userName : 'Usuário');
   }, [userName]);
 
   React.useEffect(() => {
@@ -251,20 +251,28 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         const saved = localStorage.getItem('vagou_user_avatar');
         if (isValidAvatarUrlString(saved)) {
           setCurrentUserAvatarUrl(saved.trim());
+        } else {
+          setCurrentUserAvatarUrl('');
         }
-      } catch {}
+      } catch {
+        setCurrentUserAvatarUrl('');
+      }
     }
   }, [userAvatarUrl]);
 
-  // Sincronizar Avatar do Usuário com o Supabase (Tríade Sync) sem jamais apagar o avatar local válido
+  // Sincronizar Avatar do Usuário com o Supabase (Tríade Sync) sem jamais re-logar usuário desconectado
   React.useEffect(() => {
     let isMounted = true;
 
     const handleLocalProfileUpdated = (e: Event) => {
       const customEvt = e as CustomEvent<{ name?: string; avatarUrl?: string }>;
       if (customEvt?.detail) {
-        if (customEvt.detail.name) {
-          setCurrentUserName(customEvt.detail.name);
+        if (customEvt.detail.name !== undefined) {
+          setCurrentUserName(customEvt.detail.name || 'Usuário');
+        }
+        if (customEvt.detail.avatarUrl === '') {
+          setCurrentUserAvatarUrl('');
+          return;
         }
         if (isValidAvatarUrlString(customEvt.detail.avatarUrl)) {
           setCurrentUserAvatarUrl(customEvt.detail.avatarUrl.trim());
@@ -275,16 +283,43 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         const savedAvatar = localStorage.getItem('vagou_user_avatar');
         if (isValidAvatarUrlString(savedAvatar)) {
           setCurrentUserAvatarUrl(savedAvatar.trim());
+        } else {
+          setCurrentUserAvatarUrl('');
         }
         const savedName = localStorage.getItem('vagou_user_name');
-        if (savedName) {
-          setCurrentUserName(savedName);
-        }
+        setCurrentUserName(savedName || 'Usuário');
       } catch {}
     };
 
-    async function syncAvatar() {
-      // Primeiro garante que qualquer avatar válido já salvo no localStorage apareça imediatamente
+    async function syncAvatar(e?: Event) {
+      const customEvt = e as CustomEvent<{ loggedOut?: boolean }> | undefined;
+      if (customEvt?.detail?.loggedOut) {
+        if (isMounted) {
+          setCurrentUserName('Usuário');
+          setCurrentUserAvatarUrl('');
+        }
+        return;
+      }
+
+      // Verifica se há sessão ativa real no localStorage antes de sincronizar
+      const savedEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
+      const savedName = localStorage.getItem('vagou_user_name') || '';
+      const savedCpf = localStorage.getItem('vagou_user_cpf') || '';
+      const hasActiveLocalAuth = Boolean(
+        savedEmail ||
+        savedCpf ||
+        localStorage.getItem('vagou_client_session') ||
+        localStorage.getItem('vagou_auth_user_id')
+      );
+
+      if (!hasActiveLocalAuth) {
+        if (isMounted) {
+          setCurrentUserName('Usuário');
+          setCurrentUserAvatarUrl('');
+        }
+        return;
+      }
+
       try {
         const savedLocal = localStorage.getItem('vagou_user_avatar');
         if (isMounted && isValidAvatarUrlString(savedLocal)) {
@@ -295,15 +330,18 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       if (!isSupabaseConfigured || !supabase) return;
 
       try {
-        const savedEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
-        const savedName = localStorage.getItem('vagou_user_name') || currentUserName || '';
-        const savedCpf = localStorage.getItem('vagou_user_cpf') || '';
-
-        if (!savedEmail && !savedName && !savedCpf) return;
-
         // 1. fetchUserProfileFromDb (Clients, Professionals, Auth, Profiles)
         const profile = await fetchUserProfileFromDb({ email: savedEmail, name: savedName, cpf: savedCpf });
-        if (isMounted && profile) {
+
+        // Confirma que o usuário não deslogou enquanto a query estava em andamento
+        const stillLogged = Boolean(
+          localStorage.getItem('vagou_user_email') ||
+          localStorage.getItem('vagou_client_session') ||
+          localStorage.getItem('vagou_auth_user_id')
+        );
+        if (!isMounted || !stillLogged) return;
+
+        if (profile) {
           if (profile.name && profile.name !== 'Profissional' && profile.name !== 'Usuário') {
             setCurrentUserName(profile.name);
             localStorage.setItem('vagou_user_name', profile.name);
@@ -337,7 +375,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       window.removeEventListener('vagou:profile-updated', handleLocalProfileUpdated);
       window.removeEventListener('vagou:auth-updated', syncAvatar);
     };
-  }, [currentUserName]);
+  }, []);
 
   // 1. Papel Soberano recebido via prop do App + Hook useOwnerAccess (Validação cruzada por CPF, E-mail e user_id no Supabase)
   const ownerAccess = useOwnerAccess({
@@ -1492,36 +1530,74 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   };
 
   const handleSalonLogout = async () => {
-    if (supabase) {
-      try {
-        await supabase.auth.signOut();
-      } catch {}
-    }
+    // 1. Limpeza SÍNCRONA imediata de todas as chaves de sessão no localStorage e sessionStorage
     try {
-      localStorage.removeItem('vagou_auth_user_id');
-      localStorage.removeItem('vagou_client_id');
-      localStorage.removeItem('vagou_active_partner');
-      localStorage.removeItem('vagou_user_email');
-      localStorage.removeItem('vagou_user_cpf');
-      localStorage.removeItem('vagou_user_phone');
-      localStorage.removeItem('vagou_user_avatar');
-      localStorage.removeItem('vagou_user_name');
-      localStorage.removeItem('vagou_user_role');
-      localStorage.removeItem('vagou_is_superadmin');
-      localStorage.removeItem('vagou_client_session');
-      localStorage.removeItem('vagou_dashboard_user_role');
-      localStorage.removeItem('vagou_dashboard_logged_pro_name');
+      const authKeysToRemove = [
+        'vagou_auth_user_id',
+        'vagou_client_id',
+        'vagou_user_id',
+        'vagou_active_partner',
+        'vagou_user_email',
+        'vagou_user_cpf',
+        'vagou_user_phone',
+        'vagou_user_avatar',
+        'vagou_user_name',
+        'vagou_user_username',
+        'vagou_user_role',
+        'vagou_user_profile',
+        'vagou_is_superadmin',
+        'vagou_client_session',
+        'vagou_dashboard_user_role',
+        'vagou_dashboard_logged_pro_name',
+        'vagou_active_pro_id',
+        'vagou_user_dependents',
+        'vagou_partner_data',
+      ];
+      authKeysToRemove.forEach((key) => localStorage.removeItem(key));
+
+      // Remove tokens de sessão do Supabase Auth armazenados no navegador (sb-*-auth-token)
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('sb-') || k.includes('supabase.auth.token'))) {
+          localStorage.removeItem(k);
+        }
+      }
+
+      sessionStorage.removeItem('vagou_client_auth_modal_open');
+      sessionStorage.removeItem('vagou_client_auth_modal_mode');
+      sessionStorage.removeItem('vagou_register_wizard_draft');
     } catch {
       // ignore
     }
+
+    // 2. Atualização imediata de estados da interface
     setCurrentUserName('Usuário');
     setCurrentUserAvatarUrl('');
     setIsUserLoggedInState(false);
-    window.dispatchEvent(new CustomEvent('vagou:auth-updated'));
     setIsProfileDrawerOpen(false);
     setIsClientAuthModalOpen(false);
     setIsPublicPreviewMode(true);
-    setActiveTab((prev) => (prev === 'vagas' ? 'home' : prev));
+    setActiveTab('home');
+
+    // 3. Disparo de eventos para todos os hooks (useSalonRole, useOwnerAccess, App, ProfileDrawer)
+    window.dispatchEvent(new CustomEvent('vagou:auth-updated', { detail: { loggedOut: true } }));
+    window.dispatchEvent(new CustomEvent('vagou:profile-updated', { detail: { name: '', avatarUrl: '' } }));
+
+    // 4. Encerramento assíncrono no Supabase Auth e Firebase Auth sem travar a UI
+    if (supabase) {
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {}
+    }
+    try {
+      const { getApps, getApp } = await import('firebase/app');
+      const { getAuth, signOut } = await import('firebase/auth');
+      if (getApps().length > 0) {
+        await signOut(getAuth(getApp()));
+      }
+    } catch {}
+
+    window.dispatchEvent(new CustomEvent('vagou:auth-updated', { detail: { loggedOut: true } }));
   };
 
   // Solicitação de acesso a Gerenciar Estabelecimento (Protegido por RBAC)
@@ -1533,12 +1609,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     setIsPublicPreviewMode(false);
     setActiveTab('dados');
   }, [isSalonLoggedIn]);
-
-  useEffect(() => {
-    if (userName) {
-      setCurrentUserName(userName);
-    }
-  }, [userName]);
 
   const [activeTab, setActiveTab] = useState<'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout' | 'pausar'>('home');
   const [previewTestTab, setPreviewTestTab] = useState<'home' | 'servicos' | 'vagas' | 'espaco'>('home');
@@ -2141,26 +2211,26 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   }
 
   return (
-    <div className={`w-full h-full flex flex-col overflow-hidden ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'} font-['Poppins'] transition-colors duration-200`}>
+    <div className={`w-full h-full flex flex-col overflow-hidden ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-[#F7F9FC] text-[#333E48]'} font-sans transition-colors duration-200`}>
       {/* 1. CABEÇALHO DO APLICATIVO DO SALÃO (Logo Full Height & Botões Selecionados) */}
       <header 
         id="salon-profile-header"
-        className={`sticky top-0 z-40 ${isDark ? 'bg-[#151A1E]/95 border-slate-800/80' : 'bg-white/95 border-slate-200/90 shadow-xs'} backdrop-blur-md border-b pl-0 pr-2 sm:pr-4 py-0 shadow-md flex items-center justify-between gap-1 sm:gap-2 transition-colors h-14 sm:h-16 overflow-hidden shrink-0 w-full max-w-full`}
+        className={`sticky top-0 z-40 ${isDark ? 'bg-[#151A1E]/95 border-slate-800/80 text-white' : 'caixa-header-gradient border-[#004A88] text-white'} border-b pl-0 pr-2 sm:pr-4 py-0 shadow-xs flex items-center justify-between gap-1 sm:gap-2 transition-colors h-14 sm:h-16 overflow-hidden shrink-0 w-full max-w-full`}
       >
         {/* Lado Esquerdo: Botão Voltar (quando aberto via Radar) + Logotipia / Logo do Salão no Cabeçalho */}
         <div className="h-full min-w-0 flex items-center justify-start gap-1 shrink overflow-hidden pl-0 ml-0 py-0 my-0">
           {onBack && (
             <button
               onClick={onBack}
-              className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
+              className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ml-1.5 ${
                 isDark
                   ? 'bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white'
-                  : 'bg-white hover:bg-slate-200 border border-slate-200 text-slate-700 hover:text-slate-950 shadow-xs'
+                  : 'bg-white/15 hover:bg-white/25 border border-white/25 text-white'
               }`}
               title="Voltar"
               aria-label="Voltar"
             >
-              <ArrowLeft className="w-3.5 h-3.5 text-emerald-500" />
+              <ArrowLeft className="w-3.5 h-3.5 text-white" />
             </button>
           )}
           <div 
@@ -2180,9 +2250,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           ) : (
             <div className="flex items-center justify-start gap-1.5 min-w-0 p-[5px] ml-[5px]">
               <div
-                className="w-8 h-8 rounded-[4px] flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-xs"
+                className="w-8 h-8 rounded-[4px] flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-xs border border-white/25"
                 style={{
-                  backgroundColor: adminSettings.navActiveColor || adminSettings.accentColor || '#20C933',
+                  backgroundColor: adminSettings.navActiveColor || adminSettings.accentColor || '#005CA9',
                   fontFamily: activeBrandFontFamily,
                 }}
               >
@@ -2192,11 +2262,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 <span
                   style={{ 
                     fontFamily: activeBrandFontFamily,
-                    color: adminSettings.logoTextColor || undefined
+                    color: adminSettings.logoTextColor || '#FFFFFF'
                   }}
-                  className={`text-xs sm:text-sm font-extrabold tracking-tight leading-tight truncate ${
-                    !adminSettings.logoTextColor ? (isDark ? 'text-white' : 'text-slate-900') : ''
-                  }`}
+                  className="text-xs sm:text-sm font-extrabold tracking-tight leading-tight truncate text-white"
                 >
                   {adminSettings.logoTextFallback || salonInfo.name}
                 </span>
@@ -2212,40 +2280,36 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           <button
             type="button"
             onClick={handleShare}
-            className={`w-8 h-8 sm:w-9.5 sm:h-9.5 rounded flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
+            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-[4px] flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
               isDark
-                ? 'bg-slate-900/80 hover:bg-slate-800 border border-slate-800'
-                : 'bg-slate-100 hover:bg-slate-200 border border-slate-200 shadow-xs'
+                ? 'bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-white'
+                : 'bg-white/15 hover:bg-white/25 border border-white/25 text-white'
             }`}
             title={isCopied ? "Link copiado!" : "Compartilhar perfil"}
             aria-label="Compartilhar perfil"
           >
             {isCopied ? (
-              <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-colors" style={{ color: effectiveAccentColor }} />
+              <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
             ) : (
-              <Share2 
-                className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-colors" 
-                style={{ color: effectiveAccentColor }}
-              />
+              <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
             )}
           </button>
 
-          {/* Favoritar Rápido (Somente visível no modo cliente/público) - Cor do tema dinâmico e nunca cinza */}
+          {/* Favoritar Rápido (Somente visível no modo cliente/público) */}
           {currentPersona === 'cliente' && (
             <button
               type="button"
               onClick={() => onToggleFavorite?.(salonInfo.name)}
-              className={`w-8 h-8 sm:w-9.5 sm:h-9.5 rounded flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
+              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-[4px] flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
                 isDark
-                  ? 'bg-slate-900/80 hover:bg-slate-800 border border-slate-800'
-                  : 'bg-slate-100 hover:bg-slate-200 border border-slate-200 shadow-xs'
+                  ? 'bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-white'
+                  : 'bg-white/15 hover:bg-white/25 border border-white/25 text-white'
               }`}
               title="Favoritar este estabelecimento"
               aria-label="Favoritar estabelecimento"
             >
               <Heart 
-                className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-colors ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}`}
-                style={{ color: isFavorite ? '#f43f5e' : effectiveAccentColor }}
+                className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-colors ${isFavorite ? 'fill-rose-500 text-rose-500' : 'text-white'}`}
               />
             </button>
           )}
@@ -2258,10 +2322,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 hapticLight();
                 setIsProfileDrawerOpen(true);
               }}
-              className={`group w-8 h-8 sm:w-9.5 sm:h-9.5 rounded flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 overflow-hidden ${
+              className={`group w-8 h-8 sm:w-9 sm:h-9 rounded-[4px] flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 overflow-hidden ${
                 isDark
-                  ? 'bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40'
-                  : 'bg-slate-100 hover:bg-slate-200 border border-slate-200 shadow-xs hover:border-emerald-500/40'
+                  ? 'bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-white'
+                  : 'bg-white/15 hover:bg-white/25 border border-white/25 text-white'
               }`}
               title={`Perfil de ${currentUserName}`}
               aria-label="Perfil do Usuário"
@@ -2274,10 +2338,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <User 
-                  className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[1.8] transition-colors" 
-                  style={{ color: effectiveAccentColor }}
-                />
+                <User className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[1.8] text-white" />
               )}
             </button>
           ) : (
@@ -2287,12 +2348,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 hapticLight();
                 setIsClientAuthModalOpen(true);
               }}
-              className="h-8 sm:h-9 px-3 sm:px-3.5 rounded flex items-center justify-center font-bold text-xs sm:text-sm font-['Poppins'] tracking-wide transition active:scale-95 cursor-pointer shrink-0 text-white shadow-xs"
-              style={{ backgroundColor: effectiveAccentColor }}
+              className="h-8 sm:h-9 px-3 sm:px-3.5 rounded-[4px] flex items-center justify-center font-bold text-xs sm:text-sm font-display tracking-wide transition active:scale-95 cursor-pointer shrink-0 bg-[#008B47] hover:bg-[#00753B] text-white border border-white/20 shadow-xs"
               title="Entrar no aplicativo"
               aria-label="Entrar"
             >
-              Entrar
+              <span className="text-white">Entrar</span>
             </button>
           )}
         </div>
@@ -2607,65 +2667,76 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
           {/* PASSO 1: Seleção de Profissional (Visível Apenas se Múltiplos Profissionais) */}
           {hasMultipleProfessionals && (
-            <div className={`w-full shrink-0 border-b ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'} p-3 flex flex-col gap-2`}>
-              <h3 className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            <div className={`w-full shrink-0 border-b ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-[#F7F9FC] border-[#EDF2F7]'} p-3 flex flex-col gap-2`}>
+              <h3 className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-[#5F6C7B]'}`}>
                 1. Com quem deseja agendar?
               </h3>
-              <div className="flex items-center gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory">
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar snap-x snap-mandatory">
                 {/* Qualquer Profissional Livre */}
                 <button
                   type="button"
                   onClick={() => setSelectedPublicProfessional('any')}
-                  className={`shrink-0 flex flex-col items-center gap-1.5 snap-center transition cursor-pointer ${selectedPublicProfessional === 'any' ? 'opacity-100 scale-100' : 'opacity-60 scale-95 hover:opacity-100'}`}
+                  className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] snap-center transition cursor-pointer ${
+                    selectedPublicProfessional === 'any'
+                      ? 'bg-[#005CA9] text-white font-bold shadow-xs'
+                      : isDark
+                        ? 'bg-slate-800 border border-slate-700 text-slate-300'
+                        : 'bg-[#FFFFFF] border border-[#E2E8F0] text-[#5F6C7B]'
+                  }`}
                 >
-                  <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center transition-colors ${selectedPublicProfessional === 'any' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-500' : isDark ? 'border-slate-700 bg-slate-800 text-slate-400' : 'border-slate-300 bg-slate-200 text-slate-500'}`}>
-                    <Users className="w-5 h-5" />
-                  </div>
-                  <span className={`text-[9px] font-bold uppercase tracking-wider max-w-[65px] text-center truncate leading-tight ${selectedPublicProfessional === 'any' ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : (isDark ? 'text-slate-400' : 'text-slate-600')}`}>
+                  <Users className={`w-3.5 h-3.5 shrink-0 ${selectedPublicProfessional === 'any' ? 'text-white' : 'text-[#005CA9]'}`} />
+                  <span className={`text-[11px] whitespace-nowrap ${selectedPublicProfessional === 'any' ? 'text-white font-bold' : ''}`}>
                     Qualquer Livre
                   </span>
                 </button>
 
                 {/* Lista de Profissionais */}
-                {professionalsList.map(prof => (
-                  <button
-                    key={prof.id || prof.name}
-                    type="button"
-                    onClick={() => setSelectedPublicProfessional(prof.name)}
-                    className={`shrink-0 flex flex-col items-center gap-1.5 snap-center transition cursor-pointer ${selectedPublicProfessional === prof.name ? 'opacity-100 scale-100' : 'opacity-60 scale-95 hover:opacity-100'}`}
-                  >
-                    <div className={`w-12 h-12 rounded-full border-2 overflow-hidden transition-colors relative ${selectedPublicProfessional === prof.name ? 'border-emerald-500' : isDark ? 'border-slate-700' : 'border-slate-300'}`}>
-                      {prof.avatar || prof.avatarUrl ? (
-                        <img src={prof.avatar || prof.avatarUrl} alt={prof.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        <div className="w-full h-full bg-slate-800 flex items-center justify-center">
-                          <User className="w-5 h-5 text-slate-400" />
-                        </div>
-                      )}
-                    </div>
-                    <span className={`text-[9px] font-bold uppercase tracking-wider max-w-[65px] text-center truncate leading-tight ${selectedPublicProfessional === prof.name ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : (isDark ? 'text-slate-400' : 'text-slate-600')}`}>
-                      {prof.name.split(' ')[0]}
-                    </span>
-                  </button>
-                ))}
+                {professionalsList.map(prof => {
+                  const isSelected = selectedPublicProfessional === prof.name;
+                  return (
+                    <button
+                      key={prof.id || prof.name}
+                      type="button"
+                      onClick={() => setSelectedPublicProfessional(prof.name)}
+                      className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] snap-center transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#005CA9] text-white font-bold shadow-xs'
+                          : isDark
+                            ? 'bg-slate-800 border border-slate-700 text-slate-300'
+                            : 'bg-[#FFFFFF] border border-[#E2E8F0] text-[#5F6C7B]'
+                      }`}
+                    >
+                      <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 flex items-center justify-center bg-white/20">
+                        {prof.avatar || prof.avatarUrl ? (
+                          <img src={prof.avatar || prof.avatarUrl} alt={prof.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          <User className={`w-3 h-3 ${isSelected ? 'text-white' : 'text-[#005CA9]'}`} />
+                        )}
+                      </div>
+                      <span className={`text-[11px] whitespace-nowrap ${isSelected ? 'text-white font-bold' : ''}`}>
+                        {prof.name.split(' ')[0]}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
 
-              {/* Grid de Serviços Fullwidth sem Espaçamentos (Laterais, Topo e Rodapé zerados) */}
+              {/* Grid de Serviços Fullwidth */}
               <div className="relative overflow-hidden select-none w-full flex-1 min-h-0 flex flex-col justify-between">
                 {catalogServices.length === 0 ? (
                   <div className={`w-full flex-1 flex flex-col items-center justify-center p-6 text-center space-y-3 ${
-                    isDark ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-800'
+                    isDark ? 'bg-slate-950 text-slate-200' : 'bg-[#F7F9FC] text-[#1E293B]'
                   }`}>
-                    <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                      <Scissors className="w-6 h-6" />
+                    <div className="caixa-icon-halo">
+                      <Scissors className="w-5 h-5" />
                     </div>
                     <div className="space-y-1 max-w-xs">
-                      <h3 className="text-sm font-bold font-['Poppins']">
+                      <h3 className="text-sm font-bold font-display">
                         Catálogo em atualização
                       </h3>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs text-[#5F6C7B]">
                         Os serviços e valores deste estabelecimento estão sendo configurados.
                       </p>
                     </div>
@@ -2673,51 +2744,51 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                       <button
                         type="button"
                         onClick={() => setIsClientAuthModalOpen(true)}
-                        className="mt-1 px-4 py-2 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer"
+                        className="mt-1 px-4 py-2 rounded-[4px] bg-[#005CA9] hover:bg-[#004A88] text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer"
                       >
-                        Sou o Proprietário • Entrar
+                        <span className="text-white">Sou o Proprietário • Entrar</span>
                       </button>
                     )}
                   </div>
                 ) : (
                   <div
-                    className={`grid grid-cols-2 grid-rows-2 gap-0 w-full flex-1 min-h-0 ${
-                      isDark ? 'bg-slate-950' : 'bg-slate-100'
+                    className={`grid grid-cols-2 grid-rows-2 gap-2 p-2.5 w-full flex-1 min-h-0 ${
+                      isDark ? 'bg-slate-950' : 'bg-[#F7F9FC]'
                     }`}
                   >
                     {currentServices.map((srv) => (
                       <div
                         key={srv.id}
                         onClick={() => handleOpenBooking(srv)}
-                        className="group relative overflow-hidden transition-all duration-300 cursor-pointer bg-slate-950 h-full w-full"
+                        className="caixa-tile group relative overflow-hidden transition-all duration-200 cursor-pointer bg-slate-950 h-full w-full rounded-[4px]"
                         title={`${srv.title} - R$ ${srv.price}`}
                       >
-                        {/* Imagem, Slideshow de até 5 fotos ou Vídeo de 5s com Zoom no Hover */}
-                        <div className="relative w-full h-full overflow-hidden bg-slate-950">
+                        {/* Imagem, Slideshow de até 5 fotos ou Vídeo de 5s */}
+                        <div className="relative w-full h-full overflow-hidden bg-slate-950 rounded-[4px]">
                           <ServiceCardMedia service={srv} />
 
                           {/* Gradiente Cinematográfico Escuro para Máximo Contraste */}
                           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/45 to-black/25 group-hover:via-slate-950/65 transition-colors duration-300 pointer-events-none" />
 
-                          {/* Topo do Card: Badge de Categoria com Frosted Glass & Ponto Esmeralda */}
+                          {/* Topo do Card: Badge de Categoria */}
                           <div className="absolute top-2 left-2 right-2 z-10 pointer-events-none flex items-center justify-between gap-1">
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-950/80 backdrop-blur-md border border-emerald-500/30 text-emerald-400 text-[9px] font-black uppercase tracking-wider shadow-sm">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-slate-950/85 backdrop-blur-md border border-white/15 text-white text-[9px] font-bold uppercase tracking-wider shadow-xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#39B29B]" />
                               {srv.category}
                             </span>
                           </div>
 
                           {/* Base do Card: Título + Preço */}
                           <div className="absolute inset-x-0 bottom-0 p-2.5 sm:p-3 z-10 flex flex-col justify-end pointer-events-none">
-                            <h3 className="text-xs sm:text-[13px] font-bold text-white tracking-tight leading-tight line-clamp-1 font-['Poppins'] drop-shadow-sm group-hover:text-emerald-300 transition-colors">
+                            <h3 className="text-xs sm:text-[13px] font-bold text-white tracking-tight leading-tight line-clamp-1 font-display drop-shadow-xs">
                               {srv.title}
                             </h3>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="text-emerald-400 font-black text-xs sm:text-sm tracking-tight drop-shadow-xs">
+                              <span className="text-[#39B29B] font-mono-tabular font-black text-xs sm:text-sm tracking-tight drop-shadow-xs">
                                 R$ {srv.price}
                               </span>
                               {srv.duration && (
-                                <span className="text-[10px] text-slate-300/80 font-medium">
+                                <span className="text-[10px] text-slate-200 font-medium">
                                   • {srv.duration}
                                 </span>
                               )}
@@ -2729,54 +2800,54 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   </div>
                 )}
 
-                {/* Barra de Paginação e Navegação de Alta Precisão */}
+                {/* Barra de Paginação e Navegação */}
                 {totalServicePages > 1 && (
                   <div
                     className={`w-full px-4 py-2 flex items-center justify-between border-t transition-colors select-none shrink-0 ${
                       isDark
                         ? 'bg-slate-950 border-slate-800/80 text-white'
-                        : 'bg-white border-slate-200 text-slate-900'
+                        : 'bg-[#FFFFFF] border-[#EDF2F7] text-[#1E293B]'
                     }`}
                   >
                     {/* Indicador de Página e Total */}
                     <div className="flex items-center gap-2">
                       <div
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold font-['Poppins'] ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] border text-xs font-bold font-mono-tabular ${
                           isDark
                             ? 'bg-slate-900 border-slate-800 text-slate-200'
-                            : 'bg-slate-100 border-slate-200 text-slate-800'
+                            : 'bg-[#F7F9FC] border-[#D5E0EC] text-[#1E293B]'
                         }`}
                       >
-                        <span className="text-emerald-400 font-extrabold">{servicePage + 1}</span>
-                        <span className={isDark ? 'text-slate-600' : 'text-slate-400'}>/</span>
-                        <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>{totalServicePages}</span>
+                        <span className="text-[#005CA9] font-extrabold">{servicePage + 1}</span>
+                        <span className="text-[#94A3B8]">/</span>
+                        <span className="text-[#5F6C7B]">{totalServicePages}</span>
                       </div>
                       <span
                         className={`text-[11px] font-semibold tracking-wide uppercase ${
-                          isDark ? 'text-slate-300' : 'text-slate-700'
+                          isDark ? 'text-slate-300' : 'text-[#5F6C7B]'
                         }`}
                       >
                         Procedimentos
                       </span>
                     </div>
 
-                    {/* Controles de Navegação com Setas e Indicadores em Pílula */}
+                    {/* Controles de Navegação com Setas */}
                     <div className="flex items-center gap-2">
                       {/* Botão Anterior */}
                       <button
                         type="button"
                         onClick={handlePrevServicePage}
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                        className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition-all cursor-pointer ${
                           isDark
                             ? 'bg-slate-900 hover:bg-slate-800 text-white border border-slate-800 active:scale-95'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-200 active:scale-95'
+                            : 'bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#1E293B] border border-[#E2E8F0] active:scale-95'
                         }`}
                         aria-label="Página anterior"
                       >
                         <ChevronLeft className="w-4 h-4" />
                       </button>
 
-                      {/* Pílulas de Navegação com Brilho do Tema */}
+                      {/* Indicadores */}
                       <div className="flex items-center gap-1 px-1">
                         {Array.from({ length: totalServicePages }).map((_, dotIdx) => (
                           <button
@@ -2786,12 +2857,12 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                               setSwapDirection(dotIdx > servicePage ? 1 : -1);
                               setServicePage(dotIdx);
                             }}
-                            className={`transition-all rounded-full cursor-pointer ${
+                            className={`transition-all rounded-[4px] cursor-pointer ${
                               dotIdx === servicePage
-                                ? 'w-5 h-2 bg-emerald-500 shadow-sm shadow-emerald-500/60'
+                                ? 'w-5 h-2 bg-[#005CA9]'
                                 : isDark
                                 ? 'w-2 h-2 bg-slate-800 hover:bg-slate-700'
-                                : 'w-2 h-2 bg-slate-300 hover:bg-slate-400'
+                                : 'w-2 h-2 bg-[#D5E0EC] hover:bg-[#94A3B8]'
                             }`}
                             aria-label={`Ir para página ${dotIdx + 1}`}
                           />
@@ -2802,10 +2873,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                       <button
                         type="button"
                         onClick={handleNextServicePage}
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                        className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition-all cursor-pointer ${
                           isDark
                             ? 'bg-slate-900 hover:bg-slate-800 text-white border border-slate-800 active:scale-95'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-200 active:scale-95'
+                            : 'bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#1E293B] border border-[#E2E8F0] active:scale-95'
                         }`}
                         aria-label="Próxima página"
                       >
@@ -2818,19 +2889,27 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             </section>
           )}
 
-          {/* SEÇÃO 3: AGENDAR */}
+          {/* SEÇÃO 3: AGENDAR (SEÇÃO EM TELA INTEIRA SOBRE #F7F9FC COM BOTÃO VOLTAR) */}
           {activeTab === 'vagas' && (
             <section
               id="section-vagas"
               data-tab-id="vagas"
-              className="w-full h-full flex-1 min-h-0 overflow-hidden flex flex-col justify-start animate-in fade-in duration-150"
+              className="w-full h-full flex-1 min-h-0 overflow-hidden flex flex-col justify-start bg-[#F7F9FC] dark:bg-slate-950 animate-in fade-in duration-150"
             >
-              {/* Subcabeçalho de Título da Seção: Agendamento */}
+              {/* Subcabeçalho de Título da Seção: Agendamento com Botão Voltar */}
               <div className={sectionHeaderStyleData.containerClass} style={sectionHeaderStyleData.containerStyle}>
                 <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 shrink-0" style={sectionHeaderStyleData.iconStyle} />
-                  <h2 className={`text-xs sm:text-sm font-bold font-['Poppins'] ${
-                    !adminSettings.sectionHeaderTextColor ? (isDark ? 'text-white' : 'text-slate-900') : ''
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTab('servicos')}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-[4px] bg-[#FFFFFF] dark:bg-slate-800 border border-[#E2E8F0] dark:border-slate-700 text-[#005CA9] dark:text-slate-200 text-xs font-bold hover:bg-[#F1F5F9] transition cursor-pointer"
+                    title="Voltar para Serviços"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5 text-[#005CA9] dark:text-emerald-400" />
+                    <span>Voltar</span>
+                  </button>
+                  <h2 className={`text-xs sm:text-sm font-bold font-display ${
+                    !adminSettings.sectionHeaderTextColor ? (isDark ? 'text-white' : 'text-[#1E293B]') : ''
                   }`} style={sectionHeaderStyleData.titleStyle}>
                     Agendamento & Vagas
                   </h2>
@@ -2843,30 +2922,30 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     }}
                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] font-bold text-xs transition cursor-pointer shrink-0 whitespace-nowrap ${
                       bookingIsDependent
-                        ? 'bg-emerald-500 text-white'
+                        ? 'bg-[#005CA9] text-white'
                         : isDark
                         ? 'bg-slate-800 text-slate-100 hover:bg-slate-700'
-                        : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+                        : 'bg-[#FFFFFF] border border-[#E2E8F0] text-[#1E293B] hover:bg-[#F1F5F9]'
                     }`}
-                    style={sectionHeaderStyleData.badgeStyle}
                     title="Alterar para quem é o agendamento"
                   >
                     {bookingIsDependent ? (
                       <Users className="w-3.5 h-3.5 text-white shrink-0" />
                     ) : (
-                      <User className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      <User className="w-3.5 h-3.5 text-[#005CA9] shrink-0" />
                     )}
-                    <span className={bookingIsDependent ? 'text-white' : ''}>
+                    <span className={bookingIsDependent ? 'text-white font-bold' : ''}>
                       {bookingIsDependent && bookingDependentName ? bookingDependentName : 'Para Você'}
                     </span>
                   </button>
                 ) : null}
               </div>
 
-              <div className="flex-1 min-h-0 flex flex-col justify-start overflow-hidden w-full">
+              <div className="flex-1 min-h-0 flex flex-col justify-start overflow-hidden w-full bg-[#F7F9FC] dark:bg-slate-950">
                 <SalonBookingModal
                   isOpen={true}
                   inline={true}
+                  onClose={() => handleSelectTab('servicos')}
                   salonId={currentSalonDbId || salonInfo.id}
                   salonName={salonInfo.name}
                   salonSlug={adminSettings.salonSlug || activeSubdomain || ''}
@@ -2884,7 +2963,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   salonLogo={activeLogo || adminSettings.salonLogo || adminSettings.salonLogoDark || adminSettings.salonLogoLight || adminSettings.salonIcon}
                   salonLogoLight={adminSettings.salonLogoLight || ''}
                   salonLogoDark={adminSettings.salonLogoDark || ''}
-                  primaryColor={adminSettings.accentColor || '#00a033'}
+                  primaryColor={adminSettings.accentColor || '#005CA9'}
                   services={catalogServices}
                   professionals={professionalsList}
                   initialService={bookingService}
@@ -2937,7 +3016,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             </span>
           </div>
 
-              <div className="px-3.5 sm:px-4 py-2.5 space-y-2.5 flex-1 min-h-0 flex flex-col justify-start overflow-y-auto">
+              <div className="px-3.5 sm:px-4 py-2.5 space-y-2.5 flex-1 min-h-0 flex flex-col justify-start overflow-y-auto bg-[#F7F9FC] dark:bg-slate-950">
                 {/* Abas de Navegação Interna da Seção Espaço (Estrutura | Localização | Contatos) */}
                 <div className="grid grid-cols-3 gap-1.5 w-full">
                   {/* Aba 1: Estrutura */}
@@ -2949,17 +3028,17 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     }}
                     className={`py-2 px-1 rounded-[4px] text-center transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                       espacoSlideIndex === 0
-                        ? 'bg-emerald-500 text-white font-bold shadow-xs'
+                        ? 'bg-[#005CA9] text-white font-bold shadow-xs'
                         : isDark
                           ? 'bg-slate-900/80 text-slate-400 hover:text-white font-medium border border-slate-800'
-                          : 'bg-slate-100 text-slate-600 hover:text-slate-900 font-medium border border-slate-200'
+                          : 'bg-[#F1F5F9] text-[#5F6C7B] hover:text-[#1E293B] font-medium border border-[#E2E8F0]'
                     }`}
                   >
                     <Store className={`w-3.5 h-3.5 shrink-0 ${
-                      espacoSlideIndex === 0 ? 'text-white' : 'text-emerald-400'
+                      espacoSlideIndex === 0 ? 'text-white' : 'text-[#005CA9]'
                     }`} />
                     <span className={`text-[11px] sm:text-xs tracking-tight truncate ${
-                      espacoSlideIndex === 0 ? 'text-white' : ''
+                      espacoSlideIndex === 0 ? 'text-white font-bold' : ''
                     }`}>
                       Estrutura
                     </span>
@@ -2974,17 +3053,17 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     }}
                     className={`py-2 px-1 rounded-[4px] text-center transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                       espacoSlideIndex === 1
-                        ? 'bg-emerald-500 text-white font-bold shadow-xs'
+                        ? 'bg-[#005CA9] text-white font-bold shadow-xs'
                         : isDark
                           ? 'bg-slate-900/80 text-slate-400 hover:text-white font-medium border border-slate-800'
-                          : 'bg-slate-100 text-slate-600 hover:text-slate-900 font-medium border border-slate-200'
+                          : 'bg-[#F1F5F9] text-[#5F6C7B] hover:text-[#1E293B] font-medium border border-[#E2E8F0]'
                     }`}
                   >
                     <MapPin className={`w-3.5 h-3.5 shrink-0 ${
-                      espacoSlideIndex === 1 ? 'text-white' : 'text-emerald-400'
+                      espacoSlideIndex === 1 ? 'text-white' : 'text-[#005CA9]'
                     }`} />
                     <span className={`text-[11px] sm:text-xs tracking-tight truncate ${
-                      espacoSlideIndex === 1 ? 'text-white' : ''
+                      espacoSlideIndex === 1 ? 'text-white font-bold' : ''
                     }`}>
                       Localização
                     </span>
@@ -2999,17 +3078,17 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     }}
                     className={`py-2 px-1 rounded-[4px] text-center transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                       espacoSlideIndex === 2
-                        ? 'bg-emerald-500 text-white font-bold shadow-xs'
+                        ? 'bg-[#005CA9] text-white font-bold shadow-xs'
                         : isDark
                           ? 'bg-slate-900/80 text-slate-400 hover:text-white font-medium border border-slate-800'
-                          : 'bg-slate-100 text-slate-600 hover:text-slate-900 font-medium border border-slate-200'
+                          : 'bg-[#F1F5F9] text-[#5F6C7B] hover:text-[#1E293B] font-medium border border-[#E2E8F0]'
                     }`}
                   >
                     <Phone className={`w-3.5 h-3.5 shrink-0 ${
-                      espacoSlideIndex === 2 ? 'text-white' : 'text-emerald-400'
+                      espacoSlideIndex === 2 ? 'text-white' : 'text-[#005CA9]'
                     }`} />
                     <span className={`text-[11px] sm:text-xs tracking-tight truncate ${
-                      espacoSlideIndex === 2 ? 'text-white' : ''
+                      espacoSlideIndex === 2 ? 'text-white font-bold' : ''
                     }`}>
                       Contatos
                     </span>
@@ -3041,17 +3120,17 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         className="cursor-grab active:cursor-grabbing touch-pan-y flex-1 min-h-0 flex flex-col"
                       >
                         {/* ABA 1: CARD DE ESTRUTURA DO ESPAÇO & COMODIDADES */}
-                        <div className={`border rounded-[4px] p-3.5 space-y-3 shadow-xs flex-1 min-h-[340px] flex flex-col justify-between ${
-                          isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+                        <div className={`p-3.5 space-y-3 flex-1 min-h-[340px] flex flex-col justify-between ${
+                          isDark ? 'bg-slate-900/90 border border-slate-800 rounded-[4px]' : 'caixa-card'
                         }`}>
                           <div className="space-y-2.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <h3 className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                <Store className="w-4 h-4 text-emerald-500" />
+                            <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#EDF2F7] dark:border-slate-800">
+                              <h3 className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-[#1E293B]'}`}>
+                                <Store className="w-4 h-4 text-[#005CA9]" />
                                 <span>{salonInfo.isHomeCare ? 'Modalidade de Atendimento' : 'Estrutura do Espaço'}</span>
                               </h3>
                             </div>
-                            <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                            <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-[#5F6C7B]'}`}>
                               {salonInfo.description}
                             </p>
                             <div className="grid grid-cols-2 gap-2 pt-1">
@@ -3059,9 +3138,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                                 <div key={idx} className={`flex items-center gap-2 p-2.5 rounded-[4px] text-xs ${
                                   isDark
                                     ? 'bg-slate-950 text-slate-300'
-                                    : 'bg-slate-50 text-slate-700'
+                                    : 'bg-[#F7F9FC] text-[#1E293B]'
                                 }`}>
-                                  <amenity.icon className="w-4 h-4 text-emerald-500 shrink-0" />
+                                  <amenity.icon className="w-4 h-4 text-[#005CA9] shrink-0" />
                                   <span className="truncate font-medium">{amenity.label}</span>
                                 </div>
                               ))}
@@ -3069,10 +3148,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                           </div>
 
                           <div className={`pt-2.5 border-t text-[11px] flex items-center justify-between ${
-                            isDark ? 'border-slate-800 text-slate-400' : 'border-slate-100 text-slate-500'
+                            isDark ? 'border-slate-800 text-slate-400' : 'border-[#EDF2F7] text-[#5F6C7B]'
                           }`}>
                             <span>Ambiente climatizado e confortável</span>
-                            <span className="text-emerald-400 font-bold">100% Verificado</span>
+                            <span className="text-[#008B47] font-bold">100% Verificado</span>
                           </div>
                         </div>
                       </motion.div>
@@ -3089,8 +3168,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         transition={{ duration: 0.22, ease: 'easeOut' }}
                         className="flex-1 min-h-0 flex flex-col space-y-2.5"
                       >
-                        <div className={`border rounded-[4px] p-3.5 space-y-3 shadow-xs flex-1 flex flex-col justify-between ${
-                          isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+                        <div className={`p-3.5 space-y-3 flex-1 flex flex-col justify-between ${
+                          isDark ? 'bg-slate-900/90 border border-slate-800 rounded-[4px]' : 'caixa-card'
                         }`}>
                           {/* Endereço e Horário */}
                           <div className="space-y-2">
@@ -3181,13 +3260,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         }}
                         className="cursor-grab active:cursor-grabbing touch-pan-y flex-1 min-h-0 flex flex-col"
                       >
-                        <div className={`border rounded-[4px] p-3.5 space-y-3 shadow-xs flex-1 min-h-[340px] flex flex-col justify-between ${
-                          isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+                        <div className={`p-3.5 space-y-3 flex-1 min-h-[340px] flex flex-col justify-between ${
+                          isDark ? 'bg-slate-900/90 border border-slate-800 rounded-[4px]' : 'caixa-card'
                         }`}>
                           <div className="space-y-3">
-                            <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800/60">
-                              <h3 className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                <Phone className="w-4 h-4 text-emerald-500" />
+                            <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#EDF2F7] dark:border-slate-800/60">
+                              <h3 className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-[#1E293B]'}`}>
+                                <Phone className="w-4 h-4 text-[#005CA9]" />
                                 <span>Canais de Contato & Redes Sociais</span>
                               </h3>
                             </div>
@@ -3519,35 +3598,47 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         );
       })()}
 
-      {/* 2. MODAL DE AGENDAMENTO CONFIRMADO (DENTRO DA SEÇÃO DO ESTABELECIMENTO) */}
+      {/* 2. SEÇÃO EM TELA INTEIRA DE AGENDAMENTO CONFIRMADO (SOBRE #F7F9FC) */}
       {confirmedBookingData && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-200">
-          <div 
-            className={`w-full max-w-md border rounded p-5 sm:p-6 shadow-2xl flex flex-col items-center text-center space-y-4 transition-colors ${
-              isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-            }`}
-          >
+        <div className={`fixed inset-0 z-50 w-full max-w-[430px] mx-auto flex flex-col justify-between overflow-y-auto animate-in fade-in duration-200 ${
+          isDark ? 'bg-slate-950 text-slate-100' : 'bg-[#F7F9FC] text-[#333E48]'
+        }`}>
+          <div className="w-full px-4 py-3 border-b border-[#EDF2F7] dark:border-slate-800 bg-[#FFFFFF] dark:bg-slate-900 flex items-center justify-between shrink-0">
+            <button
+              type="button"
+              onClick={() => setConfirmedBookingData(null)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] bg-[#F1F5F9] dark:bg-slate-800 text-[#1E293B] dark:text-slate-200 text-xs font-bold hover:bg-[#E2E8F0] transition cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-[#005CA9]" />
+              <span>Voltar</span>
+            </button>
+            <span className="text-xs font-bold uppercase tracking-wider text-[#008B47]">
+              Comprovante Oficial
+            </span>
+          </div>
+
+          <div className="p-4 flex-1 flex flex-col items-center justify-center text-center space-y-4">
             {/* Ícone de Sucesso */}
-            <div className="w-16 h-16 rounded bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-600/30 animate-in zoom-in-75 duration-300">
-              <Check className="w-9 h-9 stroke-[3] text-white" />
+            <div className="w-14 h-14 rounded-[4px] bg-[#008B47] text-white flex items-center justify-center shadow-xs">
+              <Check className="w-8 h-8 stroke-[3] text-white" />
             </div>
 
             <div className="space-y-1">
-              <h2 className={`text-xl font-bold font-['Poppins'] ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <h2 className={`text-lg font-bold font-display ${isDark ? 'text-white' : 'text-[#1E293B]'}`}>
                 Agendamento confirmado!
               </h2>
-              <p className="text-xs text-slate-400 max-w-xs mx-auto">
+              <p className="text-xs text-[#5F6C7B] max-w-xs mx-auto">
                 Sua vaga está garantida. Apresente o código abaixo ao chegar no estabelecimento.
               </p>
             </div>
 
-            {/* Card com Detalhes do Voucher */}
-            <div className={`w-full rounded p-4 border text-left space-y-3 ${
-              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+            {/* Card com Detalhes do Voucher (.caixa-card sem box dentro de box) */}
+            <div className={`w-full p-4 text-left space-y-3 ${
+              isDark ? 'bg-slate-900 border border-slate-800 rounded-[4px]' : 'caixa-card'
             }`}>
-              <div className="flex items-center justify-between pb-2.5 border-b border-slate-800/80">
-                <span className="text-xs font-bold text-slate-400">Código Protocolo</span>
-                <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded border border-emerald-500/30">
+              <div className="flex items-center justify-between pb-2.5 border-b border-[#EDF2F7] dark:border-slate-800/80">
+                <span className="text-xs font-bold text-[#5F6C7B]">Código Protocolo</span>
+                <span className="text-xs font-mono-tabular font-bold text-white bg-[#005CA9] px-2.5 py-1 rounded-[4px]">
                   {confirmedBookingData.protocolCode}
                 </span>
               </div>

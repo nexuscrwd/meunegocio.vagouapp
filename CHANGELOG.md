@@ -13,6 +13,42 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ---
 
+### [2026-11-04] — Redesign Visual Completo e Padronização Universal de CSS Mobile-First Institucional (`bol-114`)
+- **Tipo:** `[Refactor / Design System Institucional Mobile-First — Arquitetura de 3 Camadas, .caixa-card e Raio 4px]`
+- **Motivo / Solicitação:** Aplicar Redesign Visual Completo e Padronização Universal de CSS em todo o aplicativo sem alterar nenhuma regra de negócio.
+- **Arquivos Impactados:**
+  - `index.html`
+  - `src/index.css`
+  - `src/App.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `src/utils/sectionHeaderStyle.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Arquitetura de 3 Camadas:** Camada 1 (`body` externo `#E6EEF6`), Camada 2 (Shell Mobile `w-full max-w-[430px] min-h-screen bg-[#F7F9FC]`), e Camada 3 (`.caixa-card` com `#FFFFFF`, borda `#E6EDF5`, `rounded-[4px]` e sombra institucional concentrada).
+  2. **Tipografia e Classes Globais (`src/index.css` & `index.html`):** Configuradas as fontes `Plus Jakarta Sans` (`--font-display`), `Public Sans` (`--font-sans`) e `IBM Plex Mono` (`--font-mono`, `.font-mono-tabular`), além de `.caixa-header-gradient`, `.caixa-card`, `.caixa-tile`, `.caixa-icon-halo`, `.caixa-input` e `.caixa-footer-shadow`.
+  3. **Regras de Ouro de Componentes:** Arredondamento universal `4px` (`rounded-[4px]`), eliminação de "Box dentro de Box" (uso de `divide-y divide-[#EDF2F7]`), substituição de estados ativos cinza por `#005CA9` (Azul Principal) e `#008B47` (Verde Confirmado) com texto `#FFFFFF` em negrito, calendário/horários dentro de `<section className="caixa-card p-4">`, e navegação em seções de tela inteira sobre `#F7F9FC` com botão superior "Voltar".
+
+---
+
+### [2026-11-03] — Correção Definitiva do Fluxo de Logout ("App não desloga") (`bol-113`)
+- **Tipo:** `[Fix / Auth & Session Lifecycle — Desconexão Síncrona e Bloqueio de Re-Hidratação]`
+- **Motivo / Solicitação:** Corrigir o erro em que o aplicativo não desconectava ao clicar em "Sair da Conta / Desconectar".
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `src/App.tsx`
+  - `src/hooks/useSalonRole.ts`
+  - `src/hooks/useOwnerAccess.ts`
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Causa Raiz 1 — Re-Hidratação Automática em `syncAvatar` (`SalonProfileView.tsx`):** O listener `vagou:auth-updated` chamava `syncAvatar()`, que usava `currentUserName` da closure antiga e consultava `fetchUserProfileFromDb` pelo nome, regravando `vagou_user_name` e `vagou_user_email` no `localStorage` logo após o logout. Agora `syncAvatar()` valida estritamente a existência de sessão ativa (`hasActiveLocalAuth`) e encerra imediatamente quando `loggedOut: true`.
+  2. **Causa Raiz 2 — Ordem de Limpeza vs `SIGNED_OUT` (`handleSalonLogout`):** `localStorage` e `sessionStorage` (incluindo tokens `sb-*-auth-token`, `vagou_user_profile`, `vagou_user_id`, `vagou_client_session` e `vagou_is_superadmin`) agora são limpos **sincronamente antes** do `supabase.auth.signOut({ scope: 'local' })` e do `signOut` do Firebase Auth.
+  3. **Causa Raiz 3 — Reset Instantâneo nos Hooks (`useSalonRole`, `useOwnerAccess`, `App.tsx`, `ProfileDrawer.tsx`):** Ao receber `vagou:auth-updated` com `{ detail: { loggedOut: true } }`, os hooks zeram imediatamente `role = 'guest'`, `isOwner = false`, `userName = ''` e `profile = DEFAULT_PROFILE`.
+
+---
+
 ### [2026-11-02] — Revisão Minuciosa de CSS, Temas (Claro/Escuro) e Cor de Destaque em Todos os Modais e Ferramentas (`bol-112`)
 - **Tipo:** `[Fix / Design System / CSS — Harmonização Integral de Temas e Cor da Marca]`
 - **Motivo / Solicitação:** Revisar minuciosamente todo o código, CSS e modais para corrigir elementos que permaneciam com fundo escuro fixo no Tema Claro ou exibiam botões acinzentados fora da cor escolhida pelo salão (ex.: `Checkout PIX — Acerto Pós-Serviço`, `Plaquinha PIX`, `ConfirmIntentModal`, modais de autenticação e CSS global).

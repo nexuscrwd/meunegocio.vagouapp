@@ -171,10 +171,19 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
     });
 
     // Escuta sincronização imediata disparada pelo modal nativo de autenticação (vagou:auth-updated)
-    const handleAuthUpdated = () => {
-      if (isMounted) {
-        evaluateRole();
+    const handleAuthUpdated = (e?: Event) => {
+      if (!isMounted) return;
+      const customEvt = e as CustomEvent<{ loggedOut?: boolean }> | undefined;
+      if (customEvt?.detail?.loggedOut) {
+        currentReqIdRef.current++;
+        lastIdentityKeyRef.current = null;
+        setRole('guest');
+        setUserId(null);
+        setSalonId(null);
+        setSalonData(null);
+        return;
       }
+      evaluateRole();
     };
 
     window.addEventListener('vagou:auth-updated', handleAuthUpdated);

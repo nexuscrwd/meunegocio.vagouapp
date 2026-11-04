@@ -3,13 +3,13 @@ import { SalonAdminSettings } from '../types';
 export function getSectionHeaderStyleData(adminSettings: Partial<SalonAdminSettings>, isDark: boolean) {
   const bgCol = adminSettings.sectionHeaderBgColor;
   const txtCol = adminSettings.sectionHeaderTextColor;
-  const iconCol = adminSettings.sectionHeaderIconColor || '#10b981';
+  const iconCol = adminSettings.sectionHeaderIconColor || (isDark ? '#10b981' : '#005CA9');
   const bgStyle = adminSettings.sectionHeaderBgStyle || 'glass';
   const border = adminSettings.sectionHeaderBorder || 'bordered';
 
   // Opções de Estilização de Botões / Crachás da Barra de Títulos
   const btnBgCol = adminSettings.sectionHeaderBtnBgColor;
-  const btnFont = adminSettings.sectionHeaderBtnFont || 'Poppins';
+  const btnFont = adminSettings.sectionHeaderBtnFont || 'Plus Jakarta Sans';
   const btnShadow = adminSettings.sectionHeaderBtnShadow || 'none';
   const btnBlur = adminSettings.sectionHeaderBtnBlur || 'none';
   const btnBorder = adminSettings.sectionHeaderBtnBorder || 'bordered';
@@ -26,15 +26,15 @@ export function getSectionHeaderStyleData(adminSettings: Partial<SalonAdminSetti
   else if (btnBlur === 'md') blurCss = 'blur(8px)';
   else if (btnBlur === 'lg') blurCss = 'blur(16px)';
 
-  const borderClass = border === 'none' ? 'border-b-0' : (isDark ? 'border-b border-slate-800' : 'border-b border-slate-200');
+  const borderClass = border === 'none' ? 'border-b-0' : (isDark ? 'border-b border-slate-800' : 'border-b border-[#EDF2F7]');
   let bgClass = '';
   if (!bgCol) {
     if (bgStyle === 'solid') {
-      bgClass = isDark ? 'bg-slate-900' : 'bg-slate-100';
+      bgClass = isDark ? 'bg-slate-900' : 'bg-[#F7F9FC]';
     } else if (bgStyle === 'transparent') {
       bgClass = 'bg-transparent';
     } else {
-      bgClass = isDark ? 'bg-slate-900/95 backdrop-blur-md' : 'bg-slate-100/95 backdrop-blur-md shadow-xs';
+      bgClass = isDark ? 'bg-slate-900/95 backdrop-blur-md' : 'bg-[#F7F9FC]/95 backdrop-blur-md';
     }
   }
 

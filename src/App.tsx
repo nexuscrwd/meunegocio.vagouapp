@@ -140,10 +140,9 @@ export const App: React.FC = () => {
         setAppointments((prev) => (prev.length === 0 ? prev : []));
       }
 
-      const savedName = localStorage.getItem('vagou_user_name');
-      if (savedName) {
-        setUserName((prev) => (prev === savedName ? prev : savedName));
-      }
+      const savedName = localStorage.getItem('vagou_user_name') || '';
+      setUserName((prev) => (prev === savedName ? prev : savedName));
+
       const savedAvatar = localStorage.getItem('vagou_user_avatar');
       if (savedAvatar && (savedAvatar.includes('unsplash.com') || savedAvatar.includes('images.unsplash'))) {
         localStorage.removeItem('vagou_user_avatar');
@@ -151,6 +150,8 @@ export const App: React.FC = () => {
       } else if (isValidAvatarUrlString(savedAvatar)) {
         const trimmedAvatar = savedAvatar.trim();
         setUserAvatarUrl((prev) => (prev === trimmedAvatar ? prev : trimmedAvatar));
+      } else {
+        setUserAvatarUrl((prev) => (prev === '' ? prev : ''));
       }
     } catch {}
 
@@ -312,11 +313,25 @@ export const App: React.FC = () => {
         const savedEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
         const savedName = localStorage.getItem('vagou_user_name') || '';
         const savedCpf = localStorage.getItem('vagou_user_cpf') || '';
+        const hasSession = Boolean(
+          savedEmail ||
+          savedCpf ||
+          localStorage.getItem('vagou_client_session') ||
+          localStorage.getItem('vagou_auth_user_id')
+        );
 
-        if (!savedEmail && !savedName && !savedCpf) return;
+        if (!hasSession) return;
 
         // 1. fetchUserProfileFromDb (Clients, Professionals, Auth, Profiles)
         const profile = await fetchUserProfileFromDb({ email: savedEmail, name: savedName, cpf: savedCpf });
+        // Verifica novamente se o usuário continua logado após a requisição assíncrona
+        const stillHasSession = Boolean(
+          localStorage.getItem('vagou_user_email') ||
+          localStorage.getItem('vagou_client_session') ||
+          localStorage.getItem('vagou_auth_user_id')
+        );
+        if (!stillHasSession) return;
+
         if (profile) {
           if (profile.name && profile.name.trim() !== '' && profile.name !== 'Profissional' && profile.name !== 'Usuário') {
             setUserName(profile.name);
@@ -342,8 +357,12 @@ export const App: React.FC = () => {
     const handleProfileUpdatedEvent = (e: Event) => {
       const customEvt = e as CustomEvent<{ name?: string; avatarUrl?: string }>;
       if (customEvt?.detail) {
-        if (customEvt.detail.name) {
+        if (customEvt.detail.name !== undefined) {
           setUserName(customEvt.detail.name);
+        }
+        if (customEvt.detail.avatarUrl === '') {
+          setUserAvatarUrl('');
+          return;
         }
         if (isValidAvatarUrlString(customEvt.detail.avatarUrl)) {
           setUserAvatarUrl(customEvt.detail.avatarUrl.trim());
@@ -353,11 +372,11 @@ export const App: React.FC = () => {
       const savedAvatar = localStorage.getItem('vagou_user_avatar');
       if (isValidAvatarUrlString(savedAvatar)) {
         setUserAvatarUrl(savedAvatar.trim());
+      } else {
+        setUserAvatarUrl('');
       }
-      const savedName = localStorage.getItem('vagou_user_name');
-      if (savedName) {
-        setUserName(savedName);
-      }
+      const savedName = localStorage.getItem('vagou_user_name') || '';
+      setUserName(savedName);
     };
 
     syncUserFromSupabase();
@@ -685,11 +704,11 @@ export const App: React.FC = () => {
     });
   };
 
-  // ⏳ Enquanto valida o subdomínio no Supabase, exibe tela limpa Dark Theme com spinner sutil em #20C933 (Zero FOUC)
+  // ⏳ Enquanto valida o subdomínio no Supabase, exibe tela limpa no padrão institucional
   if (isValidatingSubdomain) {
     return (
-      <div className="w-full h-dvh flex items-center justify-center bg-slate-950 font-['Poppins']">
-        <Loader2 className="w-7 h-7 animate-spin text-[#20C933]" />
+      <div className="min-h-screen w-full bg-[#E6EEF6] flex items-center justify-center font-sans">
+        <Loader2 className="w-7 h-7 animate-spin text-[#005CA9]" />
       </div>
     );
   }
@@ -700,14 +719,14 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className={`w-full h-full h-dvh flex items-center justify-center overflow-hidden font-['Poppins'] ${
-      isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-200/80 text-slate-900'
+    <div className={`min-h-screen h-dvh w-full flex justify-center overflow-hidden font-sans ${
+      isDark ? 'bg-slate-950 text-slate-100' : 'bg-[#E6EEF6] text-[#333E48]'
     }`}>
-      {/* Contêiner Mobile do Aplicativo (Enquadramento PWA Nativo Mobile-First no Desktop) */}
+      {/* Camada 2: Shell Mobile Principal (max-w-[430px] bg-[#F7F9FC] shadow-lg) */}
       <section 
         aria-label="Aplicativo Vagou"
-        className={`w-full max-w-md h-full flex flex-col relative overflow-hidden sm:shadow-2xl sm:border-x ${
-          isDark ? 'bg-[#151A1E] sm:border-slate-800/80' : 'bg-slate-50 sm:border-slate-200'
+        className={`w-full max-w-[430px] min-h-screen h-dvh flex flex-col relative overflow-hidden shadow-lg sm:border-x ${
+          isDark ? 'bg-[#151A1E] sm:border-slate-800/80' : 'bg-[#F7F9FC] sm:border-[#E6EDF5]'
         }`}
       >
         {/* Toast Notificação de Status */}
