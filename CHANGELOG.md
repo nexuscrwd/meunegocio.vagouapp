@@ -13,6 +13,75 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ---
 
+### [2026-11-05] — Barra de Rolagem Vertical, Reordenação de Abas (`Estrutura | Contatos | Localização`), Endereço Completo e Mapa Expandido (`bol-126`)
+- **Tipo:** `[Feat / UX & GIS Layout]`
+- **Motivo / Solicitação:**
+  1. Inserir barra de rolagem vertical visível no app.
+  2. Ajustar a ordem das abas na seção Espaço para: **Estrutura**, **Contatos** e **Localização**.
+  3. Exibir o endereço completo (`Endereço, número, Complemento (se houver), Bairro, Cidade-UF e CEP`).
+  4. Fazer o mapa ocupar a maior parte restante da seção Localização.
+- **Arquivos Impactados:**
+  - `src/index.css`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/professional/ProfessionalSpaceManager.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`src/index.css` & `SalonProfileView.tsx` & `SalonBookingModal.tsx`:** Adicionada classe `.app-vertical-scroll` (`overflow-y: scroll` e `scrollbar-width: thin`) nos contêineres principais do aplicativo.
+  2. **Ordem de Abas (`Estrutura | Contatos | Localização`):** Reordenadas as abas tanto na vitrine pública (`SalonProfileView.tsx`) quanto no gerenciador do parceiro (`ProfessionalSpaceManager.tsx`).
+  3. **Endereço Completo + ViaCEP & Mapa Expandido (`flex-1`):** Formatado `salonInfo.fullAddress` com logradouro, número, complemento (se houver), bairro, `Cidade-UF` e `CEP` (com enriquecimento automático via ViaCEP caso falte bairro/CEP), e expandido o contêiner do mapa (`flex-1 min-h-[260px]`) para ocupar toda a área restante da seção Localização.
+
+---
+
+### [2026-11-05] — Remoção da Descrição `<p>` e Eliminação de "Caixa dentro de Caixa" na Seção Espaço (`SalonProfileView.tsx`) (`bol-125`)
+- **Tipo:** `[Refactor / UI Cleanup — Focus Mode]`
+- **Motivo / Solicitação:** Remover o parágrafo `<p>` selecionado (`salonInfo.description`), organizar os cards da seção Espaço para caberem perfeitamente na tela e eliminar o contêiner externo (`.caixa-card`) que criava o efeito de "caixa dentro de caixa".
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`SalonProfileView.tsx`:** Removido o `<p>{salonInfo.description}</p>` selecionado e eliminados os invólucros `.caixa-card` externos das abas Estrutura e Contatos, posicionando os cards `.caixa-tile` diretamente sobre a superfície `#F7F9FC` em grade proporcional (`grid-cols-2 auto-rows-fr` / `grid-rows-3`) sem cortes ou sobreposições.
+
+---
+
+### [2026-11-05] — Conversão dos Elementos da Seção Espaço em Cards Quadrados com Borda e Sombra (`SalonProfileView.tsx`) (`bol-124`)
+- **Tipo:** `[Feat / Design System — Focus Mode]`
+- **Motivo / Solicitação:** Converter os elementos selecionados em `#section-espaco` (`div:nth-of-type(2)`) em cards quadrados bem distribuídos respeitando o estilo escolhido de cards com borda e sombra (`.caixa-tile`).
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `src/index.css`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`SalonProfileView.tsx`:** Convertidas as grades de comodidades (Slide Estrutura) e de canais de contato (Slide Contatos) em cards quadrados (`aspect-square`, centralizados com halo de ícone `.caixa-icon-halo`) aplicando a classe `.caixa-tile` (borda `#E6EDF5`, raio `4px` e sombra concentrada).
+  2. **`src/index.css`:** Adicionada sombra equivalente para `.dark .caixa-tile`.
+
+---
+
+### [2026-11-05] — Remoção do Ícone e Subtítulo de Serviço no Modal "Para quem é o agendamento?" (`SalonBookingModal.tsx`) (`bol-123`)
+- **Tipo:** `[Refactor / UI Cleanup — Focus Mode]`
+- **Motivo / Solicitação:** Remover os elementos selecionados via Focus Mode no card de escolha de beneficiário (`section#section-vagas ... > div.caixa-icon-halo` e `p` com o título do procedimento).
+- **Arquivos Impactados:**
+  - `src/components/SalonBookingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Removidos o contêiner de ícone (`div.caixa-icon-halo`) e o parágrafo de subtítulo (`<p>{selectedService.title}</p>`) no cabeçalho do card `"Para quem é o agendamento?"` em `src/components/SalonBookingModal.tsx`.
+
+---
+
+### [2026-11-05] — Padronização "Default" do Rodapé (`nav#vagou-bottom-nav`): Fundo Cor Sólida Igual ao Cabeçalho (`#005CA9`) (`bol-122`)
+- **Tipo:** `[Feat / Design System — Focus Mode]`
+- **Motivo / Solicitação:** Definir como opção **Default** que a cor da barra de navegação inferior (`nav#vagou-bottom-nav`) e a do cabeçalho principal sejam iguais (`#005CA9`), porém com o `nav` estritamente em **fundo cor sólida** (sem efeitos degradê, gradientes ou outros efeitos), salvo se o usuário alterar manualmente nas ferramentas de estilo e design.
+- **Arquivos Impactados:**
+  - `src/components/BottomNav.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/LayoutCardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`BottomNav.tsx` & `SalonProfileView.tsx`:** Atualizado o valor padrão de `navBgColor` para `#005CA9` com `navBgStyle: 'solid'`, `backgroundImage: 'none'` e `backdropFilter: 'none'`, garantindo contraste branco puro nos ícones/rótulos sobre o fundo sólido `#005CA9`.
+  2. **`LayoutCardView.tsx`:** Adicionado botão `"Default (Igual ao Cabeçalho)"` nas ferramentas de estilo e design para permitir personalizar livremente ou restaurar o padrão sólido `#005CA9`.
+
+---
+
 ### [2026-11-05] — Remoção da Faixa Inferior de Seletor de Ambiente no Cabeçalho (`MobileHeader.tsx`) (`bol-121`)
 - **Tipo:** `[Refactor / UI Cleanup — Focus Mode]`
 - **Motivo / Solicitação:** Remover o elemento selecionado via Focus Mode (`header > div:nth-of-type(2)`).

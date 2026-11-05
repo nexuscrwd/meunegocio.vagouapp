@@ -107,6 +107,7 @@
   background-color: #0F172A;
   border: 1px solid #1E293B;
   border-radius: 4px;
+  box-shadow: 0 2px 5px -1px rgba(0, 0, 0, 0.45), 0 1px 2px 0 rgba(0, 0, 0, 0.3);
 }
 
 /* Halo Circular para Ícones */
@@ -351,14 +352,31 @@ html.dark body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(230, 238, 246, 0.6);
+  background: rgba(230, 238, 246, 0.85);
+}
+.dark ::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.85);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 92, 169, 0.25);
+  background: rgba(0, 92, 169, 0.48);
+  border-radius: 4px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.45);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 92, 169, 0.45);
+  background: rgba(0, 92, 169, 0.72);
+}
+
+.app-vertical-scroll {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 92, 169, 0.48) rgba(230, 238, 246, 0.85);
+}
+.dark .app-vertical-scroll {
+  scrollbar-color: rgba(56, 189, 248, 0.45) rgba(15, 23, 42, 0.85);
 }
 
 @keyframes radar-pulse {

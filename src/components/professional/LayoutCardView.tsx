@@ -92,7 +92,9 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
     adminSettings.navBgStyle || 'solid'
   );
   const [navBgColor, setNavBgColor] = useState<string>(
-    adminSettings.navBgColor || '#f1f5f9'
+    !adminSettings.navBgColor || adminSettings.navBgColor.trim().toLowerCase() === '#f1f5f9'
+      ? '#005CA9'
+      : adminSettings.navBgColor
   );
   const [navBtnBgColor, setNavBtnBgColor] = useState<string>(
     adminSettings.navBtnBgColor || ''
@@ -1402,9 +1404,28 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
                         <Palette className="w-3.5 h-3.5 text-emerald-400" />
                         Cor do Fundo da Barra
                       </label>
-                      <span className="text-[10px] font-mono font-bold" style={{ color: navBgColor }}>
-                        {navBgColor}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            hapticLight();
+                            setNavBgStyle('solid');
+                            setNavBgColor('#005CA9');
+                            autoSyncSettings({ navBgStyle: 'solid', navBgColor: '#005CA9' });
+                          }}
+                          className={`px-2 py-0.5 rounded-[4px] text-[10px] font-bold border transition cursor-pointer ${
+                            navBgColor.toLowerCase() === '#005ca9' && navBgStyle === 'solid'
+                              ? 'bg-[#005CA9] text-white border-[#005CA9]'
+                              : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:border-[#005CA9]'
+                          }`}
+                          title="Restaurar cor sólida padrão igual ao cabeçalho"
+                        >
+                          Default (Igual ao Cabeçalho)
+                        </button>
+                        <span className="text-[10px] font-mono font-bold" style={{ color: navBgColor }}>
+                          {navBgColor}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">

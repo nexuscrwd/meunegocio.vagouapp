@@ -653,13 +653,16 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         sectionHeaderBtnBlur: initialSalonData.section_header_btn_blur || initialSalonData.branding?.sectionHeaderBtnBlur || localSaved.sectionHeaderBtnBlur || undefined,
         sectionHeaderBtnFont: initialSalonData.section_header_btn_font || initialSalonData.branding?.sectionHeaderBtnFont || localSaved.sectionHeaderBtnFont || undefined,
 
-        // Barra de Navegação Inferior (BottomNav) — Padrão: cinza bem claro (#f1f5f9), preenchimento sólido e botões com borda
+        // Barra de Navegação Inferior (BottomNav) — Padrão Default: cor sólida igual ao cabeçalho (#005CA9), salvo personalização
         navStyle: initialSalonData.nav_style || initialSalonData.branding?.navStyle || localSaved.navStyle || 'minimal',
         navShape: initialSalonData.nav_shape || initialSalonData.branding?.navShape || localSaved.navShape || 'square',
         navBorder: initialSalonData.nav_border || initialSalonData.branding?.navBorder || localSaved.navBorder || 'bordered',
         navIconBorder: initialSalonData.nav_icon_border || initialSalonData.branding?.navIconBorder || localSaved.navIconBorder || 'none',
         navBgStyle: initialSalonData.nav_bg_style || initialSalonData.branding?.navBgStyle || (localSaved.navBgColor ? localSaved.navBgStyle : undefined) || 'solid',
-        navBgColor: initialSalonData.nav_bg_color || initialSalonData.branding?.navBgColor || localSaved.navBgColor || '#f1f5f9',
+        navBgColor: (() => {
+          const candidate = initialSalonData.nav_bg_color || initialSalonData.branding?.navBgColor || localSaved.navBgColor || '';
+          return !candidate || candidate.trim().toLowerCase() === '#f1f5f9' ? '#005CA9' : candidate;
+        })(),
         navBtnBgColor: initialSalonData.nav_btn_bg_color || initialSalonData.branding?.navBtnBgColor || localSaved.navBtnBgColor || undefined,
         navBtnActiveBgColor: initialSalonData.nav_btn_active_bg_color || initialSalonData.branding?.navBtnActiveBgColor || localSaved.navBtnActiveBgColor || undefined,
         navActiveColor: initialSalonData.nav_active_color || initialSalonData.branding?.navActiveColor || localSaved.navActiveColor || resolvedColor,
@@ -721,7 +724,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       navShape: 'square',
       navBorder: 'bordered',
       navBgStyle: 'solid',
-      navBgColor: '#f1f5f9',
+      navBgColor: '#005CA9',
       navActiveColor: effectiveColor,
       navTextColor: undefined,
       welcomeStyle: 'atmospheric',
@@ -733,7 +736,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         const saved = localStorage.getItem('vagou_salon_admin_settings');
         if (saved) {
           const parsed = JSON.parse(saved);
-          const resolvedNavBgColor = parsed.navBgColor || defaults.navBgColor;
+          const resolvedNavBgColor =
+            !parsed.navBgColor || String(parsed.navBgColor).trim().toLowerCase() === '#f1f5f9'
+              ? defaults.navBgColor
+              : parsed.navBgColor;
           const resolvedNavBgStyle =
             parsed.navBgStyle === 'glass' && !parsed.navBgColor
               ? 'solid'
@@ -978,13 +984,27 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           if (salonRecord.amenities || salonRecord.branding?.amenities) {
             updatedSettings.amenities = salonRecord.amenities || salonRecord.branding?.amenities;
           }
-          if (salonRecord.address) updatedSettings.salonAddress = salonRecord.address;
-          if (salonRecord.street_number) updatedSettings.numero = salonRecord.street_number;
-          if (salonRecord.complement) updatedSettings.complemento = salonRecord.complement;
-          if (salonRecord.neighborhood) updatedSettings.bairro = salonRecord.neighborhood;
-          if (salonRecord.city) updatedSettings.cidade = salonRecord.city;
-          if (salonRecord.state) updatedSettings.uf = salonRecord.state;
-          if (salonRecord.cep) updatedSettings.cep = salonRecord.cep;
+          if (salonRecord.address || salonRecord.branding?.salonAddress) {
+            updatedSettings.salonAddress = salonRecord.address || salonRecord.branding?.salonAddress;
+          }
+          if (salonRecord.street_number || salonRecord.branding?.numero || salonRecord.branding?.streetNumber) {
+            updatedSettings.numero = salonRecord.street_number || salonRecord.branding?.numero || salonRecord.branding?.streetNumber;
+          }
+          if (salonRecord.complement || salonRecord.branding?.complemento || salonRecord.branding?.complement) {
+            updatedSettings.complemento = salonRecord.complement || salonRecord.branding?.complemento || salonRecord.branding?.complement;
+          }
+          if (salonRecord.neighborhood || salonRecord.branding?.bairro || salonRecord.branding?.neighborhood) {
+            updatedSettings.bairro = salonRecord.neighborhood || salonRecord.branding?.bairro || salonRecord.branding?.neighborhood;
+          }
+          if (salonRecord.city || salonRecord.branding?.cidade || salonRecord.branding?.city) {
+            updatedSettings.cidade = salonRecord.city || salonRecord.branding?.cidade || salonRecord.branding?.city;
+          }
+          if (salonRecord.state || salonRecord.branding?.uf || salonRecord.branding?.state) {
+            updatedSettings.uf = salonRecord.state || salonRecord.branding?.uf || salonRecord.branding?.state;
+          }
+          if (salonRecord.cep || salonRecord.branding?.cep) {
+            updatedSettings.cep = salonRecord.cep || salonRecord.branding?.cep;
+          }
           const resolvedLogoLight = salonRecord.logo_light_url || salonRecord.branding?.logoLightUrl || '';
           const resolvedLogoDark = salonRecord.logo_dark_url || salonRecord.branding?.logoDarkUrl || '';
           const resolvedMainLogo = salonRecord.logo_url || salonRecord.branding?.logoUrl || resolvedLogoDark || resolvedLogoLight || '';
@@ -1687,6 +1707,62 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       ? "'Plus Jakarta Sans', sans-serif"
       : "'Poppins', sans-serif";
 
+  // Auto-enriquecimento via ViaCEP caso o registro do salão tenha logradouro+cidade+UF (ou CEP) sem bairro/CEP completos
+  useEffect(() => {
+    let isCancelled = false;
+    const rawCep = (adminSettings.cep || initialSalonData?.cep || '').replace(/\D/g, '');
+    const rawStreet = (adminSettings.salonAddress || initialSalonData?.address || '').trim();
+    const rawCidade = (adminSettings.cidade || initialSalonData?.city || '').trim();
+    const rawUf = (adminSettings.uf || initialSalonData?.state || '').trim();
+    const hasBairro = Boolean((adminSettings.bairro || initialSalonData?.neighborhood || '').trim());
+    const hasFormattedCep = Boolean((adminSettings.cep || initialSalonData?.cep || '').trim());
+
+    if (hasBairro && hasFormattedCep) return;
+
+    const enrichFromViaCep = async () => {
+      try {
+        if (rawCep.length === 8) {
+          const res = await fetch(`https://viacep.com.br/ws/${rawCep}/json/`);
+          if (!res.ok) return;
+          const data = await res.json();
+          if (!isCancelled && data && !data.erro) {
+            setAdminSettings((prev) => ({
+              ...prev,
+              salonAddress: prev.salonAddress || data.logradouro || '',
+              bairro: prev.bairro || data.bairro || '',
+              cidade: prev.cidade || data.localidade || '',
+              uf: prev.uf || data.uf || '',
+              cep: prev.cep || data.cep || '',
+            }));
+          }
+        } else if (rawUf.length === 2 && rawCidade.length >= 3 && rawStreet.length >= 3) {
+          const streetQuery = rawStreet.split(',')[0].replace(/^(rua|av\.?|avenida|alameda|travessa)\s+/i, '').trim();
+          if (streetQuery.length < 3) return;
+          const res = await fetch(
+            `https://viacep.com.br/ws/${encodeURIComponent(rawUf)}/${encodeURIComponent(rawCidade)}/${encodeURIComponent(streetQuery)}/json/`
+          );
+          if (!res.ok) return;
+          const list = await res.json();
+          const first = Array.isArray(list) ? list[0] : null;
+          if (!isCancelled && first && !first.erro) {
+            setAdminSettings((prev) => ({
+              ...prev,
+              bairro: prev.bairro || first.bairro || '',
+              cep: prev.cep || first.cep || '',
+            }));
+          }
+        }
+      } catch {
+        // ignore network errors
+      }
+    };
+
+    enrichFromViaCep();
+    return () => {
+      isCancelled = true;
+    };
+  }, [adminSettings.cep, adminSettings.salonAddress, adminSettings.cidade, adminSettings.uf, adminSettings.bairro, initialSalonData]);
+
   const salonInfo = useMemo(() => {
     const activeAmenityLabels =
       Array.isArray(adminSettings.amenities) && adminSettings.amenities.length > 0
@@ -1698,6 +1774,39 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       label,
     }));
 
+    const rawStreet = (adminSettings.salonAddress || initialSalonData?.address || primaryOffer?.salonAddress || '').trim();
+    const rawNum = (adminSettings.numero || initialSalonData?.street_number || initialSalonData?.branding?.numero || '').trim();
+    const rawComp = (adminSettings.complemento || initialSalonData?.complement || initialSalonData?.branding?.complemento || '').trim();
+    const rawBairro = (adminSettings.bairro || initialSalonData?.neighborhood || initialSalonData?.branding?.bairro || '').trim();
+    const rawCidade = (adminSettings.cidade || initialSalonData?.city || initialSalonData?.branding?.cidade || '').trim();
+    const rawUf = (adminSettings.uf || initialSalonData?.state || initialSalonData?.branding?.uf || '').trim();
+    const rawCep = (adminSettings.cep || initialSalonData?.cep || initialSalonData?.branding?.cep || '').trim();
+
+    const hasInlineNumber = /,\s*\d+|n[º°]\s*\d+|\bs\/n\b/i.test(rawStreet);
+    const streetWithNumber = rawStreet
+      ? rawNum && !rawStreet.toLowerCase().includes(rawNum.toLowerCase())
+        ? `${rawStreet}, ${rawNum}`
+        : hasInlineNumber
+        ? rawStreet
+        : `${rawStreet}, s/n`
+      : '';
+
+    const cityUfPart = rawCidade && rawUf ? `${rawCidade}-${rawUf}` : (rawCidade || rawUf);
+    const cepPart = rawCep ? `CEP ${rawCep}` : '';
+
+    const completeAddressParts = [
+      streetWithNumber,
+      rawComp && !streetWithNumber.toLowerCase().includes(rawComp.toLowerCase()) ? rawComp : '',
+      rawBairro && !streetWithNumber.toLowerCase().includes(rawBairro.toLowerCase()) ? rawBairro : '',
+      cityUfPart && (!rawCidade || !streetWithNumber.toLowerCase().includes(rawCidade.toLowerCase())) ? cityUfPart : '',
+      cepPart && (!rawCep || !streetWithNumber.toLowerCase().includes(rawCep.toLowerCase())) ? cepPart : '',
+    ].filter(Boolean);
+
+    const formattedFullAddress =
+      adminSettings.operatingModel === 'home_delivery' && adminSettings.homeDeliverySettings?.areaDescription
+        ? `Atendimento em Domicílio • ${adminSettings.homeDeliverySettings.areaDescription}`
+        : completeAddressParts.join(', ');
+
     return {
       name: adminSettings.salonName || salonName,
       avatar: adminSettings.salonIcon || activeLogo || (hasActiveSubdomain ? '' : DEFAULT_ROTA99_ICON),
@@ -1705,10 +1814,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       rating: primaryOffer?.rating || 4.9,
       reviewsCount: primaryOffer?.reviewsCount || 84,
       distance: primaryOffer?.distance || '850m',
-      address: (adminSettings.operatingModel === 'home_delivery' && adminSettings.homeDeliverySettings?.areaDescription)
-        ? `Atendimento em Domicílio • ${adminSettings.homeDeliverySettings.areaDescription}`
-        : (adminSettings.salonAddress || primaryOffer?.salonAddress || ''),
-      city: adminSettings.cidade && adminSettings.uf ? `${adminSettings.cidade}, ${adminSettings.uf}` : '',
+      address: formattedFullAddress || rawStreet,
+      fullAddress: formattedFullAddress || rawStreet,
+      city: rawCidade && rawUf ? `${rawCidade}-${rawUf}` : '',
       phone: adminSettings.salonPhone || '',
       hours: adminSettings.openingHours || 'Seg a Sáb: 09:00 às 20:00',
       verified: true,
@@ -1721,7 +1829,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       amenities: mappedAmenities,
       professionals: professionalsList,
     };
-  }, [salonName, primaryOffer, adminSettings, professionalsList, activeLogo, hasActiveSubdomain]);
+  }, [salonName, primaryOffer, adminSettings, professionalsList, activeLogo, hasActiveSubdomain, initialSalonData]);
 
   const hasMultipleProfessionals = salonInfo.professionals.length > 1;
   const spaceTabLabel = salonInfo.isHomeCare ? 'Atendimento' : 'Espaço';
@@ -2270,8 +2378,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
       {/* 2. ÁREA DE CONTEÚDO */}
       {isGerMode ? (
-        /* MODO GERENCIAMENTO: TELAS DEDICADAS COM NAVEGAÇÃO EXCLUSIVAMENTE POR BOTÕES (SEM EFEITO LANDING PAGE) */
-        <main className="flex-1 min-h-0 w-full relative overflow-hidden flex flex-col">
+        /* MODO GERENCIAMENTO: TELAS DEDICADAS COM NAVEGAÇÃO EXCLUSIVAMENTE POR BOTÕES (COM BARRA DE ROLAGEM VERTICAL) */
+        <main className="flex-1 min-h-0 w-full relative app-vertical-scroll flex flex-col">
           {activeTab === 'home' && (
             <div className="w-full h-full flex-1 min-h-0 overflow-hidden flex flex-col justify-between animate-in fade-in duration-150">
               <ProfessionalDashboardView
@@ -2394,8 +2502,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           )}
         </main>
       ) : (
-        /* MODO PÚBLICO / CLIENTE: NAVEGAÇÃO POR ABAS DEDICADAS (SEM EFEITO SWAP VERTICAL) */
-        <main className="flex-1 min-h-0 w-full flex flex-col overflow-hidden relative">
+        /* MODO PÚBLICO / CLIENTE: NAVEGAÇÃO POR ABAS DEDICADAS COM BARRA DE ROLAGEM VERTICAL */
+        <main className="flex-1 min-h-0 w-full flex flex-col app-vertical-scroll relative">
           {/* SEÇÃO 1: INÍCIO */}
           {activeTab === 'home' && (
             <section
@@ -2924,8 +3032,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           </div>
 
               <div className="px-3.5 sm:px-4 py-2.5 space-y-2.5 flex-1 min-h-0 flex flex-col justify-start overflow-y-auto bg-[#F7F9FC] dark:bg-slate-950">
-                {/* Abas de Navegação Interna da Seção Espaço (Estrutura | Localização | Contatos) */}
-                <div className="grid grid-cols-3 gap-1.5 w-full">
+                {/* Abas de Navegação Interna da Seção Espaço (1. Estrutura | 2. Contatos | 3. Localização) */}
+                <div className="grid grid-cols-3 gap-1.5 w-full shrink-0">
                   {/* Aba 1: Estrutura */}
                   <button
                     type="button"
@@ -2951,7 +3059,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     </span>
                   </button>
 
-                  {/* Aba 2: Localização */}
+                  {/* Aba 2: Contatos */}
                   <button
                     type="button"
                     onClick={() => {
@@ -2966,17 +3074,17 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                           : 'bg-[#F1F5F9] text-[#5F6C7B] hover:text-[#1E293B] font-medium border border-[#E2E8F0]'
                     }`}
                   >
-                    <MapPin className={`w-3.5 h-3.5 shrink-0 ${
+                    <Phone className={`w-3.5 h-3.5 shrink-0 ${
                       espacoSlideIndex === 1 ? 'text-white' : 'text-[#2B82C9]'
                     }`} />
                     <span className={`text-[11px] sm:text-xs tracking-tight truncate ${
                       espacoSlideIndex === 1 ? 'text-white font-bold' : ''
                     }`}>
-                      Localização
+                      Contatos
                     </span>
                   </button>
 
-                  {/* Aba 3: Contatos */}
+                  {/* Aba 3: Localização */}
                   <button
                     type="button"
                     onClick={() => {
@@ -2991,13 +3099,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                           : 'bg-[#F1F5F9] text-[#5F6C7B] hover:text-[#1E293B] font-medium border border-[#E2E8F0]'
                     }`}
                   >
-                    <Phone className={`w-3.5 h-3.5 shrink-0 ${
+                    <MapPin className={`w-3.5 h-3.5 shrink-0 ${
                       espacoSlideIndex === 2 ? 'text-white' : 'text-[#2B82C9]'
                     }`} />
                     <span className={`text-[11px] sm:text-xs tracking-tight truncate ${
                       espacoSlideIndex === 2 ? 'text-white font-bold' : ''
                     }`}>
-                      Contatos
+                      Localização
                     </span>
                   </button>
                 </div>
@@ -3026,109 +3134,29 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         }}
                         className="cursor-grab active:cursor-grabbing touch-pan-y flex-1 min-h-0 flex flex-col"
                       >
-                        {/* ABA 1: CARD DE ESTRUTURA DO ESPAÇO & COMODIDADES */}
-                        <div className={`p-3.5 space-y-3 flex-1 min-h-[340px] flex flex-col justify-between ${
-                          isDark ? 'bg-slate-900/90 border border-slate-800 rounded-[4px]' : 'caixa-card'
-                        }`}>
-                          <div className="space-y-2.5">
-                            <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#EDF2F7] dark:border-slate-800">
-                              <h3 className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-[#1E293B]'}`}>
-                                <Store className="w-4 h-4 text-[#2B82C9]" />
-                                <span>{salonInfo.isHomeCare ? 'Modalidade de Atendimento' : 'Estrutura do Espaço'}</span>
-                              </h3>
-                            </div>
-                            <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-[#5F6C7B]'}`}>
-                              {salonInfo.description}
-                            </p>
-                            <div className="grid grid-cols-2 gap-2 pt-1">
-                              {salonInfo.amenities.map((amenity, idx) => (
-                                <div key={idx} className={`flex items-center gap-2 p-2.5 rounded-[4px] text-xs ${
-                                  isDark
-                                    ? 'bg-slate-950 text-slate-300'
-                                    : 'bg-[#F7F9FC] text-[#1E293B]'
-                                }`}>
-                                  <amenity.icon className="w-4 h-4 text-[#2B82C9] shrink-0" />
-                                  <span className="truncate font-medium">{amenity.label}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className={`pt-2.5 border-t text-[11px] flex items-center justify-between ${
-                            isDark ? 'border-slate-800 text-slate-400' : 'border-[#EDF2F7] text-[#5F6C7B]'
-                          }`}>
-                            <span>Ambiente climatizado e confortável</span>
-                            <span className="text-[#008B47] font-bold">100% Verificado</span>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-
-                    {/* SLIDE 1: LOCALIZAÇÃO, ENDEREÇO, MAPA EMBED & RADAR GOOGLE MAPS */}
-                    {espacoSlideIndex === 1 && (
-                      <motion.div
-                        key="slide-espaco-mapa"
-                        custom={espacoSwipeDirection}
-                        initial={{ opacity: 0, x: espacoSwipeDirection > 0 ? 40 : -40 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: espacoSwipeDirection > 0 ? -40 : 40 }}
-                        transition={{ duration: 0.22, ease: 'easeOut' }}
-                        className="flex-1 min-h-0 flex flex-col space-y-2.5"
-                      >
-                        <div className={`p-3.5 space-y-3 flex-1 flex flex-col justify-between ${
-                          isDark ? 'bg-slate-900/90 border border-slate-800 rounded-[4px]' : 'caixa-card'
-                        }`}>
-                          {/* Endereço e Horário */}
-                          <div className="space-y-2">
-                            <div className="flex items-start gap-2.5 text-xs">
-                              <MapPin className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                              <div className="min-w-0 flex-1">
-                                <span className={`font-semibold block truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                  {salonInfo.address}
-                                </span>
-                                <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                  {salonInfo.city}
-                                </span>
+                        {/* ABA 1: CARDS DE ESTRUTURA DO ESPAÇO & COMODIDADES (DIRETO NA SUPERFÍCIE - SEM CAIXA DENTRO DE CAIXA) */}
+                        <div className="grid grid-cols-2 auto-rows-fr gap-2.5 flex-1 min-h-0 py-0.5">
+                          {salonInfo.amenities.map((amenity, idx) => (
+                            <div
+                              key={idx}
+                              className={`caixa-tile p-3.5 flex flex-col items-center justify-center text-center gap-2.5 ${
+                                isDark ? 'text-slate-200' : 'text-[#1E293B]'
+                              }`}
+                            >
+                              <div className="caixa-icon-halo">
+                                <amenity.icon className="w-5 h-5 text-[#2B82C9] shrink-0" />
                               </div>
+                              <span className="text-xs font-bold leading-snug line-clamp-2">
+                                {amenity.label}
+                              </span>
                             </div>
-                            <div className={`flex items-center gap-2 text-xs ${
-                              isDark ? 'text-slate-400' : 'text-slate-600'
-                            }`}>
-                              <Clock className="w-4 h-4 text-amber-500 shrink-0" />
-                              <span>{salonInfo.hours}</span>
-                            </div>
-                          </div>
-
-                          {/* Abaixo: Mapa Embed */}
-                          <div className="space-y-1.5 pt-0.5 flex flex-col">
-                            <div className={`relative w-full h-[155px] sm:h-[175px] rounded-[4px] overflow-hidden shadow-xs ${
-                              isDark ? 'bg-slate-950' : 'bg-slate-100'
-                            }`}>
-                              <iframe
-                                title={`Localização no Google Maps - ${salonInfo.name}`}
-                                src={`https://maps.google.com/maps?q=${encodeURIComponent(salonInfo.name + ', ' + salonInfo.address + ', ' + salonInfo.city)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
-                                className="w-full h-full border-0"
-                                loading="lazy"
-                                referrerPolicy="no-referrer-when-downgrade"
-                                allowFullScreen
-                              />
-                              <a
-                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(salonInfo.name + ' ' + salonInfo.address)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="absolute bottom-2 right-2 px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-[4px] text-[10px] font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 uppercase tracking-wider whitespace-nowrap"
-                              >
-                                <MapPin className="w-3 h-3 text-white" />
-                                <span className="text-white">Rota no Maps</span>
-                              </a>
-                            </div>
-                          </div>
+                          ))}
                         </div>
                       </motion.div>
                     )}
 
-                    {/* SLIDE 2: CONTATOS (TELEFONES FIXOS, WHATSAPP, E-MAIL E REDES SOCIAIS) */}
-                    {espacoSlideIndex === 2 && (
+                    {/* SLIDE 1: CONTATOS (CARDS DIRETOS NA SUPERFÍCIE - SEM CAIXA DENTRO DE CAIXA) */}
+                    {espacoSlideIndex === 1 && (
                       <motion.div
                         key="slide-espaco-contatos"
                         custom={espacoSwipeDirection}
@@ -3148,235 +3176,224 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         }}
                         className="cursor-grab active:cursor-grabbing touch-pan-y flex-1 min-h-0 flex flex-col"
                       >
-                        <div className={`p-3.5 space-y-3 flex-1 min-h-[340px] flex flex-col justify-between ${
-                          isDark ? 'bg-slate-900/90 border border-slate-800 rounded-[4px]' : 'caixa-card'
-                        }`}>
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#EDF2F7] dark:border-slate-800/60">
-                              <h3 className={`text-xs font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-[#1E293B]'}`}>
-                                <Phone className="w-4 h-4 text-[#2B82C9]" />
-                                <span>Canais de Contato & Redes Sociais</span>
-                              </h3>
+                        <div className="grid grid-cols-2 grid-rows-3 gap-2 flex-1 min-h-0 py-0.5">
+                          {/* WhatsApp */}
+                          <a
+                            href={
+                              adminSettings.salonPhone
+                                ? `https://wa.me/55${adminSettings.salonPhone.replace(/\D/g, '')}`
+                                : '#'
+                            }
+                            target={adminSettings.salonPhone ? '_blank' : undefined}
+                            rel="noopener noreferrer"
+                            className={`caixa-tile p-2.5 flex flex-col items-center justify-center text-center gap-1 relative group ${
+                              isDark ? 'text-slate-200' : 'text-[#1E293B]'
+                            }`}
+                          >
+                            {adminSettings.salonPhone && (
+                              <ExternalLink className="w-3.5 h-3.5 text-[#2B82C9] absolute top-2 right-2 shrink-0" />
+                            )}
+                            <div className="caixa-icon-halo">
+                              <MessageCircle className="w-4 h-4 text-[#2B82C9] shrink-0" />
                             </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] dark:text-slate-400 block">
+                              WhatsApp
+                            </span>
+                            <span className="font-mono-tabular text-[11px] font-bold truncate max-w-full block">
+                              {adminSettings.salonPhone || 'Não informado'}
+                            </span>
+                          </a>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              {/* WhatsApp */}
-                              <a
-                                href={
-                                  adminSettings.salonPhone
-                                    ? `https://wa.me/55${adminSettings.salonPhone.replace(/\D/g, '')}`
-                                    : '#'
-                                }
-                                target={adminSettings.salonPhone ? '_blank' : undefined}
-                                rel="noopener noreferrer"
-                                className={`flex items-center justify-between gap-2.5 p-2.5 rounded-[4px] text-xs transition ${
-                                  isDark
-                                    ? 'bg-slate-950 text-slate-200 hover:bg-slate-900'
-                                    : 'bg-slate-50 text-slate-800 hover:bg-slate-100'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <MessageCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                                  <div className="min-w-0">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                                      WhatsApp
-                                    </span>
-                                    <span className="font-mono font-bold truncate block">
-                                      {adminSettings.salonPhone || 'Não informado'}
-                                    </span>
-                                  </div>
-                                </div>
-                                {adminSettings.salonPhone && (
-                                  <ExternalLink className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                )}
-                              </a>
+                          {/* Telefone Fixo */}
+                          <a
+                            href={
+                              adminSettings.phoneLandline
+                                ? `tel:${adminSettings.phoneLandline.replace(/\D/g, '')}`
+                                : '#'
+                            }
+                            className={`caixa-tile p-2.5 flex flex-col items-center justify-center text-center gap-1 relative group ${
+                              isDark ? 'text-slate-200' : 'text-[#1E293B]'
+                            }`}
+                          >
+                            {adminSettings.phoneLandline && (
+                              <ExternalLink className="w-3.5 h-3.5 text-[#2B82C9] absolute top-2 right-2 shrink-0" />
+                            )}
+                            <div className="caixa-icon-halo">
+                              <Phone className="w-4 h-4 text-[#2B82C9] shrink-0" />
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] dark:text-slate-400 block">
+                              Telefone Fixo
+                            </span>
+                            <span className="font-mono-tabular text-[11px] font-bold truncate max-w-full block">
+                              {adminSettings.phoneLandline || 'Não informado'}
+                            </span>
+                          </a>
 
-                              {/* Telefone Fixo */}
-                              <a
-                                href={
-                                  adminSettings.phoneLandline
-                                    ? `tel:${adminSettings.phoneLandline.replace(/\D/g, '')}`
-                                    : '#'
-                                }
-                                className={`flex items-center justify-between gap-2.5 p-2.5 rounded-[4px] text-xs transition ${
-                                  isDark
-                                    ? 'bg-slate-950 text-slate-200 hover:bg-slate-900'
-                                    : 'bg-slate-50 text-slate-800 hover:bg-slate-100'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <Phone className="w-4 h-4 text-emerald-500 shrink-0" />
-                                  <div className="min-w-0">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                                      Telefone Fixo
-                                    </span>
-                                    <span className="font-mono font-bold truncate block">
-                                      {adminSettings.phoneLandline || 'Não informado'}
-                                    </span>
-                                  </div>
-                                </div>
-                                {adminSettings.phoneLandline && (
-                                  <ExternalLink className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                )}
-                              </a>
+                          {/* E-mail */}
+                          <a
+                            href={adminSettings.email ? `mailto:${adminSettings.email}` : '#'}
+                            className={`caixa-tile p-2.5 flex flex-col items-center justify-center text-center gap-1 relative group ${
+                              isDark ? 'text-slate-200' : 'text-[#1E293B]'
+                            }`}
+                          >
+                            {adminSettings.email && (
+                              <ExternalLink className="w-3.5 h-3.5 text-[#2B82C9] absolute top-2 right-2 shrink-0" />
+                            )}
+                            <div className="caixa-icon-halo">
+                              <Mail className="w-4 h-4 text-[#2B82C9] shrink-0" />
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] dark:text-slate-400 block">
+                              E-mail
+                            </span>
+                            <span className="text-[11px] font-bold truncate max-w-full block">
+                              {adminSettings.email || 'Não informado'}
+                            </span>
+                          </a>
 
-                              {/* E-mail */}
-                              <a
-                                href={adminSettings.email ? `mailto:${adminSettings.email}` : '#'}
-                                className={`flex items-center justify-between gap-2.5 p-2.5 rounded-[4px] text-xs transition ${
-                                  isDark
-                                    ? 'bg-slate-950 text-slate-200 hover:bg-slate-900'
-                                    : 'bg-slate-50 text-slate-800 hover:bg-slate-100'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <Mail className="w-4 h-4 text-emerald-500 shrink-0" />
-                                  <div className="min-w-0">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                                      E-mail
-                                    </span>
-                                    <span className="font-medium truncate block">
-                                      {adminSettings.email || 'Não informado'}
-                                    </span>
-                                  </div>
-                                </div>
-                                {adminSettings.email && (
-                                  <ExternalLink className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                )}
-                              </a>
+                          {/* Instagram */}
+                          <a
+                            href={
+                              adminSettings.instagramUrl
+                                ? adminSettings.instagramUrl.startsWith('http')
+                                  ? adminSettings.instagramUrl
+                                  : `https://instagram.com/${adminSettings.instagramUrl.replace(/^@/, '')}`
+                                : '#'
+                            }
+                            target={adminSettings.instagramUrl ? '_blank' : undefined}
+                            rel="noopener noreferrer"
+                            className={`caixa-tile p-2.5 flex flex-col items-center justify-center text-center gap-1 relative group ${
+                              isDark ? 'text-slate-200' : 'text-[#1E293B]'
+                            }`}
+                          >
+                            {adminSettings.instagramUrl && (
+                              <ExternalLink className="w-3.5 h-3.5 text-[#2B82C9] absolute top-2 right-2 shrink-0" />
+                            )}
+                            <div className="caixa-icon-halo">
+                              <Instagram className="w-4 h-4 text-[#2B82C9] shrink-0" />
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] dark:text-slate-400 block">
+                              Instagram
+                            </span>
+                            <span className="text-[11px] font-bold truncate max-w-full block">
+                              {adminSettings.instagramUrl || 'Não informado'}
+                            </span>
+                          </a>
 
-                              {/* Instagram */}
-                              <a
-                                href={
-                                  adminSettings.instagramUrl
-                                    ? adminSettings.instagramUrl.startsWith('http')
-                                      ? adminSettings.instagramUrl
-                                      : `https://instagram.com/${adminSettings.instagramUrl.replace(/^@/, '')}`
-                                    : '#'
-                                }
-                                target={adminSettings.instagramUrl ? '_blank' : undefined}
-                                rel="noopener noreferrer"
-                                className={`flex items-center justify-between gap-2.5 p-2.5 rounded-[4px] text-xs transition ${
-                                  isDark
-                                    ? 'bg-slate-950 text-slate-200 hover:bg-slate-900'
-                                    : 'bg-slate-50 text-slate-800 hover:bg-slate-100'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <Instagram className="w-4 h-4 text-emerald-500 shrink-0" />
-                                  <div className="min-w-0">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                                      Instagram
-                                    </span>
-                                    <span className="font-medium truncate block">
-                                      {adminSettings.instagramUrl || 'Não informado'}
-                                    </span>
-                                  </div>
-                                </div>
-                                {adminSettings.instagramUrl && (
-                                  <ExternalLink className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                )}
-                              </a>
+                          {/* Facebook */}
+                          <a
+                            href={
+                              adminSettings.facebookUrl
+                                ? adminSettings.facebookUrl.startsWith('http')
+                                  ? adminSettings.facebookUrl
+                                  : `https://${adminSettings.facebookUrl}`
+                                : '#'
+                            }
+                            target={adminSettings.facebookUrl ? '_blank' : undefined}
+                            rel="noopener noreferrer"
+                            className={`caixa-tile p-2.5 flex flex-col items-center justify-center text-center gap-1 relative group ${
+                              isDark ? 'text-slate-200' : 'text-[#1E293B]'
+                            }`}
+                          >
+                            {adminSettings.facebookUrl && (
+                              <ExternalLink className="w-3.5 h-3.5 text-[#2B82C9] absolute top-2 right-2 shrink-0" />
+                            )}
+                            <div className="caixa-icon-halo">
+                              <Facebook className="w-4 h-4 text-[#2B82C9] shrink-0" />
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] dark:text-slate-400 block">
+                              Facebook
+                            </span>
+                            <span className="text-[11px] font-bold truncate max-w-full block">
+                              {adminSettings.facebookUrl || 'Não informado'}
+                            </span>
+                          </a>
 
-                              {/* Facebook */}
-                              <a
-                                href={
-                                  adminSettings.facebookUrl
-                                    ? adminSettings.facebookUrl.startsWith('http')
-                                      ? adminSettings.facebookUrl
-                                      : `https://${adminSettings.facebookUrl}`
-                                    : '#'
-                                }
-                                target={adminSettings.facebookUrl ? '_blank' : undefined}
-                                rel="noopener noreferrer"
-                                className={`flex items-center justify-between gap-2.5 p-2.5 rounded-[4px] text-xs transition ${
-                                  isDark
-                                    ? 'bg-slate-950 text-slate-200 hover:bg-slate-900'
-                                    : 'bg-slate-50 text-slate-800 hover:bg-slate-100'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <Facebook className="w-4 h-4 text-emerald-500 shrink-0" />
-                                  <div className="min-w-0">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                                      Facebook
-                                    </span>
-                                    <span className="font-medium truncate block">
-                                      {adminSettings.facebookUrl || 'Não informado'}
-                                    </span>
-                                  </div>
-                                </div>
-                                {adminSettings.facebookUrl && (
-                                  <ExternalLink className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                )}
-                              </a>
+                          {/* Site Oficial */}
+                          <a
+                            href={
+                              adminSettings.websiteUrl
+                                ? adminSettings.websiteUrl.startsWith('http')
+                                  ? adminSettings.websiteUrl
+                                  : `https://${adminSettings.websiteUrl}`
+                                : '#'
+                            }
+                            target={adminSettings.websiteUrl ? '_blank' : undefined}
+                            rel="noopener noreferrer"
+                            className={`caixa-tile p-2.5 flex flex-col items-center justify-center text-center gap-1 relative group ${
+                              isDark ? 'text-slate-200' : 'text-[#1E293B]'
+                            }`}
+                          >
+                            {adminSettings.websiteUrl && (
+                              <ExternalLink className="w-3.5 h-3.5 text-[#2B82C9] absolute top-2 right-2 shrink-0" />
+                            )}
+                            <div className="caixa-icon-halo">
+                              <Globe className="w-4 h-4 text-[#2B82C9] shrink-0" />
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] dark:text-slate-400 block">
+                              Site
+                            </span>
+                            <span className="text-[11px] font-bold truncate max-w-full block">
+                              {adminSettings.websiteUrl || 'Não informado'}
+                            </span>
+                          </a>
+                        </div>
+                      </motion.div>
+                    )}
 
-                              {/* Site Oficial */}
-                              <a
-                                href={
-                                  adminSettings.websiteUrl
-                                    ? adminSettings.websiteUrl.startsWith('http')
-                                      ? adminSettings.websiteUrl
-                                      : `https://${adminSettings.websiteUrl}`
-                                    : '#'
-                                }
-                                target={adminSettings.websiteUrl ? '_blank' : undefined}
-                                rel="noopener noreferrer"
-                                className={`flex items-center justify-between gap-2.5 p-2.5 rounded-[4px] text-xs transition ${
-                                  isDark
-                                    ? 'bg-slate-950 text-slate-200 hover:bg-slate-900'
-                                    : 'bg-slate-50 text-slate-800 hover:bg-slate-100'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <Globe className="w-4 h-4 text-emerald-500 shrink-0" />
-                                  <div className="min-w-0">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                                      Site
-                                    </span>
-                                    <span className="font-medium truncate block">
-                                      {adminSettings.websiteUrl || 'Não informado'}
-                                    </span>
-                                  </div>
-                                </div>
-                                {adminSettings.websiteUrl && (
-                                  <ExternalLink className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                )}
-                              </a>
+                    {/* SLIDE 2: LOCALIZAÇÃO, ENDEREÇO COMPLETO & MAPA OCUPANDO A MAIOR PARTE DA SEÇÃO */}
+                    {espacoSlideIndex === 2 && (
+                      <motion.div
+                        key="slide-espaco-mapa"
+                        custom={espacoSwipeDirection}
+                        initial={{ opacity: 0, x: espacoSwipeDirection > 0 ? 40 : -40 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: espacoSwipeDirection > 0 ? -40 : 40 }}
+                        transition={{ duration: 0.22, ease: 'easeOut' }}
+                        className="flex-1 min-h-0 flex flex-col gap-2"
+                      >
+                        {/* Bloco Superior Compacto: Endereço Completo (Endereço, número, Complemento, Bairro, Cidade-UF e CEP) + Horário */}
+                        <div className="caixa-card p-3 space-y-1.5 shrink-0">
+                          <div className="flex items-start gap-2 text-xs">
+                            <MapPin className="w-4 h-4 text-[#2B82C9] shrink-0 mt-0.5" />
+                            <div className="min-w-0 flex-1">
+                              <span className={`font-bold block leading-snug break-words ${isDark ? 'text-white' : 'text-[#1E293B]'}`}>
+                                {salonInfo.fullAddress || salonInfo.address || 'Endereço em atualização'}
+                              </span>
                             </div>
                           </div>
-
-                          <div className={`pt-2.5 border-t text-[11px] flex items-center justify-between ${
-                            isDark ? 'border-slate-800 text-slate-400' : 'border-slate-100 text-slate-500'
+                          <div className={`flex items-center gap-2 text-[11px] font-medium ${
+                            isDark ? 'text-slate-400' : 'text-[#5F6C7B]'
                           }`}>
-                            <span>Atendimento rápido via canais oficiais</span>
-                            <span className="text-emerald-400 font-bold">Canais Verificados</span>
+                            <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0 ml-0.5" />
+                            <span>{salonInfo.hours}</span>
                           </div>
+                        </div>
+
+                        {/* Mapa Ocupando a Maior Parte Restante da Seção (flex-1) */}
+                        <div className={`relative w-full flex-1 min-h-[260px] rounded-[4px] overflow-hidden border shadow-xs ${
+                          isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-[#E6EDF5]'
+                        }`}>
+                          <iframe
+                            title={`Localização no Google Maps - ${salonInfo.name}`}
+                            src={`https://maps.google.com/maps?q=${encodeURIComponent(salonInfo.name + ', ' + (salonInfo.fullAddress || salonInfo.address))}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
+                            className="w-full h-full border-0"
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                            allowFullScreen
+                          />
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(salonInfo.name + ' ' + (salonInfo.fullAddress || salonInfo.address))}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="absolute bottom-2.5 right-2.5 px-3 py-1.5 bg-[#2B82C9] hover:bg-[#1F6FB0] text-white rounded-[4px] text-[10px] font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 uppercase tracking-wider whitespace-nowrap"
+                          >
+                            <MapPin className="w-3 h-3 text-white" />
+                            <span className="text-white">Rota no Maps</span>
+                          </a>
                         </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
-
-                  {/* Indicador de Pontos */}
-                  <div className="mt-2 flex items-center justify-end px-1">
-                    <div className="flex items-center gap-1.5">
-                      {[0, 1, 2].map((dotIdx) => (
-                        <button
-                          key={dotIdx}
-                          onClick={() => {
-                            setEspacoSwipeDirection(dotIdx > espacoSlideIndex ? 1 : -1);
-                            setEspacoSlideIndex(dotIdx);
-                          }}
-                          className={`transition-all rounded-full cursor-pointer ${
-                            dotIdx === espacoSlideIndex
-                              ? 'w-5 h-1.5 bg-emerald-500'
-                              : 'w-1.5 h-1.5 bg-slate-700 hover:bg-slate-500'
-                          }`}
-                          aria-label={`Aba ${dotIdx + 1}`}
-                        />
-                      ))}
-                    </div>
-                  </div>
                 </div>
               </div>
             </section>
@@ -3475,7 +3492,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 navShape={adminSettings.navShape || 'square'}
                 navBorder={adminSettings.navBorder || 'bordered'}
                 navBgStyle={adminSettings.navBgStyle || 'solid'}
-                navBgColor={adminSettings.navBgColor || '#f1f5f9'}
+                navBgColor={
+                  !adminSettings.navBgColor || adminSettings.navBgColor.trim().toLowerCase() === '#f1f5f9'
+                    ? '#005CA9'
+                    : adminSettings.navBgColor
+                }
                 navBtnBgColor={adminSettings.navBtnBgColor}
                 navBtnActiveBgColor={adminSettings.navBtnActiveBgColor}
                 navActiveColor={adminSettings.navActiveColor || '#10b981'}

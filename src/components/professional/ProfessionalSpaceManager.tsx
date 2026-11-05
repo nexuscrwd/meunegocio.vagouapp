@@ -414,12 +414,12 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
           )}
         </div>
 
-        {/* 3 Abas Dedicadas: Estrutura | Localização | Contatos */}
+        {/* 3 Abas Dedicadas: Estrutura | Contatos | Localização */}
         <div className="grid grid-cols-3 gap-1.5 w-full">
           {[
             { id: 'estrutura' as SpaceManagementTabId, label: 'Estrutura', icon: Sparkles },
-            { id: 'localizacao' as SpaceManagementTabId, label: 'Localização', icon: MapPin },
             { id: 'contatos' as SpaceManagementTabId, label: 'Contatos', icon: Phone },
+            { id: 'localizacao' as SpaceManagementTabId, label: 'Localização', icon: MapPin },
           ].map((tab) => {
             const Icon = tab.icon;
             const isSel = activeTab === tab.id;

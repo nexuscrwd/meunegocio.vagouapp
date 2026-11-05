@@ -1465,7 +1465,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       )}
 
       {/* Scrollable Content Body */}
-      <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 no-scrollbar">
+      <div className="flex-1 app-vertical-scroll p-3.5 sm:p-4 space-y-3">
         {/* ============================================================ */}
         {/* AGENDA MENSAL DE DATAS DENTRO DE .caixa-card */}
         {/* ============================================================ */}
@@ -1703,19 +1703,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       </div>
 
       {/* Conteúdo em .caixa-card sobre #F7F9FC */}
-      <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 no-scrollbar">
+      <div className="flex-1 app-vertical-scroll p-3.5 sm:p-4 space-y-3">
         <section className="caixa-card p-4 space-y-4">
           <div className="flex items-center gap-3 pb-3 border-b border-[#EDF2F7] dark:border-slate-800">
-            <div className="caixa-icon-halo">
-              <Scissors className="w-5 h-5" />
-            </div>
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-extrabold font-display leading-snug">
                 Para quem é o agendamento?
               </h3>
-              <p className="text-xs text-[#2B82C9] font-bold mt-0.5 break-words">
-                {selectedService.title}
-              </p>
             </div>
           </div>
 
@@ -2120,7 +2114,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       </div>
 
       {/* Conteúdo em .caixa-card sobre #F7F9FC */}
-      <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 no-scrollbar">
+      <div className="flex-1 app-vertical-scroll p-3.5 sm:p-4 space-y-3">
         <section className="caixa-card p-4 space-y-4">
           <div className="flex items-center gap-3 pb-3 border-b border-[#EDF2F7] dark:border-slate-800">
             <div className="caixa-icon-halo">
