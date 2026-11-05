@@ -11,6 +11,154 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-05] — Síntese de Legendas, Ícone do Cliente e Botão de Rastreamento Dinâmico (Verde / Opaco) (`ProfessionalDashboardView.tsx`) (`bol-140`)
+- **Tipo:** `[Refactor / Operational UI/UX & RTLS]`
+- **Motivo / Solicitação:** 
+  1. Resumir todas as legendas de Span (especialmente no card de confirmação e nos cards operacionais) para eliminar qualquer sobreposição com botões ou outros elementos em telas mobile.
+  2. A div de card selecionada deve trazer o ícone/avatar do cliente (foto do cliente ou ícone de usuário em esmeralda, ou ícone de cadeado em caso de pausa/bloqueio).
+  3. O botão "Rastrear" deve apresentar cor opaca quando o cliente não compartilhou trajeto GPS, e exibir cor verde vibrante de alto contraste (`bg-emerald-500` com texto e ícone brancos puros) quando o cliente estiver com trajeto GPS compartilhado ao vivo.
+- **Arquivos Impactados:**
+  - `src/types.ts`
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`src/types.ts`:** Adicionados campos opcionais `clientAvatar?: string | null` e `customerAvatar?: string | null` à interface `BookingAppointment`.
+  2. **`ProfessionalDashboardView.tsx` (`renderAppointmentCard`):**
+     - **Síntese de Legendas (Mobile Synthesis):** No card de confirmação (`cardType === 'confirmacao'`), substituído `"Confirmação de Atendimento"` por `"A Confirmar"` e `"Aguardando Confirmação"` por `"Aguardando"`. Nos demais cards, resumido `"Atendimento Pausado"` para `"Pausado"` e `"Em Trajeto (GPS)"` para `"Em Trajeto"`, impedindo qualquer quebra ou sobreposição em larguras estreitas.
+     - **Ícone do Cliente:** No contêiner de avatar do cliente (`w-10 h-10`), caso seja um bloqueio/pausa (`isBlockedOrPause`), exibe o ícone `<Lock className="w-5 h-5 text-amber-500" />`; caso seja um atendimento de cliente, exibe a imagem do avatar caso disponível (com fallback automático via `onError`), ou o ícone estilizado do cliente (`<User className="w-5 h-5 text-emerald-500" />`). Mock appointments receberam avatares de clientes.
+     - **Botão de Rastreamento Dinâmico (Verde / Opaco):**
+       - Se `isLiveSharing` for verdadeiro (cliente compartilhando GPS ao vivo): botão estilizado em verde vibrante (`bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 shadow-xs`) com ícone pulsante `<Navigation className="text-white fill-white animate-pulse" />` e texto branco puro (`text-white font-bold`).
+       - Se `isLiveSharing` for falso: botão estilizado em tom opaco/atenuado (`opacity-50 hover:opacity-75 bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700`) indicando visualmente que o compartilhamento de rota em tempo real ainda não foi iniciado pelo cliente.
+     - **Correção de Status de Chegada:** Removida a checagem incorreta de `effectiveStatus === 'CONFIRMADO'` dentro de `isArrived`, preservando a distinção correta entre confirmação prévia e cliente fisicamente presente no local.
+
+---
+
+### [2026-11-05] — Síntese Mobile: Renomeado Badge para Apenas "Próximo" (`ProfessionalDashboardView.tsx`) (`bol-139`)
+- **Tipo:** `[Refactor / Mobile Synthesis UX]`
+- **Motivo / Solicitação:** Reduzir o texto do badge do próximo atendimento de "Próximo Atendimento" para apenas "Próximo", garantindo concisão e foco mobile.
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`ProfessionalDashboardView.tsx` (`renderAppointmentCard` & `renderEmptyAppointmentCard`):** Alterado o texto do badge de identificação do slot para apenas `"Próximo"`.
+
+---
+
+### [2026-11-05] — Exclusão Mútua Estrita entre Badges "Aguardando" e "Atrasado" (`ProfessionalDashboardView.tsx`) (`bol-138`)
+- **Tipo:** `[Fix / Operational UX]`
+- **Motivo / Solicitação:** Garantir que "Aguardando" e "Atrasado" sejam estritamente mutuamente exclusivos — ou exibe um ou exibe o outro, jamais ambos simultaneamente no mesmo card.
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`ProfessionalDashboardView.tsx` (`renderAppointmentCard`):** Corrigida a renderização condicional dos badges de status no card de atendimento para que, caso o horário esteja atrasado (`isDelayedOrImminent`), seja exibido exclusivamente o badge `"Atrasado"` (`bg-rose-600`), e caso esteja no horário regular de espera, seja exibido exclusivamente o badge `"Aguardando"` (`bg-amber-500`).
+
+---
+
+### [2026-11-05] — Badges "Aguardando" (Amarelo) & "Atrasado" (Vermelho) com Ações Rápidas de Mensagem e Rastreamento (`ProfessionalDashboardView.tsx`) (`bol-137`)
+- **Tipo:** `[Feat / Operational RTLS & Communication UX]`
+- **Motivo / Solicitação:** Manter "Aguardando" em amarelo, exibir "Atrasado" em vermelho, remover a frase "Ainda não iniciou", e disponibilizar o ícone de mensagens (WhatsApp) e o botão de rastreamento para saber se o cliente está a caminho.
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`ProfessionalDashboardView.tsx` (`renderAppointmentCard`):**
+     - O badge de status exibe `"Aguardando"` em amarelo (`bg-amber-500`) e, em caso de horário expirado/atraso, exibe `"Atrasado"` em vermelho (`bg-rose-600`).
+     - Removido completamente o texto `"Ainda não iniciou."`.
+     - Adicionados no cabeçalho do card os botões de ação rápida sob condições de espera/atraso (`!isProgress`): botão de mensagem WhatsApp (`<MessageCircle />` com mensagem contextualizada) e botão de rastreamento em tempo real (`<Navigation />` `"Rastrear"`), acionando o `<LiveTrackingDrawerModal>` para verificar se o cliente está a caminho no mapa.
+
+---
+
+### [2026-11-05] — Status Operacional "Em Atendimento", "No Local" e Telemetria de Trajeto com Alerta de Atraso (`ProfessionalDashboardView.tsx`) (`bol-136`)
+- **Tipo:** `[Feat / Operational RTLS UX]`
+- **Motivo / Solicitação:** Renomear "Atendimento Atual" para "Em Atendimento" somente se o atendimento já foi iniciado pelo profissional no modal; caso não tenha sido iniciado, exibir "Aguardando" ou "No Local". No próximo atendimento, informar com precisão se o cliente já está "No Local", "Em Trajeto (GPS Compartilhado)", "Em Trajeto (Sem GPS)" ou "Ainda Não Iniciou (Possível Atraso)".
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`ProfessionalDashboardView.tsx` (`renderAppointmentCard`):**
+     - O badge de primeiro slot agora exibe `"Em Atendimento"` (`bg-[#008B47]` com `<Zap />`) estritamente quando o atendimento está em andamento (`isProgress`). Quando pausado, exibe `"Atendimento Pausado"` (`bg-amber-500` com `<Pause />`).
+     - Se ainda não foi iniciado pelo profissional, o badge exibe `"No Local"` (`bg-[#008B47]` com `<MapPin />`) caso o cliente já tenha chegado ou presença confirmada, ou `"Aguardando"` (`bg-amber-500` com `<Clock />`) acompanhado do status de trajeto.
+     - No próximo atendimento (`proximo`), adicionada identificação em tempo real: `"No Local"`, `"Em Trajeto (GPS Compartilhado)"` (quando compartilha telemetria ao vivo), `"Em Trajeto (Sem GPS)"` ou `"Ainda Não Iniciou (Possível Atraso)"` caso o horário esteja iminente (<= 10 min) ou atrasado.
+
+---
+
+### [2026-11-05] — Remoção de Tags de Status Redundantes nos Cards de Atendimento (`ProfessionalDashboardView.tsx`) (`bol-135`)
+- **Tipo:** `[Refactor / Clean UI]`
+- **Motivo / Solicitação:** Remover os dois `span` de status duplicados localizados no canto superior direito dos cards de atendimento (`Atendimento Atual` e `Próximo Atendimento`).
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`ProfessionalDashboardView.tsx` (`renderAppointmentCard`):** Removido o bloco no canto superior direito do cabeçalho do card que exibia a tag duplicada de status operacional (`Na Cadeira`, `Próximo da Fila`, etc.), mantendo a informação de status concentrada e elegante nas tags abaixo do nome do cliente.
+
+---
+
+### [2026-11-05] — Correção de Camada (`z-index`) e Estado do Modal de Justificativa de Cancelamento (`ProfessionalDashboardView.tsx`) (`bol-134`)
+- **Tipo:** `[Fix / Stacking Context & State Sync]`
+- **Motivo / Solicitação:** Ao clicar em "Cancelar Atendimento", o modal de justificativa não aparecia por estar com `z-50` abaixo do `#professional-appointment-action-modal-overlay` (`z-[9999]`).
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`ProfessionalDashboardView.tsx`:** Movido o `#professional-cancel-justification-modal-overlay` para dentro do contêiner `#professional-appointment-action-modal-overlay` (`z-[9999]`) com `absolute inset-0 z-50`, garantindo que sobreponha imediatamente a tela operacional do atendimento.
+  2. **`handleCancelAppointmentFromModal` & `categoryCounts`:** Atualizado o cancelamento para sincronizar tanto `appointments` quanto `effectiveAppointments` e refletir o status `CANCELADO` imediatamente nos contadores e na fila ativa.
+
+---
+
+### [2026-11-05] — Botão "Cancelar Atendimento" e Modal de Justificativa Obrigatória (`ProfessionalDashboardView.tsx`) (`bol-133`)
+- **Tipo:** `[Feat / Operational UX]`
+- **Motivo / Solicitação:** Adicionar a opção de cancelar atendimento dentro do modal operacional do atendimento e abrir um modal de justificativa obrigatória antes de confirmar o cancelamento.
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`ProfessionalDashboardView.tsx` (`#professional-appointment-action-modal` & `#professional-cancel-justification-modal`):** Adicionado botão `"Cancelar Atendimento"` (`#modal-btn-open-cancel`) no modal operacional do atendimento. Ao ser clicado, abre o **Modal de Justificativa de Cancelamento** com atalhos rápidos de motivo (`"Cliente desmarcou"`, `"Não compareceu (No-Show)"`, `"Imprevisto do profissional"`, `"Solicitou reagendamento"`), campo de texto obrigatório (`#cancel-justification-textarea`) e confirmação (`handleCancelAppointmentFromModal`), atualizando o status para `'CANCELADO'` e salvando `cancellation_reason` na fila e no `localStorage`.
+
+---
+
+### [2026-11-05] — Botões de Ação (`WhatsApp`, `Iniciar`, `Confirmar`) Exclusivos no Modal de Atendimento (`ProfessionalDashboardView.tsx`) (`bol-132`)
+- **Tipo:** `[Refactor / Operational UX — Focus Mode]`
+- **Motivo / Solicitação:** Remover os botões de `WhatsApp` (`<a>`) e `Iniciar` / `Confirmar` (`<button>`) de dentro dos cards da lista da fila da cadeira, fazendo com que apareçam exclusivamente dentro do modal operacional ao selecionar o respectivo atendimento.
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`ProfessionalDashboardView.tsx` (`renderAppointmentCard` & `#professional-appointment-action-modal`):** Removidos os botões `WhatsApp` e `Iniciar`/`Confirmar`/`Finalizar` da listagem externa dos cards operacionais e consolidados todos os controles (`WhatsApp`, `Confirmar Presença`, `Iniciar Atendimento`, `Pausar`, `Adicionar Mais Tempo`, `Finalizar Serviço` e `Transferir para Colega`) dentro do modal exibido ao tocar no card do atendimento.
+
+---
+
+### [2026-11-05] — Remoção de Valores Monetários (`R$`) dos Cards Operacionais de Atendimento (`ProfessionalDashboardView.tsx`) (`bol-131`)
+- **Tipo:** `[Refactor / Operational UX — Focus Mode]`
+- **Motivo / Solicitação:** Remover a exibição dos valores monetários (`R$ ...`) selecionados nos cards operacionais da fila da cadeira, mantendo o foco exclusivo na operação.
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`ProfessionalDashboardView.tsx` (`renderAppointmentCard`):** Removido o `<span>` que exibia `R$ {app.totalPrice}` no canto superior direito dos cards `Atendimento Atual`, `Próximo Atendimento` e `Confirmação de Atendimento`, deixando apenas a tag de status operacional (`Na Cadeira`, `Próximo da Fila`, `Presença Confirmada`).
+
+---
+
+### [2026-11-05] — Inversão de Hierarquia nos Cards de Atendimento: Cliente em Cima e Descrição do Serviço Abaixo (`ProfessionalDashboardView.tsx`) (`bol-130`)
+- **Tipo:** `[Refactor / UX Hierarchy]`
+- **Motivo / Solicitação:** Posicionar o bloco do cliente (Avatar + Nome do Cliente + Status) na parte de cima do card, acima da descrição do serviço (`Scissors` + nome do serviço), horário e botões de ação.
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`ProfessionalDashboardView.tsx` (`renderAppointmentCard`):** Invertida a ordem das seções dos cards (`Atendimento Atual`, `Próximo Atendimento` e `Confirmação de Atendimento`) para que a faixa superior exiba em destaque o cliente (`User` avatar + `<h3>{rawFullName}</h3>` + tags de status e valor) e a parte inferior exiba a descrição do serviço (`serviceText`), horário/duração (`startTimeStr → endTimeHhMm`) e os botões de ação rápida (`WhatsApp` + `Iniciar` / `Confirmar`).
+
+---
+
+### [2026-11-05] — Nome do Cliente no Topo da Seção de Corpo dos Cards de Atendimento (`ProfessionalDashboardView.tsx`) (`bol-129`)
+- **Tipo:** `[Refactor / UX Layout — Focus Mode]`
+- **Motivo / Solicitação:** Posicionar o nome do cliente em cima (`rawFullName`) na seção inferior do card de atendimento (`div#professional-next-appointment-card > div:nth-of-type(2)`), evitando cortes/truncamentos laterais pelos botões de ação.
+- **Arquivos Impactados:**
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`ProfessionalDashboardView.tsx` (`renderAppointmentCard`):** Reestruturada a seção `div:nth-of-type(2)` (`flex flex-col gap-2`) para exibir o nome do cliente (`<h3>{rawFullName}</h3>`) na linha superior em largura total e, logo abaixo, a linha operacional com o avatar (`User`), selo de status (`Próximo da Fila` / `Atendimento Atual` / `Presença Confirmada`), serviço (`Scissors`) e botões de ação (`WhatsApp` + `Iniciar` / `Confirmar`).
+
 ---
 
 ### [2026-11-05] — Painel de Rota Oculto por Padrão com Botão "Como Chegar", Logos Oficiais Google Maps / Waze e Gestos 1 Dedo / Pinça 2 Dedos (`bol-128`)

@@ -2,12 +2,13 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { 
   Clock, CalendarCheck, User, Zap, Check, Play, Pause, Plus, X,
   ArrowRightLeft, AlertCircle, ArrowLeft, Users, CheckCircle2,
-  MessageCircle, Scissors, Navigation
+  MessageCircle, Scissors, Navigation, MapPin, Lock
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { SalonAdminSettings, CatalogServiceItem, BookingAppointment, SalonProfessionalItem, UserPersona } from '../../types';
 import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
 import { PixCheckoutModal } from './PixCheckoutModal';
+import { LiveTrackingDrawerModal } from '../live-tracking/LiveTrackingModal';
 
 const getAppointmentDurationMinutes = (app: BookingAppointment): number => {
   if (typeof app.durationMinutes === 'number' && app.durationMinutes > 0) {
@@ -242,7 +243,8 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       }
 
       if (matchesTime) {
-        const st = (app.status || '').toUpperCase();
+        const appKey = app.protocolCode || app.id || `${app.time}-${app.clientName}`;
+        const st = (localAppointmentStatuses[appKey] || app.status || '').toUpperCase();
         if (st === 'CONCLUÍDO' || st === 'CONCLUIDO') {
           counts.concluidos++;
         } else if (st === 'CONFIRMADO' || st === 'AGENDADO') {
@@ -256,7 +258,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     });
 
     return counts;
-  }, [appointments, timeFilter, matchesSelectedPro]);
+  }, [appointments, timeFilter, matchesSelectedPro, localAppointmentStatuses]);
 
   // Atendimento iniciado e em andamento no momento (se houver)
   const inProgressAppointment = useMemo(() => {
@@ -390,7 +392,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     if (onUpdateAppointments && appointments.length > 0) {
       const updated = appointments.map((a) => {
         if (a.protocolCode === protocolCode || a.id === protocolCode) {
-          return { ...a, status: 'CONFIRMADO' };
+          return { ...a, status: 'CONFIRMADO', tracking_status: 'arrived' as const };
         }
         return a;
       });
@@ -407,6 +409,9 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
   const [timeExtensionFeedback, setTimeExtensionFeedback] = useState<string | null>(null);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [transferSuccessMessage, setTransferSuccessMessage] = useState<string | null>(null);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancelJustification, setCancelJustification] = useState('');
+  const [liveTrackingAppointment, setLiveTrackingAppointment] = useState<BookingAppointment | null>(null);
 
   // Agendamentos com fallback de MOCK para teste e averiguação imediata dos 3 cards no ambiente de dev
   const effectiveAppointments = useMemo(() => {
@@ -433,6 +438,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       protocolCode: '#VGA-2001',
       clientName: 'Carlos Eduardo',
       customerName: 'Carlos Eduardo',
+      clientAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
       clientPhone: '11987654321',
       serviceTitle: 'Corte de Cabelo + Barba',
       service: 'Corte de Cabelo + Barba',
@@ -456,6 +462,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       protocolCode: '#VGA-2002',
       clientName: 'Lucas Gabriel',
       customerName: 'Lucas Gabriel',
+      clientAvatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
       clientPhone: '11976543210',
       serviceTitle: 'Barba Espartana',
       service: 'Barba Espartana',
@@ -479,6 +486,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       protocolCode: '#VGA-2003',
       clientName: 'Matheus Silva',
       customerName: 'Matheus Silva',
+      clientAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
       clientPhone: '11965432109',
       serviceTitle: 'Corte Degradê Navalhado',
       service: 'Corte Degradê Navalhado',
@@ -629,6 +637,8 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     setTimeExtensionFeedback(null);
     setIsTransferOpen(false);
     setTransferSuccessMessage(null);
+    setIsCancelModalOpen(false);
+    setCancelJustification('');
     setIsActionModalOpen(true);
   }, [localAppointmentStatuses]);
 
@@ -756,6 +766,46 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     setActionModalAppointment(null);
   }, [actionModalAppointment, handleCompleteAppointment]);
 
+  const handleCancelAppointmentFromModal = useCallback(() => {
+    if (!actionModalAppointment || !cancelJustification.trim()) return;
+    hapticMedium();
+    const reason = cancelJustification.trim();
+    const appKey = actionModalAppointment.protocolCode || actionModalAppointment.id || `${actionModalAppointment.time}-${actionModalAppointment.clientName}`;
+    const protocolCode = actionModalAppointment.protocolCode || actionModalAppointment.id;
+
+    setLocalAppointmentStatuses((prev) => ({
+      ...prev,
+      [appKey]: 'CANCELADO',
+      ...(protocolCode ? { [protocolCode]: 'CANCELADO' } : {}),
+    }));
+
+    const sourceList = appointments.length > 0 ? appointments : effectiveAppointments;
+    const updatedList = sourceList.map((a) => {
+      const k = a.protocolCode || a.id || `${a.time}-${a.clientName}`;
+      if (k === appKey || (protocolCode && (a.protocolCode === protocolCode || a.id === protocolCode))) {
+        return {
+          ...a,
+          status: 'CANCELADO',
+          cancellation_reason: reason,
+          notes: reason,
+        };
+      }
+      return a;
+    });
+
+    if (onUpdateAppointments) {
+      onUpdateAppointments(updatedList);
+    }
+    try {
+      localStorage.setItem('vagou_salon_appointments', JSON.stringify(updatedList));
+    } catch {}
+
+    setIsCancelModalOpen(false);
+    setCancelJustification('');
+    setIsActionModalOpen(false);
+    setActionModalAppointment(null);
+  }, [actionModalAppointment, cancelJustification, onUpdateAppointments, appointments, effectiveAppointments]);
+
   const renderAppointmentCard = (app: BookingAppointment, cardType: 'atual' | 'proximo' | 'confirmacao') => {
     const appKey = app.protocolCode || app.id || `${app.time}-${app.clientName}`;
     const effectiveStatus = (localAppointmentStatuses[appKey] || app.status || '').toUpperCase();
@@ -763,40 +813,75 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     const isPaused = effectiveStatus.includes('PAUS');
     const isConfirmed = effectiveStatus.includes('CONFIRM') || effectiveStatus === 'CONFIRMADO';
 
-    const isEnRoute = Boolean(
-      app.tracking_status === 'live_sharing' ||
-      app.tracking_status === 'on_way_no_map' ||
-      app.tracking_status === 'arriving_5min' ||
-      app.tracking_status === 'hurry_confirmed' ||
+    const isArrived = Boolean(
       app.tracking_status === 'arrived' ||
-      effectiveStatus.includes('CAMINHO') ||
-      (app as any).isClientEnRoute
+      effectiveStatus.includes('LOCAL') ||
+      effectiveStatus.includes('CHEG') ||
+      effectiveStatus.includes('PRESEN') ||
+      (app as any).isClientAtSalon
+    );
+
+    const isLiveSharing = Boolean(
+      !isArrived && (
+        app.tracking_status === 'live_sharing' ||
+        app.tracking_status === 'arriving_5min' ||
+        app.tracking_status === 'hurry_confirmed'
+      )
+    );
+
+    const isEnRouteNoMap = Boolean(
+      !isArrived && !isLiveSharing && (
+        app.tracking_status === 'on_way_no_map' ||
+        effectiveStatus.includes('CAMINHO') ||
+        (app as any).isClientEnRoute
+      )
+    );
+
+    const isDelayedOrImminent = Boolean(
+      !isArrived && !isLiveSharing && !isEnRouteNoMap && (() => {
+        const now = new Date();
+        const [startH, startM] = (app.time || '10:00').split(':').map((v) => parseInt(v, 10) || 0);
+        const appMinutes = startH * 60 + startM;
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        return currentMinutes >= (appMinutes - 10);
+      })()
+    );
+
+    const isEnRoute = Boolean(
+      isLiveSharing ||
+      isEnRouteNoMap ||
+      isArrived
+    );
+
+    const isBlockedOrPause = Boolean(
+      app.isBlockedSlot ||
+      (app.service || '').toLowerCase().includes('pausa') ||
+      (app.serviceTitle || '').toLowerCase().includes('pausa') ||
+      (app.clientName || '').toLowerCase().includes('pausa') ||
+      effectiveStatus.includes('BLOQ')
     );
 
     const rawFullName = (app.clientName || app.customerName || 'Cliente').trim();
-    const firstName = rawFullName.split(' ')[0] || 'Cliente';
     const serviceText = app.serviceName || app.service || app.serviceTitle || 'Atendimento';
+
+    const clientAvatarUrl = (
+      app.clientAvatar ||
+      app.customerAvatar ||
+      (app as any).avatarUrl ||
+      (app as any).avatar ||
+      (app as any).photoUrl ||
+      ''
+    ).trim();
 
     const { startTimeStr, durationHhMm, endTimeHhMm } = calculateAppointmentTimes(app);
 
-    // Formatação de telefone e link para WhatsApp com 1 toque personalizado por tipo
-    const clientPhone = (app.clientPhone || app.customerPhone || '').replace(/\D/g, '');
-    const hasPhone = clientPhone.length >= 10;
-    
-    let defaultMsg = `Olá ${firstName}! Tudo bem? Seu atendimento de ${serviceText} no Vagou está próximo. Já estou com tudo pronto na bancada!`;
-    if (cardType === 'atual') {
-      defaultMsg = isProgress 
-        ? `Olá ${firstName}! Tudo bem? Seu atendimento de ${serviceText} no Vagou está em andamento na bancada.` 
-        : `Olá ${firstName}! Tudo bem? Sua vez chegou! Já estou com a bancada pronta para seu ${serviceText}.`;
-    } else if (cardType === 'proximo') {
-      defaultMsg = `Olá ${firstName}! Tudo bem? Seu horário de ${serviceText} às ${startTimeStr} no Vagou é o próximo da fila. Já estou preparando tudo!`;
-    } else if (cardType === 'confirmacao') {
-      defaultMsg = `Olá ${firstName}! Tudo bem? Gostaria de confirmar seu agendamento de ${serviceText} hoje às ${startTimeStr} no Vagou.`;
-    }
-
-    const whatsappUrl = hasPhone 
-      ? `https://wa.me/55${clientPhone}?text=${encodeURIComponent(defaultMsg)}`
-      : null;
+    const clientFirstName = rawFullName.split(' ')[0] || 'Cliente';
+    const cardClientPhone = (app.clientPhone || app.customerPhone || '').replace(/\D/g, '');
+    const cardHasPhone = cardClientPhone.length >= 10;
+    const cardDefaultMsg = `Olá ${clientFirstName}! Tudo bem? Seu atendimento de ${serviceText} às ${startTimeStr} no Vagou está agendado. Você já está a caminho?`;
+    const cardWhatsappUrl = cardHasPhone
+      ? `https://wa.me/55${cardClientPhone}?text=${encodeURIComponent(cardDefaultMsg)}`
+      : `https://wa.me/?text=${encodeURIComponent(cardDefaultMsg)}`;
 
     const cardId = cardType === 'atual' 
       ? 'professional-current-appointment-card'
@@ -808,7 +893,9 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       <div
         key={`${appKey}-${cardType}`}
         id={cardId}
-        className={`w-full rounded-[4px] select-none transition-all duration-200 overflow-hidden ${
+        onClick={() => handleOpenActionModal(app)}
+        title="Clique para abrir opções e ações do atendimento"
+        className={`w-full rounded-[4px] select-none transition-all duration-200 overflow-hidden cursor-pointer ${
           isDark 
             ? isProgress && cardType === 'atual'
               ? 'bg-slate-900 border border-emerald-500/80 ring-1 ring-emerald-500/40' 
@@ -818,255 +905,269 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
               : 'caixa-card'
         }`}
       >
-        {/* Faixa Superior: Status + Horário + Controles Rápidos */}
-        <div className={`px-3 py-2 border-b flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap ${
-          isProgress && cardType === 'atual'
-            ? 'bg-[#008B47]/10 border-[#EDF2F7] dark:border-emerald-500/30' 
-            : isDark ? 'bg-slate-850 border-slate-800' : 'bg-[#F7F9FC] border-[#EDF2F7]'
-        }`}>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {/* 1. Atendimento Atual */}
-            {cardType === 'atual' && (
-              <span className={`px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
-                isProgress
-                  ? 'bg-[#008B47] text-white'
-                  : isPaused
-                    ? 'bg-amber-500 text-white'
-                    : 'bg-[#005CA9] text-white'
-              }`}>
-                {isProgress ? (
-                  <>
-                    <Zap className="w-2.5 h-2.5 text-white fill-white animate-pulse" />
-                    <span>Na Cadeira</span>
-                  </>
-                ) : isPaused ? (
-                  <>
-                    <Pause className="w-2.5 h-2.5 text-white fill-white" />
-                    <span>Pausado</span>
-                  </>
-                ) : (
-                  <>
-                    <Clock className="w-2.5 h-2.5 text-white" />
-                    <span>Atendimento Atual</span>
-                  </>
-                )}
-              </span>
-            )}
-
-            {/* 2. Próximo Atendimento com Status "A caminho: Sim" ou "Não" */}
-            {cardType === 'proximo' && (() => {
-              const isLiveSharing = app.tracking_status === 'live_sharing' || app.tracking_status === 'arriving_5min' || app.tracking_status === 'hurry_confirmed' || app.tracking_status === 'arrived';
-              const isEnRouteNoMap = !isLiveSharing && (app.tracking_status === 'on_way_no_map' || effectiveStatus.includes('CAMINHO') || (app as any).isClientEnRoute);
-              
-              return (
-                <>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
-                    isDark ? 'bg-slate-800 text-slate-200 border border-slate-700' : 'bg-slate-100 text-slate-700 border border-slate-200'
-                  }`}>
-                    <Clock className="w-2.5 h-2.5 text-slate-400" />
-                    <span>Próximo Atendimento</span>
-                  </span>
-
-                  {isLiveSharing ? (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-emerald-500 text-white shadow-2xs">
-                      <Navigation className="w-2.5 h-2.5 fill-white text-white" />
-                      <span>Em Trajeto (GPS Compartilhado)</span>
-                    </span>
-                  ) : isEnRouteNoMap ? (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-blue-500 text-white shadow-2xs">
-                      <Navigation className="w-2.5 h-2.5 text-white" />
-                      <span>Em Trajeto (Sem GPS)</span>
-                    </span>
-                  ) : (
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
-                      isDark ? 'opacity-50 bg-slate-800/40 text-slate-400 border border-slate-700/60' : 'opacity-60 bg-slate-100/60 text-slate-500 border border-slate-200'
-                    }`}>
-                      <Clock className="w-2.5 h-2.5 text-slate-400" />
-                      <span>Ainda Não Iniciou Trajeto</span>
-                    </span>
-                  )}
-                </>
-              );
-            })()}
-
-            {/* 3. Confirmação de Atendimento */}
-            {cardType === 'confirmacao' && (
-              <>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
-                  isDark ? 'bg-slate-800 text-slate-200 border border-slate-700' : 'bg-slate-100 text-slate-700 border border-slate-200'
-                }`}>
-                  <span>Confirmação de Atendimento</span>
-                </span>
-
-                {isConfirmed ? (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-emerald-500 text-white">
-                    <CheckCircle2 className="w-2.5 h-2.5 text-white" />
-                    <span>Confirmado</span>
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-amber-500 text-white">
-                    <Clock className="w-2.5 h-2.5 text-white" />
-                    <span>Aguardando Confirmação</span>
-                  </span>
-                )}
-              </>
-            )}
-
-            <span className="font-mono text-xs font-bold text-slate-400">
-              {startTimeStr} → {endTimeHhMm} ({durationHhMm})
-            </span>
-          </div>
-
-          {/* Valor do Serviço */}
-          <div className="flex items-center gap-1 font-mono font-black text-xs text-emerald-600 dark:text-emerald-400 shrink-0">
-            <span>R$ {Number(app.totalPrice || 45).toFixed(2).replace('.', ',')}</span>
-          </div>
-        </div>
-
-        {/* Corpo: Mini-Ficha do Cliente (Foto + Nome + Serviço + Badges Operacionais) */}
-        <div className="p-3 flex items-center justify-between gap-3">
-          <div 
-            onClick={() => handleOpenActionModal(app)}
-            className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer"
-            title="Clique para abrir detalhes do atendimento"
-          >
-            {/* Foto ou Avatar com Inicial */}
-            <div className={`w-11 h-11 rounded shrink-0 flex items-center justify-center font-bold text-xs shadow-2xs overflow-hidden border ${
-              isDark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-700'
-            }`}>
-              <User className="w-6 h-6 stroke-[1.75]" />
+        {/* 1. Parte Superior (EM CIMA): Identificação do Cliente + Status do Card + Ações Rápidas */}
+        <div
+          onClick={() => handleOpenActionModal(app)}
+          title="Clique para abrir detalhes do atendimento"
+          className={`px-3 py-2.5 border-b flex items-center justify-between gap-2.5 cursor-pointer ${
+            isProgress && cardType === 'atual'
+              ? 'bg-[#008B47]/10 border-[#EDF2F7] dark:border-emerald-500/30'
+              : isDark
+              ? 'bg-slate-850 border-slate-800'
+              : 'bg-[#F7F9FC] border-[#EDF2F7]'
+          }`}
+        >
+          {/* Cliente: Avatar/Ícone do Cliente em cima + Nome + Status */}
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div
+              className={`w-10 h-10 rounded shrink-0 flex items-center justify-center font-bold text-xs shadow-2xs overflow-hidden border ${
+                isBlockedOrPause
+                  ? isDark
+                    ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                    : 'bg-amber-50 border-amber-200 text-amber-600'
+                  : isDark
+                    ? 'bg-slate-800 border-slate-700 text-slate-200'
+                    : 'bg-white border-slate-200 text-slate-700'
+              }`}
+              title={isBlockedOrPause ? 'Pausa de Horário' : rawFullName}
+            >
+              {isBlockedOrPause ? (
+                <Lock className="w-5 h-5 text-amber-500 stroke-[1.75]" />
+              ) : clientAvatarUrl ? (
+                <img
+                  src={clientAvatarUrl}
+                  alt={rawFullName}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLElement).style.display = 'none';
+                    const parent = e.currentTarget.parentElement;
+                    const fallback = parent?.querySelector('.client-fallback-icon') as HTMLElement;
+                    if (fallback) fallback.style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              {!isBlockedOrPause && (
+                <div
+                  className={`client-fallback-icon items-center justify-center w-full h-full ${
+                    clientAvatarUrl ? 'hidden' : 'flex'
+                  }`}
+                >
+                  <User className="w-5 h-5 text-emerald-500 dark:text-emerald-400 stroke-[1.75]" />
+                </div>
+              )}
             </div>
 
-            {/* Nome + Serviço + Tag de Ficha */}
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <h3 className={`font-bold text-sm truncate leading-tight ${
+              <h3
+                className={`font-bold text-sm truncate leading-tight ${
                   isDark ? 'text-white' : 'text-slate-900'
-                }`}>
-                  {rawFullName}
-                </h3>
-                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
-                  isDark ? 'bg-slate-800/80 border-slate-700 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
-                }`}>
-                  {cardType === 'atual' 
-                    ? (isProgress ? 'Na Cadeira' : 'Atendimento Atual')
-                    : cardType === 'proximo'
-                      ? 'Próximo da Fila'
-                      : (isConfirmed ? 'Presença Confirmada' : 'Aguardando Resposta')}
-                </span>
-              </div>
+                }`}
+              >
+                {rawFullName}
+              </h3>
 
-              <p className="text-xs text-slate-500 truncate flex items-center gap-1 mt-0.5">
-                <Scissors className="w-3 h-3 shrink-0 text-slate-400" />
-                <span>{serviceText}</span>
-              </p>
+              <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                {/* 1. Atendimento Atual: Estritamente exclusivo ("Em Atendimento", "No Local", "Atrasado", "Em Trajeto" ou "Aguardando") */}
+                {cardType === 'atual' && (
+                  <>
+                    {isProgress ? (
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-[#008B47] text-white shadow-2xs whitespace-nowrap">
+                        <Zap className="w-2.5 h-2.5 text-white fill-white animate-pulse" />
+                        <span className="text-white">Em Atendimento</span>
+                      </span>
+                    ) : isPaused ? (
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-amber-500 text-white shadow-2xs whitespace-nowrap">
+                        <Pause className="w-2.5 h-2.5 text-white fill-white" />
+                        <span className="text-white">Pausado</span>
+                      </span>
+                    ) : isArrived ? (
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-[#008B47] text-white shadow-2xs whitespace-nowrap">
+                        <MapPin className="w-2.5 h-2.5 text-white" />
+                        <span className="text-white">No Local</span>
+                      </span>
+                    ) : isDelayedOrImminent ? (
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-rose-600 text-white shadow-2xs whitespace-nowrap">
+                        <AlertCircle className="w-2.5 h-2.5 text-white" />
+                        <span className="text-white">Atrasado</span>
+                      </span>
+                    ) : isLiveSharing ? (
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-emerald-500 text-white shadow-2xs whitespace-nowrap">
+                        <Navigation className="w-2.5 h-2.5 fill-white text-white animate-pulse" />
+                        <span className="text-white">Em Trajeto</span>
+                      </span>
+                    ) : isEnRouteNoMap ? (
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-blue-500 text-white shadow-2xs whitespace-nowrap">
+                        <Navigation className="w-2.5 h-2.5 text-white" />
+                        <span className="text-white">Em Trajeto</span>
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-amber-500 text-white shadow-2xs whitespace-nowrap">
+                        <Clock className="w-2.5 h-2.5 text-white" />
+                        <span className="text-white">Aguardando</span>
+                      </span>
+                    )}
+                  </>
+                )}
+
+                {/* 2. Próximo Atendimento */}
+                {cardType === 'proximo' && (
+                  <>
+                    <span
+                      className={`px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 whitespace-nowrap ${
+                        isDark
+                          ? 'bg-slate-800 text-slate-200 border border-slate-700'
+                          : 'bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      <Clock className="w-2.5 h-2.5 text-slate-400" />
+                      <span>Próximo</span>
+                    </span>
+
+                    {isArrived ? (
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-[#008B47] text-white shadow-2xs whitespace-nowrap">
+                        <MapPin className="w-2.5 h-2.5 text-white" />
+                        <span className="text-white">No Local</span>
+                      </span>
+                    ) : isLiveSharing ? (
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-emerald-500 text-white shadow-2xs whitespace-nowrap">
+                        <Navigation className="w-2.5 h-2.5 fill-white text-white animate-pulse" />
+                        <span className="text-white">Em Trajeto</span>
+                      </span>
+                    ) : isEnRouteNoMap ? (
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-blue-500 text-white shadow-2xs whitespace-nowrap">
+                        <Navigation className="w-2.5 h-2.5 text-white" />
+                        <span className="text-white">Em Trajeto</span>
+                      </span>
+                    ) : isDelayedOrImminent ? (
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-rose-600 text-white shadow-2xs whitespace-nowrap">
+                        <AlertCircle className="w-2.5 h-2.5 text-white" />
+                        <span className="text-white">Atrasado</span>
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-amber-500 text-white shadow-2xs whitespace-nowrap">
+                        <Clock className="w-2.5 h-2.5 text-white" />
+                        <span className="text-white">Aguardando</span>
+                      </span>
+                    )}
+                  </>
+                )}
+
+                {/* 3. Confirmação de Atendimento (Legendas ultra-resumidas sem sobreposição) */}
+                {cardType === 'confirmacao' && (
+                  <>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 whitespace-nowrap ${
+                        isDark
+                          ? 'bg-slate-800 text-slate-200 border border-slate-700'
+                          : 'bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      <span>A Confirmar</span>
+                    </span>
+
+                    {isConfirmed ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-emerald-500 text-white whitespace-nowrap">
+                        <CheckCircle2 className="w-2.5 h-2.5 text-white" />
+                        <span className="text-white">Confirmado</span>
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-amber-500 text-white whitespace-nowrap">
+                        <Clock className="w-2.5 h-2.5 text-white" />
+                        <span className="text-white">Aguardando</span>
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Ações Rápidas de Bancada: WhatsApp + Botão de Ação */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            {whatsappUrl && (
+          {/* Botões de Ação Rápida sob condições de espera / atraso: Mensagem WhatsApp e Rastrear Trajeto */}
+          {!isProgress && (
+            <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
               <a
-                href={whatsappUrl}
+                href={cardWhatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => {
                   e.stopPropagation();
                   hapticLight();
                 }}
-                className={`w-9 h-9 rounded border flex items-center justify-center transition active:scale-95 cursor-pointer ${
-                  isDark 
-                    ? 'bg-slate-800 border-slate-700 text-emerald-400 hover:bg-slate-750' 
-                    : 'bg-slate-100 border-slate-200 text-emerald-600 hover:bg-slate-200'
+                className={`w-8 h-8 rounded-[4px] border flex items-center justify-center transition active:scale-95 cursor-pointer ${
+                  isDark
+                    ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
                 }`}
-                title={`Enviar WhatsApp para ${firstName}`}
+                title={`Enviar mensagem no WhatsApp para ${clientFirstName}`}
               >
-                <MessageCircle className="w-4 h-4 fill-emerald-500/20" />
+                <MessageCircle className="w-4 h-4 text-emerald-500" />
               </a>
-            )}
 
-            {/* Ação Card 1: Finalizar ou Iniciar */}
-            {cardType === 'atual' && (
-              isProgress ? (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const protocolCode = app.protocolCode || app.id;
-                    handleCompleteAppointment(protocolCode, app);
-                  }}
-                  className="h-9 px-3 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
-                  title="Finalizar Serviço & Cobrar PIX"
-                >
-                  <Check className="w-3.5 h-3.5 stroke-[2.5] text-white" />
-                  <span className="hidden sm:inline">Finalizar Serviço</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const protocolCode = app.protocolCode || app.id;
-                    handleStartAppointment(protocolCode);
-                  }}
-                  className="h-9 px-3 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
-                  title="Iniciar Atendimento na Cadeira"
-                >
-                  <Play className="w-3.5 h-3.5 fill-white" />
-                  <span>Iniciar</span>
-                </button>
-              )
-            )}
-
-            {/* Ação Card 2: Iniciar ou Ver Ficha */}
-            {cardType === 'proximo' && (
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  const protocolCode = app.protocolCode || app.id;
-                  handleStartAppointment(protocolCode);
+                  hapticLight();
+                  setLiveTrackingAppointment(app);
                 }}
-                className="h-9 px-3 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
-                title="Iniciar Próximo Atendimento"
+                className={`h-8 px-2.5 rounded-[4px] border flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider transition active:scale-95 cursor-pointer shadow-2xs ${
+                  isLiveSharing
+                    ? 'bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 shadow-xs'
+                    : isDark
+                      ? 'opacity-50 hover:opacity-75 bg-slate-800/80 text-slate-400 border-slate-700'
+                      : 'opacity-50 hover:opacity-75 bg-slate-100 text-slate-500 border-slate-300'
+                }`}
+                title={
+                  isLiveSharing
+                    ? 'Trajeto GPS compartilhado ao vivo pelo cliente (Clique para rastrear)'
+                    : 'Cliente ainda não compartilhou trajeto GPS ao vivo'
+                }
               >
-                <Play className="w-3.5 h-3.5 fill-white" />
-                <span>Iniciar</span>
-              </button>
-            )}
-
-            {/* Ação Card 3: Confirmar ou Confirmado */}
-            {cardType === 'confirmacao' && (
-              !isConfirmed ? (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const protocolCode = app.protocolCode || app.id;
-                    handleConfirmAppointment(protocolCode);
-                  }}
-                  className="h-9 px-3 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs"
-                  title="Confirmar Presença do Cliente"
-                >
-                  <Check className="w-3.5 h-3.5 stroke-[2.5] text-white" />
-                  <span>Confirmar</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => handleOpenActionModal(app)}
-                  className={`h-9 px-3 rounded font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer border shadow-xs ${
-                    isDark 
-                      ? 'bg-slate-800 hover:bg-slate-750 text-emerald-400 border-emerald-500/30' 
-                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                <Navigation
+                  className={`w-3.5 h-3.5 ${
+                    isLiveSharing
+                      ? 'text-white fill-white animate-pulse'
+                      : isDark
+                        ? 'text-slate-400'
+                        : 'text-slate-500'
                   }`}
-                  title="Atendimento Já Confirmado"
+                />
+                <span
+                  className={
+                    isLiveSharing
+                      ? 'text-white font-bold'
+                      : isDark
+                        ? 'text-slate-400'
+                        : 'text-slate-500'
+                  }
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Confirmado</span>
-                </button>
-              )
-            )}
+                  Rastrear
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 2. Parte Inferior (ABAIXO DO CLIENTE): Descrição do Serviço + Horário */}
+        <div className="p-3 flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-1 flex-1 min-w-0">
+            {/* Descrição do Serviço */}
+            <p
+              className={`text-xs font-bold truncate flex items-center gap-1.5 ${
+                isDark ? 'text-slate-200' : 'text-slate-800'
+              }`}
+            >
+              <Scissors className="w-3.5 h-3.5 shrink-0 text-[#005CA9] dark:text-emerald-400" />
+              <span className="truncate">{serviceText}</span>
+            </p>
+
+            {/* Horário e Duração */}
+            <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400">
+              <Clock className="w-3 h-3 shrink-0 text-slate-400" />
+              <span>
+                {startTimeStr} → {endTimeHhMm} ({durationHhMm})
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -1085,10 +1186,10 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
         >
           <Clock className={`w-4 h-4 mb-0.5 ${isDark ? 'text-slate-600' : 'text-slate-400'}`} />
           <p className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
-            Atendimento Atual
+            Em Atendimento
           </p>
           <p className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-            Nenhum atendimento na cadeira no momento
+            Nenhum atendimento em andamento no momento
           </p>
         </div>
       );
@@ -1105,7 +1206,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
         >
           <Navigation className="w-4 h-4 mb-0.5 opacity-60 text-emerald-500" />
           <p className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-            Próximo Atendimento
+            Próximo
           </p>
           <span className="text-[10px] font-medium text-slate-500">Sem próximo cliente na fila</span>
         </div>
@@ -1176,8 +1277,19 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
         const isPaused = effectiveStatus.includes('PAUS');
 
         const clientFullName = (actionModalAppointment.clientName || actionModalAppointment.customerName || 'Cliente').trim();
+        const modalFirstName = clientFullName.split(' ')[0] || 'Cliente';
         const serviceName = actionModalAppointment.serviceName || actionModalAppointment.service || actionModalAppointment.serviceTitle || 'Serviço';
         const { startTimeStr, durationMinutes, durationHhMm, endTimeHhMm } = calculateAppointmentTimes(actionModalAppointment);
+        const isModalConfirmed = effectiveStatus.includes('CONFIRM') || effectiveStatus === 'CONFIRMADO';
+
+        const modalClientPhone = (actionModalAppointment.clientPhone || actionModalAppointment.customerPhone || '').replace(/\D/g, '');
+        const modalHasPhone = modalClientPhone.length >= 10;
+        const modalDefaultMsg = isProgress
+          ? `Olá ${modalFirstName}! Tudo bem? Seu atendimento de ${serviceName} no Vagou está em andamento na bancada.`
+          : `Olá ${modalFirstName}! Tudo bem? Seu horário de ${serviceName} às ${startTimeStr} no Vagou está registrado. Já estamos à disposição!`;
+        const modalWhatsappUrl = modalHasPhone
+          ? `https://wa.me/55${modalClientPhone}?text=${encodeURIComponent(modalDefaultMsg)}`
+          : null;
 
         return (
           <div 
@@ -1233,19 +1345,39 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 </div>
               </div>
 
-              {/* Informações do Cliente e Serviço */}
-              <div className={`p-3 flex items-center gap-3 ${isDark ? 'bg-slate-900 border border-slate-800 rounded-[4px]' : 'caixa-card'}`}>
-                <div className="caixa-icon-halo">
-                  <User className="w-5 h-5 stroke-[1.75]" />
+              {/* Informações do Cliente e Serviço + Botão WhatsApp no Modal */}
+              <div className={`p-3 flex items-center justify-between gap-3 ${isDark ? 'bg-slate-900 border border-slate-800 rounded-[4px]' : 'caixa-card'}`}>
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="caixa-icon-halo shrink-0">
+                    <User className="w-5 h-5 stroke-[1.75]" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-bold text-sm truncate leading-snug">
+                      {clientFullName}
+                    </h3>
+                    <p className="text-xs text-[#5F6C7B] truncate">
+                      {serviceName}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-bold text-sm truncate leading-snug">
-                    {clientFullName}
-                  </h3>
-                  <p className="text-xs text-[#5F6C7B] truncate">
-                    {serviceName}
-                  </p>
-                </div>
+
+                {modalWhatsappUrl && (
+                  <a
+                    href={modalWhatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => hapticLight()}
+                    className={`h-9 px-3 rounded-[4px] border flex items-center gap-1.5 text-xs font-bold transition active:scale-95 cursor-pointer shrink-0 ${
+                      isDark
+                        ? 'bg-slate-800 border-slate-700 text-emerald-400 hover:bg-slate-750'
+                        : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                    }`}
+                    title={`Enviar WhatsApp para ${modalFirstName}`}
+                  >
+                    <MessageCircle className="w-4 h-4 text-emerald-500" />
+                    <span>WhatsApp</span>
+                  </a>
+                )}
               </div>
 
               {/* Régua de Horários e Duração */}
@@ -1364,6 +1496,22 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
+                  {/* Ação 0: Confirmar Presença (se ainda não confirmado e não iniciado) */}
+                  {!isProgress && !isModalConfirmed && (
+                    <button
+                      type="button"
+                      id="modal-btn-confirm-appointment"
+                      onClick={() => {
+                        const protocolCode = actionModalAppointment.protocolCode || actionModalAppointment.id;
+                        handleConfirmAppointment(protocolCode);
+                      }}
+                      className="w-full py-2.5 px-4 rounded bg-[#005CA9] hover:bg-[#004A87] text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition cursor-pointer active:scale-98"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-white" />
+                      <span className="text-white">Confirmar Presença</span>
+                    </button>
+                  )}
+
                   {/* Ação 1: Iniciar / Retomar Atendimento OU Pausar */}
                   {!isProgress ? (
                     <button
@@ -1378,8 +1526,8 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                       }`}
                       title={isModalBlockedByPrevious ? 'Conclua o atendimento anterior para iniciar este' : undefined}
                     >
-                      <Zap className={`w-4 h-4 ${isModalBlockedByPrevious ? 'text-slate-500' : 'text-white fill-white'}`} />
-                      <span>{isModalBlockedByPrevious ? 'Início Bloqueado (Cadeira Ocupada)' : (isPaused ? 'Retomar Atendimento' : 'Iniciar Atendimento')}</span>
+                      <Play className={`w-4 h-4 ${isModalBlockedByPrevious ? 'text-slate-500' : 'text-white fill-white'}`} />
+                      <span className={isModalBlockedByPrevious ? '' : 'text-white'}>{isModalBlockedByPrevious ? 'Início Bloqueado (Cadeira Ocupada)' : (isPaused ? 'Retomar Atendimento' : 'Iniciar Atendimento')}</span>
                     </button>
                   ) : (
                     <button
@@ -1457,6 +1605,25 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                       <span>Transferir para Colega</span>
                     </button>
                   )}
+
+                  {/* Ação 5: Cancelar Atendimento (Abre Modal de Justificativa) */}
+                  <button
+                    type="button"
+                    id="modal-btn-open-cancel"
+                    onClick={() => {
+                      hapticLight();
+                      setCancelJustification('');
+                      setIsCancelModalOpen(true);
+                    }}
+                    className={`w-full py-2 px-3 rounded border font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-98 ${
+                      isDark
+                        ? 'border-rose-500/40 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-white'
+                        : 'border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700'
+                    }`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Cancelar Atendimento</span>
+                  </button>
                 </div>
               )}
 
@@ -1467,6 +1634,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                   id="modal-btn-dismiss"
                   onClick={() => {
                     hapticLight();
+                    setIsCancelModalOpen(false);
                     setIsActionModalOpen(false);
                     setActionModalAppointment(null);
                   }}
@@ -1476,6 +1644,155 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 </button>
               </div>
             </div>
+
+            {/* Modal de Justificativa de Cancelamento de Atendimento (Sobreposto ao Modal Operacional) */}
+            {isCancelModalOpen && (
+              <div
+                id="professional-cancel-justification-modal-overlay"
+                className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+                onClick={() => {
+                  hapticLight();
+                  setIsCancelModalOpen(false);
+                }}
+              >
+                <div
+                  id="professional-cancel-justification-modal"
+                  className={`w-full max-w-sm rounded border p-4 shadow-2xl space-y-3.5 relative animate-in zoom-in-95 duration-150 ${
+                    isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+                  }`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Cabeçalho do Modal de Justificativa */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className={`w-8 h-8 rounded flex items-center justify-center shrink-0 ${
+                        isDark ? 'bg-rose-500/15 text-rose-400' : 'bg-rose-100 text-rose-600'
+                      }`}>
+                        <AlertCircle className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-black leading-tight truncate">
+                          Cancelar Atendimento
+                        </h3>
+                        <p className={`text-[11px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          {clientFullName} • {startTimeStr}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setIsCancelModalOpen(false);
+                      }}
+                      className={`p-1.5 rounded transition cursor-pointer ${
+                        isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                      }`}
+                      aria-label="Fechar modal de justificativa"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Motivos Rápidos */}
+                  <div className="space-y-1.5">
+                    <span className={`text-[10px] font-bold uppercase tracking-wider block ${
+                      isDark ? 'text-slate-400' : 'text-slate-500'
+                    }`}>
+                      Motivo do Cancelamento
+                    </span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {[
+                        'Cliente desmarcou',
+                        'Não compareceu (No-Show)',
+                        'Imprevisto do profissional',
+                        'Solicitou reagendamento',
+                      ].map((preset) => {
+                        const isSelected = cancelJustification === preset;
+                        return (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => {
+                              hapticLight();
+                              setCancelJustification(preset);
+                            }}
+                            className={`py-1.5 px-2 rounded border text-[10px] font-bold text-left truncate transition cursor-pointer ${
+                              isSelected
+                                ? 'bg-rose-600 border-rose-600 text-white'
+                                : isDark
+                                ? 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
+                            }`}
+                          >
+                            {preset}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Campo de Justificativa */}
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="cancel-justification-textarea"
+                      className={`text-[10px] font-bold uppercase tracking-wider block ${
+                        isDark ? 'text-slate-400' : 'text-slate-500'
+                      }`}
+                    >
+                      Justificativa Obrigatória
+                    </label>
+                    <textarea
+                      id="cancel-justification-textarea"
+                      rows={3}
+                      value={cancelJustification}
+                      onChange={(e) => setCancelJustification(e.target.value)}
+                      placeholder="Descreva o motivo do cancelamento..."
+                      className={`w-full rounded border p-2.5 text-xs focus:outline-none transition resize-none ${
+                        isDark
+                          ? 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-500 focus:border-rose-500'
+                          : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-rose-500'
+                      }`}
+                    />
+                  </div>
+
+                  {/* Ações Fixas do Modal de Justificativa */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      id="cancel-modal-btn-back"
+                      onClick={() => {
+                        hapticLight();
+                        setIsCancelModalOpen(false);
+                      }}
+                      className={`py-2.5 px-3 rounded border font-bold text-xs uppercase tracking-wider transition cursor-pointer ${
+                        isDark
+                          ? 'border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200'
+                          : 'border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      Voltar
+                    </button>
+                    <button
+                      type="button"
+                      id="cancel-modal-btn-confirm"
+                      disabled={!cancelJustification.trim()}
+                      onClick={handleCancelAppointmentFromModal}
+                      className={`py-2.5 px-3 rounded font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition ${
+                        cancelJustification.trim()
+                          ? 'bg-rose-600 hover:bg-rose-700 text-white cursor-pointer active:scale-98 shadow-xs'
+                          : isDark
+                          ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                          : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <Check className={`w-3.5 h-3.5 ${cancelJustification.trim() ? 'text-white' : ''}`} />
+                      <span className={cancelJustification.trim() ? 'text-white' : ''}>Confirmar</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
       })()}
@@ -1515,6 +1832,31 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
           } catch {}
         }}
       />
+
+      {/* Modal de Rastreamento em Tempo Real do Cliente */}
+      {liveTrackingAppointment && (
+        <LiveTrackingDrawerModal
+          isOpen={Boolean(liveTrackingAppointment)}
+          appointment={liveTrackingAppointment}
+          initialTab="map"
+          viewerRole="salon"
+          onClose={() => setLiveTrackingAppointment(null)}
+          onUpdateAppointment={(updated) => {
+            if (!onUpdateAppointments) return;
+            const targetCode = updated.protocolCode || updated.id;
+            const updatedList = (appointments.length > 0 ? appointments : effectiveAppointments).map((a) => {
+              if (a.protocolCode === targetCode || a.id === targetCode) {
+                return updated;
+              }
+              return a;
+            });
+            onUpdateAppointments(updatedList);
+            try {
+              localStorage.setItem('vagou_salon_appointments', JSON.stringify(updatedList));
+            } catch {}
+          }}
+        />
+      )}
     </div>
   );
 };

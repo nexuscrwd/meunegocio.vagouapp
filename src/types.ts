@@ -64,6 +64,8 @@ export interface BookingAppointment {
   customerPhone?: string;
   clientPhone?: string;
   customerEmail?: string;
+  customerAvatar?: string | null;
+  clientAvatar?: string | null;
   dateIso?: string;
   createdAt?: string;
 
