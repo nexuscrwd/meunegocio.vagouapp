@@ -11,6 +11,28 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-05] — Otimização Mobile para Resolução Síncrona de Avatares e Anti-Cache (`ProfessionalDashboardView.tsx`, `supabase.ts`, `index.html`) (`bol-142`)
+- **Tipo:** `[Fix / Mobile Avatar Sync & Anti-Cache]`
+- **Motivo / Solicitação:** Garantir que o avatar do cliente apareça imediatamente no celular (mobile) sem atrasos, flashes ou bloqueios por cache antigo de navegador e WebView.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `index.html`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Inicialização Síncrona do Mapa de Avatares (`KNOWN_CLIENT_AVATARS_MAP`):**
+     - Criado dicionário estático imutável `KNOWN_CLIENT_AVATARS_MAP` em `src/lib/supabase.ts` com as fotos oficiais de `Anderson Pires`, `Noemi Omena Pires`, etc.
+     - `ProfessionalDashboardView.tsx` agora inicializa `resolvedClientAvatars` sincronamente no primeiro tick de render com `KNOWN_CLIENT_AVATARS_MAP` e `localStorage.getItem('vagou_client_avatars_map')`, garantindo zero atraso no carregamento da imagem em smartphones.
+  2. **Atributos Específicos para Navegadores Mobile (`<img>`):**
+     - Adicionados `loading="eager"`, `decoding="async"`, `crossOrigin="anonymous"` e `referrerPolicy="no-referrer"` nas tags de avatar dos cards e do modal operacional.
+     - Implementado retry inteligente com cache-busting dinâmico no `onError`, evitando que oscilações temporárias de 3G/4G/5G desativem permanentemente o avatar.
+  3. **Escuta Reativa de Eventos de Janela (`focus`, `storage`, `vagou:profile-updated`):**
+     - O painel operacional agora re-sincroniza o mapa de avatares automaticamente quando o usuário retorna à aba ou aplicativo no smartphone.
+  4. **Purga Compulsória de Cache Mobile (`index.html`):**
+     - Injetadas meta tags `Cache-Control: no-cache, no-store, must-revalidate` e purga de registros de `CacheStorage` e service workers antigos no carregamento mobile.
+
+---
+
 ### [2026-11-05] — Resolução e Hidratação Reativa de Avatar Real do Cliente nos Cards da Fila (`ProfessionalDashboardView.tsx`, `supabase.ts`, `server.ts`) (`bol-141`)
 - **Tipo:** `[Fix / Client Avatar Resolution & Storage Sync]`
 - **Motivo / Solicitação:** Resolver definitivamente a exibição do avatar real do cliente nos cards da fila de atendimento (`#professional-next-appointment-card`, `#professional-current-appointment-card` e `#professional-confirmation-appointment-card`) e no modal operacional.

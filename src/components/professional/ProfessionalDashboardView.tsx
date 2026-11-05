@@ -9,7 +9,7 @@ import { SalonAdminSettings, CatalogServiceItem, BookingAppointment, SalonProfes
 import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
 import { PixCheckoutModal } from './PixCheckoutModal';
 import { LiveTrackingDrawerModal } from '../live-tracking/LiveTrackingModal';
-import { resolveClientAvatarsMap, isValidAvatarUrlString } from '../../lib/supabase';
+import { resolveClientAvatarsMap, isValidAvatarUrlString, KNOWN_CLIENT_AVATARS_MAP } from '../../lib/supabase';
 
 const getAppointmentDurationMinutes = (app: BookingAppointment): number => {
   if (typeof app.durationMinutes === 'number' && app.durationMinutes > 0) {
@@ -178,23 +178,61 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
   // Mapa local de status do atendimento (Ex: 'EM ANDAMENTO' ou 'CONCLUÍDO')
   const [localAppointmentStatuses, setLocalAppointmentStatuses] = useState<Record<string, string>>({});
 
-  // Mapa reativo de avatares de clientes resolvidos diretamente do Supabase
-  const [resolvedClientAvatars, setResolvedClientAvatars] = useState<Record<string, string>>({});
+  // Mapa reativo de avatares de clientes resolvidos (com inicialização síncrona imediata para celular)
+  const [resolvedClientAvatars, setResolvedClientAvatars] = useState<Record<string, string>>(() => {
+    let initialMap: Record<string, string> = { ...KNOWN_CLIENT_AVATARS_MAP };
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('vagou_client_avatars_map');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed === 'object') {
+            initialMap = { ...initialMap, ...parsed };
+          }
+        }
+        const userAv = localStorage.getItem('vagou_user_avatar');
+        if (isValidAvatarUrlString(userAv)) {
+          const uName = (localStorage.getItem('vagou_user_name') || '').trim().toLowerCase();
+          const uEmail = (localStorage.getItem('vagou_user_email') || '').trim().toLowerCase();
+          const uPhone = (localStorage.getItem('vagou_user_phone') || '').replace(/\D/g, '');
+          if (uName) initialMap[uName] = userAv.trim();
+          if (uEmail) initialMap[uEmail] = userAv.trim();
+          if (uPhone.length >= 8) {
+            initialMap[uPhone] = userAv.trim();
+            initialMap[uPhone.slice(-9)] = userAv.trim();
+            initialMap[uPhone.slice(-8)] = userAv.trim();
+          }
+        }
+      } catch {}
+    }
+    return initialMap;
+  });
   const [failedAvatarUrls, setFailedAvatarUrls] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    let active = true;
-    resolveClientAvatarsMap()
-      .then((map) => {
-        if (active && map && Object.keys(map).length > 0) {
-          setResolvedClientAvatars((prev) => ({ ...prev, ...map }));
-        }
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
+    let isMounted = true;
+    const syncAvatars = () => {
+      resolveClientAvatarsMap()
+        .then((map) => {
+          if (isMounted && map && Object.keys(map).length > 0) {
+            setResolvedClientAvatars((prev) => ({ ...prev, ...map }));
+          }
+        })
+        .catch(() => {});
     };
-  }, [appointments.length]);
+
+    syncAvatars();
+    window.addEventListener('focus', syncAvatars);
+    window.addEventListener('storage', syncAvatars);
+    window.addEventListener('vagou:profile-updated', syncAvatars);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('focus', syncAvatars);
+      window.removeEventListener('storage', syncAvatars);
+      window.removeEventListener('vagou:profile-updated', syncAvatars);
+    };
+  }, []);
 
   const getAppointmentClientAvatar = useCallback((app: BookingAppointment): string => {
     const directCandidates = [
@@ -221,8 +259,24 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       if (resolvedClientAvatars[cPhone.slice(-8)]) return resolvedClientAvatars[cPhone.slice(-8)];
     }
 
-    const cName = String(app.clientName || app.customerName || '').trim().toLowerCase();
-    if (cName && resolvedClientAvatars[cName]) return resolvedClientAvatars[cName];
+    const rawName = String(app.clientName || app.customerName || '').trim().toLowerCase();
+    if (rawName) {
+      if (resolvedClientAvatars[rawName]) return resolvedClientAvatars[rawName];
+      const stripped = rawName.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (stripped && resolvedClientAvatars[stripped]) return resolvedClientAvatars[stripped];
+      const firstName = rawName.split(' ')[0];
+      if (firstName && resolvedClientAvatars[firstName]) return resolvedClientAvatars[firstName];
+      
+      // Match por chave contida no mapa
+      for (const [key, url] of Object.entries(resolvedClientAvatars) as [string, string][]) {
+        if (key.length >= 4 && (rawName.includes(key) || key.includes(rawName))) {
+          return String(url);
+        }
+      }
+
+      if (KNOWN_CLIENT_AVATARS_MAP[rawName]) return KNOWN_CLIENT_AVATARS_MAP[rawName];
+      if (firstName && KNOWN_CLIENT_AVATARS_MAP[firstName]) return KNOWN_CLIENT_AVATARS_MAP[firstName];
+    }
 
     return '';
   }, [resolvedClientAvatars]);
@@ -985,8 +1039,18 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     src={clientAvatarUrl}
                     alt={rawFullName}
                     className="w-full h-full object-cover"
-                    onError={() => {
-                      setFailedAvatarUrls((prev) => ({ ...prev, [clientAvatarUrl]: true }));
+                    loading="eager"
+                    decoding="async"
+                    crossOrigin="anonymous"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (!target.dataset.retried) {
+                        target.dataset.retried = 'true';
+                        target.src = clientAvatarUrl + (clientAvatarUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+                      } else {
+                        setFailedAvatarUrls((prev) => ({ ...prev, [clientAvatarUrl]: true }));
+                      }
                     }}
                   />
                 </div>
@@ -1398,8 +1462,18 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                             src={modalAvatar}
                             alt={clientFullName}
                             className="w-full h-full object-cover"
-                            onError={() => {
-                              setFailedAvatarUrls((prev) => ({ ...prev, [modalAvatar]: true }));
+                            loading="eager"
+                            decoding="async"
+                            crossOrigin="anonymous"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              if (!target.dataset.retried) {
+                                target.dataset.retried = 'true';
+                                target.src = modalAvatar + (modalAvatar.includes('?') ? '&' : '?') + 't=' + Date.now();
+                              } else {
+                                setFailedAvatarUrls((prev) => ({ ...prev, [modalAvatar]: true }));
+                              }
                             }}
                           />
                         ) : (

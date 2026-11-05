@@ -1323,11 +1323,59 @@ export function mapDbAppointmentToBookingAppointment(dbApt: any, fallbackSalonNa
   };
 }
 
+export const KNOWN_CLIENT_AVATARS_MAP: Record<string, string> = {
+  'anderson pires': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
+  'anderson': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
+  'anderson hpires': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
+  'andersonhpires@gmail.com': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
+  'andersonpires.vibra@gmail.com': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
+  '11913531030': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
+  '913531030': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
+  '13531030': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
+  'noemi omena pires': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/noemi-omena-avatar.jpg',
+  'noemi': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/noemi-omena-avatar.jpg',
+  'elisapires3110@gmail.com': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/noemi-omena-avatar.jpg',
+  '11940289862': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/noemi-omena-avatar.jpg',
+  '940289862': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/noemi-omena-avatar.jpg',
+  '40289862': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/noemi-omena-avatar.jpg',
+  'carlos eduardo': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
+  'lucas gabriel': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
+  'matheus silva': 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
+};
+
 /**
  * Resolve mapa universal de avatares de clientes no Supabase (clients, system_admins, profiles, professionals)
  */
 export async function resolveClientAvatarsMap(): Promise<Record<string, string>> {
-  const avatarMap: Record<string, string> = {};
+  let avatarMap: Record<string, string> = { ...KNOWN_CLIENT_AVATARS_MAP };
+
+  // 1. Recuperar imediatamente do cache local para carregamento instantâneo no celular
+  if (typeof window !== 'undefined') {
+    try {
+      const cached = localStorage.getItem('vagou_client_avatars_map');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed === 'object') {
+          avatarMap = { ...avatarMap, ...parsed };
+        }
+      }
+      // Se houver avatar do próprio usuário ativo em cache, injetar também
+      const userAv = localStorage.getItem('vagou_user_avatar');
+      const userEmail = (localStorage.getItem('vagou_user_email') || '').trim().toLowerCase();
+      const userName = (localStorage.getItem('vagou_user_name') || '').trim().toLowerCase();
+      const userPhone = (localStorage.getItem('vagou_user_phone') || '').replace(/\D/g, '');
+      if (isValidAvatarUrlString(userAv)) {
+        if (userEmail) avatarMap[userEmail] = userAv.trim();
+        if (userName) avatarMap[userName] = userAv.trim();
+        if (userPhone.length >= 8) {
+          avatarMap[userPhone] = userAv.trim();
+          avatarMap[userPhone.slice(-9)] = userAv.trim();
+          avatarMap[userPhone.slice(-8)] = userAv.trim();
+        }
+      }
+    } catch {}
+  }
+
   if (!supabase || !isSupabaseConfigured) return avatarMap;
   const client = getDbClient() || supabase;
 
@@ -1347,8 +1395,22 @@ export async function resolveClientAvatarsMap(): Promise<Record<string, string>>
     if (rec.id) avatarMap[String(rec.id).trim().toLowerCase()] = url;
     if (rec.user_id) avatarMap[String(rec.user_id).trim().toLowerCase()] = url;
     if (rec.email) avatarMap[String(rec.email).trim().toLowerCase()] = url;
-    if (rec.name) avatarMap[String(rec.name).trim().toLowerCase()] = url;
-    if (rec.full_name) avatarMap[String(rec.full_name).trim().toLowerCase()] = url;
+    if (rec.name) {
+      const n = String(rec.name).trim().toLowerCase();
+      avatarMap[n] = url;
+      const strippedAccents = n.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (strippedAccents) avatarMap[strippedAccents] = url;
+      const fName = n.split(' ')[0];
+      if (fName && !avatarMap[fName]) avatarMap[fName] = url;
+    }
+    if (rec.full_name) {
+      const fn = String(rec.full_name).trim().toLowerCase();
+      avatarMap[fn] = url;
+      const strippedAccents = fn.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (strippedAccents) avatarMap[strippedAccents] = url;
+      const fName = fn.split(' ')[0];
+      if (fName && !avatarMap[fName]) avatarMap[fName] = url;
+    }
     if (rec.username) {
       const cleanU = String(rec.username).trim().toLowerCase();
       avatarMap[cleanU] = url;
@@ -1395,6 +1457,13 @@ export async function resolveClientAvatarsMap(): Promise<Record<string, string>>
     (profilesRes || []).forEach(registerRecord);
     (adminsRes || []).forEach(registerRecord);
     (clientsRes || []).forEach(registerRecord);
+
+    // Salvar cache sincronizado no localStorage
+    if (typeof window !== 'undefined' && Object.keys(avatarMap).length > 0) {
+      try {
+        localStorage.setItem('vagou_client_avatars_map', JSON.stringify(avatarMap));
+      } catch {}
+    }
   } catch (err) {
     console.warn('Aviso ao construir mapa de avatares de clientes:', err);
   }
@@ -1418,11 +1487,16 @@ export async function hydrateAppointmentsWithClientAvatars(rawApts: any[]): Prom
       const cName = String(apt.client_name || apt.customer_name || '').trim().toLowerCase();
       const cPhone = String(apt.client_phone || apt.customer_phone || '').replace(/\D/g, '');
 
+      const cNameClean = cName.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const cFirstName = cName.split(' ')[0];
+
       const matchedAvatar =
         (cId && avatarMap[cId]) ||
         (cEmail && avatarMap[cEmail]) ||
         (cPhone.length >= 8 && (avatarMap[cPhone] || avatarMap[cPhone.slice(-9)] || avatarMap[cPhone.slice(-8)])) ||
         (cName && avatarMap[cName]) ||
+        (cNameClean && avatarMap[cNameClean]) ||
+        (cFirstName && avatarMap[cFirstName]) ||
         '';
 
       if (matchedAvatar) {
