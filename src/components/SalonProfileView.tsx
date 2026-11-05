@@ -42,6 +42,7 @@ import { MobileHeader, UserRole as HeaderUserRole } from './MobileHeader';
 import { PauseSlotsModal } from './professional/PauseSlotsModal';
 import { ProfileDrawer } from './ProfileDrawer';
 import { SalonClientAuthModal } from './SalonClientAuthModal';
+import { SalonSpaceInteractiveMap } from './SalonSpaceInteractiveMap';
 import { hapticSuccess, hapticLight, hapticMedium } from '../utils/haptics';
 import { getSectionHeaderStyleData } from '../utils/sectionHeaderStyle';
 import { syncAllLocalUtilitiesToDatabase } from '../services/mnvSupabaseSync';
@@ -3369,28 +3370,25 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                           </div>
                         </div>
 
-                        {/* Mapa Ocupando a Maior Parte Restante da Seção (flex-1) */}
-                        <div className={`relative w-full flex-1 min-h-[260px] rounded-[4px] overflow-hidden border shadow-xs ${
-                          isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-[#E6EDF5]'
-                        }`}>
-                          <iframe
-                            title={`Localização no Google Maps - ${salonInfo.name}`}
-                            src={`https://maps.google.com/maps?q=${encodeURIComponent(salonInfo.name + ', ' + (salonInfo.fullAddress || salonInfo.address))}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
-                            className="w-full h-full border-0"
-                            loading="lazy"
-                            referrerPolicy="no-referrer-when-downgrade"
-                            allowFullScreen
-                          />
-                          <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(salonInfo.name + ' ' + (salonInfo.fullAddress || salonInfo.address))}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="absolute bottom-2.5 right-2.5 px-3 py-1.5 bg-[#2B82C9] hover:bg-[#1F6FB0] text-white rounded-[4px] text-[10px] font-bold shadow-md transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 uppercase tracking-wider whitespace-nowrap"
-                          >
-                            <MapPin className="w-3 h-3 text-white" />
-                            <span className="text-white">Rota no Maps</span>
-                          </a>
-                        </div>
+                        {/* Mapa Interativo com Marcador do Salão, Arrasto de 1 Dedo, Zoom de 2 Dedos, KM/Tempo e Ações (No App, Google Maps, Waze) */}
+                        <SalonSpaceInteractiveMap
+                          salonName={salonInfo.name}
+                          salonAvatar={salonInfo.avatar}
+                          salonAddress={salonInfo.fullAddress || salonInfo.address}
+                          salonCep={adminSettings.cep || initialSalonData?.cep}
+                          initialSalonLat={
+                            typeof initialSalonData?.latitude === 'number'
+                              ? initialSalonData.latitude
+                              : undefined
+                          }
+                          initialSalonLng={
+                            typeof initialSalonData?.longitude === 'number'
+                              ? initialSalonData.longitude
+                              : undefined
+                          }
+                          userAvatarUrl={currentUserAvatarUrl}
+                          isDark={isDark}
+                        />
                       </motion.div>
                     )}
                   </AnimatePresence>

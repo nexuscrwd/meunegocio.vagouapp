@@ -13,6 +13,23 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ---
 
+### [2026-11-05] — Mapa Interativo na Aba Localização com Marcador do Salão, Arrasto 1 Dedo, Zoom 2 Dedos, Telemetria (`KM` e `À XX:MM`) e Botões (`No App`, `Google Maps`, `Waze`) (`bol-127`)
+- **Tipo:** `[Feat / GIS & Mobile UX — Focus Mode]`
+- **Motivo / Solicitação:**
+  1. Substituir o `<iframe>` estático do Google Maps na seção `#section-espaco` (aba Localização) por um mapa interativo nativo que permita arrastar o mapa com **1 só dedo** no celular e ampliar/reduzir com **2 dedos** (`pinch-to-zoom`).
+  2. Exibir o **marcador personalizado do salão** sempre visível no mapa com foto/ícone e etiqueta do estabelecimento.
+  3. Adicionar na parte inferior o contador de distância em **`KM`** e tempo **`À XX:MM do seu local`**, além dos botões **No App** (Cockpit GPS Course-Up nativo), **Google Maps** e **Waze**.
+- **Arquivos Impactados:**
+  - `src/components/SalonSpaceInteractiveMap.tsx` (novo)
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`SalonSpaceInteractiveMap.tsx`:** Implementado mapa interativo Leaflet com tiles Google Maps/OSM, `dragging: true`, `touchZoom: true`, `tapHold: false` e `touchAction: 'none'` (com bloqueio de propagação de toque) para navegação fluida com 1 dedo e zoom de pinça com 2 dedos no mobile.
+  2. **Marcador do Salão & Geocodificação:** Adicionado pino customizado com avatar/inicial do salão e selo `#005CA9` com texto branco (`text-white`), geocodificado automaticamente via `geocodeBrazilLocation`.
+  3. **Telemetria Viária & Navegação Tripla:** Integrado cálculo viário real (`calculateDrivingRouteDistanceAndEta` / `computeGoogleDetailedRoute` / OSRM) exibindo distância (`X,X KM`) e tempo (`À XX:MM do seu local`), acompanhado dos botões **No App** (abre o Cockpit GPS Course-Up em tempo real `InteractiveGoogleRouteMap`), **Google Maps** e **Waze**.
+
+---
+
 ### [2026-11-05] — Barra de Rolagem Vertical, Reordenação de Abas (`Estrutura | Contatos | Localização`), Endereço Completo e Mapa Expandido (`bol-126`)
 - **Tipo:** `[Feat / UX & GIS Layout]`
 - **Motivo / Solicitação:**
