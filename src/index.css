@@ -69,9 +69,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Gradiente Principal de Cabeçalho (Azul Institucional Mais Claro & Suave) */
+/* Gradiente Principal de Cabeçalho */
 .caixa-header-gradient {
-  background: linear-gradient(115deg, #2B82C9 0%, #3A96DE 52%, #48BFA6 100%);
+  background: linear-gradient(115deg, #005CA9 0%, #0D79B4 52%, #39B29B 100%);
 }
 
 /* Card Padrão Universal — Branco Puro, Borda Fina e Sombra Concentrada */

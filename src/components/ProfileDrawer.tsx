@@ -43,7 +43,7 @@ interface ProfileDrawerProps {
   onUpdateAppointments?: (appointments: BookingAppointment[]) => void;
   onNavigateToUserAppointments?: () => void;
   onNavigateToUserDashboard?: () => void;
-  initialSubTab?: 'menu' | 'agenda' | 'dados' | 'dependentes' | 'config';
+  initialSubTab?: 'menu' | 'agenda' | 'dados' | 'dependentes' | 'config' | 'trajeto' | 'chat';
 }
 
 const DEFAULT_SWAP_GOVERNANCE: ClientSwapGovernance = {
@@ -156,7 +156,9 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   initialSubTab = 'menu',
 }) => {
   const { isDark, toggleTheme } = useTheme();
-  const [activeSubTab, setActiveSubTab] = useState<'menu' | 'agenda' | 'dados' | 'dependentes' | 'config'>(initialSubTab);
+  const [activeSubTab, setActiveSubTab] = useState<'menu' | 'agenda' | 'dados' | 'dependentes' | 'config'>(
+    initialSubTab === 'trajeto' || initialSubTab === 'chat' ? 'menu' : initialSubTab
+  );
   const [drawerDepartureApt, setDrawerDepartureApt] = useState<BookingAppointment | null>(null);
   const [drawerLiveViewState, setDrawerLiveViewState] = useState<{
     appointment: BookingAppointment;
@@ -166,7 +168,15 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
   useEffect(() => {
     if (isOpen && initialSubTab) {
-      setActiveSubTab(initialSubTab);
+      if (initialSubTab === 'trajeto') {
+        setActiveSubTab('menu');
+        setIsRouteSimulatorOpen(true);
+      } else if (initialSubTab === 'chat') {
+        setActiveSubTab('menu');
+        setIsAppChatOpen(true);
+      } else {
+        setActiveSubTab(initialSubTab);
+      }
     }
   }, [isOpen, initialSubTab]);
 

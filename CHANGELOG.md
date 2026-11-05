@@ -13,6 +13,81 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ---
 
+### [2026-11-05] — Remoção da Faixa Inferior de Seletor de Ambiente no Cabeçalho (`MobileHeader.tsx`) (`bol-121`)
+- **Tipo:** `[Refactor / UI Cleanup — Focus Mode]`
+- **Motivo / Solicitação:** Remover o elemento selecionado via Focus Mode (`header > div:nth-of-type(2)`).
+- **Arquivos Impactados:**
+  - `src/components/MobileHeader.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Removida a faixa inferior de botões seletores de ambiente (`Lado Usuário`, `Lado Empresa`, `Admin`) em `src/components/MobileHeader.tsx` e limpos os imports sem uso (`Shield`, `Briefcase`).
+
+---
+
+### [2026-11-05] — Remoção do Selo de Contagem de Procedimentos no Subcabeçalho de Serviços (`#section-servicos`) (`bol-120`)
+- **Tipo:** `[Refactor / UI Cleanup — Focus Mode]`
+- **Motivo / Solicitação:** Remover o elemento selecionado via Focus Mode (`section#section-servicos > div:nth-of-type(1) > span:nth-of-type(1)`).
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Removido o `<span style={sectionHeaderStyleData.badgeStyle}>{catalogServices.length} procedimentos</span>` do subcabeçalho da seção `#section-servicos` em `src/components/SalonProfileView.tsx`.
+
+---
+
+### [2026-11-05] — Remoção da Tag "Menu" e da Linha "Ambiente Ativo:" no Cabeçalho (`MobileHeader.tsx`) (`bol-119`)
+- **Tipo:** `[Refactor / UI Cleanup — Focus Mode]`
+- **Motivo / Solicitação:** Remover os 3 elementos selecionados via Focus Mode no cabeçalho principal (`span` "Menu" ao lado de "Olá," e os dois `span`s da linha "Ambiente Ativo:" na faixa inferior).
+- **Arquivos Impactados:**
+  - `src/components/MobileHeader.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Removido o badge `<span>Menu</span>` dentro da saudação `"Olá,"` e removida a linha superior de texto `"Ambiente Ativo: ..."` na faixa inferior de `MobileHeader.tsx`, mantendo apenas os 3 botões seletores de ambiente (`Lado Usuário`, `Lado Empresa`, `Admin`).
+
+---
+
+### [2026-11-05] — Restauração dos Itens Originais do Menu de Opções no Dropdown do Cabeçalho Institucional (`MobileHeader.tsx`) (`bol-118`)
+- **Tipo:** `[Fix / UX Alignment — Itens Originais do Menu VagouApp no MobileHeader]`
+- **Motivo / Solicitação:** Manter o estilo e layout institucional do `MobileHeader.tsx`, mas exibir exclusivamente os itens originais do menu de opções do VagouApp (`Minha Agenda`, `Trajeto GPS Teste`, `Conta Família • Dependentes`, `Meus Dados Pessoais`, `Chat no App Vagou` no Modo Cliente; e `Serviços`, `Espaço`, `Equipe`, `Preferências`, `Utilidades`, `Meus Dados Pessoais` no Modo Gestão do Estabelecimento), eliminando os rótulos de exemplo do snippet de referência.
+- **Arquivos Impactados:**
+  - `src/components/MobileHeader.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`MobileHeader.tsx`:** Mantido 100% do layout e estilo institucional (`sticky top-0 z-30`, `.caixa-header-gradient`, avatar `40x40px`, relógio tabular ao vivo e faixa inferior de transição), substituindo os itens do dropdown pelos itens reais e originais do VagouApp conforme o modo ativo (`!isGerMode` vs `isGerMode`), além de alternador de tema (`Claro`/`Escuro`) e botão para abrir o painel completo/alterar foto.
+  2. **`ProfileDrawer.tsx` & `SalonProfileView.tsx`:** Adicionado suporte direto às sub-abas `'trajeto'` e `'chat'` em `initialSubTab` para abrir imediatamente o `RouteSimulatorModal` ou o Chat Oficial do App ao clicar no dropdown do cabeçalho.
+
+---
+
+### [2026-11-05] — Novo Fluxo de Clique na Data do Calendário ("Para Você" ou "Dependente" ➔ Seleção de Horário) & Cabeçalho Institucional Mobile-First (`MobileHeader.tsx`) (`bol-117`)
+- **Tipo:** `[Feat / Refactor — Fluxo de Agendamento & Cabeçalho Institucional Mobile-First]`
+- **Motivo / Solicitação:**
+  1. Alterar a regra da aba "Agenda" (`SalonBookingModal.tsx`): ao clicar em uma data do calendário, abrir o modal/seção `"Para Você"` ou `"Dependente"`, e após a escolha avançar para a seção de seleção de horário (`professionals_and_time`).
+  2. Substituir o cabeçalho principal do aplicativo pelo componente institucional `MobileHeader.tsx` com degradê `.caixa-header-gradient` (`linear-gradient(115deg, #005CA9 0%, #0D79B4 52%, #39B29B 100%)`), avatar `40x40px` com iniciais + dropdown de menu rápido, relógio digital ao vivo (`dd/mm/aaaa` + `hh:mm:ss` `font-mono-tabular`), botão `Sair` e faixa inferior de transição com seletor de ambiente (`Lado Usuário` / `Lado Empresa` / `Admin`).
+- **Arquivos Impactados:**
+  - `src/components/MobileHeader.tsx` (novo)
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/index.css`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Fluxo da Aba Agenda (`SalonBookingModal.tsx`):** Ao clicar em um dia do calendário (`monthData.daysGrid`), define `selectedDateIso`, limpa `selectedTimeSlot` e abre `setIsBeneficiaryModalOpen(true)`. Ao escolher `"Para Você"`, selecionar um `"Dependente"` cadastrado ou salvar um novo dependente inline (`handleSaveInlineDependent`), fecha `isBeneficiaryModalOpen` e avança diretamente para `setCurrentStep('professionals_and_time')`.
+  2. **Cabeçalho Institucional (`MobileHeader.tsx` + `SalonProfileView.tsx` + `src/index.css`):** Criado `src/components/MobileHeader.tsx` seguindo fielmente o código-fonte institucional enviado pelo usuário e integrado ao topo de `SalonProfileView.tsx`, removendo imports e estados órfãos do cabeçalho anterior.
+
+---
+
+### [2026-11-04] — Remoção do Bloco "Radar Inteligente da Região" na Aba Localização (`#section-espaco`) (`bol-116`)
+- **Tipo:** `[Refactor / UI Cleanup — Focus Mode]`
+- **Motivo / Solicitação:** Remover o elemento selecionado via Focus Mode (`section#section-espaco > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(3)`).
+- **Arquivos Impactados:**
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Removido o bloco `<SalonLocationGroundingPanel />` (`div:nth-of-type(3)` dentro do card de Localização em `#section-espaco`) e seu respectivo import sem uso em `src/components/SalonProfileView.tsx`, mantendo apenas o endereço/horário e o mapa interativo com botão de rota.
+
+---
+
 ### [2026-11-04] — Extensão Universal do Design System Institucional (Menu, Trajeto GPS, Dependentes, Chat, Pausar e PIX) e Suavização do Azul Principal (`#2B82C9`) (`bol-115`)
 - **Tipo:** `[Refactor / Design System Institucional Mobile-First — Suavização para Azul Claro #2B82C9 e Cobertura 100% de Modais/Drawers]`
 - **Motivo / Solicitação:** Estender a refatoração visual institucional para todas as telas apontadas nos prints do usuário (`ProfileDrawer` Menu, `RouteSimulatorModal` Trajeto GPS, `Conta Família • Dependentes`, `Chat Oficial Vagou`, `PauseSlotsModal` e `PixCheckoutModal`) e suavizar o azul institucional para um tom mais claro e agradável (`#2B82C9`).

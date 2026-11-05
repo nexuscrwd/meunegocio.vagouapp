@@ -227,9 +227,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     return false;
   };
 
-  // Modal Inline "Para Você ou Dependente?" (abre imediatamente ao escolher o serviço quando autenticado)
+  // Modal Inline "Para Você ou Dependente?" (abre ao clicar em uma data no calendário)
   const [isBeneficiaryModalOpen, setIsBeneficiaryModalOpen] = useState<boolean>(() => {
-    if (initialService && !initialTimeSlot && !resumeDraft && checkIsClientAuthenticatedSync()) return true;
+    if (initialService && skipDateStep && !initialTimeSlot && !resumeDraft && checkIsClientAuthenticatedSync()) return true;
     return false;
   });
   const [returnToSummaryAfterBeneficiary, setReturnToSummaryAfterBeneficiary] = useState<boolean>(false);
@@ -662,7 +662,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
           setIsOriginModalOpen(false);
           setReturnToSummaryAfterBeneficiary(false);
-          setIsBeneficiaryModalOpen(true);
+          setIsBeneficiaryModalOpen(skipDateStep ? true : false);
         }
       } else {
         if (services.length > 0) {
@@ -712,7 +712,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         if (!initialTimeSlot && !resumeDraft) {
           setIsOriginModalOpen(false);
           setReturnToSummaryAfterBeneficiary(false);
-          setIsBeneficiaryModalOpen(true);
+          setIsBeneficiaryModalOpen(skipDateStep ? true : false);
         }
       } else {
         if (services.length > 0) {
@@ -796,9 +796,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       setReturnToSummaryAfterBeneficiary(false);
       setIsSummaryModalOpen(true);
     } else {
-      setReturnToRouteModalAfterOrigin(false);
-      setOriginModalMode('choice');
-      setIsOriginModalOpen(true);
+      setCurrentStep('professionals_and_time');
     }
     hapticSuccess();
   };
@@ -1532,7 +1530,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                         hapticMedium();
                         setSelectedDateIso(item.isoString);
                         setSelectedTimeSlot(null);
-                        setCurrentStep('professionals_and_time');
+                        setReturnToSummaryAfterBeneficiary(false);
+                        setIsBeneficiaryModalOpen(true);
                       }
                     }}
                     className={`h-11 rounded-[4px] font-mono-tabular font-bold text-xs transition-all relative flex flex-col items-center justify-center cursor-pointer border ${
@@ -1685,7 +1684,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               setReturnToSummaryAfterBeneficiary(false);
               setIsSummaryModalOpen(true);
             } else {
-              onClose?.();
+              setCurrentStep('date');
             }
           }}
           className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-bold transition cursor-pointer ${
@@ -1734,9 +1733,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   setReturnToSummaryAfterBeneficiary(false);
                   setIsSummaryModalOpen(true);
                 } else {
-                  setReturnToRouteModalAfterOrigin(false);
-                  setOriginModalMode('choice');
-                  setIsOriginModalOpen(true);
+                  setCurrentStep('professionals_and_time');
                 }
               }}
               className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
@@ -1803,9 +1800,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                               setReturnToSummaryAfterBeneficiary(false);
                               setIsSummaryModalOpen(true);
                             } else {
-                              setReturnToRouteModalAfterOrigin(false);
-                              setOriginModalMode('choice');
-                              setIsOriginModalOpen(true);
+                              setCurrentStep('professionals_and_time');
                             }
                           }}
                           className={`w-full p-2.5 rounded-[4px] text-left flex items-center justify-between gap-2 transition cursor-pointer ${
@@ -3287,7 +3282,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               setCurrentStep(skipDateStep ? 'professionals_and_time' : 'date');
               setIsOriginModalOpen(false);
               setReturnToSummaryAfterBeneficiary(false);
-              setIsBeneficiaryModalOpen(true);
+              setIsBeneficiaryModalOpen(skipDateStep ? true : false);
             }
           }
         }

@@ -1,19 +1,18 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
-  ArrowLeft, Heart, Zap, 
+  ArrowLeft, Zap, 
   Calendar,
   ChevronLeft, ChevronRight, ArrowRight,
   Check, MessageCircle, MessageSquare,
   Scissors, Sparkles, LayoutDashboard, LayoutGrid,
   Store, Car, MapPin, Clock, Users, Wifi, Coffee, Wind,
-  LogOut, EyeOff, User, Share2, Loader2, Bookmark, X,
+  LogOut, EyeOff, User, Loader2, Bookmark, X,
   Bike, Bus, Smartphone, Navigation, ExternalLink,
   Phone, Mail, Globe, Instagram, Facebook
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ServiceOffer, BookingAppointment, SalonAdminSettings, UserPersona, ProfessionalTeamMember } from '../types';
 import { SalonBookingModal, CatalogServiceItem, SalonProfessionalItem } from './SalonBookingModal';
-import { SalonLocationGroundingPanel } from './public/SalonLocationGroundingPanel';
 import {
   getSavedBookingDraft,
   saveBookingDraft,
@@ -39,6 +38,7 @@ import { getSalonLogo } from '../utils/salonLogos';
 import { DEFAULT_ROTA99_LOGO_DARK, DEFAULT_ROTA99_LOGO_LIGHT, DEFAULT_ROTA99_ICON, DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
 import { updateDynamicPwaAssets } from '../utils/pwaAssets';
 import { BottomNav } from './BottomNav';
+import { MobileHeader, UserRole as HeaderUserRole } from './MobileHeader';
 import { PauseSlotsModal } from './professional/PauseSlotsModal';
 import { ProfileDrawer } from './ProfileDrawer';
 import { SalonClientAuthModal } from './SalonClientAuthModal';
@@ -209,7 +209,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 }) => {
   const { isDark, theme, setTheme, accentColor, setAccentColor: setAccentColorContext } = useTheme();
   const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState<boolean>(false);
-  const [profileDrawerInitialTab, setProfileDrawerInitialTab] = useState<'menu' | 'agenda' | 'dados' | 'dependentes' | 'config'>('menu');
+  const [profileDrawerInitialTab, setProfileDrawerInitialTab] = useState<'menu' | 'agenda' | 'dados' | 'dependentes' | 'config' | 'trajeto' | 'chat'>('menu');
   const [isClientAuthModalOpen, setIsClientAuthModalOpenState] = useState<boolean>(() => {
     try {
       return sessionStorage.getItem('vagou_client_auth_modal_open') === 'true';
@@ -237,7 +237,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     } catch {}
     return isValidAvatarUrlString(userAvatarUrl) ? userAvatarUrl!.trim() : '';
   });
-  const [isCopied, setIsCopied] = useState<boolean>(false);
 
   React.useEffect(() => {
     setCurrentUserName(userName && userName.trim() !== '' ? userName : 'Usuário');
@@ -790,42 +789,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
   // Cor de destaque / tema ativa e prioritária do estabelecimento
   const effectiveAccentColor = adminSettings.accentColor || accentColor || '#20C933';
-
-  // Compartilhamento via Web Share API com fallback para Área de Transferência (Apenas Nome do App e Slogan)
-  const handleShare = useCallback(async () => {
-    hapticLight();
-    const shareTitle = (adminSettings.pwaName || adminSettings.salonName || salonName || 'Meu Estabelecimento').trim();
-    const finalSlogan = (adminSettings.slogan || '').trim();
-    const shareText = finalSlogan ? `${shareTitle} — ${finalSlogan}` : shareTitle;
-    const shareUrl = window.location.href;
-
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: shareTitle,
-          text: shareText,
-          url: shareUrl,
-        });
-        hapticSuccess();
-      } catch (err) {
-        if ((err as Error).name !== 'AbortError') {
-          try {
-            await navigator.clipboard.writeText(shareUrl);
-            setIsCopied(true);
-            hapticSuccess();
-            setTimeout(() => setIsCopied(false), 2000);
-          } catch {}
-        }
-      }
-    } else {
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-        setIsCopied(true);
-        hapticSuccess();
-        setTimeout(() => setIsCopied(false), 2000);
-      } catch {}
-    }
-  }, [adminSettings.pwaName, adminSettings.salonName, adminSettings.slogan, salonName]);
 
   const effectiveSalonCacheSlug = (
     activeSubdomain ||
@@ -2213,151 +2176,97 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
   return (
     <div className={`w-full h-full flex flex-col overflow-hidden ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-[#F7F9FC] text-[#333E48]'} font-sans transition-colors duration-200`}>
-      {/* 1. CABEÇALHO DO APLICATIVO DO SALÃO (Logo Full Height & Botões Selecionados) */}
-      <header 
-        id="salon-profile-header"
-        className={`sticky top-0 z-40 ${isDark ? 'bg-[#151A1E]/95 border-slate-800/80 text-white' : 'caixa-header-gradient border-[#004A88] text-white'} border-b pl-0 pr-2 sm:pr-4 py-0 shadow-xs flex items-center justify-between gap-1 sm:gap-2 transition-colors h-14 sm:h-16 overflow-hidden shrink-0 w-full max-w-full`}
-      >
-        {/* Lado Esquerdo: Botão Voltar (quando aberto via Radar) + Logotipia / Logo do Salão no Cabeçalho */}
-        <div className="h-full min-w-0 flex items-center justify-start gap-1 shrink overflow-hidden pl-0 ml-0 py-0 my-0">
-          {onBack && (
-            <button
-              onClick={onBack}
-              className={`w-7 h-7 rounded-[4px] flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ml-1.5 ${
-                isDark
-                  ? 'bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white'
-                  : 'bg-white/15 hover:bg-white/25 border border-white/25 text-white'
-              }`}
-              title="Voltar"
-              aria-label="Voltar"
-            >
-              <ArrowLeft className="w-3.5 h-3.5 text-white" />
-            </button>
-          )}
-          <div 
-            onClick={() => handleSelectTab('home')}
-            style={{ padding: '0px', margin: '0px' }}
-            className="h-full min-w-0 max-w-[320px] sm:max-w-[400px] flex items-center justify-start shrink select-none cursor-pointer overflow-hidden pl-0 ml-0 py-0 my-0"
-            title={salonInfo.name}
-          >
-          {activeLogo || adminSettings.salonIcon ? (
-            <div className="h-full w-full flex items-center justify-start min-w-0 p-[5px] ml-[5px] my-0">
-              <img 
-                src={activeLogo || adminSettings.salonIcon} 
-                alt={salonInfo.name}
-                className="h-full w-auto max-h-full object-contain object-left shrink-0 pl-0 ml-0 py-0 my-0"
-              />
-            </div>
-          ) : (
-            <div className="flex items-center justify-start gap-1.5 min-w-0 p-[5px] ml-[5px]">
-              <div
-                className="w-8 h-8 rounded-[4px] flex items-center justify-center text-white text-[11px] font-bold shrink-0 shadow-xs border border-white/25"
-                style={{
-                  backgroundColor: adminSettings.navActiveColor || adminSettings.accentColor || '#2B82C9',
-                  fontFamily: activeBrandFontFamily,
-                }}
-              >
-                {(adminSettings.logoTextFallback || salonInfo.name).slice(0, 2).toUpperCase()}
-              </div>
-              <div className="flex flex-col justify-center min-w-0">
-                <span
-                  style={{ 
-                    fontFamily: activeBrandFontFamily,
-                    color: adminSettings.logoTextColor || '#FFFFFF'
-                  }}
-                  className="text-xs sm:text-sm font-extrabold tracking-tight leading-tight truncate text-white"
-                >
-                  {adminSettings.logoTextFallback || salonInfo.name}
-                </span>
-              </div>
-            </div>
-          )}
-          </div>
-        </div>
-
-        {/* Lado Direito: Badge de Proprietário + Compartilhar + Foto do Usuário */}
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
-          {/* Botão Compartilhar Perfil (Web Share API) */}
-          <button
-            type="button"
-            onClick={handleShare}
-            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-[4px] flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
-              isDark
-                ? 'bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-white'
-                : 'bg-white/15 hover:bg-white/25 border border-white/25 text-white'
-            }`}
-            title={isCopied ? "Link copiado!" : "Compartilhar perfil"}
-            aria-label="Compartilhar perfil"
-          >
-            {isCopied ? (
-              <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
-            ) : (
-              <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
-            )}
-          </button>
-
-          {/* Favoritar Rápido (Somente visível no modo cliente/público) */}
-          {currentPersona === 'cliente' && (
-            <button
-              type="button"
-              onClick={() => onToggleFavorite?.(salonInfo.name)}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-[4px] flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
-                isDark
-                  ? 'bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-white'
-                  : 'bg-white/15 hover:bg-white/25 border border-white/25 text-white'
-              }`}
-              title="Favoritar este estabelecimento"
-              aria-label="Favoritar estabelecimento"
-            >
-              <Heart 
-                className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-colors ${isFavorite ? 'fill-rose-500 text-rose-500' : 'text-white'}`}
-              />
-            </button>
-          )}
-
-          {/* Se o usuário estiver logado -> exibe o ícone/avatar de perfil; Se NÃO estiver logado -> exibe o botão com a legenda "Entrar" */}
-          {isUserLoggedInState ? (
-            <button
-              type="button"
-              onClick={() => {
-                hapticLight();
-                setIsProfileDrawerOpen(true);
-              }}
-              className={`group w-8 h-8 sm:w-9 sm:h-9 rounded-[4px] flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 overflow-hidden ${
-                isDark
-                  ? 'bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-white'
-                  : 'bg-white/15 hover:bg-white/25 border border-white/25 text-white'
-              }`}
-              title={`Perfil de ${currentUserName}`}
-              aria-label="Perfil do Usuário"
-            >
-              {currentUserAvatarUrl && !currentUserAvatarUrl.startsWith('data:image/svg+xml') && !currentUserAvatarUrl.includes('unsplash.com') ? (
-                <img
-                  src={currentUserAvatarUrl}
-                  alt={currentUserName}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <User className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[1.8] text-white" />
-              )}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                hapticLight();
-                setIsClientAuthModalOpen(true);
-              }}
-              className="h-8 sm:h-9 px-3 sm:px-3.5 rounded-[4px] flex items-center justify-center font-bold text-xs sm:text-sm font-display tracking-wide transition active:scale-95 cursor-pointer shrink-0 bg-[#008B47] hover:bg-[#00753B] text-white border border-white/20 shadow-xs"
-              title="Entrar no aplicativo"
-              aria-label="Entrar"
-            >
-              <span className="text-white">Entrar</span>
-            </button>
-          )}
-        </div>
-      </header>
+      {/* 1. CABEÇALHO DO APLICATIVO DO SALÃO (Padrão Institucional Mobile-First) */}
+      <MobileHeader
+        currentUser={{
+          name: isUserLoggedInState && currentUserName ? currentUserName : 'Visitante',
+          avatarUrl: currentUserAvatarUrl,
+          jobTitle: isGerMode ? (isActiveProAdmin ? 'Proprietário / Gestor' : 'Profissional') : 'Cliente',
+          companyName: salonInfo.name,
+        }}
+        isGerMode={isGerMode}
+        isSalonLoggedIn={isSalonLoggedIn}
+        isProAdmin={isActiveProAdmin}
+        userRole={
+          !isGerMode
+            ? 'COLLABORATOR'
+            : activeTab === 'personalizar' || activeTab === 'dados' || activeTab === 'visual' || activeTab === 'layout' || activeTab === 'preferencias'
+            ? 'SUPER_ADMIN'
+            : 'MANAGER'
+        }
+        onChangeRole={(role: HeaderUserRole) => {
+          hapticLight();
+          if (role === 'COLLABORATOR') {
+            setIsPublicPreviewMode(true);
+            setActiveTab('home');
+          } else if (role === 'MANAGER') {
+            if (!isSalonLoggedIn) {
+              setIsClientAuthModalOpen(true);
+              return;
+            }
+            setIsPublicPreviewMode(false);
+            setActiveTab('home');
+          } else if (role === 'SUPER_ADMIN') {
+            if (!isSalonLoggedIn) {
+              setIsClientAuthModalOpen(true);
+              return;
+            }
+            setIsPublicPreviewMode(false);
+            setActiveTab('personalizar');
+          }
+        }}
+        onLogout={() => {
+          hapticMedium();
+          if (isUserLoggedInState || isSalonLoggedIn) {
+            handleSalonLogout();
+          } else {
+            setIsClientAuthModalOpen(true);
+          }
+        }}
+        onOpenUserSection={(section) => {
+          hapticLight();
+          if (section === 'ALTERNAR_MODO') {
+            setIsPublicPreviewMode(!isPublicPreviewMode);
+            setActiveTab('home');
+          } else if (section === 'MENU_COMPLETO') {
+            setProfileDrawerInitialTab('menu');
+            setIsProfileDrawerOpen(true);
+          } else if (section === 'MINHA_AGENDA') {
+            if (onNavigateToUserAppointments) {
+              onNavigateToUserAppointments();
+            } else {
+              setProfileDrawerInitialTab('agenda');
+              setIsProfileDrawerOpen(true);
+            }
+          } else if (section === 'TRAJETO_GPS') {
+            setProfileDrawerInitialTab('trajeto');
+            setIsProfileDrawerOpen(true);
+          } else if (section === 'DEPENDENTES') {
+            setProfileDrawerInitialTab('dependentes');
+            setIsProfileDrawerOpen(true);
+          } else if (section === 'DADOS_PESSOAIS') {
+            if (onNavigateToUserDashboard) {
+              onNavigateToUserDashboard();
+            } else {
+              setProfileDrawerInitialTab('dados');
+              setIsProfileDrawerOpen(true);
+            }
+          } else if (section === 'CHAT_VAGOU') {
+            setProfileDrawerInitialTab('chat');
+            setIsProfileDrawerOpen(true);
+          } else if (section === 'PRO_SERVICOS') {
+            handleSelectTab('servicos');
+          } else if (section === 'PRO_ESPACO') {
+            handleSelectTab('espaco');
+          } else if (section === 'PRO_EQUIPE') {
+            handleSelectTab('equipe');
+          } else if (section === 'PRO_PREFERENCIAS') {
+            handleSelectTab('preferencias');
+          } else if (section === 'PRO_UTILIDADES') {
+            handleSelectTab('utilidades');
+          }
+        }}
+      />
 
       {/* 2. ÁREA DE CONTEÚDO */}
       {isGerMode ? (
@@ -2661,9 +2570,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 Catálogo de Serviços
               </h2>
             </div>
-            <span className="text-[10px] font-bold border px-2 py-0.5 rounded-[4px]" style={sectionHeaderStyleData.badgeStyle}>
-              {catalogServices.length} {catalogServices.length === 1 ? 'procedimento' : 'procedimentos'}
-            </span>
           </div>
 
           {/* PASSO 1: Seleção de Profissional (Visível Apenas se Múltiplos Profissionais) */}
@@ -3217,25 +3123,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                               </a>
                             </div>
                           </div>
-
-                          {/* Radar Inteligente Google Maps & Google Search Grounding */}
-                          <SalonLocationGroundingPanel
-                            salonName={salonInfo.name}
-                            salonAddress={salonInfo.address}
-                            salonCity={salonInfo.city}
-                            category={adminSettings.category || 'barbearia'}
-                            lat={
-                              initialSalonData?.latitude
-                                ? Number(initialSalonData.latitude)
-                                : undefined
-                            }
-                            lng={
-                              initialSalonData?.longitude
-                                ? Number(initialSalonData.longitude)
-                                : undefined
-                            }
-                            isDark={isDark}
-                          />
                         </div>
                       </motion.div>
                     )}
