@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   Clock, CalendarCheck, User, Zap, Check, Play, Pause, Plus, X,
   ArrowRightLeft, AlertCircle, ArrowLeft, Users, CheckCircle2,
@@ -9,6 +9,7 @@ import { SalonAdminSettings, CatalogServiceItem, BookingAppointment, SalonProfes
 import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
 import { PixCheckoutModal } from './PixCheckoutModal';
 import { LiveTrackingDrawerModal } from '../live-tracking/LiveTrackingModal';
+import { resolveClientAvatarsMap, isValidAvatarUrlString } from '../../lib/supabase';
 
 const getAppointmentDurationMinutes = (app: BookingAppointment): number => {
   if (typeof app.durationMinutes === 'number' && app.durationMinutes > 0) {
@@ -176,6 +177,55 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
 
   // Mapa local de status do atendimento (Ex: 'EM ANDAMENTO' ou 'CONCLUÍDO')
   const [localAppointmentStatuses, setLocalAppointmentStatuses] = useState<Record<string, string>>({});
+
+  // Mapa reativo de avatares de clientes resolvidos diretamente do Supabase
+  const [resolvedClientAvatars, setResolvedClientAvatars] = useState<Record<string, string>>({});
+  const [failedAvatarUrls, setFailedAvatarUrls] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    let active = true;
+    resolveClientAvatarsMap()
+      .then((map) => {
+        if (active && map && Object.keys(map).length > 0) {
+          setResolvedClientAvatars((prev) => ({ ...prev, ...map }));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [appointments.length]);
+
+  const getAppointmentClientAvatar = useCallback((app: BookingAppointment): string => {
+    const directCandidates = [
+      app.clientAvatar,
+      app.customerAvatar,
+      (app as any).avatarUrl,
+      (app as any).avatar,
+      (app as any).photoUrl,
+    ];
+    for (const c of directCandidates) {
+      if (isValidAvatarUrlString(c)) return c.trim();
+    }
+
+    const cId = String(app.client_user_id || (app as any).client_id || '').trim().toLowerCase();
+    if (cId && resolvedClientAvatars[cId]) return resolvedClientAvatars[cId];
+
+    const cEmail = String(app.customerEmail || (app as any).client_email || '').trim().toLowerCase();
+    if (cEmail && resolvedClientAvatars[cEmail]) return resolvedClientAvatars[cEmail];
+
+    const cPhone = String(app.clientPhone || app.customerPhone || '').replace(/\D/g, '');
+    if (cPhone.length >= 8) {
+      if (resolvedClientAvatars[cPhone]) return resolvedClientAvatars[cPhone];
+      if (resolvedClientAvatars[cPhone.slice(-9)]) return resolvedClientAvatars[cPhone.slice(-9)];
+      if (resolvedClientAvatars[cPhone.slice(-8)]) return resolvedClientAvatars[cPhone.slice(-8)];
+    }
+
+    const cName = String(app.clientName || app.customerName || '').trim().toLowerCase();
+    if (cName && resolvedClientAvatars[cName]) return resolvedClientAvatars[cName];
+
+    return '';
+  }, [resolvedClientAvatars]);
 
   const handleUpdateAppointmentStatus = useCallback((appKey: string, newStatus: string) => {
     hapticLight();
@@ -438,7 +488,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       protocolCode: '#VGA-2001',
       clientName: 'Carlos Eduardo',
       customerName: 'Carlos Eduardo',
-      clientAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+      clientAvatar: 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
       clientPhone: '11987654321',
       serviceTitle: 'Corte de Cabelo + Barba',
       service: 'Corte de Cabelo + Barba',
@@ -462,7 +512,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       protocolCode: '#VGA-2002',
       clientName: 'Lucas Gabriel',
       customerName: 'Lucas Gabriel',
-      clientAvatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
+      clientAvatar: 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
       clientPhone: '11976543210',
       serviceTitle: 'Barba Espartana',
       service: 'Barba Espartana',
@@ -486,7 +536,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       protocolCode: '#VGA-2003',
       clientName: 'Matheus Silva',
       customerName: 'Matheus Silva',
-      clientAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
+      clientAvatar: 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
       clientPhone: '11965432109',
       serviceTitle: 'Corte Degradê Navalhado',
       service: 'Corte Degradê Navalhado',
@@ -864,14 +914,8 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     const rawFullName = (app.clientName || app.customerName || 'Cliente').trim();
     const serviceText = app.serviceName || app.service || app.serviceTitle || 'Atendimento';
 
-    const clientAvatarUrl = (
-      app.clientAvatar ||
-      app.customerAvatar ||
-      (app as any).avatarUrl ||
-      (app as any).avatar ||
-      (app as any).photoUrl ||
-      ''
-    ).trim();
+    const clientAvatarUrl = getAppointmentClientAvatar(app);
+    const hasValidClientAvatar = Boolean(clientAvatarUrl && !failedAvatarUrls[clientAvatarUrl]);
 
     const { startTimeStr, durationHhMm, endTimeHhMm } = calculateAppointmentTimes(app);
 
@@ -932,26 +976,22 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
               title={isBlockedOrPause ? 'Pausa de Horário' : rawFullName}
             >
               {isBlockedOrPause ? (
-                <Lock className="w-5 h-5 text-amber-500 stroke-[1.75]" />
-              ) : clientAvatarUrl ? (
-                <img
-                  src={clientAvatarUrl}
-                  alt={rawFullName}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLElement).style.display = 'none';
-                    const parent = e.currentTarget.parentElement;
-                    const fallback = parent?.querySelector('.client-fallback-icon') as HTMLElement;
-                    if (fallback) fallback.style.display = 'flex';
-                  }}
-                />
-              ) : null}
-              {!isBlockedOrPause && (
-                <div
-                  className={`client-fallback-icon items-center justify-center w-full h-full ${
-                    clientAvatarUrl ? 'hidden' : 'flex'
-                  }`}
-                >
+                <div className="flex items-center justify-center w-full h-full">
+                  <Lock className="w-5 h-5 text-amber-500 stroke-[1.75]" />
+                </div>
+              ) : hasValidClientAvatar ? (
+                <div className="flex items-center justify-center w-full h-full overflow-hidden">
+                  <img
+                    src={clientAvatarUrl}
+                    alt={rawFullName}
+                    className="w-full h-full object-cover"
+                    onError={() => {
+                      setFailedAvatarUrls((prev) => ({ ...prev, [clientAvatarUrl]: true }));
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center w-full h-full">
                   <User className="w-5 h-5 text-emerald-500 dark:text-emerald-400 stroke-[1.75]" />
                 </div>
               )}
@@ -1348,9 +1388,26 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
               {/* Informações do Cliente e Serviço + Botão WhatsApp no Modal */}
               <div className={`p-3 flex items-center justify-between gap-3 ${isDark ? 'bg-slate-900 border border-slate-800 rounded-[4px]' : 'caixa-card'}`}>
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="caixa-icon-halo shrink-0">
-                    <User className="w-5 h-5 stroke-[1.75]" />
-                  </div>
+                  {(() => {
+                    const modalAvatar = getAppointmentClientAvatar(actionModalAppointment);
+                    const hasModalAvatar = Boolean(modalAvatar && !failedAvatarUrls[modalAvatar]);
+                    return (
+                      <div className="caixa-icon-halo shrink-0 overflow-hidden">
+                        {hasModalAvatar ? (
+                          <img
+                            src={modalAvatar}
+                            alt={clientFullName}
+                            className="w-full h-full object-cover"
+                            onError={() => {
+                              setFailedAvatarUrls((prev) => ({ ...prev, [modalAvatar]: true }));
+                            }}
+                          />
+                        ) : (
+                          <User className="w-5 h-5 stroke-[1.75]" />
+                        )}
+                      </div>
+                    );
+                  })()}
                   <div className="min-w-0 flex-1">
                     <h3 className="font-bold text-sm truncate leading-snug">
                       {clientFullName}

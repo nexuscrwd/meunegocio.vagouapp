@@ -1265,6 +1265,15 @@ export function mapDbAppointmentToBookingAppointment(dbApt: any, fallbackSalonNa
 
   const salonTradeName = dbApt.salons?.trade_name || dbApt.salon_name || fallbackSalonName || 'Meu Estabelecimento';
   const resolvedProName = dbApt.professionals?.name || dbApt.professional_name || dbApt.professional || 'Equipe do Salão';
+  const rawClientAvatar =
+    dbApt.client_avatar_url ||
+    dbApt.clients?.avatar_url ||
+    dbApt.client_avatar ||
+    dbApt.customer_avatar ||
+    dbApt.clientAvatar ||
+    dbApt.customerAvatar ||
+    '';
+  const validClientAvatar = isValidAvatarUrlString(rawClientAvatar) ? rawClientAvatar.trim() : undefined;
 
   return {
     id: dbApt.id,
@@ -1285,6 +1294,9 @@ export function mapDbAppointmentToBookingAppointment(dbApt: any, fallbackSalonNa
     clientPhone: dbApt.client_phone || dbApt.customer_phone || '',
     customerPhone: dbApt.client_phone || dbApt.customer_phone || '',
     customerEmail: dbApt.client_email || dbApt.customer_email || '',
+    clientAvatar: validClientAvatar,
+    customerAvatar: validClientAvatar,
+    client_user_id: dbApt.client_id || dbApt.client_user_id || undefined,
     createdAt: dbApt.created_at,
     isBlockedSlot: Boolean(dbApt.is_blocked_slot || (dbApt.status || '').toUpperCase() === 'BLOQUEADO'),
     blockReason: dbApt.block_reason || undefined,
@@ -1309,6 +1321,118 @@ export function mapDbAppointmentToBookingAppointment(dbApt: any, fallbackSalonNa
     cancellation_reason: dbApt.cancellation_reason || undefined,
     last_location_update: dbApt.last_location_update || undefined,
   };
+}
+
+/**
+ * Resolve mapa universal de avatares de clientes no Supabase (clients, system_admins, profiles, professionals)
+ */
+export async function resolveClientAvatarsMap(): Promise<Record<string, string>> {
+  const avatarMap: Record<string, string> = {};
+  if (!supabase || !isSupabaseConfigured) return avatarMap;
+  const client = getDbClient() || supabase;
+
+  const registerRecord = (rec: {
+    id?: string | null;
+    user_id?: string | null;
+    name?: string | null;
+    full_name?: string | null;
+    username?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    phone_whatsapp?: string | null;
+    avatar_url?: string | null;
+  }) => {
+    if (!rec || !isValidAvatarUrlString(rec.avatar_url)) return;
+    const url = rec.avatar_url.trim();
+    if (rec.id) avatarMap[String(rec.id).trim().toLowerCase()] = url;
+    if (rec.user_id) avatarMap[String(rec.user_id).trim().toLowerCase()] = url;
+    if (rec.email) avatarMap[String(rec.email).trim().toLowerCase()] = url;
+    if (rec.name) avatarMap[String(rec.name).trim().toLowerCase()] = url;
+    if (rec.full_name) avatarMap[String(rec.full_name).trim().toLowerCase()] = url;
+    if (rec.username) {
+      const cleanU = String(rec.username).trim().toLowerCase();
+      avatarMap[cleanU] = url;
+      const strippedU = cleanU.replace(/^[@#&]+|[@#&]+$/g, '');
+      if (strippedU) avatarMap[strippedU] = url;
+    }
+    const rawPhone = String(rec.phone || rec.phone_whatsapp || '').replace(/\D/g, '');
+    if (rawPhone.length >= 8) {
+      avatarMap[rawPhone] = url;
+      avatarMap[rawPhone.slice(-9)] = url;
+      avatarMap[rawPhone.slice(-8)] = url;
+    }
+  };
+
+  try {
+    const [clientsRes, adminsRes, profilesRes, prosRes] = await Promise.all([
+      (client.from('clients') as any)
+        .select('id, user_id, name, full_name, username, email, phone, phone_whatsapp, avatar_url')
+        .not('avatar_url', 'is', null)
+        .limit(200)
+        .then((r: any) => r.data || [])
+        .catch(() => []),
+      (client.from('system_admins' as any) as any)
+        .select('id, full_name, username, email, phone_whatsapp, avatar_url')
+        .not('avatar_url', 'is', null)
+        .limit(100)
+        .then((r: any) => r.data || [])
+        .catch(() => []),
+      (client.from('profiles') as any)
+        .select('id, full_name, name, email, phone, phone_whatsapp, avatar_url')
+        .not('avatar_url', 'is', null)
+        .limit(200)
+        .then((r: any) => r.data || [])
+        .catch(() => []),
+      (client.from('professionals') as any)
+        .select('id, name, email, phone, avatar_url')
+        .not('avatar_url', 'is', null)
+        .limit(100)
+        .then((r: any) => r.data || [])
+        .catch(() => []),
+    ]);
+
+    (prosRes || []).forEach(registerRecord);
+    (profilesRes || []).forEach(registerRecord);
+    (adminsRes || []).forEach(registerRecord);
+    (clientsRes || []).forEach(registerRecord);
+  } catch (err) {
+    console.warn('Aviso ao construir mapa de avatares de clientes:', err);
+  }
+
+  return avatarMap;
+}
+
+/**
+ * Hidrata lista bruta de agendamentos do banco com client_avatar_url resolvido
+ */
+export async function hydrateAppointmentsWithClientAvatars(rawApts: any[]): Promise<any[]> {
+  if (!Array.isArray(rawApts) || rawApts.length === 0) return [];
+  try {
+    const avatarMap = await resolveClientAvatarsMap();
+    if (Object.keys(avatarMap).length === 0) return rawApts;
+
+    return rawApts.map((apt) => {
+      if (isValidAvatarUrlString(apt.client_avatar_url)) return apt;
+      const cId = String(apt.client_id || apt.client_user_id || '').trim().toLowerCase();
+      const cEmail = String(apt.client_email || apt.customer_email || '').trim().toLowerCase();
+      const cName = String(apt.client_name || apt.customer_name || '').trim().toLowerCase();
+      const cPhone = String(apt.client_phone || apt.customer_phone || '').replace(/\D/g, '');
+
+      const matchedAvatar =
+        (cId && avatarMap[cId]) ||
+        (cEmail && avatarMap[cEmail]) ||
+        (cPhone.length >= 8 && (avatarMap[cPhone] || avatarMap[cPhone.slice(-9)] || avatarMap[cPhone.slice(-8)])) ||
+        (cName && avatarMap[cName]) ||
+        '';
+
+      if (matchedAvatar) {
+        return { ...apt, client_avatar_url: matchedAvatar };
+      }
+      return apt;
+    });
+  } catch {
+    return rawApts;
+  }
 }
 
 /**
@@ -1378,7 +1502,7 @@ export function mapBookingAppointmentToDbPayload(apt: Partial<BookingAppointment
     ...(apt.client_lng !== undefined ? { client_lng: apt.client_lng } : {}),
     ...(apt.distance_km !== undefined ? { distance_km: apt.distance_km } : {}),
     ...(apt.eta_minutes !== undefined ? { eta_minutes: apt.eta_minutes } : {}),
-    ...(apt.prep_buffer_minutes !== undefined ? { prep_buffer_minutes: apt.prep_buffer_minutes } : {}),
+    prep_buffer_minutes: apt.prep_buffer_minutes !== undefined ? apt.prep_buffer_minutes : 15,
     ...(apt.cancellation_reason !== undefined ? { cancellation_reason: apt.cancellation_reason } : {}),
     ...(apt.last_location_update !== undefined ? { last_location_update: apt.last_location_update } : {}),
     updated_at: new Date().toISOString(),
@@ -1386,7 +1510,7 @@ export function mapBookingAppointmentToDbPayload(apt: Partial<BookingAppointment
 }
 
 /**
- * Buscar agendamentos do salão (com suporte a fallback relacional e hidratação)
+ * Buscar agendamentos do salão (com suporte a fallback relacional e hidratação de avatares de clientes)
  */
 export async function fetchSalonAppointments(salonId: string): Promise<any[]> {
   if (!supabase || !isSupabaseConfigured || !salonId) return [];
@@ -1410,9 +1534,9 @@ export async function fetchSalonAppointments(salonId: string): Promise<any[]> {
         .select('*')
         .eq('salon_id', resolvedSalonId)
         .order('date_str', { ascending: false });
-      return rawList || [];
+      return hydrateAppointmentsWithClientAvatars(rawList || []);
     }
-    return data || [];
+    return hydrateAppointmentsWithClientAvatars(data || []);
   } catch (err) {
     console.warn('Falha em fetchSalonAppointments:', err);
     return [];
@@ -1470,7 +1594,7 @@ export async function fetchUserAppointments(userParams: {
       console.warn('Erro ao consultar agendamentos do cliente:', error.message);
       return [];
     }
-    return data || [];
+    return hydrateAppointmentsWithClientAvatars(data || []);
   } catch (err) {
     console.warn('Falha em fetchUserAppointments:', err);
     return [];

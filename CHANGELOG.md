@@ -11,6 +11,26 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-05] — Resolução e Hidratação Reativa de Avatar Real do Cliente nos Cards da Fila (`ProfessionalDashboardView.tsx`, `supabase.ts`, `server.ts`) (`bol-141`)
+- **Tipo:** `[Fix / Client Avatar Resolution & Storage Sync]`
+- **Motivo / Solicitação:** Resolver definitivamente a exibição do avatar real do cliente nos cards da fila de atendimento (`#professional-next-appointment-card`, `#professional-current-appointment-card` e `#professional-confirmation-appointment-card`) e no modal operacional.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `server.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Hidratação Multi-Tabela no Supabase (`src/lib/supabase.ts`):**
+     - Criadas as funções `resolveClientAvatarsMap()` e `hydrateAppointmentsWithClientAvatars()`, que consultam `clients`, `system_admins`, `profiles` e `professionals` e indexam os `avatar_url` por `id`, `user_id`, `email`, `username` (com e sem `@`/`#`), `phone` (últimos 8/9 dígitos) e `name` / `full_name`.
+     - Atualizado `mapDbAppointmentToBookingAppointment` para mapear `clientAvatar`, `customerAvatar` e `client_user_id` para a interface `BookingAppointment`, além de hidratar automaticamente os agendamentos retornados por `fetchSalonAppointments` e `fetchUserAppointments`.
+     - Sincronizado o registro de `Anderson Pires` nas tabelas `clients`, `system_admins` e `profiles` com sua foto real no bucket `avatars` (`https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg`).
+  2. **Resolução Reativa no Painel do Profissional (`ProfessionalDashboardView.tsx`):**
+     - Adicionado `useEffect` que carrega `resolveClientAvatarsMap()` ao montar o componente, garantindo que mesmo agendamentos previamente salvos no `localStorage` exibam imediatamente a foto real do cliente (`getAppointmentClientAvatar`) tanto nos cards quanto no modal operacional (`#professional-appointment-action-modal`).
+  3. **Correção de Persistência por Username e Nome (`server.ts` — `/api/user/avatar`):**
+     - Corrigida a rota `/api/user/avatar` para validar linhas efetivamente atualizadas (`select('id')`) e atualizar registros também por `username` e `name` / `full_name`.
+
+---
+
 ### [2026-11-05] — Síntese de Legendas, Ícone do Cliente e Botão de Rastreamento Dinâmico (Verde / Opaco) (`ProfessionalDashboardView.tsx`) (`bol-140`)
 - **Tipo:** `[Refactor / Operational UI/UX & RTLS]`
 - **Motivo / Solicitação:** 

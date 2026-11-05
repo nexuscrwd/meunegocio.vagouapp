@@ -963,6 +963,10 @@ async function startServer() {
         }
         if (cleanEmail) {
           await (supabase.from('system_admins' as any) as any).update(adminPayload).ilike('email', cleanEmail);
+          await (supabase.from('system_admins' as any) as any).update(adminPayload).ilike('username', cleanEmail);
+        }
+        if (cleanName && cleanName !== 'Usuário' && cleanName !== 'Cliente') {
+          await (supabase.from('system_admins' as any) as any).update(adminPayload).ilike('full_name', cleanName);
         }
         if (cleanCpf && cleanCpf.length === 11) {
           await (supabase.from('system_admins' as any) as any).update(adminPayload).eq('cpf', cleanCpf);
@@ -978,22 +982,28 @@ async function startServer() {
           updated_at: nowIso,
         };
         if (cleanName) clientPayload.name = cleanName;
-        if (cleanEmail) clientPayload.email = cleanEmail;
+        if (cleanEmail && cleanEmail.includes('@') && cleanEmail.includes('.')) clientPayload.email = cleanEmail;
         if (cleanPhone) clientPayload.phone = cleanPhone;
         if (cleanCpf) clientPayload.cpf = cleanCpf;
 
         let clientUpdated = false;
         if (storedClientId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storedClientId)) {
-          const { error } = await (supabase.from('clients' as any) as any).update(clientPayload).eq('id', storedClientId);
-          if (!error) clientUpdated = true;
+          const { data } = await (supabase.from('clients' as any) as any).update(clientPayload).eq('id', storedClientId).select('id');
+          if (data?.length) clientUpdated = true;
         }
         if (cleanCpf && cleanCpf.length === 11) {
-          const { error } = await (supabase.from('clients' as any) as any).update(clientPayload).eq('cpf', cleanCpf);
-          if (!error) clientUpdated = true;
+          const { data } = await (supabase.from('clients' as any) as any).update(clientPayload).eq('cpf', cleanCpf).select('id');
+          if (data?.length) clientUpdated = true;
         }
         if (cleanEmail) {
-          const { error } = await (supabase.from('clients' as any) as any).update(clientPayload).ilike('email', cleanEmail);
-          if (!error) clientUpdated = true;
+          const { data: byEmail } = await (supabase.from('clients' as any) as any).update(clientPayload).ilike('email', cleanEmail).select('id');
+          if (byEmail?.length) clientUpdated = true;
+          const { data: byUsername } = await (supabase.from('clients' as any) as any).update(clientPayload).ilike('username', cleanEmail).select('id');
+          if (byUsername?.length) clientUpdated = true;
+        }
+        if (cleanName && cleanName !== 'Usuário' && cleanName !== 'Cliente') {
+          const { data: byName } = await (supabase.from('clients' as any) as any).update(clientPayload).ilike('name', cleanName).select('id');
+          if (byName?.length) clientUpdated = true;
         }
         if (!clientUpdated && (cleanEmail || cleanCpf || cleanName)) {
           await (supabase.from('clients' as any) as any).insert({
@@ -1023,6 +1033,9 @@ async function startServer() {
         if (cleanEmail) {
           await (supabase.from('profiles' as any) as any).update(profilePayload).ilike('email', cleanEmail);
         }
+        if (cleanName && cleanName !== 'Usuário' && cleanName !== 'Cliente') {
+          await (supabase.from('profiles' as any) as any).update(profilePayload).ilike('full_name', cleanName);
+        }
       } catch (err) {
         console.warn('Aviso: Erro ao atualizar profiles:', err);
       }
@@ -1037,6 +1050,9 @@ async function startServer() {
         if (cleanPhone) proPayload.phone = cleanPhone;
         if (cleanEmail) {
           await (supabase.from('professionals' as any) as any).update(proPayload).ilike('email', cleanEmail);
+        }
+        if (cleanName && cleanName !== 'Usuário' && cleanName !== 'Cliente') {
+          await (supabase.from('professionals' as any) as any).update(proPayload).ilike('name', cleanName);
         }
       } catch (err) {
         console.warn('Aviso: Erro ao atualizar professionals:', err);
