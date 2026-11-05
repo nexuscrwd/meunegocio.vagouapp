@@ -13,6 +13,22 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ---
 
+### [2026-11-05] — Painel de Rota Oculto por Padrão com Botão "Como Chegar", Logos Oficiais Google Maps / Waze e Gestos 1 Dedo / Pinça 2 Dedos (`bol-128`)
+- **Tipo:** `[Fix / GIS & UX — Focus Mode]`
+- **Motivo / Solicitação:**
+  1. Manter o painel inferior de rota/distância (`div` selecionada) **oculto por padrão**, exibindo um botão no mapa (**Como Chegar**) que ao ser clicado mostra esse elemento (com opção de ocultar novamente).
+  2. Substituir os ícones genéricos dos botões **Google Maps** e **Waze** pelos **logos oficiais** das marcas.
+  3. Corrigir o arrasto do mapa com **1 dedo** (estilo Google Maps / Waze) e o zoom de **pinça com 2 dedos** (que estavam sendo bloqueados pela propagação de eventos no Leaflet).
+- **Arquivos Impactados:**
+  - `src/components/SalonSpaceInteractiveMap.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Painel Retrátil Oculto por Padrão (`isRoutePanelOpen = false`):** O card inferior com distância (`KM`), tempo (`À XX:MM do seu local`) e botões de rota inicia oculto e é revelado ao tocar no botão flutuante **"Como Chegar"** no canto inferior direito do mapa.
+  2. **Logos Oficiais Google Maps & Waze:** Renderizados os logotipos oficiais coloridos do Google Maps e do Waze nos respectivos botões de navegação.
+  3. **Controlador Direto de Gestos (1 Dedo Pan + 2 Dedos Pinça):** Removidos os bloqueios de propagação que travavam o `L.Draggable` do Leaflet e implementado controlador nativo contínuo (`touchstart` / `touchmove` / `mousedown` / `mousemove` / `wheel`) executando `lmap.panBy` no arrasto de 1 dedo e `lmap.setZoomAround` contínuo no centro da pinça de 2 dedos.
+
+---
+
 ### [2026-11-05] — Mapa Interativo na Aba Localização com Marcador do Salão, Arrasto 1 Dedo, Zoom 2 Dedos, Telemetria (`KM` e `À XX:MM`) e Botões (`No App`, `Google Maps`, `Waze`) (`bol-127`)
 - **Tipo:** `[Feat / GIS & Mobile UX — Focus Mode]`
 - **Motivo / Solicitação:**
