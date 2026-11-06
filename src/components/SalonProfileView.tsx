@@ -2290,9 +2290,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         currentUser={{
           name: isUserLoggedInState && currentUserName ? currentUserName : 'Visitante',
           avatarUrl: currentUserAvatarUrl,
-          jobTitle: isGerMode ? (isActiveProAdmin ? 'Proprietário / Gestor' : 'Profissional') : 'Cliente',
+          jobTitle: isGerMode ? (isActiveProAdmin ? 'Proprietário / Gestor' : 'Profissional') : 'Usuário',
           companyName: salonInfo.name,
         }}
+        logoUrl={adminSettings?.salonLogo || adminSettings?.salonLogoLight || adminSettings?.salonLogoDark || salonInfo?.avatar || salonInfo?.avatarUrl || ''}
         isGerMode={isGerMode}
         isSalonLoggedIn={isSalonLoggedIn}
         isProAdmin={isActiveProAdmin}

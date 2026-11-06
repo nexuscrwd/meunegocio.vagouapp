@@ -1,9 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   LogOut,
   User,
-  Clock,
-  ChevronDown,
   Calendar,
   Navigation,
   Users,
@@ -42,11 +40,13 @@ export interface HeaderUser {
   avatarUrl?: string;
   jobTitle?: string;
   companyName?: string;
+  isDependent?: boolean;
 }
 
 interface MobileHeaderProps {
   currentUser: HeaderUser;
   userRole: UserRole;
+  logoUrl?: string;
   isGerMode?: boolean;
   isSalonLoggedIn?: boolean;
   isProAdmin?: boolean;
@@ -57,6 +57,7 @@ interface MobileHeaderProps {
 
 export const MobileHeader: React.FC<MobileHeaderProps> = ({
   currentUser,
+  logoUrl,
   isGerMode = false,
   isSalonLoggedIn = false,
   isProAdmin = true,
@@ -64,16 +65,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   onOpenUserSection,
 }) => {
   const { isDark, toggleTheme } = useTheme();
-  const [now, setNow] = useState(new Date());
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-
-  // Relógio em tempo real (atualiza a cada 1 segundo)
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setNow(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   const firstName = (currentUser.name || 'Usuário').trim().split(' ')[0].toUpperCase();
   const initials = (currentUser.name || 'Usuário')
@@ -85,17 +77,34 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     .substring(0, 2)
     .toUpperCase();
 
-  const formattedDate = now.toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+  // Descrição do perfil: "Usuário", "Dependente" ou o cargo se for do estabelecimento
+  const userSubtitle = (() => {
+    if (currentUser.isDependent || currentUser.jobTitle?.toLowerCase() === 'dependente') {
+      return 'Dependente';
+    }
+    if (isGerMode || isSalonLoggedIn) {
+      return currentUser.jobTitle || (isProAdmin ? 'Proprietário' : 'Profissional');
+    }
+    if (currentUser.jobTitle && currentUser.jobTitle.toLowerCase() !== 'cliente') {
+      return currentUser.jobTitle;
+    }
+    return 'Usuário';
+  })();
 
-  const formattedTime = now.toLocaleTimeString('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+  // Resolução do Logo oficial ou Fallback "Logo"
+  const resolvedLogo =
+    logoUrl ||
+    localStorage.getItem('vagou_salon_logo') ||
+    localStorage.getItem('vagou_salon_logo_dark') ||
+    localStorage.getItem('vagou_salon_logo_light') ||
+    '';
+
+  const hasValidLogo =
+    Boolean(resolvedLogo) &&
+    typeof resolvedLogo === 'string' &&
+    resolvedLogo.trim().length > 0 &&
+    !resolvedLogo.includes('placeholder') &&
+    !resolvedLogo.startsWith('data:image/svg+xml');
 
   return (
     <header className="w-full shrink-0 sticky top-0 z-30">
@@ -103,14 +112,38 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
       <div className="caixa-header-gradient px-4 pt-4 pb-5 text-white relative">
         <div className="flex items-center justify-between gap-2">
           
-          {/* Bloco Esquerdo: Avatar + Saudação + Dropdown */}
+          {/* Bloco Esquerdo: Logo do Estabelecimento ou Fallback "Logo" */}
+          <div className="h-10 min-w-[70px] px-3 rounded-[4px] bg-white/15 backdrop-blur-xs border border-white/25 flex items-center justify-center shadow-2xs overflow-hidden shrink-0">
+            {hasValidLogo ? (
+              <img
+                src={resolvedLogo}
+                alt="Logo"
+                className="max-h-7 max-w-[85px] object-contain"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <span className="font-display font-extrabold text-xs tracking-wider text-white uppercase select-none">
+                Logo
+              </span>
+            )}
+          </div>
+
+          {/* Bloco Direito: Avatar + Saudação + Dropdown */}
           <div className="relative">
             <button
               type="button"
               onClick={() => setIsUserMenuOpen((prev) => !prev)}
-              className="flex items-center gap-2.5 text-left group focus:outline-none cursor-pointer"
+              className="flex items-center gap-2.5 text-right group focus:outline-none cursor-pointer"
               title="Abrir menu de opções"
             >
+              <div className="text-right flex flex-col items-end justify-center min-w-0">
+                <h1 className="font-display font-extrabold text-sm tracking-wide text-white leading-tight truncate max-w-[150px]">
+                  {firstName}
+                </h1>
+                <p className="text-[10px] font-semibold text-white/80 leading-tight tracking-wide mt-0.5 capitalize truncate max-w-[150px]">
+                  {userSubtitle}
+                </p>
+              </div>
               <div className="w-10 h-10 rounded-[4px] bg-white/20 backdrop-blur-xs border border-white/40 flex items-center justify-center font-display font-extrabold text-sm tracking-tight text-white shadow-xs group-hover:bg-white/30 transition-colors overflow-hidden shrink-0">
                 {currentUser.avatarUrl &&
                 !currentUser.avatarUrl.startsWith('data:image/svg+xml') &&
@@ -125,21 +158,6 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                   <span className="text-white">{initials}</span>
                 )}
               </div>
-              <div>
-                <p className="text-[11px] font-medium text-white/90 leading-none mb-1 flex items-center gap-1">
-                  Olá,
-                </p>
-                <div className="flex items-center gap-1">
-                  <h1 className="font-display font-extrabold text-base tracking-wide text-white leading-none">
-                    {firstName}
-                  </h1>
-                  <ChevronDown
-                    className={`w-4 h-4 text-white/90 transition-transform duration-200 ${
-                      isUserMenuOpen ? 'rotate-180' : ''
-                    }`}
-                  />
-                </div>
-              </div>
             </button>
 
             {/* Menu Dropdown Flutuante do Usuário com os Itens Originais do App */}
@@ -149,7 +167,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                   className="fixed inset-0 z-40"
                   onClick={() => setIsUserMenuOpen(false)}
                 />
-                <div className="absolute left-0 mt-2 w-72 max-h-[80vh] overflow-y-auto no-scrollbar bg-white rounded-[4px] shadow-xl border border-[#D5E0EC] z-50 text-[#1E293B]">
+                <div className="absolute right-0 mt-2 w-72 max-h-[80vh] overflow-y-auto no-scrollbar bg-white rounded-[4px] shadow-xl border border-[#D5E0EC] z-50 text-[#1E293B]">
                   {/* Topo do Dropdown: Identificação do Usuário + Botão Claro/Escuro */}
                   <div className="px-3.5 py-3 bg-[#F0F6FC] border-b border-[#D5E0EC] flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1">
@@ -539,30 +557,6 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                 </div>
               </>
             )}
-          </div>
-
-          {/* Bloco Direito: Relógio Digital em Tempo Real + Botão Sair */}
-          <div className="flex items-center gap-2">
-            <div className="bg-white/15 backdrop-blur-xs border border-white/25 px-2.5 py-1 rounded-[4px] text-right shadow-2xs">
-              <div className="flex items-center justify-end gap-1 text-[10px] font-semibold text-white/95 leading-tight">
-                <Clock className="w-2.5 h-2.5 text-white/80 shrink-0" />
-                <span>{formattedDate}</span>
-              </div>
-              <div className="font-mono-tabular font-bold text-xs text-white tracking-wider leading-tight mt-0.5">
-                {formattedTime}
-              </div>
-            </div>
-
-            <button
-              onClick={onLogout}
-              title="Sair da conta"
-              className="h-10 px-2.5 rounded-[4px] bg-white/15 hover:bg-white/25 border border-white/30 flex flex-col items-center justify-center text-white transition-colors cursor-pointer shrink-0"
-            >
-              <LogOut className="w-3.5 h-3.5 text-white" />
-              <span className="text-[8px] font-bold uppercase tracking-wider mt-0.5 leading-none text-white">
-                Sair
-              </span>
-            </button>
           </div>
 
         </div>

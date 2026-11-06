@@ -11,6 +11,81 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-06] — Hierarquia Tipográfica do Usuário no Cabeçalho: Nome Superior e Cargo/Papel Inferior (`MobileHeader.tsx`, `SalonProfileView.tsx`) (`bol-146`)
+- **Tipo:** `[UI / Refactor / Mobile Header]`
+- **Motivo / Solicitação:** Remover a saudação "Olá," e o ícone chevron selecionados, posicionar o nome do usuário no topo e inserir abaixo a descrição dinâmica de seu papel ("Usuário", "Dependente" ou o cargo correspondente se for membro do estabelecimento).
+- **Arquivos Impactados:**
+  - `src/components/MobileHeader.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção de Poluição Visual:**
+     - Eliminados o texto `<p>Olá,</p>` e o ícone `<ChevronDown />`, atendendo estritamente aos seletores em Focus Mode e à diretriz de síntese mobile (zero blablabla e poluição).
+     - Removido o import de `ChevronDown` não utilizado (`Clean Code`).
+  2. **Hierarquia Tipográfica do Usuário (Nome Superior + Descrição Inferior):**
+     - O nome do usuário (`firstName`) ocupa a posição superior em tipografia forte e nítida (`font-display font-extrabold text-sm text-white`).
+     - Logo abaixo, é renderizada a descrição (`userSubtitle`) com tipografia de apoio (`text-[10px] font-semibold text-white/80`):
+       - `"Usuário"` para clientes comuns.
+       - `"Dependente"` para contas familiares ou dependentes vinculados.
+       - Cargo/função cadastrada (`"Proprietário / Gestor"`, `"Profissional"`, etc.) para colaboradores do estabelecimento.
+
+---
+
+### [2026-11-06] — Substituição do Relógio por Slot Padrão de Logo e Remoção do Botão Sair (`MobileHeader.tsx`, `SalonProfileView.tsx`) (`bol-145`)
+- **Tipo:** `[UI / Refactor / Mobile Header]`
+- **Motivo / Solicitação:** Remover o botão "Sair" selecionado do cabeçalho móvel e converter a div que continha o relógio digital no slot padrão oficial para o logo do estabelecimento (mantendo seu tamanho e formato perfeitamente proporcionais para logo e, na ausência de logo, exibindo a legenda "Logo").
+- **Arquivos Impactados:**
+  - `src/components/MobileHeader.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção do Botão "Sair":**
+     - O botão de saída rápida foi removido da barra superior do cabeçalho (a função de encerramento de sessão permanece centralizada e segura dentro do menu suspenso do usuário).
+  2. **Conversão do Contêiner em Slot de Logo:**
+     - A div preserva sua moldura estética padrão (`h-10 min-w-[70px] px-3 rounded-[4px] bg-white/15 backdrop-blur-xs border border-white/25 shadow-2xs`).
+     - Caso o estabelecimento possua logo cadastrado (`logoUrl` via `adminSettings` ou cache local), a imagem é renderizada com ajuste proporcional (`max-h-7 max-w-[85px] object-contain`).
+     - Na ausência de logo, é exibida com alto contraste e elegância a legenda `"Logo"` (`text-white font-extrabold text-xs uppercase tracking-wider`).
+  3. **Limpeza de Código e Performance:**
+     - Eliminado o intervalo de 1s (`setInterval`) e os estados do relógio (`now`, `formattedDate`, `formattedTime`), cessando re-renderizações desnecessárias e poupando bateria em dispositivos móveis.
+
+---
+
+### [2026-11-06] — Inversão de Posição dos Blocos no Cabeçalho Superior (`MobileHeader.tsx`) (`bol-144`)
+- **Tipo:** `[UI / Layout Inversion / Mobile Header]`
+- **Motivo / Solicitação:** Inverter as posições das duas divs principais no cabeçalho superior (`MobileHeader`), passando o bloco de Data/Hora (Relógio) e botão "Sair" para a esquerda, e o bloco de Identificação do Usuário (Avatar + Saudação + Menu Dropdown) para a direita.
+- **Arquivos Impactados:**
+  - `src/components/MobileHeader.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Inversão de Posição (Relógio/Sair ➔ Esquerda | Perfil/Menu ➔ Direita):**
+     - O contêiner de Data, Hora em tempo real e botão `Sair` foi reposicionado como o primeiro elemento filho da barra institucional superior (`justify-between`), alinhado à esquerda.
+     - O botão de Usuário com Avatar e Saudação ("Olá, [Nome]") foi reposicionado como o segundo elemento filho, ocupando a extremidade direita do cabeçalho.
+  2. **Alinhamento do Menu Dropdown (`right-0`):**
+     - Ajustado o dropdown flutuante de opções para ancorar em `absolute right-0`, evitando estouro de tela ou scroll horizontal indesejado em dispositivos móveis e mantendo navegação perfeitamente responsiva.
+
+---
+
+### [2026-11-05] — Auditoria SQL de Todo o Período de Hoje & Patch de Convergência v3.1 (`20261105_master_convergence_v3_1.sql`, `supabase.ts`) (`bol-143`)
+- **Tipo:** `[Database / SQL Audit & Schema Convergence v3.1]`
+- **Motivo / Solicitação:** Analisar o código SQL referente a todas as atualizações realizadas no período de hoje (`2026-11-05`, boletins `bol-117` a `bol-142`), identificar divergências ou inconsistências entre o código-fonte e o schema PostgreSQL/Supabase e fornecer o script SQL corretivo completo.
+- **Arquivos Impactados:**
+  - `supabase/migrations/20261105_master_convergence_v3_1.sql` (novo)
+  - `src/lib/supabase.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico (Divergências Identificadas e Corrigidas):**
+  1. **Divergência Crítica #1 — Colunas `professional_name`, `client_avatar_url` e `duration_minutes` ausentes em `public.appointments`:**
+     - `mapBookingAppointmentToDbPayload` enviava `professional_name` em todo `upsert`, mas a coluna não constava no SQL anterior (`20261102_master_database_convergence.sql`) nem no banco remoto. Isso disparava erro `PGRST204` na 1ª tentativa e caía no fallback `safePayload`, que **descartava silenciosamente** `is_blocked_slot`, `block_reason`, `cancellation_reason`, `tracking_status` e `is_dependent`.
+     - **Correção no Código (`src/lib/supabase.ts`):** Implementado fallback em 2 estágios em `upsertAppointmentInDb` (o Estágio 1 remove apenas `professional_name`, `client_avatar_url` e `duration_minutes`, preservando 100% das colunas `bol-020`/`bol-103`/`bol-133` já existentes no banco) e cálculo dinâmico de `end_time` baseado em `durationMinutes` (para refletir os `+15m`/`+30m` adicionados no modal operacional).
+     - **Correção no SQL:** Adicionadas `professional_name`, `client_avatar_url` e `duration_minutes` em `public.appointments` e corrigidos os registros de pausa (`#PAUSE-*`) que estavam com `is_blocked_slot = false`.
+  2. **Divergência #2 — Colunas `full_name` e `phone_whatsapp` ausentes na definição SQL de `public.clients` e `public.profiles`:**
+     - As queries de `resolveClientAvatarsMap()` e `/api/user/avatar` (`bol-141`/`bol-142`) selecionam e atualizam `full_name` e `phone_whatsapp` em `clients` e `profiles`, que não estavam declaradas no script de migração anterior.
+  3. **Divergência #3 — Colunas de Família/Beneficiário em `public.dependents` (`bol-117`):**
+     - Sincronizadas no SQL todas as colunas de vínculo familiar (`guardian_client_id`, `name`, `gender`, `phone`, `email`, `cpf`, `avatar_url`, `avatar_emoji`, `autonomy_level`).
+  4. **Divergência #4 — Defaults de Tema e Barra NAV (`bol-115` / `bol-122`) e Índices de Busca por Nome (`bol-142`):**
+     - Atualizados os `DEFAULT` de `public.salons` e `public.salon_ui_settings` (`primary_color = '#2B82C9'`, `default_theme = 'light'`, `nav_bg_style = 'solid'`, `nav_bg_color = '#005CA9'`) e criados índices funcionais `idx_clients_name_lower` e `idx_clients_full_name_lower` + `NOTIFY pgrst, 'reload schema'`.
+
+---
+
 ### [2026-11-05] — Otimização Mobile para Resolução Síncrona de Avatares e Anti-Cache (`ProfessionalDashboardView.tsx`, `supabase.ts`, `index.html`) (`bol-142`)
 - **Tipo:** `[Fix / Mobile Avatar Sync & Anti-Cache]`
 - **Motivo / Solicitação:** Garantir que o avatar do cliente apareça imediatamente no celular (mobile) sem atrasos, flashes ou bloqueios por cache antigo de navegador e WebView.

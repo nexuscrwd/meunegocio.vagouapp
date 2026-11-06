@@ -1534,12 +1534,15 @@ export function mapBookingAppointmentToDbPayload(apt: Partial<BookingAppointment
   }
 
   const [sh, sm] = startTime.split(':').map(Number);
-  const totalM = (sh * 60 + sm) + 45;
+  const durMins = typeof apt.durationMinutes === 'number' && apt.durationMinutes > 0 ? apt.durationMinutes : 45;
+  const totalM = (sh * 60 + sm) + durMins;
   const eh = Math.floor(totalM / 60) % 24;
   const em = totalM % 60;
   const endTime = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}:00`;
 
   const isUuid = apt.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(apt.id);
+  const rawAvatar = apt.clientAvatar || apt.customerAvatar || (apt as any).client_avatar_url || '';
+  const validAvatar = isValidAvatarUrlString(rawAvatar) ? rawAvatar.trim() : undefined;
 
   return {
     ...(isUuid ? { id: apt.id } : {}),
@@ -1549,6 +1552,7 @@ export function mapBookingAppointmentToDbPayload(apt: Partial<BookingAppointment
     client_name: apt.clientName || apt.customerName || 'Cliente',
     client_phone: apt.clientPhone || apt.customerPhone || '',
     client_email: (apt as any).clientEmail || apt.customerEmail || null,
+    ...(validAvatar ? { client_avatar_url: validAvatar } : {}),
     service_title: apt.serviceTitle || apt.service || 'Serviço',
     price: rawPrice,
     date_str: dateStr,
@@ -1713,9 +1717,27 @@ export async function upsertAppointmentInDb(appointmentData: any): Promise<{ suc
       .select()
       .maybeSingle();
 
-    // Fallback resiliente caso as colunas bol-020 ainda não tenham sido aplicadas no banco remoto
+    // Estágio 1 de Fallback: remover apenas colunas estendidas v3.1 (professional_name, client_avatar_url, duration_minutes)
+    // preservando 100% das colunas bol-020/bol-103/bol-133 (is_blocked_slot, block_reason, cancellation_reason, tracking_status, etc.)
+    if (error && (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('column'))) {
+      const stage1Payload: any = { ...payload };
+      delete stage1Payload.professional_name;
+      delete stage1Payload.client_avatar_url;
+      delete stage1Payload.duration_minutes;
+      const retryStage1 = await (client.from('appointments') as any)
+        .upsert(stage1Payload, { onConflict: 'protocol_code' })
+        .select()
+        .maybeSingle();
+      data = retryStage1.data;
+      error = retryStage1.error;
+    }
+
+    // Estágio 2 de Fallback: caso o banco ainda não possua as colunas bol-020
     if (error && (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('column'))) {
       const safePayload: any = { ...payload };
+      delete safePayload.professional_name;
+      delete safePayload.client_avatar_url;
+      delete safePayload.duration_minutes;
       delete safePayload.is_dependent;
       delete safePayload.dependent_id;
       delete safePayload.dependent_name;
@@ -1737,7 +1759,6 @@ export async function upsertAppointmentInDb(appointmentData: any): Promise<{ suc
       delete safePayload.last_location_update;
       delete safePayload.is_blocked_slot;
       delete safePayload.block_reason;
-      delete safePayload.professional_name;
       const retry = await (client.from('appointments') as any)
         .upsert(safePayload, { onConflict: 'protocol_code' })
         .select()
