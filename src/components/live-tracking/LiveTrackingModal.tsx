@@ -55,7 +55,7 @@ import { hapticLight, hapticMedium, hapticSuccess } from '../../utils/haptics';
 interface LiveRouteDepartureModalProps {
   isOpen: boolean;
   appointment: BookingAppointment;
-  initialStep?: 'question' | 'in_app_map';
+  initialStep?: 'question' | 'not_leaving' | 'cancel_reason' | 'in_app_map';
   isProfessionalDeliveryMode?: boolean;
   onClose: () => void;
   onUpdateAppointment?: (updated: BookingAppointment) => void;
@@ -1679,7 +1679,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
           >
             <button
               type="button"
-              onClick={() => setStep('not_leaving')}
+              onClick={() => (initialStep === 'cancel_reason' ? onClose() : setStep('not_leaving'))}
               className={`py-2.5 px-3 rounded-[4px] text-xs font-bold cursor-pointer ${
                 isDark ? 'bg-slate-900 text-slate-300' : 'bg-slate-200 text-slate-700'
               }`}

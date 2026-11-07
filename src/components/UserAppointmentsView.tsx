@@ -1,78 +1,252 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { 
   Calendar, 
   Clock, 
-  MapPin, 
   User, 
   ArrowLeft, 
   CheckCircle, 
   Clock3, 
-  Sparkles, 
   Scissors,
   Check,
-  ChevronRight,
   Info,
-  Download,
-  ExternalLink,
   Baby,
   Navigation,
-  Package,
   Map as MapIcon,
   AlertTriangle,
-  Bell,
-  Home,
-  Bookmark
+  Bookmark,
+  ArrowLeftRight,
+  X
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
-import { BookingAppointment } from '../types';
-import { hapticLight, hapticMedium } from '../utils/haptics';
+import { BookingAppointment, SwapTargetQueueItem } from '../types';
+import { resolveClientAvatarsMap, isValidAvatarUrlString, KNOWN_CLIENT_AVATARS_MAP } from '../lib/supabase';
+import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
 import {
   LiveRouteDepartureModal,
   LiveTrackingDrawerModal,
 } from './live-tracking/LiveTrackingModal';
 import { RouteSimulatorModal } from './live-tracking/RouteSimulatorModal';
-import { syncAppointmentAcrossStorageAndDb } from '../hooks/useLiveRouteTracker';
-import { getSavedBookingDraft, saveBookingDraft, BookingDraftItem } from '../utils/bookingSlots';
+import {
+  getSavedBookingDraft,
+  saveBookingDraft,
+  BookingDraftItem,
+  checkInterSalonSlotCollision,
+} from '../utils/bookingSlots';
 
-const parseAppointmentDateTime = (dateTimeStr: string): { start: Date; end: Date } => {
+const FREE_SLOTS_CANDIDATES = [
+  '09:00',
+  '10:30',
+  '11:30',
+  '13:30',
+  '15:00',
+  '16:00',
+  '17:30',
+  '18:30',
+];
+
+const OCCUPIED_SWAP_CANDIDATES: Array<{
+  time: string;
+  clientName: string;
+  phone: string;
+  durationMin: number;
+}> = [
+  { time: '09:30', clientName: 'Carlos M.', phone: '(11) 99812-3401', durationMin: 40 },
+  { time: '11:00', clientName: 'Rafael S.', phone: '(11) 99745-8821', durationMin: 45 },
+  { time: '14:00', clientName: 'Lucas T.', phone: '(11) 99611-2090', durationMin: 40 },
+  { time: '16:30', clientName: 'Marcos V.', phone: '(11) 99532-1184', durationMin: 45 },
+  { time: '18:00', clientName: 'Bruno A.', phone: '(11) 99408-7732', durationMin: 30 },
+  { time: '19:00', clientName: 'Gabriel P.', phone: '(11) 99319-6540', durationMin: 40 },
+];
+
+const isRealLogoUrl = (url?: string | null): url is string =>
+  Boolean(
+    url &&
+    typeof url === 'string' &&
+    url.trim().length > 0 &&
+    !url.includes('unsplash.com') &&
+    !url.includes('placeholder') &&
+    !url.startsWith('data:image/svg+xml')
+  );
+
+const getCompanyLogo = (item: BookingAppointment, isDarkTheme: boolean): string => {
+  if (isRealLogoUrl(item.salonLogo)) return item.salonLogo.trim();
+  try {
+    const directLogo = localStorage.getItem('vagou_salon_logo');
+    const darkLogo = localStorage.getItem('vagou_salon_logo_dark');
+    const lightLogo = localStorage.getItem('vagou_salon_logo_light');
+    if (isDarkTheme && isRealLogoUrl(darkLogo)) return darkLogo.trim();
+    if (!isDarkTheme && isRealLogoUrl(lightLogo)) return lightLogo.trim();
+    if (isRealLogoUrl(directLogo)) return directLogo.trim();
+    if (isRealLogoUrl(darkLogo)) return darkLogo.trim();
+    if (isRealLogoUrl(lightLogo)) return lightLogo.trim();
+
+    const rawAdmin = localStorage.getItem('vagou_admin_settings');
+    if (rawAdmin) {
+      const parsed = JSON.parse(rawAdmin);
+      const logo = isDarkTheme
+        ? (parsed.salonLogoDark || parsed.salonLogo || parsed.salonLogoLight)
+        : (parsed.salonLogoLight || parsed.salonLogo || parsed.salonLogoDark);
+      if (isRealLogoUrl(logo)) return logo.trim();
+    }
+  } catch {}
+  return '';
+};
+
+const getProfessionalAvatar = (
+  proName?: string,
+  directAvatar?: string | null,
+  avatarMap?: Record<string, string>
+): string => {
+  if (isValidAvatarUrlString(directAvatar)) return directAvatar.trim();
+  if (!proName) return '';
+  const cleanName = proName
+    .replace(/\s*\(designado\)/i, '')
+    .replace(/\s*\(qualquer\)/i, '')
+    .toLowerCase()
+    .trim();
+  if (!cleanName) return '';
+
+  const firstName = cleanName.split(/\s+/)[0];
+
+  if (avatarMap) {
+    if (isValidAvatarUrlString(avatarMap[cleanName])) return avatarMap[cleanName].trim();
+    if (firstName && isValidAvatarUrlString(avatarMap[firstName])) return avatarMap[firstName].trim();
+  }
+
+  try {
+    const storageKeys = ['vagou_salon_team_members', 'vagou_team_members', 'vagou_custom_professionals'];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('vagou_pros_') && !storageKeys.includes(k)) {
+        storageKeys.push(k);
+      }
+    }
+
+    for (const key of storageKeys) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) continue;
+      const found = parsed.find((p: any) => {
+        const pName = String(p?.name || '').toLowerCase().trim();
+        return pName === cleanName || (firstName.length >= 3 && pName.split(/\s+/)[0] === firstName);
+      });
+      const candidate = found?.avatarUrl || found?.avatar || found?.photoUrl;
+      if (isValidAvatarUrlString(candidate)) {
+        return candidate.trim();
+      }
+    }
+  } catch {}
+
+  if (isValidAvatarUrlString(KNOWN_CLIENT_AVATARS_MAP[cleanName])) {
+    return KNOWN_CLIENT_AVATARS_MAP[cleanName];
+  }
+  if (firstName && isValidAvatarUrlString(KNOWN_CLIENT_AVATARS_MAP[firstName])) {
+    return KNOWN_CLIENT_AVATARS_MAP[firstName];
+  }
+
+  return '';
+};
+
+const extractTimeFromAppointment = (apt: BookingAppointment): string => {
+  if (apt.time && /^\d{2}:\d{2}/.test(apt.time.trim())) {
+    return apt.time.trim().slice(0, 5);
+  }
+  const match = (apt.dateTime || '').match(/(\d{2}:\d{2})/);
+  return match ? match[1] : '15:30';
+};
+
+const replaceTimeInDateTime = (dateTimeStr: string | undefined, newTime: string): string => {
+  if (!dateTimeStr) return `Hoje, às ${newTime}`;
+  if (/(\d{2}:\d{2})/.test(dateTimeStr)) {
+    return dateTimeStr.replace(/(\d{2}:\d{2})/, newTime);
+  }
+  return `${dateTimeStr} às ${newTime}`;
+};
+
+const PT_MONTHS_MAP: Record<string, number> = {
+  jan: 0,
+  fev: 1,
+  mar: 2,
+  abr: 3,
+  mai: 4,
+  jun: 5,
+  jul: 6,
+  ago: 7,
+  set: 8,
+  out: 9,
+  nov: 10,
+  dez: 11,
+};
+
+const getAppointmentTimestampMs = (apt: BookingAppointment): number => {
   const now = new Date();
-  let year = 2026;
-  let month = now.getMonth();
-  let day = now.getDate();
-  let hours = 12;
-  let minutes = 0;
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
-  const cleanStr = dateTimeStr.toLowerCase().trim();
+  // 1. Extrair horário (HH:MM)
+  const timeStr = extractTimeFromAppointment(apt);
+  const [hhStr, mmStr] = timeStr.split(':');
+  const hours = Number.isFinite(Number(hhStr)) ? Number(hhStr) : 12;
+  const minutes = Number.isFinite(Number(mmStr)) ? Number(mmStr) : 0;
+  const timeOffsetMs = (hours * 60 + minutes) * 60 * 1000;
 
-  if (cleanStr.includes('hoje')) {
-    day = now.getDate();
-    month = now.getMonth();
-  } else if (cleanStr.includes('amanhã') || cleanStr.includes('amanha')) {
-    const tomorrow = new Date(now);
-    tomorrow.setDate(now.getDate() + 1);
-    day = tomorrow.getDate();
-    month = tomorrow.getMonth();
-    year = tomorrow.getFullYear();
-  } else {
-    // Check format like "10/09"
-    const dateMatch = cleanStr.match(/(\d{1,2})\/(\d{1,2})/);
-    if (dateMatch) {
-      day = parseInt(dateMatch[1]);
-      month = parseInt(dateMatch[2]) - 1;
+  // 2. Se houver dateIso explícito (YYYY-MM-DD...)
+  if (apt.dateIso) {
+    const isoMatch = apt.dateIso.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      const y = Number(isoMatch[1]);
+      const m = Number(isoMatch[2]) - 1;
+      const d = Number(isoMatch[3]);
+      return new Date(y, m, d).getTime() + timeOffsetMs;
+    }
+    const parsedIso = Date.parse(apt.dateIso);
+    if (!Number.isNaN(parsedIso)) {
+      return parsedIso;
     }
   }
 
-  // Check format like "15:30"
-  const timeMatch = cleanStr.match(/(\d{1,2})[h:](\d{2})/);
-  if (timeMatch) {
-    hours = parseInt(timeMatch[1]);
-    minutes = parseInt(timeMatch[2]);
+  // 3. Analisar texto combinado de dayGroup + dateTime
+  const raw = `${apt.dayGroup || ''} ${apt.dateTime || ''}`.toLowerCase().trim();
+
+  if (raw.includes('depois de amanhã') || raw.includes('depois de amanha')) {
+    return todayStart + 2 * ONE_DAY_MS + timeOffsetMs;
+  }
+  if (raw.includes('amanhã') || raw.includes('amanha')) {
+    return todayStart + ONE_DAY_MS + timeOffsetMs;
+  }
+  if (raw.includes('hoje')) {
+    return todayStart + timeOffsetMs;
   }
 
-  const start = new Date(year, month, day, hours, minutes);
-  const end = new Date(start.getTime() + 45 * 60 * 1000); // 45 minute default
-  return { start, end };
+  // Formato DD/MM/YYYY, DD/MM/YY ou DD/MM
+  const slashMatch = raw.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+  if (slashMatch) {
+    const day = Number(slashMatch[1]);
+    const month = Number(slashMatch[2]) - 1;
+    let year = slashMatch[3] ? Number(slashMatch[3]) : now.getFullYear();
+    if (year < 100) year += 2000;
+    return new Date(year, month, day).getTime() + timeOffsetMs;
+  }
+
+  // Formato "12 Nov", "15 de setembro", etc.
+  const ptMonthMatch = raw.match(/(\d{1,2})\s*(?:de\s*)?(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)/i);
+  if (ptMonthMatch) {
+    const day = Number(ptMonthMatch[1]);
+    const monthKey = ptMonthMatch[2].toLowerCase().slice(0, 3);
+    const month = PT_MONTHS_MAP[monthKey] ?? now.getMonth();
+    const yearMatch = raw.match(/\b(20\d{2})\b/);
+    const year = yearMatch ? Number(yearMatch[1]) : now.getFullYear();
+    return new Date(year, month, day).getTime() + timeOffsetMs;
+  }
+
+  return todayStart + timeOffsetMs;
+};
+
+const isTerminalAppointmentStatus = (status?: string): boolean => {
+  const s = (status || '').toUpperCase().trim();
+  return s === 'CANCELADO' || s === 'CONCLUÍDO' || s === 'CONCLUIDO';
 };
 
 const containerVariants = {
@@ -115,14 +289,50 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
   onRescheduleAppointment,
 }) => {
   const { isDark } = useTheme();
-  const [openCalendarId, setOpenCalendarId] = useState<string | null>(null);
   const [departureModalApt, setDepartureModalApt] = useState<BookingAppointment | null>(null);
+  const [departureModalStep, setDepartureModalStep] = useState<'question' | 'not_leaving' | 'cancel_reason' | 'in_app_map'>('in_app_map');
   const [drawerViewerState, setDrawerViewerState] = useState<{
     appointment: BookingAppointment;
     initialTab: 'timeline' | 'map';
   } | null>(null);
   const [savedDraft, setSavedDraft] = useState<BookingDraftItem | null>(() => getSavedBookingDraft());
   const [isRouteSimulatorOpen, setIsRouteSimulatorOpen] = useState<boolean>(false);
+  const [failedLogos, setFailedLogos] = useState<Record<string, boolean>>({});
+  const [failedAvatars, setFailedAvatars] = useState<Record<string, boolean>>({});
+  const [resolvedAvatars, setResolvedAvatars] = useState<Record<string, string>>(() => {
+    let map: Record<string, string> = { ...KNOWN_CLIENT_AVATARS_MAP };
+    try {
+      const cached = localStorage.getItem('vagou_client_avatars_map');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed === 'object') {
+          map = { ...map, ...parsed };
+        }
+      }
+    } catch {}
+    return map;
+  });
+
+  // Estados do Modal Unificado "Remarcar" (Opção 1: Horários Livres + Permuta em Cascata)
+  const [rescheduleModalApt, setRescheduleModalApt] = useState<BookingAppointment | null>(null);
+  const [rescheduleMode, setRescheduleMode] = useState<'free' | 'swap'>('free');
+  const [selectedFreeSlot, setSelectedFreeSlot] = useState<string>('');
+  const [selectedSwapSlots, setSelectedSwapSlots] = useState<string[]>([]);
+  const [swapMessage, setSwapMessage] = useState<string>('');
+
+  useEffect(() => {
+    let mounted = true;
+    resolveClientAvatarsMap()
+      .then((map) => {
+        if (mounted && map) {
+          setResolvedAvatars((prev) => ({ ...prev, ...map }));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleSingleAppointmentUpdate = (updated: BookingAppointment) => {
     const nextList = appointments.map((apt) =>
@@ -133,67 +343,146 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
     if (onUpdateAppointments) {
       onUpdateAppointments(nextList);
     }
+    try {
+      localStorage.setItem('vagou_appointments', JSON.stringify(nextList));
+    } catch {}
     if (departureModalApt && departureModalApt.protocolCode === updated.protocolCode) {
       setDepartureModalApt(updated);
     }
     if (drawerViewerState && drawerViewerState.appointment.protocolCode === updated.protocolCode) {
       setDrawerViewerState({ ...drawerViewerState, appointment: updated });
     }
+    if (rescheduleModalApt && rescheduleModalApt.protocolCode === updated.protocolCode) {
+      setRescheduleModalApt(updated);
+    }
   };
 
-  const getGoogleCalendarUrl = (item: BookingAppointment) => {
-    const { start, end } = parseAppointmentDateTime(item.dateTime || '');
-    const title = `${item.serviceTitle || item.service || 'Serviço'} - ${item.salonName || 'Estabelecimento'}`;
-    const description = `Profissional: ${item.professionalName || item.professional || 'Especialista'}\nCódigo do Voucher: ${item.protocolCode}\nAgendado pelo Vagou.`;
-    const location = item.address || item.salonName || 'Estabelecimento';
-    
-    const formatGoogleDate = (date: Date) => {
-      return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const openRescheduleAndSwapModal = (item: BookingAppointment) => {
+    setRescheduleModalApt(item);
+    const existingCascade =
+      item.swapRequest?.cascadeTargets
+        ?.filter((t) => t.status === 'pending')
+        .map((t) => t.slotTime) || [];
+    if (existingCascade.length > 0) {
+      setRescheduleMode('swap');
+      setSelectedSwapSlots(existingCascade);
+      setSwapMessage(item.swapRequest?.message || '');
+    } else {
+      setRescheduleMode('free');
+      setSelectedFreeSlot('');
+      setSelectedSwapSlots([]);
+      setSwapMessage('');
+    }
+  };
+
+  const handleConfirmDirectReschedule = () => {
+    if (!rescheduleModalApt || !selectedFreeSlot) return;
+    hapticSuccess();
+    const updated: BookingAppointment = {
+      ...rescheduleModalApt,
+      time: selectedFreeSlot,
+      dateTime: replaceTimeInDateTime(rescheduleModalApt.dateTime, selectedFreeSlot),
+      status: 'CONFIRMADO',
+      swapRequest: undefined,
     };
-
-    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${formatGoogleDate(start)}/${formatGoogleDate(end)}&details=${encodeURIComponent(description)}&location=${encodeURIComponent(location)}`;
+    handleSingleAppointmentUpdate(updated);
+    setRescheduleModalApt(null);
+    setSelectedFreeSlot('');
   };
 
-  const handleDownloadIcs = (item: BookingAppointment) => {
-    const { start, end } = parseAppointmentDateTime(item.dateTime || '');
-    const title = `${item.serviceTitle || item.service || 'Serviço'} - ${item.salonName || 'Estabelecimento'}`;
-    const description = `Profissional: ${item.professionalName || item.professional || 'Especialista'}\\nCódigo do Voucher: ${item.protocolCode}\\nAgendado pelo Vagou.`;
-    const location = item.address || item.salonName || 'Estabelecimento';
+  const handleSendCascadeSwap = () => {
+    if (!rescheduleModalApt || selectedSwapSlots.length === 0) return;
+    hapticSuccess();
+    const currentTime = extractTimeFromAppointment(rescheduleModalApt);
+    const firstSlot = selectedSwapSlots[0];
+    const firstCandidate = OCCUPIED_SWAP_CANDIDATES.find((c) => c.time === firstSlot);
 
-    const formatIcsDate = (date: Date) => {
-      return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    const cascadeQueue: SwapTargetQueueItem[] = selectedSwapSlots.map((slot, idx) => {
+      const candidate = OCCUPIED_SWAP_CANDIDATES.find((c) => c.time === slot);
+      return {
+        slotTime: slot,
+        clientName: candidate?.clientName || `Cliente (${slot})`,
+        phone: candidate?.phone || '(11) 99999-0000',
+        status: 'pending',
+        notifiedAt: idx === 0 ? Date.now() : undefined,
+      };
+    });
+
+    const updated: BookingAppointment = {
+      ...rescheduleModalApt,
+      status: 'ALTERADO',
+      swapRequest: {
+        isClientSwap: true,
+        message:
+          swapMessage.trim() ||
+          `Troca solicitada: meu horário das ${currentTime} pelo das ${firstSlot}.`,
+        clientA: {
+          name: rescheduleModalApt.clientName || 'Você',
+          originalTime: currentTime,
+          requestedTime: firstSlot,
+        },
+        clientB: {
+          name: firstCandidate?.clientName || `Cliente (${firstSlot})`,
+          originalTime: firstSlot,
+          accepted: false,
+          phone: firstCandidate?.phone,
+        },
+        status: 'pending_client_b',
+        rejectedSlots: rescheduleModalApt.swapRequest?.rejectedSlots || [],
+        cascadeTargets: cascadeQueue,
+        currentCascadeIndex: 0,
+        timeoutSecondsPerTarget: 900,
+        lastTargetUpdatedAt: Date.now(),
+      },
     };
-
-    const icsContent = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PROID:-//Vagou//Agenda Client//PT',
-      'BEGIN:VEVENT',
-      `UID:${item.protocolCode || Date.now()}@vagou.com.br`,
-      `DTSTAMP:${formatIcsDate(new Date())}`,
-      `DTSTART:${formatIcsDate(start)}`,
-      `DTEND:${formatIcsDate(end)}`,
-      `SUMMARY:${title}`,
-      `DESCRIPTION:${description}`,
-      `LOCATION:${location}`,
-      'END:VEVENT',
-      'END:VCALENDAR'
-    ].join('\r\n');
-
-    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `agendamento-${(item.serviceTitle || 'servico').toLowerCase().replace(/\s+/g, '-')}.ics`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    handleSingleAppointmentUpdate(updated);
+    setRescheduleModalApt(null);
+    setSelectedSwapSlots([]);
+    setSwapMessage('');
   };
 
-  // Filtrar apenas agendamentos reais do cliente (evitar bloqueios ou agendamentos de outros)
-  const clientAppointments = appointments.filter(
-    (apt) => !apt.isBlockedSlot && apt.protocolCode
-  );
+  const handleAcceptSwapOnCard = (item: BookingAppointment) => {
+    if (!item.swapRequest) return;
+    hapticSuccess();
+    const newTime = item.swapRequest.clientA.requestedTime;
+    const updated: BookingAppointment = {
+      ...item,
+      time: newTime,
+      dateTime: replaceTimeInDateTime(item.dateTime, newTime),
+      status: 'CONFIRMADO',
+      swapRequest: {
+        ...item.swapRequest,
+        clientB: {
+          ...item.swapRequest.clientB,
+          accepted: true,
+        },
+        status: 'confirmed',
+      },
+    };
+    handleSingleAppointmentUpdate(updated);
+  };
+
+  const handleCancelSwapOnCard = (item: BookingAppointment) => {
+    hapticLight();
+    const updated: BookingAppointment = {
+      ...item,
+      status: 'CONFIRMADO',
+      swapRequest: undefined,
+    };
+    handleSingleAppointmentUpdate(updated);
+  };
+
+  // Filtrar apenas agendamentos reais do cliente e ordenar cronologicamente (o mais próximo em 1º de cima para baixo)
+  const clientAppointments = [...appointments]
+    .filter((apt) => !apt.isBlockedSlot && apt.protocolCode)
+    .sort((a, b) => {
+      const aTerminal = isTerminalAppointmentStatus(a.status);
+      const bTerminal = isTerminalAppointmentStatus(b.status);
+      if (aTerminal !== bTerminal) {
+        return aTerminal ? 1 : -1;
+      }
+      return getAppointmentTimestampMs(a) - getAppointmentTimestampMs(b);
+    });
 
   const getStatusBadge = (status?: string) => {
     const s = (status || 'CONFIRMADO').toUpperCase();
@@ -205,6 +494,13 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[4px] text-xs font-bold bg-emerald-500 border border-emerald-400 text-white whitespace-nowrap">
             <Check className="w-3.5 h-3.5 text-white" />
             Confirmado
+          </span>
+        );
+      case 'ALTERADO':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[4px] text-xs font-bold bg-emerald-500 border border-emerald-400 text-white whitespace-nowrap">
+            <ArrowLeftRight className="w-3.5 h-3.5 text-white" />
+            Em Permuta
           </span>
         );
       case 'PENDENTE':
@@ -375,143 +671,220 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
             animate="show"
             className="space-y-3"
           >
-            {clientAppointments.map((item, idx) => (
-              <motion.div
-                key={item.id || item.protocolCode || idx}
-                variants={itemVariants}
-                className={`w-full rounded-[4px] p-4 border flex flex-col space-y-3 ${
-                  isDark 
-                    ? 'bg-slate-900 border-slate-800 hover:border-slate-700' 
-                    : 'bg-white border-slate-200 shadow-xs hover:shadow-sm'
-                } transition-all`}
-              >
-                {/* TOPO: Cabeçalho do Card */}
-                <div className="flex items-start justify-between gap-2 border-b border-slate-800/20 pb-3">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                        Voucher Digital
-                      </span>
-                      {item.is_dependent && item.dependent_name && (
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
-                          <Baby className="w-2.5 h-2.5" />
-                          <span>{item.dependent_name}</span>
-                        </span>
-                      )}
+            {clientAppointments.map((item, idx) => {
+              const rawPro = (item.professionalName || item.professional || '').trim();
+              const isAnyPro = !rawPro || 
+                rawPro.toLowerCase() === 'any' || 
+                rawPro.toLowerCase().includes('sem preferência') || 
+                rawPro.toLowerCase().includes('qualquer') ||
+                rawPro.toLowerCase() === 'especialista';
+              const proAvatar = getProfessionalAvatar(rawPro, item.professionalAvatar, resolvedAvatars);
+              const hasValidProAvatar = Boolean(proAvatar && !failedAvatars[proAvatar]);
+              const companyLogo = getCompanyLogo(item, isDark);
+              const hasValidCompanyLogo = Boolean(companyLogo && !failedLogos[companyLogo]);
+              const companyName = item.salonName || 'Estabelecimento';
+              const isAppointmentPaid = Boolean(
+                item.isPaid ||
+                item.paidAt ||
+                (item as any).payment_status === 'paid' ||
+                (item as any).payment_status === 'PAGO' ||
+                (item as any).paymentStatus === 'paid'
+              );
+
+              const activeCascadeTargets = item.swapRequest?.cascadeTargets || [];
+
+              return (
+                <motion.div
+                  key={item.id || item.protocolCode || idx}
+                  variants={itemVariants}
+                  className={`w-full rounded-[4px] p-4 border flex flex-col space-y-3 ${
+                    isDark 
+                      ? 'bg-slate-900 border-slate-800 hover:border-slate-700' 
+                      : 'bg-white border-slate-200 shadow-xs hover:shadow-sm'
+                  } transition-all`}
+                >
+                  {/* TOPO: Cabeçalho do Card (Logo Oficial ou Logo Provisório do Cabeçalho + Nome da Empresa e Serviço) */}
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-800/20 pb-3">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div
+                        className={`h-10 min-w-[68px] px-2.5 rounded-[4px] border flex items-center justify-center shadow-2xs overflow-hidden shrink-0 ${
+                          isDark
+                            ? 'bg-slate-800/90 border-slate-700 text-white'
+                            : 'bg-slate-100 border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {hasValidCompanyLogo ? (
+                          <img
+                            src={companyLogo}
+                            alt={companyName}
+                            className="max-h-7 max-w-[80px] object-contain"
+                            referrerPolicy="no-referrer"
+                            onError={() => setFailedLogos((prev) => ({ ...prev, [companyLogo]: true }))}
+                          />
+                        ) : (
+                          <span
+                            className={`font-display font-extrabold text-xs tracking-wider uppercase select-none ${
+                              isDark ? 'text-white' : 'text-slate-700'
+                            }`}
+                          >
+                            Logo
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-0.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                          <span
+                            className={`text-xs font-extrabold tracking-tight truncate max-w-[180px] sm:max-w-[260px] ${
+                              isDark ? 'text-white' : 'text-slate-900'
+                            }`}
+                          >
+                            {companyName}
+                          </span>
+                          {item.is_dependent && item.dependent_name && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                              <Baby className="w-2.5 h-2.5" />
+                              <span>{item.dependent_name}</span>
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-sm font-extrabold leading-tight text-emerald-400 truncate">
+                          {item.serviceTitle || item.service || 'Serviço Personalizado'}
+                        </h3>
+                      </div>
                     </div>
-                    <h3 className="text-sm font-extrabold leading-tight text-emerald-400">
-                      {item.serviceTitle || item.service || 'Serviço Personalizado'}
-                    </h3>
                   </div>
-                  {getStatusBadge(item.status)}
-                </div>
 
-                {/* CORPO: Informações de Data, Profissional e Local */}
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className="space-y-2 col-span-2 sm:col-span-1">
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
+                  {/* CORPO: Esquerda (Profissional acima de Data e Horário) | Lado Oposto Direito (Status e abaixo dele o Valor + Status Pagto) */}
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    {/* Lado Esquerdo: 1º Profissional (acima) e 2º Data e Horário (abaixo) */}
+                    <div className="space-y-2.5 min-w-0 flex-1">
+                      {/* Div Profissional (Acima) */}
                       <div>
-                        <div className="text-[10px] text-slate-400 font-medium">Data e Horário</div>
-                        <div className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                          {item.dateTime || 'Hoje, às 15:30'}
+                        {rawPro && !isAnyPro ? (
+                          <div className="flex items-center gap-2.5">
+                            <div
+                              className={`w-8 h-8 rounded-[4px] border overflow-hidden flex items-center justify-center shrink-0 shadow-2xs ${
+                                isDark
+                                  ? 'bg-slate-800 border-slate-700 text-slate-200'
+                                  : 'bg-white border-slate-200 text-slate-700'
+                              }`}
+                            >
+                              {hasValidProAvatar ? (
+                                <img
+                                  src={proAvatar}
+                                  alt={rawPro}
+                                  className="w-full h-full object-cover"
+                                  loading="eager"
+                                  decoding="async"
+                                  crossOrigin="anonymous"
+                                  referrerPolicy="no-referrer"
+                                  onError={() => setFailedAvatars((prev) => ({ ...prev, [proAvatar]: true }))}
+                                />
+                              ) : (
+                                <User className="w-4 h-4 text-emerald-500 dark:text-emerald-400 stroke-[1.75]" />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-[10px] text-slate-400 font-medium">Profissional</div>
+                              <div className={`font-bold truncate max-w-[140px] sm:max-w-[180px] ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                                {rawPro}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2.5 text-slate-400">
+                            <div
+                              className={`w-8 h-8 rounded-[4px] border flex items-center justify-center shrink-0 ${
+                                isDark
+                                  ? 'bg-slate-800/60 border-slate-700/60 text-slate-400'
+                                  : 'bg-slate-100 border-slate-200 text-slate-500'
+                              }`}
+                            >
+                              <User className="w-4 h-4 text-emerald-500 dark:text-emerald-400 stroke-[1.75]" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-[10px] text-slate-400 font-medium">Profissional</div>
+                              <div className="font-semibold text-slate-400 truncate text-xs">Sem preferência</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Div Data e Horário (Abaixo do Profissional) */}
+                      <div className="flex items-center gap-2.5 text-slate-400">
+                        <div
+                          className={`w-8 h-8 rounded-[4px] border flex items-center justify-center shrink-0 ${
+                            isDark
+                              ? 'bg-slate-800/60 border-slate-700/60'
+                              : 'bg-slate-100 border-slate-200'
+                          }`}
+                        >
+                          <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-[10px] text-slate-400 font-medium">Data e Horário</div>
+                          <div className={`font-bold truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                            {item.dateTime || 'Hoje, às 15:30'}
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <User className="w-4 h-4 text-slate-500 shrink-0" />
-                      <div>
-                        <div className="text-[10px] text-slate-400 font-medium">Profissional</div>
-                        <div className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                          {item.professionalName || item.professional || 'Especialista'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 col-span-2 sm:col-span-1">
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <MapPin className="w-4 h-4 text-slate-500 shrink-0" />
-                      <div>
-                        <div className="text-[10px] text-slate-400 font-medium">Localização</div>
-                        <div className={`font-bold truncate max-w-[150px] ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                          {item.salonName || 'Estabelecimento'}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <Clock className="w-4 h-4 text-slate-500 shrink-0" />
-                      <div>
-                        <div className="text-[10px] text-slate-400 font-medium">Código Protocolo</div>
-                        <div className="font-mono font-bold text-emerald-400 text-xs">
-                          {item.protocolCode}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* BLOCO BOL-020: RADAR BIDIRECIONAL DE DESLOCAMENTO AO VIVO ("ESTOU A CAMINHO" / DELIVERY) */}
-                {item.status !== 'CANCELADO' && item.status !== 'CONCLUÍDO' && item.status !== 'concluido' && item.status !== 'cancelado' ? (
-                  <div className="pt-2.5 border-t border-slate-800/40 space-y-2">
-                    {/* Seletor rápido de modalidade (No Salão vs Delivery em Casa) + Status Ao Vivo */}
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                    {/* Lado Oposto (Direito): Status acima e abaixo dele o Valor + Status do Pagamento */}
+                    <div className="flex flex-col items-end justify-center gap-2 shrink-0">
+                      {getStatusBadge(item.status)}
                       <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-extrabold text-emerald-400 font-mono tabular-nums whitespace-nowrap">
+                          R$ {item.totalPrice.toFixed(2)}
+                        </span>
+                        {isAppointmentPaid ? (
+                          <span className="px-1.5 py-0.5 rounded-[4px] bg-emerald-500 text-white font-extrabold text-[10px] leading-none shadow-2xs whitespace-nowrap">
+                            Pago
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded-[4px] bg-blue-500 text-white font-extrabold text-[10px] leading-none shadow-2xs whitespace-nowrap">
+                            À pagar
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* FAIXA COMPACTA DE PERMUTA EM CASCATA ATIVA */}
+                  {item.swapRequest?.isClientSwap && item.swapRequest.status === 'pending_client_b' && (
+                    <div className="pt-2.5 border-t border-slate-800/30 flex items-center justify-between gap-2 text-[11px]">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <ArrowLeftRight className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="font-bold text-emerald-400 truncate">
+                          Permuta:{' '}
+                          {activeCascadeTargets.length > 0
+                            ? activeCascadeTargets.map((t) => t.slotTime).join(' ➔ ')
+                            : item.swapRequest.clientA.requestedTime}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           type="button"
-                          onClick={() => {
-                            hapticLight();
-                            const nextType = item.service_location_type === 'home_delivery' ? 'in_salon' : 'home_delivery';
-                            syncAppointmentAcrossStorageAndDb(
-                              item,
-                              { service_location_type: nextType },
-                              handleSingleAppointmentUpdate
-                            );
-                          }}
-                          className="px-2 py-0.5 rounded-[3px] bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-slate-200 flex items-center gap-1 cursor-pointer transition"
-                          title="Alternar modalidade entre Atendimento no Salão e Delivery"
+                          onClick={() => handleAcceptSwapOnCard(item)}
+                          className="px-2 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10px] cursor-pointer whitespace-nowrap"
                         >
-                          {item.service_location_type === 'home_delivery' ? (
-                            <>
-                              <Home className="w-3 h-3 text-emerald-400" />
-                              <span>Modo Delivery (Profissional vem até você)</span>
-                            </>
-                          ) : (
-                            <>
-                              <Navigation className="w-3 h-3 text-emerald-400" />
-                              <span>No Salão (Você vai até o salão)</span>
-                            </>
-                          )}
+                          Simular Aceite
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCancelSwapOnCard(item)}
+                          className="px-2 py-1 rounded-[4px] text-rose-400 hover:bg-rose-500/10 font-bold text-[10px] cursor-pointer whitespace-nowrap"
+                        >
+                          Cancelar Permuta
                         </button>
                       </div>
-
-                      {/* Pílula de Status de Deslocamento Ao Vivo */}
-                      {(item.tracking_status === 'live_sharing' || item.tracking_status === 'arriving_5min') && (
-                        <span className="px-2 py-0.5 rounded-[3px] bg-emerald-500 text-white text-[10px] font-mono tabular-nums font-black flex items-center gap-1">
-                          <Bell className="w-3 h-3 text-white" />
-                          <span className="text-white">
-                            {item.tracking_status === 'arriving_5min'
-                              ? `Chegando em ${item.eta_minutes ?? 4} min!`
-                              : `${item.current_street_name || 'Av. Rebouças'} • ETA ${item.eta_minutes ?? 12}m`}
-                          </span>
-                        </span>
-                      )}
-                      {item.tracking_status === 'on_way_no_map' && (
-                        <span className="px-2 py-0.5 rounded-[3px] bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
-                          A caminho (Sem mapa)
-                        </span>
-                      )}
-                      {item.tracking_status === 'hurry_confirmed' && (
-                        <span className="px-2 py-0.5 rounded-[3px] bg-amber-500/20 text-amber-300 text-[10px] font-bold">
-                          Comparecimento confirmado • Saindo em instantes
-                        </span>
-                      )}
                     </div>
+                  )}
 
-                    {/* Alerta de Adversidade Ativa */}
-                    {item.active_adversity && (
+                  {/* Alertas de Adversidade Ativa ou Motivo de Cancelamento */}
+                  {item.active_adversity ? (
+                    <div className="pt-2 border-t border-slate-800/40">
                       <div className="p-2 rounded-[4px] bg-amber-500/15 text-amber-300 text-[11px] flex items-center justify-between">
                         <span className="flex items-center gap-1.5 font-bold">
                           <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -523,168 +896,365 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                           +{item.active_adversity.addedMinutes} min
                         </span>
                       </div>
-                    )}
+                    </div>
+                  ) : item.cancellation_reason ? (
+                    <div className="pt-2 border-t border-slate-800/40 text-[11px] text-rose-400 flex items-center gap-1.5">
+                      <Info className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                      <span>Motivo do cancelamento: <strong>{item.cancellation_reason}</strong></span>
+                    </div>
+                  ) : null}
 
-                    {/* Botões de Ação de Deslocamento conforme Modalidade */}
-                    {item.service_location_type === 'home_delivery' ? (
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            hapticLight();
-                            setDrawerViewerState({ appointment: item, initialTab: 'timeline' });
-                          }}
-                          className="py-2 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-98 whitespace-nowrap"
-                        >
-                          <Package className="w-3.5 h-3.5 text-white shrink-0" />
-                          <span className="text-white">Linha Shopee (Ruas)</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            hapticLight();
-                            setDrawerViewerState({ appointment: item, initialTab: 'map' });
-                          }}
-                          className="py-2 px-2.5 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-98 whitespace-nowrap"
-                        >
-                          <MapIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                          <span>Mapa Ao Vivo (10s)</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            hapticLight();
-                            setDepartureModalApt(item);
-                          }}
-                          className="flex-1 py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-98 whitespace-nowrap shadow-xs"
-                        >
-                          <Navigation className="w-3.5 h-3.5 text-white shrink-0" />
-                          <span className="text-white">Ir</span>
-                        </button>
-
-                        {(item.tracking_status === 'live_sharing' || item.tracking_status === 'arriving_5min') && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              hapticLight();
-                              setDrawerViewerState({ appointment: item, initialTab: 'timeline' });
-                            }}
-                            className="py-2 px-2.5 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 cursor-pointer transition active:scale-98 whitespace-nowrap"
-                          >
-                            <Package className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                            <span>Ver Ruas</span>
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ) : item.cancellation_reason ? (
-                  <div className="pt-2 border-t border-slate-800/40 text-[11px] text-rose-400 flex items-center gap-1.5">
-                    <Info className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                    <span>Motivo do cancelamento: <strong>{item.cancellation_reason}</strong></span>
-                  </div>
-                ) : null}
-
-                {/* RODAPÉ: Valor e Botões de Ação */}
-                <div className="flex items-center justify-between border-t border-slate-800/10 pt-3 mt-1.5 gap-2 flex-wrap">
-                  <div className="flex flex-col shrink-0">
-                    <span className="text-[10px] text-slate-400">Valor Estimado</span>
-                    <span className="text-sm font-extrabold text-emerald-400 font-mono tabular-nums">
-                      R$ {item.totalPrice.toFixed(2)}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {/* Botão Adicionar ao Calendário (Apenas se o agendamento estiver confirmado ou agendado) */}
-                    {(item.status === 'CONFIRMADO' || item.status === 'AGENDADO' || (item.status || 'CONFIRMADO').toUpperCase() === 'CONFIRMADO') && (
-                      <div className="relative">
-                        <button
-                          type="button"
-                          id={`btn-add-cal-${item.protocolCode}`}
-                          onClick={() => {
-                            hapticLight();
-                            setOpenCalendarId(openCalendarId === item.protocolCode ? null : (item.protocolCode || ''));
-                          }}
-                          className={`px-3 py-1.5 rounded-[4px] border font-bold text-xs flex items-center gap-1.5 transition cursor-pointer active:scale-95 ${
-                            isDark 
-                              ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-slate-700 hover:bg-slate-850' 
-                              : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50 shadow-2xs'
-                          }`}
-                        >
-                          <Calendar className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Adicionar ao Calendário</span>
-                        </button>
-
-                        {openCalendarId === item.protocolCode && (
-                          <>
-                            {/* Backdrop invisível para fechar ao clicar fora */}
-                            <div 
-                              className="fixed inset-0 z-40" 
-                              onClick={() => setOpenCalendarId(null)}
-                            />
-                            
-                            <div className={`absolute right-0 bottom-full mb-1.5 z-50 w-48 rounded-[4px] border p-1 shadow-xl animate-in fade-in slide-in-from-bottom-1 duration-150 ${
-                              isDark 
-                                ? 'bg-slate-950 border-slate-800 text-slate-200' 
-                                : 'bg-white border-slate-200 text-slate-700 shadow-lg'
-                            }`}>
-                              <button
-                                type="button"
-                                id={`cal-option-google-${item.protocolCode}`}
-                                onClick={() => {
-                                  hapticLight();
-                                  setOpenCalendarId(null);
-                                  const url = getGoogleCalendarUrl(item);
-                                  window.open(url, '_blank');
-                                }}
-                                className={`w-full flex items-center gap-2 px-2.5 py-2 text-xs rounded-[4px] text-left transition ${
-                                  isDark ? 'hover:bg-slate-900' : 'hover:bg-slate-100'
-                                }`}
-                              >
-                                <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
-                                <span>Google Agenda</span>
-                              </button>
-                              <button
-                                type="button"
-                                id={`cal-option-ics-${item.protocolCode}`}
-                                onClick={() => {
-                                  hapticLight();
-                                  setOpenCalendarId(null);
-                                  handleDownloadIcs(item);
-                                }}
-                                className={`w-full flex items-center gap-2 px-2.5 py-2 text-xs rounded-[4px] text-left transition ${
-                                  isDark ? 'hover:bg-slate-900' : 'hover:bg-slate-100'
-                                }`}
-                              >
-                                <Download className="w-3.5 h-3.5 text-emerald-400" />
-                                <span>Baixar arquivo .ics</span>
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    {item.status !== 'CANCELADO' && item.status !== 'CONCLUÍDO' && item.status !== 'concluido' && item.status !== 'cancelado' && (
+                  {/* RODAPÉ: Botões Divididos na Ordem -> Cancelar | Remarcar | Ir */}
+                  {item.status !== 'CANCELADO' && item.status !== 'CONCLUÍDO' && item.status !== 'concluido' && item.status !== 'cancelado' && (
+                    <div className="grid grid-cols-3 gap-2 border-t border-slate-800/10 pt-3 mt-1.5">
                       <button
                         type="button"
                         onClick={() => {
                           hapticLight();
+                          setDepartureModalStep('cancel_reason');
                           setDepartureModalApt(item);
                         }}
-                        className="px-3 py-1.5 rounded-[4px] bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500 hover:text-white font-bold text-xs transition cursor-pointer active:scale-95 whitespace-nowrap"
+                        className="py-2 px-2.5 rounded-[4px] bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500 hover:text-white font-bold text-xs flex items-center justify-center transition cursor-pointer active:scale-95 whitespace-nowrap"
                       >
-                        Cancelar / Remarcar
+                        Cancelar
                       </button>
-                    )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          openRescheduleAndSwapModal(item);
+                        }}
+                        className={`py-2 px-2.5 rounded-[4px] border font-bold text-xs flex items-center justify-center gap-1 transition cursor-pointer active:scale-95 whitespace-nowrap ${
+                          isDark
+                            ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                            : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <span>Remarcar</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        id={`btn-ir-${item.protocolCode}`}
+                        onClick={() => {
+                          hapticLight();
+                          if (item.service_location_type === 'home_delivery') {
+                            setDrawerViewerState({ appointment: item, initialTab: 'map' });
+                          } else {
+                            setDepartureModalStep('in_app_map');
+                            setDepartureModalApt(item);
+                          }
+                        }}
+                        className="py-2 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs whitespace-nowrap"
+                      >
+                        {item.service_location_type === 'home_delivery' ? (
+                          <MapIcon className="w-3.5 h-3.5 text-white shrink-0" />
+                        ) : (
+                          <Navigation className="w-3.5 h-3.5 text-white shrink-0" />
+                        )}
+                        <span className="text-white">Ir</span>
+                      </button>
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        )}
+
+        {/* MODAL UNIFICADO DE REMARCAÇÃO & PERMUTA EM CASCATA (OPÇÃO 1) */}
+        {rescheduleModalApt && (
+          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div
+              className={`w-full sm:max-w-md max-h-[88vh] rounded-t-[8px] sm:rounded-[4px] border flex flex-col overflow-hidden ${
+                isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+              }`}
+            >
+              {/* Topo Fixo do Modal */}
+              <div className="px-4 py-3 border-b border-slate-800/30 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <ArrowLeftRight className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-extrabold truncate">Remarcar Horário</h3>
+                    <p className="text-[11px] text-slate-400 truncate">
+                      Atual: {rescheduleModalApt.dateTime || extractTimeFromAppointment(rescheduleModalApt)}
+                    </p>
                   </div>
                 </div>
-              </motion.div>
-            ))}
-          </motion.div>
+                <button
+                  type="button"
+                  onClick={() => setRescheduleModalApt(null)}
+                  className={`w-8 h-8 rounded-[4px] flex items-center justify-center cursor-pointer ${
+                    isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Seletor de Modo: Horários Livres vs Permuta (Ocupados) */}
+              <div className="grid grid-cols-2 gap-1.5 p-3 border-b border-slate-800/20 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    setRescheduleMode('free');
+                  }}
+                  className={`py-2 px-2.5 rounded-[4px] font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                    rescheduleMode === 'free'
+                      ? 'bg-emerald-500 text-white'
+                      : isDark
+                      ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <Clock className={`w-3.5 h-3.5 ${rescheduleMode === 'free' ? 'text-white' : 'text-emerald-400'}`} />
+                  <span className={rescheduleMode === 'free' ? 'text-white' : ''}>Horários Livres</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    setRescheduleMode('swap');
+                  }}
+                  className={`py-2 px-2.5 rounded-[4px] font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                    rescheduleMode === 'swap'
+                      ? 'bg-emerald-500 text-white'
+                      : isDark
+                      ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <ArrowLeftRight className={`w-3.5 h-3.5 ${rescheduleMode === 'swap' ? 'text-white' : 'text-emerald-400'}`} />
+                  <span className={rescheduleMode === 'swap' ? 'text-white' : ''}>Permuta (Ocupados)</span>
+                </button>
+              </div>
+
+              {/* Conteúdo Rolante */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {(() => {
+                  const getSlotConflict = (slotTime: string) =>
+                    checkInterSalonSlotCollision({
+                      slotTime,
+                      dateStr: rescheduleModalApt.dateIso,
+                      currentSalonName: rescheduleModalApt.salonName,
+                      candidateServiceDurationMin: rescheduleModalApt.durationMinutes ?? 45,
+                      excludeAppointmentProtocol: rescheduleModalApt.protocolCode,
+                      clientAppointments,
+                    });
+
+                  const firstConflictExample = FREE_SLOTS_CANDIDATES.map((s) => getSlotConflict(s)).find(
+                    Boolean
+                  );
+
+                  return rescheduleMode === 'free' ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-400">Vagas livres hoje (Troca imediata)</span>
+                        {onRescheduleAppointment && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const target = rescheduleModalApt;
+                              setRescheduleModalApt(null);
+                              onRescheduleAppointment(target);
+                            }}
+                            className="text-emerald-400 font-bold hover:underline cursor-pointer"
+                          >
+                            Outra data
+                          </button>
+                        )}
+                      </div>
+
+                      {firstConflictExample && (
+                        <div className="px-2.5 py-1.5 rounded-[4px] bg-amber-500/15 text-amber-400 text-[11px] font-bold flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{firstConflictExample.message}</span>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-4 gap-2">
+                        {FREE_SLOTS_CANDIDATES.filter(
+                          (s) => s !== extractTimeFromAppointment(rescheduleModalApt)
+                        ).map((slot) => {
+                          const isSelected = selectedFreeSlot === slot;
+                          const conflict = getSlotConflict(slot);
+                          return (
+                            <button
+                              key={slot}
+                              type="button"
+                              disabled={Boolean(conflict)}
+                              title={conflict ? conflict.message : `Remarcar para ${slot}`}
+                              onClick={() => {
+                                if (conflict) return;
+                                hapticLight();
+                                setSelectedFreeSlot(slot);
+                              }}
+                              className={`py-2.5 rounded-[4px] font-mono text-xs font-bold flex items-center justify-center transition ${
+                                conflict
+                                  ? 'bg-amber-500/10 text-amber-400/70 line-through cursor-not-allowed'
+                                  : isSelected
+                                  ? 'bg-emerald-500 text-white cursor-pointer'
+                                  : isDark
+                                  ? 'bg-slate-800 text-slate-200 hover:bg-slate-700 cursor-pointer'
+                                  : 'bg-slate-100 text-slate-800 hover:bg-slate-200 cursor-pointer'
+                              }`}
+                            >
+                              <span className={isSelected ? 'text-white' : ''}>{slot}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-400">
+                          Selecione até 3 ocupados (Fila A ➔ B ➔ C)
+                        </span>
+                        <span className="font-mono font-bold text-emerald-400">
+                          {selectedSwapSlots.length}/3
+                        </span>
+                      </div>
+
+                      {firstConflictExample && (
+                        <div className="px-2.5 py-1.5 rounded-[4px] bg-amber-500/15 text-amber-400 text-[11px] font-bold flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{firstConflictExample.message}</span>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-3 gap-2">
+                        {OCCUPIED_SWAP_CANDIDATES.filter(
+                          (c) => c.time !== extractTimeFromAppointment(rescheduleModalApt)
+                        ).map((candidate) => {
+                          const orderIndex = selectedSwapSlots.indexOf(candidate.time);
+                          const isSelected = orderIndex !== -1;
+                          const conflict = getSlotConflict(candidate.time);
+                          return (
+                            <button
+                              key={candidate.time}
+                              type="button"
+                              disabled={Boolean(conflict)}
+                              title={conflict ? conflict.message : `Permutar às ${candidate.time}`}
+                              onClick={() => {
+                                if (conflict) return;
+                                hapticLight();
+                                setSelectedSwapSlots((prev) => {
+                                  if (prev.includes(candidate.time)) {
+                                    return prev.filter((t) => t !== candidate.time);
+                                  }
+                                  if (prev.length >= 3) return prev;
+                                  return [...prev, candidate.time];
+                                });
+                              }}
+                              className={`py-2 px-2 rounded-[4px] flex flex-col items-center justify-center gap-0.5 transition ${
+                                conflict
+                                  ? 'bg-amber-500/10 text-amber-400/70 line-through cursor-not-allowed'
+                                  : isSelected
+                                  ? 'bg-emerald-500 text-white cursor-pointer'
+                                  : isDark
+                                  ? 'bg-slate-800 text-slate-200 hover:bg-slate-700 cursor-pointer'
+                                  : 'bg-slate-100 text-slate-800 hover:bg-slate-200 cursor-pointer'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1">
+                                <span className={`font-mono text-xs font-extrabold ${isSelected ? 'text-white' : ''}`}>
+                                  {candidate.time}
+                                </span>
+                                {isSelected && (
+                                  <span className="text-[10px] font-black text-white">
+                                    ({orderIndex + 1}º)
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`text-[10px] truncate max-w-full ${isSelected ? 'text-white' : 'text-slate-400'}`}>
+                                {candidate.clientName}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {selectedSwapSlots.length > 0 && (
+                        <div className="text-[11px] font-bold text-emerald-400 flex items-center gap-1.5 pt-1">
+                          <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" />
+                          <span>Ordem de disparo: {selectedSwapSlots.join(' ➔ ')}</span>
+                        </div>
+                      )}
+
+                      <input
+                        type="text"
+                        value={swapMessage}
+                        onChange={(e) => setSwapMessage(e.target.value)}
+                        placeholder="Mensagem rápida opcional (ex: Imprevisto no trabalho)"
+                        className={`w-full px-3 py-2 rounded-[4px] text-xs border outline-hidden ${
+                          isDark
+                            ? 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-500'
+                            : 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400'
+                        }`}
+                      />
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Rodapé Fixo de Ação (sticky bottom-0 z-20) */}
+              <div
+                className={`p-3 border-t sticky bottom-0 z-20 flex items-center gap-2 ${
+                  isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setRescheduleModalApt(null)}
+                  className={`py-2.5 px-4 rounded-[4px] font-bold text-xs cursor-pointer whitespace-nowrap ${
+                    isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  Fechar
+                </button>
+
+                {rescheduleMode === 'free' ? (
+                  <button
+                    type="button"
+                    disabled={!selectedFreeSlot}
+                    onClick={handleConfirmDirectReschedule}
+                    className={`flex-1 py-2.5 px-4 rounded-[4px] font-extrabold text-xs flex items-center justify-center gap-1.5 transition whitespace-nowrap ${
+                      selectedFreeSlot
+                        ? 'bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer'
+                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <Check className={`w-4 h-4 ${selectedFreeSlot ? 'text-white' : 'text-slate-500'}`} />
+                    <span className={selectedFreeSlot ? 'text-white' : 'text-slate-500'}>
+                      {selectedFreeSlot ? `Confirmar às ${selectedFreeSlot}` : 'Escolha um horário livre'}
+                    </span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={selectedSwapSlots.length === 0}
+                    onClick={handleSendCascadeSwap}
+                    className={`flex-1 py-2.5 px-4 rounded-[4px] font-extrabold text-xs flex items-center justify-center gap-1.5 transition whitespace-nowrap ${
+                      selectedSwapSlots.length > 0
+                        ? 'bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer'
+                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <ArrowLeftRight className={`w-4 h-4 ${selectedSwapSlots.length > 0 ? 'text-white' : 'text-slate-500'}`} />
+                    <span className={selectedSwapSlots.length > 0 ? 'text-white' : 'text-slate-500'}>
+                      {selectedSwapSlots.length > 0
+                        ? `Solicitar Permuta (${selectedSwapSlots.length})`
+                        : 'Escolha até 3 horários'}
+                    </span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* MODAL PRÉ-PARTIDA (ETA + 10 MIN) & TRAÇADOR DE ROTA GOOGLE MAPS IN-APP */}
@@ -692,7 +1262,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
           <LiveRouteDepartureModal
             isOpen={Boolean(departureModalApt)}
             appointment={departureModalApt}
-            initialStep="in_app_map"
+            initialStep={departureModalStep}
             onClose={() => setDepartureModalApt(null)}
             onUpdateAppointment={handleSingleAppointmentUpdate}
             onCancelWithReason={(proto, reason) => {
@@ -701,11 +1271,8 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
               }
             }}
             onRequestReschedule={(apt) => {
-              if (onRescheduleAppointment) {
-                onRescheduleAppointment(apt);
-              } else {
-                onBack();
-              }
+              setDepartureModalApt(null);
+              openRescheduleAndSwapModal(apt);
             }}
             onOpenLiveViewer={(apt, tab) => {
               setDepartureModalApt(null);
@@ -746,7 +1313,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
           <div className="text-[11px] leading-normal space-y-1">
             <p className="font-bold text-emerald-400">Precisa reagendar ou realizar uma permuta?</p>
             <p>
-              Caso ocorra algum imprevisto, você pode utilizar a rede solidária de permuta de horários do Vagou ou cancelar seu horário com antecedência mínima de 1 hora.
+              Toque em Remarcar para trocar para um horário livre imediatamente ou solicitar permuta em cascata com até 3 horários ocupados.
             </p>
           </div>
         </div>
@@ -754,3 +1321,4 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
     </div>
   );
 };
+

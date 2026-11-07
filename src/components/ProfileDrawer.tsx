@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../utils/haptics';
-import { DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
 import { BookingAppointment, UserProfile, UserPersona, ClientSwapGovernance, SwapTargetQueueItem, UserFamilyDependent } from '../types';
 import { fetchUserProfileFromDb, updateUserProfileInDb, resolveTriadeAvatar, uploadAvatarToSupabaseStorage, saveUserAvatarToSupabase, isValidAvatarUrlString, isSupabaseConfigured, supabase, getDbClient, generateUuidV4, fetchClientFamilyMembers } from '../lib/supabase';
 import { compressImageFile } from '../utils/imageCompressor';

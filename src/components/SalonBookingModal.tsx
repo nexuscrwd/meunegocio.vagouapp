@@ -1052,7 +1052,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     }
   }, [isSelectedDateToday, isManhaPeriodDisabled, isTardePeriodDisabled, selectedDateIso]);
 
-  // Gerar os slots de horário com validação no banco + escala dos profissionais disponíveis no dia + regra de deslocamento + 15 min
+  const selectedServiceDurationMinutes = useMemo(() => {
+    const match = String(selectedService?.duration || '45 min').match(/(\d+)/);
+    return match ? Math.max(15, parseInt(match[1], 10)) : 45;
+  }, [selectedService]);
+
+  // Gerar os slots de horário com validação no banco + escala dos profissionais disponíveis no dia + trava anti-colisão entre salões (A -> B) + regra de deslocamento + 15 min
   const generatedSlots = useMemo(() => {
     return getAvailableSlotsForDate(selectedDateIso, selectedProfessional, {
       travelMinutes: etaMinutes,
@@ -1060,8 +1065,21 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       busySlots: busySlotsFromDb,
       availableProfessionals: availableProfessionalsForDate,
       nowOverride: currentTimeTick,
+      currentSalonName: salonName,
+      currentSalonCoords: salonCoords,
+      serviceDurationMinutes: selectedServiceDurationMinutes,
     });
-  }, [selectedDateIso, selectedProfessional, etaMinutes, busySlotsFromDb, availableProfessionalsForDate, currentTimeTick]);
+  }, [
+    selectedDateIso,
+    selectedProfessional,
+    etaMinutes,
+    busySlotsFromDb,
+    availableProfessionalsForDate,
+    currentTimeTick,
+    salonName,
+    salonCoords,
+    selectedServiceDurationMinutes,
+  ]);
 
   // Agrupamento de slots por período (Manhã, Tarde, Noite)
   const slotsByPeriod = useMemo(() => {
@@ -1088,6 +1106,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           busySlots: busySlotsFromDb,
           availableProfessionals: availableProfessionalsForDate,
           nowOverride: currentTimeTick,
+          currentSalonName: salonName,
+          currentSalonCoords: salonCoords,
+          serviceDurationMinutes: selectedServiceDurationMinutes,
         });
         const firstToday = slotsToday.find((s) => s.available);
         if (firstToday) {
@@ -1120,6 +1141,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           busySlots: candIso === selectedDateIso ? busySlotsFromDb : [],
           availableProfessionals: availableProfessionalsForDate,
           nowOverride: currentTimeTick,
+          currentSalonName: salonName,
+          currentSalonCoords: salonCoords,
+          serviceDurationMinutes: selectedServiceDurationMinutes,
         });
 
         const firstReachable = slotsFuture.find((s) => {
@@ -1147,7 +1171,18 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       }
     }
     return null;
-  }, [today, etaMinutes, selectedProfessional, busySlotsFromDb, availableProfessionalsForDate, currentTimeTick, selectedDateIso]);
+  }, [
+    today,
+    etaMinutes,
+    selectedProfessional,
+    busySlotsFromDb,
+    availableProfessionalsForDate,
+    currentTimeTick,
+    selectedDateIso,
+    salonName,
+    salonCoords,
+    selectedServiceDurationMinutes,
+  ]);
 
   // Profissionais ativos do salão para o cabeçalho (visível apenas quando houver múltiplos profissionais; oculto quando profissional único)
   const salonActiveProfessionals = useMemo(
@@ -1321,6 +1356,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     isPeriodBlocked: boolean
   ) => {
     const availableCount = slots.filter((s) => s.available).length;
+    const interSalonConflictSlot = slots.find((s) => s.reason === 'inter_salon_conflict' && s.conflictDetails);
     return (
       <div key={periodKey} className="space-y-2 pt-2 first:pt-0">
         <div className="flex items-center justify-between px-0.5">
@@ -1341,6 +1377,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           </span>
         </div>
 
+        {interSalonConflictSlot?.conflictDetails && (
+          <div className="px-2 py-1 rounded-[4px] bg-amber-500/15 text-amber-400 text-[10px] font-bold flex items-center gap-1.5">
+            <Clock className="w-3 h-3 shrink-0" />
+            <span className="truncate">{interSalonConflictSlot.conflictDetails.message}</span>
+          </div>
+        )}
+
         <div className="grid grid-cols-4 gap-1.5">
           {slots.map((slot) => {
             const isSelected = selectedTimeSlot === slot.time;
@@ -1358,7 +1401,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 }}
                 title={
                   !isAvailable
-                    ? slot.reason === 'busy'
+                    ? slot.reason === 'inter_salon_conflict' && slot.conflictDetails
+                      ? slot.conflictDetails.message
+                      : slot.reason === 'busy'
                       ? 'Horário já ocupado no banco'
                       : slot.reason === 'travel_buffer'
                       ? `Insuficiente para deslocamento (${etaMinutes}m + 15m preparo)`
@@ -1369,7 +1414,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   isSelected
                     ? 'bg-[#2B82C9] border-[#2B82C9] text-white font-bold shadow-sm'
                     : !isAvailable
-                    ? 'bg-[#FEF2F2] border-[#FECACA] text-[#DC2626] line-through opacity-70 cursor-not-allowed'
+                    ? slot.reason === 'inter_salon_conflict'
+                      ? 'bg-amber-500/10 border-amber-500/40 text-amber-400 line-through opacity-75 cursor-not-allowed'
+                      : 'bg-[#FEF2F2] border-[#FECACA] text-[#DC2626] line-through opacity-70 cursor-not-allowed'
                     : isDark
                     ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-[#2B82C9]'
                     : 'bg-[#F7F9FC] border-[#D5E0EC] text-[#1E293B] hover:border-[#2B82C9] hover:text-[#2B82C9]'
@@ -1380,6 +1427,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     ? 'text-white'
                     : isAvailable
                     ? 'text-[#2B82C9]'
+                    : slot.reason === 'inter_salon_conflict'
+                    ? 'text-amber-400'
                     : 'text-[#DC2626]'
                 }`} />
                 <span className={isSelected ? 'text-white' : ''}>{slot.time}</span>

@@ -49,7 +49,9 @@ export interface BookingAppointment {
   serviceName?: string;
   professional?: string;
   professionalName?: string;
+  professionalAvatar?: string | null;
   salonName: string;
+  salonLogo?: string | null;
   dateTime: string;
   dayGroup?: string;
   time?: string;

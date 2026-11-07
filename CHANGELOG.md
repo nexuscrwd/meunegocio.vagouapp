@@ -11,6 +11,154 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-07] — Trava Inteligente Anti-Colisão Geotemporal Entre Salões (Salão A ➔ Salão B) e Script SQL Mestre Consolidado v4.0 (`bookingSlots.ts`, `SalonBookingModal.tsx`, `UserAppointmentsView.tsx`, `20261107_master_convergence_v4_0.sql`) (`bol-153`)
+- **Tipo:** `[Feat / GIS / Database / Anti-Collision]`
+- **Motivo / Solicitação:** Aplicar o cálculo inteligente que impede o cliente de agendar ou remarcar em um segundo estabelecimento (`Salão B`) caso possua agendamento próximo em outro estabelecimento (`Salão A`) na mesma data sem tempo hábil (considerando horário do primeiro, duração do serviço no primeiro e distância/tempo de deslocamento entre `A` e `B`), além de fornecer o código SQL completo consolidado de todas as edições.
+- **Arquivos Impactados:**
+  - `src/types/booking.ts`
+  - `src/utils/bookingSlots.ts`
+  - `src/components/SalonBookingModal.tsx`
+  - `src/components/UserAppointmentsView.tsx`
+  - `supabase/migrations/20261107_master_convergence_v4_0.sql`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Motor Anti-Colisão Bidirecional (`checkInterSalonSlotCollision` em `bookingSlots.ts`):**
+     - Calcula `endMinA = startMinA + durationMinA` no `Salão A` + `interSalonTravelMinutes` (distância Haversine/viária calibrada + 10 min de margem) até o `Salão B`, bloqueando qualquer slot anterior a `endMinA + interSalonTravelMinutes` (e também no sentido inverso `Salão B ➔ Salão A`).
+  2. **Integração no Agendamento e no Modal `Remarcar` (`SalonBookingModal.tsx` e `UserAppointmentsView.tsx`):**
+     - Bloqueia automaticamente os horários conflitantes com alerta visual âmbar indicando o salão em conflito, janela ocupada, tempo de deslocamento e o primeiro horário livre permitido.
+  3. **Script SQL Mestre Consolidado v4.0 (`20261107_master_convergence_v4_0.sql`):**
+     - Script 100% idempotente reunindo todas as tabelas, colunas (`payment_status`, `is_paid`, `salon_logo_url`, `professional_avatar_url`, `swap_state`), índice cronológico (`idx_appointments_chronological`), função `public.calculate_inter_salon_travel_minutes`, RPC `public.check_client_inter_salon_collision` e trigger `trg_prevent_inter_salon_collision`.
+
+---
+
+### [2026-11-07] — Ordenação Cronológica de Agendamentos (Mais Próximo no Topo) (`UserAppointmentsView.tsx`) (`bol-152`)
+- **Tipo:** `[Feat / UX / Focus Mode]`
+- **Motivo / Solicitação:** Classificar a lista de agendamentos do usuário por ordem de data e horário, mantendo sempre o agendamento ativo mais próximo na primeira colocação de cima para baixo.
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Parser Cronológico (`getAppointmentTimestampMs`):**
+     - Extrai o timestamp exato combinando `dateIso`, `dayGroup` e `dateTime` (`Hoje`, `Amanhã`, `DD/MM/YYYY`, `DD Mês`) somado ao horário (`HH:MM`).
+  2. **Ordenação Crescente (`clientAppointments`):**
+     - Prioriza agendamentos ativos no topo e ordena estritamente do menor timestamp para o maior (`getAppointmentTimestampMs(a) - getAppointmentTimestampMs(b)`), garantindo que o compromisso mais próximo fique sempre na 1ª posição de cima para baixo, reordenando inclusive após remarcações ou permutas.
+
+---
+
+### [2026-11-07] — Modal Unificado no Botão "Remarcar" (Horários Livres + Permuta em Cascata A ➔ B ➔ C) (`UserAppointmentsView.tsx`) (`bol-151`)
+- **Tipo:** `[Feat / UI / Mobile Clean]`
+- **Motivo / Solicitação:** Aplicar a **Opção 1** para o botão **`Remarcar`** na tela `UserAppointmentsView.tsx`: manter o nome enxuto `Remarcar` nos 3 botões do rodapé (`Cancelar` | `Remarcar` | `Ir`) e abrir um modal unificado que integra troca imediata por **Horários Livres** e **Permuta em Cascata (`A ➔ B ➔ C`)** em **Horários Ocupados**.
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Botão `Remarcar` Unificado (`openRescheduleAndSwapModal`):**
+     - Mantém os 3 botões objetivos no rodapé do card (`Cancelar` | `Remarcar` | `Ir`).
+     - Ao tocar em `Remarcar`, abre o modal unificado com alternador superior entre **`Horários Livres`** e **`Permuta (Ocupados)`**.
+  2. **Modo 1 — Horários Livres (Troca Imediata):**
+     - Exibe os horários vagos do dia para remarcação instantânea em 1 toque (`handleConfirmDirectReschedule`), além de atalho `"Outra data"` para abrir o calendário completo do salão (`onRescheduleAppointment`).
+  3. **Modo 2 — Permuta em Cascata (`A ➔ B ➔ C`):**
+     - Permite selecionar até 3 horários ocupados por ordem de prioridade (`1º`, `2º`, `3º`), gera a fila `cascadeTargets` no objeto `swapRequest` e exibe faixa compacta de acompanhamento (`Em Permuta`, `Simular Aceite` e `Cancelar Permuta`) diretamente no card.
+  4. **Rodapé Fixo & Trava de Contraste:**
+     - Botões de confirmação fixos na base do modal (`sticky bottom-0 z-20`) com fundo verde esmeralda (`bg-emerald-500`) e texto/ícones brancos puros (`text-white`).
+
+---
+
+### [2026-11-07] — Profissional Acima de Data/Horário, Status + Valor no Lado Oposto e Divisão dos Botões (Cancelar | Remarcar | Ir) (`UserAppointmentsView.tsx`, `LiveTrackingModal.tsx`) (`bol-150`)
+- **Tipo:** `[UI / Refactor / Mobile Clean]`
+- **Motivo / Solicitação:**
+  1. Posicionar a div `Profissional` acima da div `Data e Horário` no lado esquerdo do corpo do card.
+  2. No lado oposto (direito), posicionar o `Status` (ex: `Confirmado`) e imediatamente abaixo dele o `Valor` acompanhado do status de pagamento (`Pago` / `À pagar`).
+  3. Dividir o botão de ação em três botões independentes na ordem: `Cancelar`, `Remarcar` e `Ir`.
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `src/components/live-tracking/LiveTrackingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Corpo em Duas Colunas Opostas:**
+     - **Lado Esquerdo (`space-y-2.5`):** Bloco `Profissional` (com moldura padrão `w-8 h-8 rounded-[4px] border`) posicionado acima do bloco `Data e Horário` (com ícone de calendário na mesma moldura padrão `w-8 h-8 rounded-[4px] border`).
+     - **Lado Oposto (Direito):** Badge de `Status` (`Confirmado`, etc.) posicionado acima e, logo abaixo dele, o `Valor` (`R$ XX.XX`) e a tag `"Pago"` (verde) ou `"À pagar"` (azul).
+  2. **Rodapé com 3 Botões Divididos (`Cancelar` | `Remarcar` | `Ir`):**
+     - `Cancelar`: abre diretamente a etapa de justificativa de cancelamento (`initialStep="cancel_reason"`).
+     - `Remarcar`: aciona o fluxo de remanejamento de horário (`onRescheduleAppointment`).
+     - `Ir`: abre o Cockpit de Navegação GPS Ao Vivo (`initialStep="in_app_map"`), com fundo verde esmeralda e texto/ícone branco puro (`text-white`).
+
+---
+
+### [2026-11-07] — Slot Padrão de Logo da Empresa / Logo Provisório do Cabeçalho, Correção do Avatar Alternativo do Profissional e Valor + Status de Pagamento Abaixo do Status (`UserAppointmentsView.tsx`, `defaultSalonAssets.ts`) (`bol-149`)
+- **Tipo:** `[UI / Fix / Focus Mode / Mobile Clean]`
+- **Motivo / Solicitação:**
+  1. Configurar o espaço da imagem para formato padrão de logo da empresa e, na ausência de logo da empresa, utilizar o logo provisório do cabeçalho (`"Logo"`).
+  2. Corrigir emergentemente o avatar alternativo do profissional no app (eliminar o clipart SVG incorreto `DEFAULT_FACE_CLIPART_AVATAR` e padronizar para o ícone `<User />` de `lucide-react` dentro da moldura padrão, além de resolver avatares reais da equipe/Supabase).
+  3. Posicionar o valor estimado abaixo do status (ex: `Confirmado`) acompanhado do status de pagamento `"Pago"` (verde) ou `"À pagar"` (azul).
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `src/utils/defaultSalonAssets.ts`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Slot Oficial de Logo & Logo Provisório do Cabeçalho:**
+     - Configurada a moldura de logo no topo do card com proporção horizontal (`h-10 min-w-[68px] px-2.5 rounded-[4px] border`) e `img` em `max-h-7 max-w-[80px] object-contain`.
+     - Removido o fallback para foto genérica do Unsplash (`getSalonLogo`). Quando a empresa não possui logo cadastrado, é renderizado exatamente o mesmo logo provisório do cabeçalho (`<span className="font-display font-extrabold text-xs tracking-wider uppercase">Logo</span>`).
+  2. **Correção Emergencial do Avatar Alternativo do Profissional:**
+     - Neutralizado o SVG clipart `DEFAULT_FACE_CLIPART_AVATAR` em `defaultSalonAssets.ts` e removidas todas as referências/imports.
+     - Adicionada resolução completa da foto real do profissional via `resolveClientAvatarsMap()`, `KNOWN_CLIENT_AVATARS_MAP` e chaves de equipe no `localStorage` (`vagou_salon_team_members`, `vagou_team_members`, `vagou_custom_professionals`, `vagou_pros_*`).
+     - Na ausência de foto, o avatar alternativo exibe estritamente o ícone `<User />` (`lucide-react`) na moldura padrão (`w-8 h-8 rounded-[4px] border`).
+  3. **Valor Estimado e Status de Pagamento Abaixo do Status:**
+     - Movido o valor (`R$ XX.XX`) do rodapé para imediatamente abaixo do badge de status (ex: `Confirmado`) no canto superior direito do card.
+     - Adicionado ao lado do valor o badge de pagamento: `"Pago"` em verde (`bg-emerald-500 text-white`) ou `"À pagar"` em azul (`bg-blue-500 text-white`).
+
+---
+
+### [2026-11-07] — Logo e Nome da Empresa no Topo, Profissional com Avatar em Moldura e Botão 'Ir' no Rodapé (`UserAppointmentsView.tsx`, `types.ts`) (`bol-148`)
+- **Tipo:** `[UI / Refactor / Focus Mode / Mobile Clean]`
+- **Motivo / Solicitação:**
+  1. No lugar do texto "Voucher Digital", exibir o logo e o nome da empresa/estabelecimento.
+  2. Remover a div selecionada (antiga div de Localização) e em seu lugar inserir o Profissional (se for escolhido, com avatar na moldura padrão do app `rounded-[4px] border`).
+  3. Remover "Adicionar ao Calendário" e em seu lugar inserir o botão "Ir".
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `src/types.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Topo do Card (Logo + Nome da Empresa):**
+     - Substituído o badge estático `"Voucher Digital"` por um cabeçalho de marca contendo o logotipo do salão (`w-5 h-5 rounded-[4px] border border-slate-700/60 overflow-hidden bg-slate-800`) e o nome fantasia do estabelecimento (`companyName`), preservando o selo de dependente (`item.is_dependent`).
+  2. **Grid de Detalhes (Profissional com Avatar):**
+     - Removida a div de "Localização" (informação que agora brilha no topo).
+     - No lugar, inserido o componente do Profissional selecionado com moldura estética padrão (`w-8 h-8 rounded-[4px] border border-slate-700/60 overflow-hidden bg-slate-800`), avatar fotográfico e fallback automático para vetor `DEFAULT_FACE_CLIPART_AVATAR` ou estado "Sem preferência".
+     - Coluna 1 consolidada com Data e Horário com ícone esmeralda.
+  3. **Rodapé com Botão "Ir":**
+     - Removido o botão dropdown e menu "Adicionar ao Calendário" (`#btn-add-cal-...`) e eliminados os métodos e estados associados (`getGoogleCalendarUrl`, `handleDownloadIcs`, `openCalendarId`).
+     - Inserido o botão primário de navegação **"Ir"** no rodapé (`bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold px-4 py-1.5 rounded-[4px]`), garantindo contraste rigoroso (texto branco puro sobre fundo verde) e acionamento direto do Cockpit GPS RTLS.
+  4. **Clean Code & Pós-Obra:**
+     - Removidos imports não utilizados (`Download`, `ExternalLink`, `MapPin`, `Package`).
+     - Adicionados `professionalAvatar` e `salonLogo` à interface `BookingAppointment` em `types.ts`.
+
+---
+
+### [2026-11-06] — Remoção de Elementos Redundantes no Card de Agendamento do Cliente (`UserAppointmentsView.tsx`) (`bol-147`)
+- **Tipo:** `[UI / Refactor / Mobile Clean / Síntese]`
+- **Motivo / Solicitação:** Remover em Focus Mode os 5 elementos selecionados pelo usuário no card de agendamento do cliente:
+  1. Bloco de texto do Código Protocolo
+  2. Ícone de relógio ao lado do Código Protocolo
+  3. Texto do alternador de modalidade ("No Salão (Você vai até o salão)")
+  4. Pílula de status de deslocamento ("A caminho (Sem mapa)" / "Chegando em...")
+  5. Botão secundário "Ver Ruas"
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção de Poluição Visual e Síntese Mobile:**
+     - Eliminado o bloco de "Código Protocolo" e seu ícone associado do grid de informações do card, despoluindo o card para foco direto na data, horário, profissional e serviço.
+     - Removida a barra superior do contêiner de Radar (alternador de modalidade e pílula de status descritivo).
+     - Removido o botão secundário "Ver Ruas", simplificando a ação do usuário para o botão principal "Ir" em largura total (`w-full`), com alto contraste e máxima usabilidade com um único toque.
+  2. **Clean Code & Pós-Obra:**
+     - Removidos imports não utilizados (`Bell`, `Home`, `syncAppointmentAcrossStorageAndDb`).
+     - Preservado o fluxo de navegação GPS ao vivo com course-up e map-matching intactos ao acionar o botão "Ir".
+
+---
+
 ### [2026-11-06] — Hierarquia Tipográfica do Usuário no Cabeçalho: Nome Superior e Cargo/Papel Inferior (`MobileHeader.tsx`, `SalonProfileView.tsx`) (`bol-146`)
 - **Tipo:** `[UI / Refactor / Mobile Header]`
 - **Motivo / Solicitação:** Remover a saudação "Olá," e o ícone chevron selecionados, posicionar o nome do usuário no topo e inserir abaixo a descrição dinâmica de seu papel ("Usuário", "Dependente" ou o cargo correspondente se for membro do estabelecimento).

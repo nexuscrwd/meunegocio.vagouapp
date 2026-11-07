@@ -35,7 +35,7 @@ import { useSalonRole, SalonRole } from '../hooks/useSalonRole';
 import { useOwnerAccess } from '../hooks/useOwnerAccess';
 import { useTheme, sanitizeAccentColor } from '../context/ThemeContext';
 import { getSalonLogo } from '../utils/salonLogos';
-import { DEFAULT_ROTA99_LOGO_DARK, DEFAULT_ROTA99_LOGO_LIGHT, DEFAULT_ROTA99_ICON, DEFAULT_FACE_CLIPART_AVATAR } from '../utils/defaultSalonAssets';
+import { DEFAULT_ROTA99_LOGO_DARK, DEFAULT_ROTA99_LOGO_LIGHT, DEFAULT_ROTA99_ICON } from '../utils/defaultSalonAssets';
 import { updateDynamicPwaAssets } from '../utils/pwaAssets';
 import { BottomNav } from './BottomNav';
 import { MobileHeader, UserRole as HeaderUserRole } from './MobileHeader';
@@ -2200,7 +2200,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           serviceTitle: bookingData.service.title,
           professional: bookingData.professional,
           professionalName: bookingData.professional,
+          professionalAvatar: bookingData.professionalAvatar || null,
           salonName: bookingData.salonName,
+          salonLogo: activeLogo || adminSettings.salonLogo || adminSettings.salonLogoDark || adminSettings.salonLogoLight || null,
           dateTime: `${bookingData.dateFormatted} às ${bookingData.timeSlot}`,
           dayGroup: bookingData.dateFormatted,
           dateIso: bookingData.dateIso,

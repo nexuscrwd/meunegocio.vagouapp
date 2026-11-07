@@ -1,11 +1,15 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type { SalonProfessionalItem } from '../types';
+import type { InterSalonConflictDetails } from '../types/booking';
+
+export type { InterSalonConflictDetails };
 
 export interface BookingSlotItem {
   time: string;
   available: boolean;
   period: 'manha' | 'tarde' | 'noite';
-  reason?: 'busy' | 'past' | 'travel_buffer';
+  reason?: 'busy' | 'past' | 'travel_buffer' | 'inter_salon_conflict';
+  conflictDetails?: InterSalonConflictDetails;
 }
 
 export interface BookingDraftItem {
@@ -1173,12 +1177,205 @@ export interface SlotGenerationOptions {
   busySlots?: Array<{ start_time: string; end_time?: string; professional_id?: string; professional_name?: string }>;
   availableProfessionals?: SalonProfessionalItem[];
   nowOverride?: Date;
+  currentSalonName?: string;
+  currentSalonCoords?: { lat: number; lng: number };
+  serviceDurationMinutes?: number;
+  excludeAppointmentProtocol?: string;
+  clientAppointments?: any[];
+}
+
+const minutesToHHMM = (totalMinutes: number): string => {
+  const clamped = Math.max(0, Math.min(23 * 60 + 59, Math.round(totalMinutes)));
+  const hh = Math.floor(clamped / 60);
+  const mm = clamped % 60;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+};
+
+const parseDurationToMinutes = (dur?: string | number | null, fallback = 45): number => {
+  if (typeof dur === 'number' && Number.isFinite(dur) && dur > 0) return dur;
+  if (typeof dur === 'string') {
+    const match = dur.match(/(\d+)/);
+    if (match) {
+      const parsed = parseInt(match[1], 10);
+      if (parsed > 0) return parsed;
+    }
+  }
+  return fallback;
+};
+
+/**
+ * Lê os agendamentos ativos do cliente (sessão / localStorage) para verificar conflitos geotemporais entre salões
+ */
+export function getLocalActiveClientAppointments(): any[] {
+  if (typeof window === 'undefined') return [];
+  const merged: any[] = [];
+  const seenProtocols = new Set<string>();
+
+  for (const key of ['vagou_appointments', 'vagou_user_appointments']) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) continue;
+      for (const apt of parsed) {
+        if (!apt || apt.isBlockedSlot) continue;
+        const statusUpper = String(apt.status || 'CONFIRMADO').toUpperCase().trim();
+        if (statusUpper === 'CANCELADO' || statusUpper === 'CONCLUÍDO' || statusUpper === 'CONCLUIDO') {
+          continue;
+        }
+        const proto = String(apt.protocolCode || apt.id || '');
+        if (proto && seenProtocols.has(proto)) continue;
+        if (proto) seenProtocols.add(proto);
+        merged.push(apt);
+      }
+    } catch {}
+  }
+
+  return merged;
+}
+
+/**
+ * Verifica se um horário pretendido (slotTime) no Salão B colide com algum agendamento ativo do cliente no Salão A
+ * na mesma data, considerando:
+ *   1. Horário de início no Salão A (startMinA)
+ *   2. Tempo de execução do serviço no Salão A (durationMinA -> endMinA = startMinA + durationMinA)
+ *   3. Distância / Tempo de deslocamento entre Salão A e Salão B (interSalonTravelMinutes + margem de segurança)
+ *   4. Sentido inverso (Salão B -> Salão A): Término no Salão B + deslocamento até o Salão A antes de startMinA
+ */
+export function checkInterSalonSlotCollision(params: {
+  slotTime: string;
+  dateStr?: string;
+  currentSalonName?: string;
+  currentSalonCoords?: { lat: number; lng: number };
+  candidateServiceDurationMin?: number;
+  excludeAppointmentProtocol?: string;
+  clientAppointments?: any[];
+  fallbackInterSalonTravelMinutes?: number;
+}): InterSalonConflictDetails | null {
+  const [sh, sm] = String(params.slotTime || '').split(':').map(Number);
+  if (Number.isNaN(sh) || Number.isNaN(sm)) return null;
+  const candidateStartMin = sh * 60 + sm;
+  const candidateDurationMin = Math.max(15, params.candidateServiceDurationMin ?? 45);
+  const candidateEndMin = candidateStartMin + candidateDurationMin;
+
+  const list = Array.isArray(params.clientAppointments)
+    ? params.clientAppointments
+    : getLocalActiveClientAppointments();
+  if (list.length === 0) return null;
+
+  const now = new Date();
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const targetDateIso = params.dateStr || todayIso;
+  const [, tm, td] = targetDateIso.split('-');
+  const shortSlash = td && tm ? `${td}/${tm}` : '';
+
+  const currentSalonNorm = String(params.currentSalonName || '').trim().toLowerCase();
+
+  for (const apt of list) {
+    if (!apt || apt.isBlockedSlot) continue;
+    const statusUpper = String(apt.status || 'CONFIRMADO').toUpperCase().trim();
+    if (statusUpper === 'CANCELADO' || statusUpper === 'CONCLUÍDO' || statusUpper === 'CONCLUIDO') {
+      continue;
+    }
+
+    const proto = String(apt.protocolCode || apt.id || '');
+    if (params.excludeAppointmentProtocol && proto === params.excludeAppointmentProtocol) {
+      continue;
+    }
+
+    // Verificar se o agendamento é na mesma data
+    const aptDateIso = String(apt.dateIso || apt.date_str || '').trim();
+    const rawDateText = `${apt.dayGroup || ''} ${apt.dateTime || ''}`.toLowerCase();
+    let isSameDay = false;
+
+    if (aptDateIso && aptDateIso.slice(0, 10) === targetDateIso) {
+      isSameDay = true;
+    } else if (targetDateIso === todayIso && rawDateText.includes('hoje')) {
+      isSameDay = true;
+    } else if (shortSlash && rawDateText.includes(shortSlash.toLowerCase())) {
+      isSameDay = true;
+    }
+
+    if (!isSameDay) continue;
+
+    // Extrair horário de início do agendamento existente (Salão A)
+    const timeMatch = String(apt.time || apt.start_time || apt.dateTime || '').match(/(\d{1,2}):(\d{2})/);
+    if (!timeMatch) continue;
+    const aptStartMin = parseInt(timeMatch[1], 10) * 60 + parseInt(timeMatch[2], 10);
+    const aptDurationMin = parseDurationToMinutes(
+      apt.durationMinutes ?? apt.duration_minutes ?? apt.duration,
+      45
+    );
+    const aptEndMin = aptStartMin + aptDurationMin;
+
+    const otherSalonName = String(apt.salonName || apt.salon_name || 'Outro Estabelecimento').trim();
+    const otherSalonNorm = otherSalonName.toLowerCase();
+    const isDifferentSalon = !currentSalonNorm || otherSalonNorm !== currentSalonNorm;
+
+    // Calcular tempo de deslocamento entre Salão A e Salão B
+    let interSalonTravelMinutes = 0;
+    if (isDifferentSalon) {
+      const aptLat = Number(apt.salon_lat ?? apt.salonLat ?? apt.latitude);
+      const aptLng = Number(apt.salon_lng ?? apt.salonLng ?? apt.longitude);
+      if (
+        params.currentSalonCoords &&
+        Number.isFinite(aptLat) &&
+        Number.isFinite(aptLng) &&
+        aptLat !== 0 &&
+        aptLng !== 0
+      ) {
+        const { etaMinutes } = calculateHaversineDistanceAndEta(
+          aptLat,
+          aptLng,
+          params.currentSalonCoords.lat,
+          params.currentSalonCoords.lng,
+          'car'
+        );
+        interSalonTravelMinutes = Math.max(15, etaMinutes + 10); // ETA viário + 10 min margem de check-in
+      } else {
+        const baseEta = Number(apt.eta_minutes ?? apt.etaMinutes ?? params.fallbackInterSalonTravelMinutes ?? 20);
+        interSalonTravelMinutes = Math.max(20, (Number.isFinite(baseEta) && baseEta > 0 ? baseEta : 20) + 10);
+      }
+    }
+
+    // Janela proibida:
+    // 1. O cliente precisa terminar no Salão A (aptEndMin) + deslocar até Salão B (interSalonTravelMinutes)
+    const earliestAfterAptA = aptEndMin + interSalonTravelMinutes;
+    // 2. Ou, se agendar no Salão B antes do Salão A, precisa terminar no Salão B (candidateEndMin) + deslocar até Salão A (interSalonTravelMinutes) <= aptStartMin
+    const latestFinishBeforeAptA = aptStartMin - interSalonTravelMinutes;
+
+    const collidesAfterA = candidateStartMin >= aptStartMin && candidateStartMin < earliestAfterAptA;
+    const collidesBeforeA = candidateStartMin < aptStartMin && candidateEndMin > latestFinishBeforeAptA;
+
+    if (collidesAfterA || collidesBeforeA) {
+      const otherStartStr = minutesToHHMM(aptStartMin);
+      const otherEndStr = minutesToHHMM(aptEndMin);
+      const earliestAllowedStr = minutesToHHMM(earliestAfterAptA);
+
+      const message = isDifferentSalon
+        ? `Conflito com ${otherSalonName} (${otherStartStr}–${otherEndStr} + ${interSalonTravelMinutes}m trajeto). Livre a partir de ${earliestAllowedStr}.`
+        : `Você já possui horário neste salão das ${otherStartStr} às ${otherEndStr}.`;
+
+      return {
+        otherSalonName,
+        otherStartTime: otherStartStr,
+        otherEndTime: otherEndStr,
+        interSalonTravelMinutes,
+        earliestAllowedTime: earliestAllowedStr,
+        message,
+      };
+    }
+  }
+
+  return null;
 }
 
 /**
  * Gera os horários do dia classificados por período (manhã, tarde, noite),
- * aplicando bloqueio de banco de dados (busySlots), escala dos profissionais disponíveis no dia e a regra preditiva:
- * Disponível apenas se Horário >= Hora Atual + Tempo de Deslocamento + 15 min (preparação)
+ * aplicando:
+ *  1. Bloqueio de banco de dados (busySlots) e escala dos profissionais disponíveis no dia
+ *  2. Trava Inteligente Anti-Colisão Geotemporal entre Salões (Salão A ➔ Salão B e B ➔ A)
+ *  3. Regra preditiva para Hoje: Horário >= Hora Atual + Tempo de Deslocamento + 15 min (preparação)
  */
 export function getAvailableSlotsForDate(
   dateStr?: string,
@@ -1292,7 +1489,6 @@ export function getAvailableSlotsForDate(
     if (targetPro) {
       isBusy = isSlotBusyForPro(slot.time, slotMinutes, targetPro);
     } else if (Array.isArray(availablePros) && availablePros.length > 1 && (!selectedProNameOrId || selectedProNameOrId === 'any')) {
-      // No modo "Qualquer", o horário só fica indisponível se TODOS os profissionais disponíveis no dia estiverem ocupados naquele horário
       isBusy = availablePros.every((pro) => isSlotBusyForPro(slot.time, slotMinutes, pro));
     } else {
       isBusy = isSlotBusyForPro(slot.time, slotMinutes, undefined);
@@ -1306,7 +1502,28 @@ export function getAvailableSlotsForDate(
       };
     }
 
-    // 2. Se for para Hoje, bloqueia horas passadas e slots inferiores a (Hora Atual + Deslocamento + 15 min preparo)
+    // 2. Verifica Trava Inteligente Anti-Colisão Geotemporal com outro Salão (Salão A ➔ Salão B e B ➔ A)
+    const interSalonConflict = checkInterSalonSlotCollision({
+      slotTime: slot.time,
+      dateStr,
+      currentSalonName: options?.currentSalonName,
+      currentSalonCoords: options?.currentSalonCoords,
+      candidateServiceDurationMin: options?.serviceDurationMinutes ?? 45,
+      excludeAppointmentProtocol: options?.excludeAppointmentProtocol,
+      clientAppointments: options?.clientAppointments,
+      fallbackInterSalonTravelMinutes: travelMinutes,
+    });
+
+    if (interSalonConflict) {
+      return {
+        ...slot,
+        available: false,
+        reason: 'inter_salon_conflict',
+        conflictDetails: interSalonConflict,
+      };
+    }
+
+    // 3. Se for para Hoje, bloqueia horas passadas e slots inferiores a (Hora Atual + Deslocamento + 15 min preparo)
     if (isToday) {
       if (slotMinutes <= nowMinutes) {
         return {
@@ -1330,4 +1547,5 @@ export function getAvailableSlotsForDate(
     };
   });
 }
+
 

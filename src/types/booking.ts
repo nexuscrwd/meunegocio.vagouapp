@@ -227,11 +227,21 @@ export const BOOKING_DRAFT_STORAGE_KEY = 'vagou_booking_draft_v1';
 
 export type PeriodKey = 'manha' | 'tarde' | 'noite';
 
+export interface InterSalonConflictDetails {
+  otherSalonName: string;
+  otherStartTime: string;
+  otherEndTime: string;
+  interSalonTravelMinutes: number;
+  earliestAllowedTime: string;
+  message: string;
+}
+
 export interface BookingSlotItem {
   time: string;
   available: boolean;
   period: PeriodKey;
-  reason?: 'busy' | 'past' | 'travel_buffer';
+  reason?: 'busy' | 'past' | 'travel_buffer' | 'inter_salon_conflict';
+  conflictDetails?: InterSalonConflictDetails;
 }
 
 export interface SlotGenerationOptions {
@@ -240,6 +250,11 @@ export interface SlotGenerationOptions {
   busySlots?: BusySlotRecord[];
   availableProfessionals?: SalonProfessionalItem[];
   nowOverride?: Date;
+  currentSalonName?: string;
+  currentSalonCoords?: { lat: number; lng: number };
+  serviceDurationMinutes?: number;
+  excludeAppointmentProtocol?: string;
+  clientAppointments?: any[];
 }
 
 export interface BusySlotRecord {
