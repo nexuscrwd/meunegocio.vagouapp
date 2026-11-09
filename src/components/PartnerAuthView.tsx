@@ -45,6 +45,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
     <div className={`w-full h-full flex items-center justify-center font-['Poppins'] ${isDark ? 'bg-slate-950' : 'bg-slate-50'}`}>
       <SalonClientAuthModal
         isOpen={true}
+        requireAuth={!onBack}
         onClose={() => {
           if (onBack) onBack();
         }}

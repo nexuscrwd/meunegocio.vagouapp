@@ -517,100 +517,13 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
   const [cancelJustification, setCancelJustification] = useState('');
   const [liveTrackingAppointment, setLiveTrackingAppointment] = useState<BookingAppointment | null>(null);
 
-  // Agendamentos com fallback de MOCK para teste e averiguação imediata dos 3 cards no ambiente de dev
   const effectiveAppointments = useMemo(() => {
-    const now = new Date();
-    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const shortToday = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}`;
-
-    const hasTodayApts = (appointments || []).some((a) => {
-      return (
-        a.dateIso === todayIso ||
-        a.dayGroup === 'Hoje' ||
-        a.dayGroup === shortToday ||
-        (typeof a.dateTime === 'string' && (a.dateTime.includes('Hoje') || a.dateTime.includes(shortToday)))
-      );
-    });
-
-    if (hasTodayApts && Array.isArray(appointments) && appointments.length > 0) {
-      return appointments;
-    }
-
-    // Mock Appointments de Teste para o Atendimento Atual, Próximo e Pendente
-    const mock1: BookingAppointment = {
-      id: 'mock-app-current',
-      protocolCode: '#VGA-2001',
-      clientName: 'Carlos Eduardo',
-      customerName: 'Carlos Eduardo',
-      clientAvatar: 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
-      clientPhone: '11987654321',
-      serviceTitle: 'Corte de Cabelo + Barba',
-      service: 'Corte de Cabelo + Barba',
-      serviceName: 'Corte de Cabelo + Barba',
-      salonName: salonName || 'Meu Estabelecimento',
-      professionalName: currentUserName || 'Profissional',
-      professional: currentUserName || 'Profissional',
-      dateTime: `Hoje, 10:00`,
-      dayGroup: 'Hoje',
-      time: '10:00',
-      duration: '45m',
-      durationMinutes: 45,
-      totalPrice: 65,
-      status: 'EM ATENDIMENTO',
-      dateIso: todayIso,
-      tracking_status: 'idle',
-    };
-
-    const mock2: BookingAppointment = {
-      id: 'mock-app-next',
-      protocolCode: '#VGA-2002',
-      clientName: 'Lucas Gabriel',
-      customerName: 'Lucas Gabriel',
-      clientAvatar: 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
-      clientPhone: '11976543210',
-      serviceTitle: 'Barba Espartana',
-      service: 'Barba Espartana',
-      serviceName: 'Barba Espartana',
-      salonName: salonName || 'Meu Estabelecimento',
-      professionalName: currentUserName || 'Profissional',
-      professional: currentUserName || 'Profissional',
-      dateTime: `Hoje, 11:00`,
-      dayGroup: 'Hoje',
-      time: '11:00',
-      duration: '30m',
-      durationMinutes: 30,
-      totalPrice: 40,
-      status: 'CONFIRMADO',
-      dateIso: todayIso,
-      tracking_status: 'live_sharing', // Trajeto Compartilhado ao Vivo (VERDE)
-    };
-
-    const mock3: BookingAppointment = {
-      id: 'mock-app-pending',
-      protocolCode: '#VGA-2003',
-      clientName: 'Matheus Silva',
-      customerName: 'Matheus Silva',
-      clientAvatar: 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg',
-      clientPhone: '11965432109',
-      serviceTitle: 'Corte Degradê Navalhado',
-      service: 'Corte Degradê Navalhado',
-      serviceName: 'Corte Degradê Navalhado',
-      salonName: salonName || 'Meu Estabelecimento',
-      professionalName: currentUserName || 'Profissional',
-      professional: currentUserName || 'Profissional',
-      dateTime: `Hoje, 14:00`,
-      dayGroup: 'Hoje',
-      time: '14:00',
-      duration: '40m',
-      durationMinutes: 40,
-      totalPrice: 50,
-      status: 'PENDENTE',
-      dateIso: todayIso,
-      tracking_status: 'idle', // Ainda não em trajeto (OPACO)
-    };
-
-    return [mock1, mock2, mock3, ...(appointments || [])];
-  }, [appointments, salonName, currentUserName]);
+    return (appointments || []).filter(
+      (a) =>
+        !String(a.id || '').startsWith('mock-') &&
+        !['#VGA-2001', '#VGA-2002', '#VGA-2003'].includes(String(a.protocolCode || ''))
+    );
+  }, [appointments]);
 
   // Fila ativa de hoje para o profissional ativo (excluindo concluídos e cancelados)
   const todayActiveAppointments = useMemo(() => {

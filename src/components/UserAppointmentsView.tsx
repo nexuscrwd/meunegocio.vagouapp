@@ -45,20 +45,6 @@ const FREE_SLOTS_CANDIDATES = [
   '18:30',
 ];
 
-const OCCUPIED_SWAP_CANDIDATES: Array<{
-  time: string;
-  clientName: string;
-  phone: string;
-  durationMin: number;
-}> = [
-  { time: '09:30', clientName: 'Carlos M.', phone: '(11) 99812-3401', durationMin: 40 },
-  { time: '11:00', clientName: 'Rafael S.', phone: '(11) 99745-8821', durationMin: 45 },
-  { time: '14:00', clientName: 'Lucas T.', phone: '(11) 99611-2090', durationMin: 40 },
-  { time: '16:30', clientName: 'Marcos V.', phone: '(11) 99532-1184', durationMin: 45 },
-  { time: '18:00', clientName: 'Bruno A.', phone: '(11) 99408-7732', durationMin: 30 },
-  { time: '19:00', clientName: 'Gabriel P.', phone: '(11) 99319-6540', durationMin: 40 },
-];
-
 const isRealLogoUrl = (url?: string | null): url is string =>
   Boolean(
     url &&
@@ -390,19 +376,45 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
     setSelectedFreeSlot('');
   };
 
+  const getRealOccupiedCandidates = (targetApt: BookingAppointment) => {
+    const targetTime = extractTimeFromAppointment(targetApt);
+    const targetPro = (targetApt.professionalName || targetApt.professional || '').toLowerCase().trim();
+    const targetDate = targetApt.dateIso || targetApt.dayGroup || '';
+
+    return appointments
+      .filter((item) => {
+        if (!item.protocolCode || item.protocolCode === targetApt.protocolCode) return false;
+        if (isTerminalAppointmentStatus(item.status)) return false;
+        const itemTime = extractTimeFromAppointment(item);
+        if (!itemTime || itemTime === targetTime) return false;
+        const itemPro = (item.professionalName || item.professional || '').toLowerCase().trim();
+        if (targetPro && itemPro && targetPro !== itemPro) return false;
+        const itemDate = item.dateIso || item.dayGroup || '';
+        if (targetDate && itemDate && targetDate !== itemDate) return false;
+        return true;
+      })
+      .map((item) => ({
+        time: extractTimeFromAppointment(item),
+        clientName: item.customerName || item.clientName || 'Cliente',
+        phone: item.customerPhone || item.clientPhone || '',
+        durationMin: Number(item.durationMinutes) || 45,
+      }));
+  };
+
   const handleSendCascadeSwap = () => {
     if (!rescheduleModalApt || selectedSwapSlots.length === 0) return;
     hapticSuccess();
+    const realCandidates = getRealOccupiedCandidates(rescheduleModalApt);
     const currentTime = extractTimeFromAppointment(rescheduleModalApt);
     const firstSlot = selectedSwapSlots[0];
-    const firstCandidate = OCCUPIED_SWAP_CANDIDATES.find((c) => c.time === firstSlot);
+    const firstCandidate = realCandidates.find((c) => c.time === firstSlot);
 
     const cascadeQueue: SwapTargetQueueItem[] = selectedSwapSlots.map((slot, idx) => {
-      const candidate = OCCUPIED_SWAP_CANDIDATES.find((c) => c.time === slot);
+      const candidate = realCandidates.find((c) => c.time === slot);
       return {
         slotTime: slot,
         clientName: candidate?.clientName || `Cliente (${slot})`,
-        phone: candidate?.phone || '(11) 99999-0000',
+        phone: candidate?.phone || '',
         status: 'pending',
         notifiedAt: idx === 0 ? Date.now() : undefined,
       };
@@ -1126,57 +1138,69 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                         </div>
                       )}
 
-                      <div className="grid grid-cols-3 gap-2">
-                        {OCCUPIED_SWAP_CANDIDATES.filter(
-                          (c) => c.time !== extractTimeFromAppointment(rescheduleModalApt)
-                        ).map((candidate) => {
-                          const orderIndex = selectedSwapSlots.indexOf(candidate.time);
-                          const isSelected = orderIndex !== -1;
-                          const conflict = getSlotConflict(candidate.time);
+                      {(() => {
+                        const realOccupiedCandidates = getRealOccupiedCandidates(rescheduleModalApt);
+                        if (realOccupiedCandidates.length === 0) {
                           return (
-                            <button
-                              key={candidate.time}
-                              type="button"
-                              disabled={Boolean(conflict)}
-                              title={conflict ? conflict.message : `Permutar às ${candidate.time}`}
-                              onClick={() => {
-                                if (conflict) return;
-                                hapticLight();
-                                setSelectedSwapSlots((prev) => {
-                                  if (prev.includes(candidate.time)) {
-                                    return prev.filter((t) => t !== candidate.time);
-                                  }
-                                  if (prev.length >= 3) return prev;
-                                  return [...prev, candidate.time];
-                                });
-                              }}
-                              className={`py-2 px-2 rounded-[4px] flex flex-col items-center justify-center gap-0.5 transition ${
-                                conflict
-                                  ? 'bg-amber-500/10 text-amber-400/70 line-through cursor-not-allowed'
-                                  : isSelected
-                                  ? 'bg-emerald-500 text-white cursor-pointer'
-                                  : isDark
-                                  ? 'bg-slate-800 text-slate-200 hover:bg-slate-700 cursor-pointer'
-                                  : 'bg-slate-100 text-slate-800 hover:bg-slate-200 cursor-pointer'
-                              }`}
-                            >
-                              <div className="flex items-center gap-1">
-                                <span className={`font-mono text-xs font-extrabold ${isSelected ? 'text-white' : ''}`}>
-                                  {candidate.time}
-                                </span>
-                                {isSelected && (
-                                  <span className="text-[10px] font-black text-white">
-                                    ({orderIndex + 1}º)
-                                  </span>
-                                )}
-                              </div>
-                              <span className={`text-[10px] truncate max-w-full ${isSelected ? 'text-white' : 'text-slate-400'}`}>
-                                {candidate.clientName}
-                              </span>
-                            </button>
+                            <div className={`p-4 rounded-[4px] text-center text-xs font-medium ${
+                              isDark ? 'bg-slate-800/60 text-slate-400' : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              Nenhum horário ocupado disponível para permuta nesta data.
+                            </div>
                           );
-                        })}
-                      </div>
+                        }
+                        return (
+                          <div className="grid grid-cols-3 gap-2">
+                            {realOccupiedCandidates.map((candidate) => {
+                              const orderIndex = selectedSwapSlots.indexOf(candidate.time);
+                              const isSelected = orderIndex !== -1;
+                              const conflict = getSlotConflict(candidate.time);
+                              return (
+                                <button
+                                  key={candidate.time}
+                                  type="button"
+                                  disabled={Boolean(conflict)}
+                                  title={conflict ? conflict.message : `Permutar às ${candidate.time}`}
+                                  onClick={() => {
+                                    if (conflict) return;
+                                    hapticLight();
+                                    setSelectedSwapSlots((prev) => {
+                                      if (prev.includes(candidate.time)) {
+                                        return prev.filter((t) => t !== candidate.time);
+                                      }
+                                      if (prev.length >= 3) return prev;
+                                      return [...prev, candidate.time];
+                                    });
+                                  }}
+                                  className={`py-2 px-2 rounded-[4px] flex flex-col items-center justify-center gap-0.5 transition ${
+                                    conflict
+                                      ? 'bg-amber-500/10 text-amber-400/70 line-through cursor-not-allowed'
+                                      : isSelected
+                                      ? 'bg-emerald-500 text-white cursor-pointer'
+                                      : isDark
+                                      ? 'bg-slate-800 text-slate-200 hover:bg-slate-700 cursor-pointer'
+                                      : 'bg-slate-100 text-slate-800 hover:bg-slate-200 cursor-pointer'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-1">
+                                    <span className={`font-mono text-xs font-extrabold ${isSelected ? 'text-white' : ''}`}>
+                                      {candidate.time}
+                                    </span>
+                                    {isSelected && (
+                                      <span className="text-[10px] font-black text-white">
+                                        ({orderIndex + 1}º)
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className={`text-[10px] truncate max-w-full ${isSelected ? 'text-white' : 'text-slate-400'}`}>
+                                    {candidate.clientName}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
 
                       {selectedSwapSlots.length > 0 && (
                         <div className="text-[11px] font-bold text-emerald-400 flex items-center gap-1.5 pt-1">

@@ -11,6 +11,46 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-09] — Paleta Default em Verde Menta / Pastel Bem Clarinho (Pacote Completo — Opção 3) (`bol-158`)
+- **Tipo:** `[Feat / UI / Theme / Contrast]`
+- **Motivo / Solicitação:** Definir um tom de cor verde bem clarinho como padrão (default) do aplicativo em todo o ecossistema (Pacote Completo — Opção 3: Fundo Geral das Telas + Cabeçalho, Barra Inferior, Subcabeçalhos de Seção e Tema Default).
+- **Arquivos Impactados:**
+  - `src/index.css`
+  - `src/context/ThemeContext.tsx`
+  - `src/utils/sectionHeaderStyle.ts`
+  - `src/components/MobileHeader.tsx`
+  - `src/components/BottomNav.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Fundo Geral das Telas em Verde Menta Bem Clarinho (`src/index.css`):**
+     - Superfície interna das telas no modo claro definida como `#F0FDF4` (Emerald-50) e moldura externa como `#DCFCE7` (Green-100), destacando cards brancos (`#FFFFFF`) com bordas suaves (`#D1FAE5`).
+  2. **Cabeçalho (`MobileHeader.tsx`), Barra Inferior (`BottomNav.tsx`) e Subcabeçalhos (`sectionHeaderStyle.ts`) em Verde Pastel Bem Clarinho (`#D1FAE5` / `#ECFDF5`):**
+     - `.caixa-header-gradient` atualizado para degradê verde pastel suave (`#D1FAE5` ➔ `#DCFCE7` ➔ `#ECFDF5`) com textos e ícones em verde-esmeralda escuro de alto contraste (`#065F46` / `#047857`).
+     - `BottomNav` default atualizado para `#D1FAE5` com borda `#A7F3D0`, botões inativos com texto/ícone `#065F46` e botão ativo de fundo branco com ícone, texto e indicador superior na cor do tema (`#059669` / `#10B981`).
+     - Subcabeçalhos de seção (`sectionHeaderStyle.ts`) atualizados por padrão no modo claro para fundo `#ECFDF5`, borda `#A7F3D0` e ícone `#059669`.
+     - Fallback de cor de destaque (`accentColor`) atualizado para `#10B981` em `ThemeContext.tsx` e `SalonProfileView.tsx`.
+
+### [2026-11-09] — Remoção Total de Mocks & Portão Obrigatório de Login / Cadastre-se para Acesso ao App (`bol-157`)
+- **Tipo:** `[Feat / Security / Clean Code / Auth Gate]`
+- **Motivo / Solicitação:** Limpar todos os dados mockados do aplicativo e exigir obrigatoriamente que o usuário faça **Login** ou **Cadastre-se** para acessar o aplicativo.
+- **Arquivos Impactados:**
+  - `src/App.tsx`
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `src/components/UserAppointmentsView.tsx`
+  - `src/components/PartnerAuthView.tsx`
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/components/auth/TriadeUserAuthCard.tsx`
+  - `src/components/auth/TriadeUserRegisterForm.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção de Mocks:**
+     - Removidos `mock1`, `mock2` e `mock3` (`#VGA-2001..2003`) de `ProfessionalDashboardView.tsx`.
+     - Removida a lista fixa `OCCUPIED_SWAP_CANDIDATES` de `UserAppointmentsView.tsx`, passando a listar apenas horários ocupados reais da agenda na mesma data e profissional.
+     - Adicionada rotina `sanitizeMockStorageData()` em `src/App.tsx` para expurgar automaticamente eventuais registros de mock residuais no `localStorage`.
+  2. **Portão Obrigatório de Autenticação (`requireAuth`):**
+     - Implementado controle `isAuthenticated` e `hasActiveAppSession()` em `src/App.tsx`, direcionando usuários não logados para `<PartnerAuthView />` (`SalonClientAuthModal` / `TriadeUserAuthCard` com `requireAuth = true`) sem botão de fechamento na tela de login.
+
 ### [2026-11-08] — Cor do Tema para Ícone e Texto em Botão Ativo com Fundo Branco no `BottomNav` & Correção de `z-index` no `MobileHeader` (`bol-156`)
 - **Tipo:** `[Fix / UI / Contrast / Theme]`
 - **Motivo / Solicitação:** Garantir que, quando o botão ativo na barra inferior (`BottomNav`) possuir fundo branco/claro, a cor do ícone, do texto e do indicador superior assuma automaticamente a cor do tema, eliminando o conflito com a classe `.text-white { color: #ffffff !important }`, além de elevar o `z-index` do `MobileHeader` para que os subcabeçalhos das seções não sobreponham o menu suspenso do usuário.

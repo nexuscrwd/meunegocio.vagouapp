@@ -106,16 +106,17 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const navIconBorder = propNavIconBorder || salonContext?.navIconBorder || 'none';
   const navBgStyle = propNavBgStyle || salonContext?.navBgStyle || 'solid';
   const rawNavBgColor = propNavBgColor || salonContext?.navBgColor || '';
-  // Default: cor sólida igual à cor principal do cabeçalho (#005CA9), salvo se o usuário alterou nas ferramentas de estilo
+  // Default: cor verde pastel bem clarinho (#D1FAE5) igual ao cabeçalho default, salvo se o usuário alterou nas ferramentas de estilo
+  const normalizedRawNavBg = rawNavBgColor.trim().toLowerCase();
   const navBgColor =
-    !rawNavBgColor || rawNavBgColor.trim().toLowerCase() === '#f1f5f9'
-      ? '#005CA9'
+    !normalizedRawNavBg || normalizedRawNavBg === '#f1f5f9' || normalizedRawNavBg === '#005ca9'
+      ? '#D1FAE5'
       : rawNavBgColor;
   const isDefaultHeaderMatchBg = navBgColor.trim().toLowerCase() === '#005ca9';
   const navBtnBgColor = propNavBtnBgColor || salonContext?.navBtnBgColor;
   const navBtnActiveBgColor = propNavBtnActiveBgColor || salonContext?.navBtnActiveBgColor;
   const rawNavActiveColor = propNavActiveColor || salonContext?.navActiveColor;
-  const navActiveColor = sanitizeAccentColor(rawNavActiveColor || accentColor || '#2B82C9');
+  const navActiveColor = sanitizeAccentColor(rawNavActiveColor || accentColor || '#10B981');
   const navTextColor = propNavTextColor || salonContext?.navTextColor;
   const navBtnShadow = propNavBtnShadow || salonContext?.navBtnShadow || 'none';
   const navBtnBlur = propNavBtnBlur || salonContext?.navBtnBlur || 'none';
@@ -134,6 +135,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       hex === '#f3f4f6' ||
       hex === '#e2e8f0' ||
       hex === '#e5e7eb' ||
+      hex === '#d1fae5' ||
+      hex === '#dcfce7' ||
+      hex === '#ecfdf5' ||
+      hex === '#f0fdf4' ||
       hex.startsWith('#f') ||
       hex.startsWith('#e')
     );
@@ -150,8 +155,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     if (navBgColor && !isWhiteOrLightHex(navBgColor) && navBgColor !== 'transparent') {
       return navBgColor;
     }
-    return navActiveColor || '#005CA9';
-  }, [rawNavActiveColor, accentColor, navBgColor, navActiveColor, isWhiteOrLightHex]);
+    return '#059669';
+  }, [rawNavActiveColor, accentColor, navBgColor, isWhiteOrLightHex]);
 
   // Detecta se a barra inferior tem fundo claro para garantir contraste de bordas e textos
   const isLightNavBg = React.useMemo(() => {
@@ -165,6 +170,11 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       hex === '#e2e8f0' ||
       hex === '#e5e7eb' ||
       hex === '#f3f4f6' ||
+      hex === '#d1fae5' ||
+      hex === '#dcfce7' ||
+      hex === '#ecfdf5' ||
+      hex === '#f0fdf4' ||
+      hex === '#a7f3d0' ||
       hex.startsWith('#f') ||
       hex.startsWith('#e') ||
       hex.startsWith('#d')
@@ -185,7 +195,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     return 'none';
   }, [navBtnBlur]);
 
-  // Estilização dinâmica do contêiner da barra conforme navBgStyle e navBgColor (Default: fundo sólido puro sem degradê ou efeitos)
+  // Estilização dinâmica do contêiner da barra conforme navBgStyle e navBgColor (Default: fundo sólido verde pastel suave #D1FAE5)
   const navContainerStyle = React.useMemo(() => {
     if (navBgStyle === 'transparent') {
       return { 
@@ -199,10 +209,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     }
     if (navBgColor) {
       if (navBgStyle === 'glass') {
-        const hex = navBgColor.startsWith('#') ? navBgColor : '#005CA9';
+        const hex = navBgColor.startsWith('#') ? navBgColor : '#D1FAE5';
         return {
           backgroundColor: `color-mix(in srgb, ${hex} 75%, transparent)`,
-          borderColor: `color-mix(in srgb, ${hex} 45%, #cbd5e1)`,
+          borderColor: `color-mix(in srgb, ${hex} 45%, #A7F3D0)`,
           backdropFilter: 'blur(16px) saturate(160%)',
           WebkitBackdropFilter: 'blur(16px) saturate(160%)',
         };
@@ -210,7 +220,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       return {
         backgroundColor: navBgColor,
         backgroundImage: 'none',
-        borderColor: isLightNavBg ? '#cbd5e1' : 'rgba(255, 255, 255, 0.18)',
+        borderColor: isLightNavBg ? '#A7F3D0' : 'rgba(255, 255, 255, 0.18)',
         boxShadow: 'none',
         backdropFilter: 'none',
         WebkitBackdropFilter: 'none',
@@ -223,9 +233,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       };
     }
     return {
-      backgroundColor: '#005CA9',
+      backgroundColor: '#D1FAE5',
       backgroundImage: 'none',
-      borderColor: 'rgba(255, 255, 255, 0.18)',
+      borderColor: '#A7F3D0',
       boxShadow: 'none',
       backdropFilter: 'none',
       WebkitBackdropFilter: 'none',
@@ -238,7 +248,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     }
     if (navBgStyle === 'solid') {
       return `backdrop-blur-none border-t shadow-none ${
-        isLightNavBg ? 'text-slate-800' : 'text-white'
+        isLightNavBg ? 'text-[#065F46]' : 'text-white'
       }`;
     }
     // 'glass' (caso o usuário selecione efeito vidro nas ferramentas de estilo)
@@ -247,7 +257,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         ? ''
         : isDark
           ? 'bg-slate-900/50 border-white/10'
-          : 'bg-slate-100/80 border-slate-300/80 text-slate-800'
+          : 'bg-[#ECFDF5]/90 border-[#A7F3D0] text-[#065F46]'
     }`;
   }, [navBgStyle, navBgColor, isDark, isLightNavBg]);
 
@@ -523,13 +533,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 ? isActive
                   ? isLightNavBg
                     ? navShape === 'circle'
-                      ? 'rounded-full border border-emerald-500/60 bg-white shadow-xs'
-                      : 'rounded-[4px] border border-emerald-500/60 bg-white shadow-xs'
+                      ? 'rounded-full border border-emerald-500/70 bg-white shadow-xs'
+                      : 'rounded-[4px] border border-emerald-500/70 bg-white shadow-xs'
                     : navShape === 'circle'
                       ? 'rounded-full border border-white/50 bg-white/20'
                       : 'rounded-[4px] border border-white/50 bg-white/20'
                   : isLightNavBg
-                    ? 'border border-slate-300 bg-white/60 hover:bg-white'
+                    ? 'border border-[#A7F3D0] bg-white/75 hover:bg-white'
                     : 'border border-white/25 bg-white/10 hover:bg-white/15'
                 : ''
             }`}
@@ -567,7 +577,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                   : effectiveInactiveFg
                     ? 'stroke-[2]'
                     : isLightNavBg
-                      ? 'text-slate-700 group-hover:text-slate-950 stroke-[2]'
+                      ? 'text-[#065F46] group-hover:text-[#047857] stroke-[2]'
                       : 'text-white/85 group-hover:text-white stroke-[2]'
               }`}
             />
@@ -583,7 +593,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                   : effectiveInactiveFg
                     ? ''
                     : isLightNavBg
-                      ? 'text-slate-700 group-hover:text-slate-950'
+                      ? 'text-[#065F46] group-hover:text-[#047857]'
                       : 'text-white/85 group-hover:text-white'
               }`}
             >

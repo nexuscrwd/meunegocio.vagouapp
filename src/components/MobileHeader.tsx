@@ -108,12 +108,12 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
 
   return (
     <header className="w-full shrink-0 sticky top-0 z-50">
-      {/* Faixa Superior com Degradê Institucional */}
-      <div className="caixa-header-gradient px-4 pt-4 pb-5 text-white relative">
+      {/* Faixa Superior com Degradê Verde Pastel Suave (Default) */}
+      <div className="caixa-header-gradient px-4 pt-4 pb-5 text-[#065F46] relative">
         <div className="flex items-center justify-between gap-2">
           
           {/* Bloco Esquerdo: Logo do Estabelecimento ou Fallback "Logo" */}
-          <div className="h-10 min-w-[70px] px-3 rounded-[4px] bg-white/15 backdrop-blur-xs border border-white/25 flex items-center justify-center shadow-2xs overflow-hidden shrink-0">
+          <div className="h-10 min-w-[70px] px-3 rounded-[4px] bg-white/80 backdrop-blur-xs border border-[#A7F3D0] flex items-center justify-center shadow-2xs overflow-hidden shrink-0">
             {hasValidLogo ? (
               <img
                 src={resolvedLogo}
@@ -122,7 +122,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <span className="font-display font-extrabold text-xs tracking-wider text-white uppercase select-none">
+              <span className="font-display font-extrabold text-xs tracking-wider text-[#065F46] uppercase select-none">
                 Logo
               </span>
             )}
@@ -137,14 +137,14 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               title="Abrir menu de opções"
             >
               <div className="text-right flex flex-col items-end justify-center min-w-0">
-                <h1 className="font-display font-extrabold text-sm tracking-wide text-white leading-tight truncate max-w-[150px]">
+                <h1 className="font-display font-extrabold text-sm tracking-wide text-[#065F46] leading-tight truncate max-w-[150px]">
                   {firstName}
                 </h1>
-                <p className="text-[10px] font-semibold text-white/80 leading-tight tracking-wide mt-0.5 capitalize truncate max-w-[150px]">
+                <p className="text-[10px] font-semibold text-[#047857] leading-tight tracking-wide mt-0.5 capitalize truncate max-w-[150px]">
                   {userSubtitle}
                 </p>
               </div>
-              <div className="w-10 h-10 rounded-[4px] bg-white/20 backdrop-blur-xs border border-white/40 flex items-center justify-center font-display font-extrabold text-sm tracking-tight text-white shadow-xs group-hover:bg-white/30 transition-colors overflow-hidden shrink-0">
+              <div className="w-10 h-10 rounded-[4px] bg-white/85 backdrop-blur-xs border border-[#A7F3D0] flex items-center justify-center font-display font-extrabold text-sm tracking-tight text-[#065F46] shadow-xs group-hover:bg-white transition-colors overflow-hidden shrink-0">
                 {currentUser.avatarUrl &&
                 !currentUser.avatarUrl.startsWith('data:image/svg+xml') &&
                 !currentUser.avatarUrl.includes('unsplash.com') ? (
@@ -155,7 +155,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <span className="text-white">{initials}</span>
+                  <span className="text-[#065F46]">{initials}</span>
                 )}
               </div>
             </button>
@@ -167,14 +167,14 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                   className="fixed inset-0 z-40"
                   onClick={() => setIsUserMenuOpen(false)}
                 />
-                <div className="absolute right-0 mt-2 w-72 max-h-[80vh] overflow-y-auto no-scrollbar bg-white rounded-[4px] shadow-xl border border-[#D5E0EC] z-50 text-[#1E293B]">
+                <div className="absolute right-0 mt-2 w-72 max-h-[80vh] overflow-y-auto no-scrollbar bg-white rounded-[4px] shadow-xl border border-[#A7F3D0] z-50 text-[#1E293B]">
                   {/* Topo do Dropdown: Identificação do Usuário + Botão Claro/Escuro */}
-                  <div className="px-3.5 py-3 bg-[#F0F6FC] border-b border-[#D5E0EC] flex items-center justify-between gap-2">
+                  <div className="px-3.5 py-3 bg-[#ECFDF5] border-b border-[#A7F3D0] flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-extrabold font-display text-[#005CA9] truncate">
+                      <p className="text-xs font-extrabold font-display text-[#065F46] truncate">
                         {currentUser.name}
                       </p>
-                      <p className="text-[10px] text-[#5F6C7B] font-medium truncate">
+                      <p className="text-[10px] text-[#047857] font-medium truncate">
                         {currentUser.jobTitle || 'Cliente'} •{' '}
                         {currentUser.companyName || 'Estabelecimento'}
                       </p>
@@ -182,7 +182,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                     <button
                       type="button"
                       onClick={() => toggleTheme()}
-                      className="px-2 py-1 rounded-[4px] bg-white border border-[#D5E0EC] hover:bg-[#F7F9FC] flex flex-col items-center justify-center gap-0.5 text-amber-600 cursor-pointer shrink-0"
+                      className="px-2 py-1 rounded-[4px] bg-white border border-[#A7F3D0] hover:bg-[#F0FDF4] flex flex-col items-center justify-center gap-0.5 text-amber-600 cursor-pointer shrink-0"
                       title={isDark ? 'Mudar para Modo Claro' : 'Mudar para Modo Escuro'}
                     >
                       {isDark ? (
@@ -198,14 +198,14 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
 
                   {/* Alternador Rápido de Modo (se logado no salão) */}
                   {isSalonLoggedIn && (
-                    <div className="p-2 bg-[#F7F9FC] border-b border-[#EDF2F7]">
+                    <div className="p-2 bg-[#F0FDF4] border-b border-[#D1FAE5]">
                       <button
                         type="button"
                         onClick={() => {
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('ALTERNAR_MODO');
                         }}
-                        className="w-full px-3 py-2 rounded-[4px] bg-[#005CA9] hover:bg-[#0D79B4] text-white font-bold text-[11px] flex items-center justify-between transition-colors cursor-pointer"
+                        className="w-full px-3 py-2 rounded-[4px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-between transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2">
                           {isGerMode ? (
@@ -226,9 +226,9 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                   {/* ITENS ORIGINAIS DO MODO GESTÃO DO ESTABELECIMENTO (isGerMode) */}
                   {/* ============================================================ */}
                   {isGerMode ? (
-                    <div className="py-1 divide-y divide-[#EDF2F7]">
-                      <div className="px-3.5 py-1.5 bg-[#F7F9FC]">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-[#5F6C7B]">
+                    <div className="py-1 divide-y divide-[#ECFDF5]">
+                      <div className="px-3.5 py-1.5 bg-[#F0FDF4]">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-[#047857]">
                           Gestão do Estabelecimento
                         </span>
                       </div>
@@ -240,10 +240,10 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('PRO_SERVICOS');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F7F9FC] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#EBF5FF] text-[#005CA9] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
                             <Scissors className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
@@ -265,10 +265,10 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('PRO_ESPACO');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F7F9FC] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#EBF5FF] text-[#005CA9] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
                             <Store className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
@@ -290,10 +290,10 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('PRO_EQUIPE');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F7F9FC] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#EBF5FF] text-[#005CA9] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
                             <Users className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
@@ -316,10 +316,10 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                             setIsUserMenuOpen(false);
                             onOpenUserSection?.('PRO_PREFERENCIAS');
                           }}
-                          className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F7F9FC] transition-colors cursor-pointer"
+                          className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-7 h-7 rounded-[4px] bg-[#EBF5FF] text-[#005CA9] flex items-center justify-center shrink-0">
+                            <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
                               <Sliders className="w-4 h-4" />
                             </div>
                             <div className="min-w-0">
@@ -342,10 +342,10 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('PRO_UTILIDADES');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F7F9FC] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#EBF5FF] text-[#005CA9] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
                             <Mail className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
@@ -367,10 +367,10 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('DADOS_PESSOAIS');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F7F9FC] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#EBF5FF] text-[#005CA9] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
                             <User className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
@@ -389,9 +389,9 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                     /* ============================================================ */
                     /* ITENS ORIGINAIS DO MODO CLIENTE (!isGerMode) — MINHA CONTA   */
                     /* ============================================================ */
-                    <div className="py-1 divide-y divide-[#EDF2F7]">
-                      <div className="px-3.5 py-1.5 bg-[#F7F9FC]">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-[#5F6C7B]">
+                    <div className="py-1 divide-y divide-[#ECFDF5]">
+                      <div className="px-3.5 py-1.5 bg-[#F0FDF4]">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-[#047857]">
                           Minha Conta
                         </span>
                       </div>
@@ -403,10 +403,10 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('MINHA_AGENDA');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F7F9FC] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#EBF5FF] text-[#005CA9] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
                             <Calendar className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
@@ -428,10 +428,10 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('TRAJETO_GPS');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F7F9FC] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#EBF5FF] text-[#005CA9] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
                             <Navigation className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
@@ -458,10 +458,10 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('DEPENDENTES');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F7F9FC] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#EBF5FF] text-[#005CA9] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
                             <Users className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
@@ -483,10 +483,10 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('DADOS_PESSOAIS');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F7F9FC] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#EBF5FF] text-[#005CA9] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
                             <User className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
@@ -508,10 +508,10 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('CHAT_VAGOU');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F7F9FC] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#008B47] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
                             <MessageSquare className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
@@ -529,14 +529,14 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                   )}
 
                   {/* Rodapé do Dropdown: Abrir Menu em Tela Cheia + Encerrar Sessão */}
-                  <div className="p-2 bg-[#F7F9FC] border-t border-[#D5E0EC] space-y-1.5">
+                  <div className="p-2 bg-[#F0FDF4] border-t border-[#A7F3D0] space-y-1.5">
                     <button
                       type="button"
                       onClick={() => {
                         setIsUserMenuOpen(false);
                         onOpenUserSection?.('MENU_COMPLETO');
                       }}
-                      className="w-full py-1.5 rounded-[4px] bg-white hover:bg-[#EBF5FF] border border-[#D5E0EC] text-[#005CA9] font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      className="w-full py-1.5 rounded-[4px] bg-white hover:bg-[#ECFDF5] border border-[#A7F3D0] text-[#065F46] font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <User className="w-3.5 h-3.5" />
                       Abrir Painel Completo / Alterar Foto

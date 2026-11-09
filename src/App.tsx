@@ -60,6 +60,59 @@ function detectActiveSubdomain(): string {
 // Lista de ofertas padrão (vazio, carregado do banco)
 const EMPTY_OFFERS: ServiceOffer[] = [];
 
+function sanitizeMockStorageData(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const keys = ['vagou_user_appointments', 'vagou_appointments'];
+    keys.forEach((key) => {
+      const raw = localStorage.getItem(key);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter(
+          (item: any) =>
+            item &&
+            !String(item.id || '').startsWith('mock-') &&
+            !['#VGA-2001', '#VGA-2002', '#VGA-2003'].includes(String(item.protocolCode || ''))
+        );
+        if (cleaned.length !== parsed.length) {
+          localStorage.setItem(key, JSON.stringify(cleaned));
+        }
+      }
+    });
+  } catch {}
+}
+
+function hasActiveAppSession(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    if (localStorage.getItem('vagou_is_superadmin') === 'true') {
+      return true;
+    }
+    const rawSession = localStorage.getItem('vagou_client_session');
+    if (rawSession) {
+      try {
+        const parsed = JSON.parse(rawSession);
+        if (parsed && (parsed.id || parsed.clientId || parsed.email || parsed.username)) {
+          return true;
+        }
+      } catch {}
+    }
+    const authUserId = (localStorage.getItem('vagou_auth_user_id') || '').trim();
+    if (authUserId && !authUserId.startsWith('guest-')) {
+      return true;
+    }
+    const userEmail = (localStorage.getItem('vagou_user_email') || '').trim();
+    const activePartner = (localStorage.getItem('vagou_active_partner') || '').trim();
+    if (userEmail || activePartner) {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export const App: React.FC = () => {
   const { isDark, accentColor } = useTheme();
 
@@ -68,9 +121,15 @@ export const App: React.FC = () => {
   const [currentSubdomain, setCurrentSubdomain] = useState<string>(() => detectActiveSubdomain());
   const [isValidatingSubdomain, setIsValidatingSubdomain] = useState<boolean>(true);
   const [initialSalonData, setInitialSalonData] = useState<any>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    sanitizeMockStorageData();
+    return hasActiveAppSession();
+  });
 
-  // Início padrão na vitrine do estabelecimento ('salon')
-  const [viewMode, setViewMode] = useState<'auth' | 'salon' | 'agenda' | 'dashboard'>('salon');
+  // Início obrigatório na tela de Login/Cadastre-se se não estiver autenticado
+  const [viewMode, setViewMode] = useState<'auth' | 'salon' | 'agenda' | 'dashboard'>(() =>
+    hasActiveAppSession() ? 'salon' : 'auth'
+  );
   const [salonName, setSalonName] = useState(() => {
     const activeSub = detectActiveSubdomain();
     if (activeSub) {
@@ -129,6 +188,7 @@ export const App: React.FC = () => {
 
   const loadAppointments = () => {
     try {
+      sanitizeMockStorageData();
       const saved = localStorage.getItem('vagou_user_appointments');
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -459,18 +519,21 @@ export const App: React.FC = () => {
           if (isValidAvatarUrlString(savedAvatar)) {
             setUserAvatarUrl(savedAvatar.trim());
           }
+          setIsAuthenticated(true);
         } else {
           // Se não há token no domínio local, verifica se há login SSO ou perfil local ativo
-          const ssoEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner');
+          const hasLocalAuth = hasActiveAppSession();
           const ssoName = localStorage.getItem('vagou_user_name');
-          const ssoCpf = localStorage.getItem('vagou_user_cpf');
           const ssoAvatar = localStorage.getItem('vagou_user_avatar');
-          if (ssoEmail || ssoName || ssoCpf || isValidAvatarUrlString(ssoAvatar)) {
+          if (hasLocalAuth) {
+            setIsAuthenticated(true);
             if (ssoName) setUserName(ssoName);
             if (isValidAvatarUrlString(ssoAvatar)) setUserAvatarUrl(ssoAvatar.trim());
           } else {
+            setIsAuthenticated(false);
             setUserName('');
             setUserAvatarUrl('');
+            setViewMode('auth');
           }
         }
       } catch (err) {
@@ -488,6 +551,7 @@ export const App: React.FC = () => {
         const nameToSet = uMeta?.full_name || uMeta?.name || uEmail?.split('@')[0] || 'Usuário';
 
         setUserName(nameToSet);
+        setIsAuthenticated(true);
         localStorage.setItem('vagou_auth_user_id', uid);
         localStorage.setItem('vagou_user_name', nameToSet);
         if (uEmail) {
@@ -504,6 +568,8 @@ export const App: React.FC = () => {
       } else if (event === 'SIGNED_OUT') {
         setUserName('');
         setUserAvatarUrl('');
+        setIsAuthenticated(false);
+        setViewMode('auth');
         try {
           localStorage.removeItem('vagou_auth_user_id');
           localStorage.removeItem('vagou_client_id');
@@ -519,22 +585,42 @@ export const App: React.FC = () => {
       }
     });
 
-    const handleCustomAuthUpdated = () => {
+    const handleCustomAuthUpdated = (e?: Event) => {
       try {
+        const customEvt = e as CustomEvent<{ loggedOut?: boolean }>;
+        if (customEvt?.detail?.loggedOut) {
+          setIsAuthenticated(false);
+          setUserName('');
+          setUserAvatarUrl('');
+          setViewMode('auth');
+          return;
+        }
+        const active = hasActiveAppSession();
+        setIsAuthenticated(active);
+        if (!active) {
+          setUserName('');
+          setUserAvatarUrl('');
+          setViewMode('auth');
+          return;
+        }
         const savedName = localStorage.getItem('vagou_user_name') || '';
         const savedAvatar = localStorage.getItem('vagou_user_avatar') || '';
         setUserName(savedName);
         setUserAvatarUrl(isValidAvatarUrlString(savedAvatar) ? savedAvatar.trim() : '');
       } catch {
+        setIsAuthenticated(false);
         setUserName('');
         setUserAvatarUrl('');
+        setViewMode('auth');
       }
     };
     window.addEventListener('vagou:auth-updated', handleCustomAuthUpdated);
+    window.addEventListener('storage', handleCustomAuthUpdated);
 
     return () => {
       authListener?.subscription.unsubscribe();
       window.removeEventListener('vagou:auth-updated', handleCustomAuthUpdated);
+      window.removeEventListener('storage', handleCustomAuthUpdated);
     };
   }, []);
 
@@ -767,7 +853,7 @@ export const App: React.FC = () => {
 
         {/* Contêiner Principal da Página do Estabelecimento */}
         <main className="flex-1 w-full min-h-0 overflow-hidden relative flex flex-col">
-          {viewMode === 'auth' ? (
+          {!isAuthenticated || viewMode === 'auth' ? (
             <PartnerAuthView
               salonName={initialSalonData?.trade_name || salonName}
               salonSlug={initialSalonData?.slug || currentSubdomain || ''}
@@ -785,9 +871,10 @@ export const App: React.FC = () => {
                 if (currentName) {
                   setUserName(currentName);
                 }
+                setIsAuthenticated(true);
                 setViewMode('salon');
               }}
-              onBack={() => setViewMode('salon')}
+              onBack={isAuthenticated ? () => setViewMode('salon') : undefined}
             />
           ) : viewMode === 'salon' ? (
             <SalonProfileView

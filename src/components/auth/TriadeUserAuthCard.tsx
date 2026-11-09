@@ -13,6 +13,7 @@ export interface TriadeUserAuthCardProps {
     keepModalOpen?: boolean;
   }) => void;
   onClose?: () => void;
+  requireAuth?: boolean;
   origin?: 'portal' | 'establishment';
   salonId?: string;
   salonName?: string;
@@ -32,6 +33,7 @@ export const TriadeUserAuthCard: React.FC<TriadeUserAuthCardProps> = ({
   initialMode = 'login',
   onSuccess,
   onClose,
+  requireAuth = false,
   origin = 'establishment',
   salonId,
   salonName,
@@ -64,7 +66,7 @@ export const TriadeUserAuthCard: React.FC<TriadeUserAuthCardProps> = ({
         variant={variant}
         salonName={salonName}
         salonLogoUrl={salonLogoUrl}
-        onClose={onClose}
+        onClose={requireAuth ? () => setMode('login') : onClose}
         onBackToLogin={(recoveredId) => {
           if (recoveredId) {
             setRecoveredIdentifier(recoveredId);
@@ -112,7 +114,7 @@ export const TriadeUserAuthCard: React.FC<TriadeUserAuthCardProps> = ({
       onSuccess={(data) =>
         onSuccess?.({ mode: 'login', data, keepModalOpen: false })
       }
-      onClose={onClose}
+      onClose={requireAuth ? undefined : onClose}
     />
   );
 };

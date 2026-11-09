@@ -29,6 +29,7 @@ interface SalonClientAuthModalProps {
   secondaryColor?: string;
   themeMode?: 'light' | 'dark';
   initialMode?: 'login' | 'register';
+  requireAuth?: boolean;
   onAuthenticated: (user: SalonClientAuthUser, role?: 'pro' | 'cliente') => void;
 }
 
@@ -47,6 +48,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
   primaryColor,
   themeMode,
   initialMode = 'login',
+  requireAuth = false,
   onAuthenticated,
 }) => {
   const { theme } = useTheme();
@@ -68,8 +70,12 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
       const pending = pendingAuthCallbackRef.current;
       pendingAuthCallbackRef.current = null;
       onAuthenticated(pending.user, pending.role);
+      onClose();
+      return;
     }
-    onClose();
+    if (!requireAuth) {
+      onClose();
+    }
   };
 
   const resolvedPrimaryColor =
@@ -342,6 +348,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
       >
         <TriadeUserAuthCard
           initialMode={initialMode}
+          requireAuth={requireAuth}
           origin="establishment"
           salonName={resolvedSalonName}
           salonLogoUrl={rawLogo || undefined}

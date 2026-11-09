@@ -14,7 +14,7 @@ export const ThemeContext = createContext<ThemeContextType>({
   isDark: false,
   toggleTheme: () => {},
   setTheme: () => {},
-  accentColor: '#2B82C9',
+  accentColor: '#10B981',
   setAccentColor: () => {},
 });
 
@@ -41,7 +41,7 @@ const isAchromaticOrGreyHex = (hexStr: string): boolean => {
 };
 
 export const sanitizeAccentColor = (rawColor?: string | null): string => {
-  if (!rawColor) return '#2B82C9';
+  if (!rawColor) return '#10B981';
   const trimmed = rawColor.trim().toLowerCase();
   if (
     !trimmed ||
@@ -49,27 +49,28 @@ export const sanitizeAccentColor = (rawColor?: string | null): string => {
     trimmed === '#ffffff' ||
     trimmed === '#fff' ||
     trimmed === 'white' ||
-    trimmed === '#005ca9'
+    trimmed === '#005ca9' ||
+    trimmed === '#2b82c9'
   ) {
-    return '#2B82C9';
+    return '#10B981';
   }
   const colorMap: Record<string, string> = {
-    emerald: '#2B82C9',
+    emerald: '#10B981',
     blue: '#2B82C9',
     rose: '#ef4444',
     amber: '#f59e0b',
     violet: '#8b5cf6',
   };
   if (colorMap[trimmed]) return colorMap[trimmed];
-  if (!rawColor.startsWith('#')) return '#2B82C9';
+  if (!rawColor.startsWith('#')) return '#10B981';
   if (isAchromaticOrGreyHex(trimmed)) {
-    return '#2B82C9';
+    return '#10B981';
   }
   return rawColor.trim();
 };
 
 export const applyAccentColorToDom = (color: string) => {
-  const hex = sanitizeAccentColor(color || '#2B82C9');
+  const hex = sanitizeAccentColor(color || '#10B981');
 
   try {
     localStorage.setItem('vagou_accent_color', hex);

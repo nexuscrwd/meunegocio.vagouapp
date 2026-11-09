@@ -3,7 +3,7 @@ import { SalonAdminSettings } from '../types';
 export function getSectionHeaderStyleData(adminSettings: Partial<SalonAdminSettings>, isDark: boolean) {
   const bgCol = adminSettings.sectionHeaderBgColor;
   const txtCol = adminSettings.sectionHeaderTextColor;
-  const iconCol = adminSettings.sectionHeaderIconColor || (isDark ? '#10b981' : '#2B82C9');
+  const iconCol = adminSettings.sectionHeaderIconColor || (isDark ? '#10b981' : '#059669');
   const bgStyle = adminSettings.sectionHeaderBgStyle || 'glass';
   const border = adminSettings.sectionHeaderBorder || 'bordered';
 
@@ -26,15 +26,15 @@ export function getSectionHeaderStyleData(adminSettings: Partial<SalonAdminSetti
   else if (btnBlur === 'md') blurCss = 'blur(8px)';
   else if (btnBlur === 'lg') blurCss = 'blur(16px)';
 
-  const borderClass = border === 'none' ? 'border-b-0' : (isDark ? 'border-b border-slate-800' : 'border-b border-[#EDF2F7]');
+  const borderClass = border === 'none' ? 'border-b-0' : (isDark ? 'border-b border-slate-800' : 'border-b border-[#A7F3D0]');
   let bgClass = '';
   if (!bgCol) {
     if (bgStyle === 'solid') {
-      bgClass = isDark ? 'bg-slate-900' : 'bg-[#F7F9FC]';
+      bgClass = isDark ? 'bg-slate-900' : 'bg-[#ECFDF5]';
     } else if (bgStyle === 'transparent') {
       bgClass = 'bg-transparent';
     } else {
-      bgClass = isDark ? 'bg-slate-900/95 backdrop-blur-md' : 'bg-[#F7F9FC]/95 backdrop-blur-md';
+      bgClass = isDark ? 'bg-slate-900/95 backdrop-blur-md' : 'bg-[#ECFDF5]/95 backdrop-blur-md';
     }
   }
 

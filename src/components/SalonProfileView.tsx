@@ -654,15 +654,16 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         sectionHeaderBtnBlur: initialSalonData.section_header_btn_blur || initialSalonData.branding?.sectionHeaderBtnBlur || localSaved.sectionHeaderBtnBlur || undefined,
         sectionHeaderBtnFont: initialSalonData.section_header_btn_font || initialSalonData.branding?.sectionHeaderBtnFont || localSaved.sectionHeaderBtnFont || undefined,
 
-        // Barra de Navegação Inferior (BottomNav) — Padrão Default: cor sólida igual ao cabeçalho (#005CA9), salvo personalização
+        // Barra de Navegação Inferior (BottomNav) — Padrão Default: verde pastel clarinho (#D1FAE5), salvo personalização
         navStyle: initialSalonData.nav_style || initialSalonData.branding?.navStyle || localSaved.navStyle || 'minimal',
         navShape: initialSalonData.nav_shape || initialSalonData.branding?.navShape || localSaved.navShape || 'square',
         navBorder: initialSalonData.nav_border || initialSalonData.branding?.navBorder || localSaved.navBorder || 'bordered',
         navIconBorder: initialSalonData.nav_icon_border || initialSalonData.branding?.navIconBorder || localSaved.navIconBorder || 'none',
         navBgStyle: initialSalonData.nav_bg_style || initialSalonData.branding?.navBgStyle || (localSaved.navBgColor ? localSaved.navBgStyle : undefined) || 'solid',
         navBgColor: (() => {
-          const candidate = initialSalonData.nav_bg_color || initialSalonData.branding?.navBgColor || localSaved.navBgColor || '';
-          return !candidate || candidate.trim().toLowerCase() === '#f1f5f9' ? '#005CA9' : candidate;
+          const candidate = (initialSalonData.nav_bg_color || initialSalonData.branding?.navBgColor || localSaved.navBgColor || '').trim();
+          const lower = candidate.toLowerCase();
+          return !candidate || lower === '#f1f5f9' || lower === '#005ca9' ? '#D1FAE5' : candidate;
         })(),
         navBtnBgColor: initialSalonData.nav_btn_bg_color || initialSalonData.branding?.navBtnBgColor || localSaved.navBtnBgColor || undefined,
         navBtnActiveBgColor: initialSalonData.nav_btn_active_bg_color || initialSalonData.branding?.navBtnActiveBgColor || localSaved.navBtnActiveBgColor || undefined,
@@ -725,7 +726,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       navShape: 'square',
       navBorder: 'bordered',
       navBgStyle: 'solid',
-      navBgColor: '#005CA9',
+      navBgColor: '#D1FAE5',
       navActiveColor: effectiveColor,
       navTextColor: undefined,
       welcomeStyle: 'atmospheric',
@@ -737,8 +738,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         const saved = localStorage.getItem('vagou_salon_admin_settings');
         if (saved) {
           const parsed = JSON.parse(saved);
+          const parsedNavBgLower = String(parsed.navBgColor || '').trim().toLowerCase();
           const resolvedNavBgColor =
-            !parsed.navBgColor || String(parsed.navBgColor).trim().toLowerCase() === '#f1f5f9'
+            !parsedNavBgLower || parsedNavBgLower === '#f1f5f9' || parsedNavBgLower === '#005ca9'
               ? defaults.navBgColor
               : parsed.navBgColor;
           const resolvedNavBgStyle =
@@ -3458,13 +3460,15 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 navBorder={adminSettings.navBorder || 'bordered'}
                 navBgStyle={adminSettings.navBgStyle || 'solid'}
                 navBgColor={
-                  !adminSettings.navBgColor || adminSettings.navBgColor.trim().toLowerCase() === '#f1f5f9'
-                    ? '#005CA9'
+                  !adminSettings.navBgColor ||
+                  adminSettings.navBgColor.trim().toLowerCase() === '#f1f5f9' ||
+                  adminSettings.navBgColor.trim().toLowerCase() === '#005ca9'
+                    ? '#D1FAE5'
                     : adminSettings.navBgColor
                 }
                 navBtnBgColor={adminSettings.navBtnBgColor}
                 navBtnActiveBgColor={adminSettings.navBtnActiveBgColor}
-                navActiveColor={adminSettings.navActiveColor || adminSettings.accentColor || accentColor || '#005CA9'}
+                navActiveColor={adminSettings.navActiveColor || adminSettings.accentColor || accentColor || '#10B981'}
                 navTextColor={adminSettings.navTextColor}
               />
             </div>

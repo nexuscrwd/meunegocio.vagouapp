@@ -124,6 +124,7 @@ function isValidEmail(value: string): boolean {
 
 export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   onSuccess,
+  onSwitchToLogin,
   onClose,
   showHeader = true,
   variant = 'card',
@@ -841,7 +842,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           salonName={salonName}
           salonLogoUrl={salonLogoUrl}
           subtitle={`CADASTRO • ${currentMeta.label}`}
-          onClose={onClose}
+          onClose={step === 'welcome' ? onClose : (onSwitchToLogin || onClose)}
         />
       )}
 
