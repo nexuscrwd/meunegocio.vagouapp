@@ -11,6 +11,54 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-08] — Cor do Tema para Ícone e Texto em Botão Ativo com Fundo Branco no `BottomNav` & Correção de `z-index` no `MobileHeader` (`bol-156`)
+- **Tipo:** `[Fix / UI / Contrast / Theme]`
+- **Motivo / Solicitação:** Garantir que, quando o botão ativo na barra inferior (`BottomNav`) possuir fundo branco/claro, a cor do ícone, do texto e do indicador superior assuma automaticamente a cor do tema, eliminando o conflito com a classe `.text-white { color: #ffffff !important }`, além de elevar o `z-index` do `MobileHeader` para que os subcabeçalhos das seções não sobreponham o menu suspenso do usuário.
+- **Arquivos Impactados:**
+  - `src/components/BottomNav.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/MobileHeader.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Contraste pela Cor do Tema em Botão Ativo de Fundo Branco (`BottomNav.tsx`):**
+     - Implementado `isWhiteOrLightHex` e `themeColorForWhiteBtn` (resolvendo a cor ativa/tema `rawNavActiveColor`, `accentColor` ou `navBgColor`) para colorir o ícone, o rótulo e a barra indicadora superior sempre que o fundo do botão ativo for branco/claro (`solid`, `boxed` e `minimal`).
+     - Removida a classe `text-white` forçada nos elementos `<Icon>` e `<span>` ativos do modo `minimal`, que sofria override por `.text-white { color: #ffffff !important }` do `ThemeContext.tsx`.
+  2. **Camada Superior do Cabeçalho (`MobileHeader.tsx`):**
+     - Elevado o `<header>` de `z-30` para `z-50` para que o menu dropdown do usuário fique sempre acima dos subcabeçalhos das seções.
+
+### [2026-11-07] — Padronização dos Nomes dos Botões e Títulos das Seções (`Agenda`, `Serviços`, `Espaço`) & Remoção do Botão `Para Você` (`bol-155`)
+- **Tipo:** `[UI / UX / Focus Mode / Mobile Synthesis]`
+- **Motivo / Solicitação:** Renomear o botão `Agendar` da barra inferior (`BottomNav`) para `Agenda`, remover o botão `Para Você` do cabeçalho da seção `Agenda` e padronizar os títulos de todas as seções para exibirem exatamente o nome de seus respectivos botões (`Serviços`, `Agenda`, `Espaço` / `Atendimento`).
+- **Arquivos Impactados:**
+  - `src/components/BottomNav.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/ProfessionalAgendaView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Botão `Agenda` no `BottomNav` (`button#nav-salon-vagas`):**
+     - Alterado o rótulo padrão `vagasTabLabel` de `'Agendar'` para `'Agenda'` em `src/components/BottomNav.tsx`.
+  2. **Remoção do Botão `Para Você` na Seção `Agenda` (`section#section-vagas`):**
+     - Removido o botão superior direito `"Para Você"` do cabeçalho da seção `section#section-vagas` em `src/components/SalonProfileView.tsx` e limpos os estados ociosos correspondentes.
+  3. **Sincronização Estrita entre Nome do Botão e Título da Seção (`<h2>`):**
+     - `section#section-servicos`: Título alterado de `"Catálogo de Serviços"` para `"Serviços"`.
+     - `section#section-vagas`: Título alterado de `"Agendamento & Vagas"` para `"Agenda"`.
+     - `section#section-espaco`: Título alterado de `"Espaço, Equipe & Localização"` para `{spaceTabLabel}` (`"Espaço"` ou `"Atendimento"`).
+     - `ProfessionalAgendaView.tsx`: Título alterado de `"Agenda de Atendimentos"` para `"Agenda"`.
+
+### [2026-11-07] — Mapa Puro Sem Rotas na Aba Localização da Seção Espaço (`SalonSpaceInteractiveMap.tsx`) (`bol-154`)
+- **Tipo:** `[UI / GIS / Focus Mode / Mobile Clean]`
+- **Motivo / Solicitação:** Na subseção de **Localização** (`section#section-espaco`), remover o traçado e os painéis de rotas, exibindo apenas o mapa interativo com o marcador do salão.
+- **Arquivos Impactados:**
+  - `src/components/SalonSpaceInteractiveMap.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção de Polilinhas e Cálculo de Rotas na Aba `Localização`:**
+     - Removidos `L.polyline` (`routeOuterLineRef`, `routeInnerLineRef`), marcador de origem do usuário, chamadas de rota OSRM/Google Routes e gavetas/botões de rota (`Como Chegar`, `isRoutePanelOpen`, `isInAppCockpitOpen`) dentro do componente `SalonSpaceInteractiveMap.tsx`.
+  2. **Mapa Puro Focado no Estabelecimento:**
+     - Mantido exclusivamente o palco cartográfico interativo com zoom inteiro (`zoomSnap: 1`), arrasto suave de 1 dedo, pinça de 2 dedos, marcador oficial do estabelecimento e controles diretos (`Centralizar no Salão`, `Zoom +`, `Zoom -`).
+
+---
+
 ### [2026-11-07] — Trava Inteligente Anti-Colisão Geotemporal Entre Salões (Salão A ➔ Salão B) e Script SQL Mestre Consolidado v4.0 (`bookingSlots.ts`, `SalonBookingModal.tsx`, `UserAppointmentsView.tsx`, `20261107_master_convergence_v4_0.sql`) (`bol-153`)
 - **Tipo:** `[Feat / GIS / Database / Anti-Collision]`
 - **Motivo / Solicitação:** Aplicar o cálculo inteligente que impede o cliente de agendar ou remarcar em um segundo estabelecimento (`Salão B`) caso possua agendamento próximo em outro estabelecimento (`Salão A`) na mesma data sem tempo hábil (considerando horário do primeiro, duração do serviço no primeiro e distância/tempo de deslocamento entre `A` e `B`), além de fornecer o código SQL completo consolidado de todas as edições.

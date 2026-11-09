@@ -107,7 +107,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     !resolvedLogo.startsWith('data:image/svg+xml');
 
   return (
-    <header className="w-full shrink-0 sticky top-0 z-30">
+    <header className="w-full shrink-0 sticky top-0 z-50">
       {/* Faixa Superior com Degradê Institucional */}
       <div className="caixa-header-gradient px-4 pt-4 pb-5 text-white relative">
         <div className="flex items-center justify-between gap-2">

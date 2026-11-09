@@ -88,7 +88,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   navBtnBlur: propNavBtnBlur,
   navBtnFont: propNavBtnFont,
 }) => {
-  const { isDark } = useTheme();
+  const { isDark, accentColor } = useTheme();
 
   const activeTab = propActiveTab || salonContext?.activeTab || 'home';
   const onSelectTab = propOnSelectTab || salonContext?.onSelectTab;
@@ -96,7 +96,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const isOwnerOrManager = propIsOwnerOrManager ?? salonContext?.isOwnerOrManager ?? (currentPersona !== 'cliente');
   const isProfessionalStaff = propIsProfessionalStaff ?? salonContext?.isProfessionalStaff ?? false;
   const hasPausedSlots = propHasPausedSlots ?? salonContext?.hasPausedSlots ?? false;
-  const vagasTabLabel = propVagasTabLabel || salonContext?.vagasTabLabel || (isOwnerOrManager || isProfessionalStaff ? 'Agenda' : 'Agendar');
+  const vagasTabLabel = propVagasTabLabel || salonContext?.vagasTabLabel || 'Agenda';
   const spaceTabLabel = propSpaceTabLabel || salonContext?.spaceTabLabel || 'Espaço';
   const ServicesIconComponent = propServicesIcon || salonContext?.ServicesIcon || LayoutGrid;
   const SpaceIconComponent = propSpaceIcon || salonContext?.SpaceIcon || Store;
@@ -114,11 +114,44 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const isDefaultHeaderMatchBg = navBgColor.trim().toLowerCase() === '#005ca9';
   const navBtnBgColor = propNavBtnBgColor || salonContext?.navBtnBgColor;
   const navBtnActiveBgColor = propNavBtnActiveBgColor || salonContext?.navBtnActiveBgColor;
-  const navActiveColor = sanitizeAccentColor(propNavActiveColor || salonContext?.navActiveColor || '#2B82C9');
+  const rawNavActiveColor = propNavActiveColor || salonContext?.navActiveColor;
+  const navActiveColor = sanitizeAccentColor(rawNavActiveColor || accentColor || '#2B82C9');
   const navTextColor = propNavTextColor || salonContext?.navTextColor;
   const navBtnShadow = propNavBtnShadow || salonContext?.navBtnShadow || 'none';
   const navBtnBlur = propNavBtnBlur || salonContext?.navBtnBlur || 'none';
   const navBtnFont = propNavBtnFont || salonContext?.navBtnFont || 'Poppins';
+
+  const isWhiteOrLightHex = React.useCallback((c?: string): boolean => {
+    if (!c) return false;
+    const hex = c.trim().toLowerCase();
+    if (!hex || hex === 'transparent') return false;
+    return (
+      hex === '#ffffff' ||
+      hex === '#fff' ||
+      hex === 'white' ||
+      hex === '#f8fafc' ||
+      hex === '#f1f5f9' ||
+      hex === '#f3f4f6' ||
+      hex === '#e2e8f0' ||
+      hex === '#e5e7eb' ||
+      hex.startsWith('#f') ||
+      hex.startsWith('#e')
+    );
+  }, []);
+
+  // Cor do tema para aplicar em ícone e texto quando o botão ativo tem fundo branco/claro
+  const themeColorForWhiteBtn = React.useMemo(() => {
+    if (rawNavActiveColor && !isWhiteOrLightHex(rawNavActiveColor) && rawNavActiveColor.trim().toLowerCase() !== 'transparent') {
+      return rawNavActiveColor.trim();
+    }
+    if (accentColor && !isWhiteOrLightHex(accentColor)) {
+      return accentColor;
+    }
+    if (navBgColor && !isWhiteOrLightHex(navBgColor) && navBgColor !== 'transparent') {
+      return navBgColor;
+    }
+    return navActiveColor || '#005CA9';
+  }, [rawNavActiveColor, accentColor, navBgColor, navActiveColor, isWhiteOrLightHex]);
 
   // Detecta se a barra inferior tem fundo claro para garantir contraste de bordas e textos
   const isLightNavBg = React.useMemo(() => {
@@ -264,16 +297,17 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           ? navBtnActiveBgColor
           : navActiveColor;
 
-        // Se a cor ativa do texto/ícone for idêntica ao fundo ativo do botão (ex.: ambos #ffffff), aplica contraste automático para não sumir
+        // Se o botão ativo tem fundo branco/claro, a cor do ícone e textos deve ser a cor do tema
         const resolvedActiveFg = (() => {
-          const bgLower = (effectiveActiveBg || '').trim().toLowerCase();
-          const fgLower = (navActiveColor || '').trim().toLowerCase();
-          if (bgLower && fgLower && bgLower === fgLower) {
-            return bgLower === '#ffffff' || bgLower === '#f8fafc' || bgLower === '#f1f5f9'
-              ? '#0f172a'
-              : '#ffffff';
+          if (isWhiteOrLightHex(effectiveActiveBg)) {
+            return themeColorForWhiteBtn;
           }
-          return navActiveColor || '#ffffff';
+          const bgLower = (effectiveActiveBg || '').trim().toLowerCase();
+          const fgLower = (rawNavActiveColor || navActiveColor || '').trim().toLowerCase();
+          if (bgLower && fgLower && bgLower === fgLower) {
+            return '#ffffff';
+          }
+          return '#ffffff';
         })();
 
         const resolvedInactiveFg = navTextColor && navTextColor !== 'transparent' ? navTextColor : undefined;
@@ -350,6 +384,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         }
 
         if (navStyle === 'boxed') {
+          const isBoxedBtnWhite = isWhiteOrLightHex(navBtnActiveBgColor) || isWhiteOrLightHex(effectiveActiveBg);
+          const boxedLabelActiveFg = isBoxedBtnWhite ? themeColorForWhiteBtn : (navActiveColor || resolvedActiveFg);
           return (
             <button
               key={tab.id}
@@ -361,7 +397,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               style={{
                 backgroundColor: !isActive && navBtnBgColor ? navBtnBgColor : isActive && navBtnActiveBgColor ? navBtnActiveBgColor : undefined,
                 fontFamily: navBtnFont,
-                color: isActive ? resolvedActiveFg : resolvedInactiveFg,
+                color: isActive ? boxedLabelActiveFg : resolvedInactiveFg,
               }}
               className={`relative flex flex-col items-center justify-center gap-1 py-1 px-1.5 sm:px-3 transition active:scale-95 cursor-pointer group flex-1 min-w-0 max-w-[100px] ${
                 navShape === 'circle' ? 'rounded-2xl' : 'rounded-[4px]'
@@ -422,7 +458,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               <span 
                 style={{
                   fontFamily: navBtnFont,
-                  color: isActive ? (navActiveColor || resolvedActiveFg) : resolvedInactiveFg,
+                  color: isActive ? boxedLabelActiveFg : resolvedInactiveFg,
                 }}
                 className={`text-[10px] tracking-wide font-bold truncate max-w-full transition-colors ${
                   isActive || resolvedInactiveFg
@@ -437,14 +473,22 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         }
 
         // Padrão 'minimal' (Clean Line — Botões com Borda Nítida + Indicador no Topo)
+        const hasCustomActiveBg = Boolean(navBtnActiveBgColor && navBtnActiveBgColor !== 'transparent');
+        const isMinimalActiveBgWhite = hasCustomActiveBg
+          ? isWhiteOrLightHex(navBtnActiveBgColor)
+          : isLightNavBg;
+
         const minimalActiveFg = (() => {
-          if (navBtnActiveBgColor && navBtnActiveBgColor !== 'transparent') {
+          if (isMinimalActiveBgWhite) {
+            return themeColorForWhiteBtn;
+          }
+          if (hasCustomActiveBg) {
             return resolvedActiveFg;
           }
           if (!isLightNavBg || isDefaultHeaderMatchBg) {
             return '#ffffff';
           }
-          return navActiveColor || '#005CA9';
+          return themeColorForWhiteBtn;
         })();
 
         const effectiveInactiveFg =
@@ -461,7 +505,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               onSelectTab(tab.id);
             }}
             style={{
-              backgroundColor: isActive && navBtnActiveBgColor
+              backgroundColor: isActive && hasCustomActiveBg
                 ? navBtnActiveBgColor
                 : !isActive && navBtnBgColor
                 ? navBtnBgColor
@@ -497,7 +541,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             <span
               style={
                 isActive
-                  ? { backgroundColor: !isLightNavBg || isDefaultHeaderMatchBg ? '#ffffff' : navActiveColor }
+                  ? {
+                      backgroundColor: isMinimalActiveBgWhite
+                        ? themeColorForWhiteBtn
+                        : !isLightNavBg || isDefaultHeaderMatchBg
+                          ? '#ffffff'
+                          : navActiveColor,
+                    }
                   : undefined
               }
               className={`absolute top-0 left-1/2 -translate-x-1/2 h-[3px] rounded-b-[4px] transition-all duration-200 ${
@@ -513,7 +563,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               }}
               className={`w-5 h-5 shrink-0 transition-transform duration-200 ${
                 isActive
-                  ? 'stroke-[2.4] -translate-y-0.5 text-white'
+                  ? 'stroke-[2.4] -translate-y-0.5'
                   : effectiveInactiveFg
                     ? 'stroke-[2]'
                     : isLightNavBg
@@ -529,7 +579,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               }}
               className={`text-[10px] tracking-wide font-bold truncate max-w-full leading-none transition-colors ${
                 isActive
-                  ? 'font-extrabold text-white'
+                  ? 'font-extrabold'
                   : effectiveInactiveFg
                     ? ''
                     : isLightNavBg

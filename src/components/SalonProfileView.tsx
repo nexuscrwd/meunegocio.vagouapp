@@ -1650,11 +1650,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const [servicePage, setServicePage] = useState<number>(0);
   const [swapDirection, setSwapDirection] = useState<number>(1);
 
-  const [bookingIsDependent, setBookingIsDependent] = useState(false);
-  const [bookingDependentName, setBookingDependentName] = useState('');
-  const [bookingSelectedService, setBookingSelectedService] = useState<CatalogServiceItem | null>(null);
-  const [bookingOpenModalFn, setBookingOpenModalFn] = useState<(() => void) | null>(null);
-
   // Estado para agendamento confirmado exibido dentro da seção do salão
   const [confirmedBookingData, setConfirmedBookingData] = useState<{
     protocolCode: string;
@@ -2679,7 +2674,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               <h2 className={`text-xs sm:text-sm font-bold font-['Poppins'] ${
                 !adminSettings.sectionHeaderTextColor ? (isDark ? 'text-white' : 'text-slate-900') : ''
               }`} style={sectionHeaderStyleData.titleStyle}>
-                Catálogo de Serviços
+                Serviços
               </h2>
             </div>
           </div>
@@ -2915,7 +2910,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               data-tab-id="vagas"
               className="w-full h-full flex-1 min-h-0 overflow-hidden flex flex-col justify-start bg-[#F7F9FC] dark:bg-slate-950 animate-in fade-in duration-150"
             >
-              {/* Subcabeçalho de Título da Seção: Agendamento com Botão Voltar */}
+              {/* Subcabeçalho de Título da Seção: Agenda com Botão Voltar */}
               <div className={sectionHeaderStyleData.containerClass} style={sectionHeaderStyleData.containerStyle}>
                 <div className="flex items-center gap-2">
                   <button
@@ -2930,34 +2925,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   <h2 className={`text-xs sm:text-sm font-bold font-display ${
                     !adminSettings.sectionHeaderTextColor ? (isDark ? 'text-white' : 'text-[#1E293B]') : ''
                   }`} style={sectionHeaderStyleData.titleStyle}>
-                    Agendamento & Vagas
+                    Agenda
                   </h2>
                 </div>
-                {bookingSelectedService ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (bookingOpenModalFn) bookingOpenModalFn();
-                    }}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] font-bold text-xs transition cursor-pointer shrink-0 whitespace-nowrap ${
-                      bookingIsDependent
-                        ? 'bg-[#2B82C9] text-white'
-                        : isDark
-                        ? 'bg-slate-800 text-slate-100 hover:bg-slate-700'
-                        : 'bg-[#FFFFFF] border border-[#E2E8F0] text-[#1E293B] hover:bg-[#F1F5F9]'
-                    }`}
-                    title="Alterar para quem é o agendamento"
-                  >
-                    {bookingIsDependent ? (
-                      <Users className="w-3.5 h-3.5 text-white shrink-0" />
-                    ) : (
-                      <User className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
-                    )}
-                    <span className={bookingIsDependent ? 'text-white font-bold' : ''}>
-                      {bookingIsDependent && bookingDependentName ? bookingDependentName : 'Para Você'}
-                    </span>
-                  </button>
-                ) : null}
               </div>
 
               <div className="flex-1 min-h-0 flex flex-col justify-start overflow-hidden w-full bg-[#F7F9FC] dark:bg-slate-950">
@@ -2992,12 +2962,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   initialTimeSlot={selectedTimeSlotForBooking}
                   initialDateIso={selectedCalendarDateIso}
                   preSelectedProfessionalName={selectedPublicProfessional}
-                  onBeneficiaryState={(state) => {
-                    setBookingIsDependent(state.isDependentBooking);
-                    setBookingDependentName(state.dependentName);
-                    setBookingSelectedService(state.selectedService);
-                    setBookingOpenModalFn(() => state.openBeneficiaryModal);
-                  }}
                   onDraftSaved={(draft) => setActiveBookingDraft(draft)}
                   onNavigateToAgenda={() => {
                     if (onNavigateToUserAppointments) {
@@ -3027,7 +2991,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               <h2 className={`text-xs sm:text-sm font-bold font-['Poppins'] ${
                 !adminSettings.sectionHeaderTextColor ? (isDark ? 'text-white' : 'text-slate-900') : ''
               }`} style={sectionHeaderStyleData.titleStyle}>
-                Espaço, Equipe & Localização
+                {spaceTabLabel}
               </h2>
             </div>
             <span className="text-[10px] font-bold border px-2 py-0.5 rounded-[4px]" style={sectionHeaderStyleData.badgeStyle}>
@@ -3500,7 +3464,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 }
                 navBtnBgColor={adminSettings.navBtnBgColor}
                 navBtnActiveBgColor={adminSettings.navBtnActiveBgColor}
-                navActiveColor={adminSettings.navActiveColor || '#10b981'}
+                navActiveColor={adminSettings.navActiveColor || adminSettings.accentColor || accentColor || '#005CA9'}
                 navTextColor={adminSettings.navTextColor}
               />
             </div>

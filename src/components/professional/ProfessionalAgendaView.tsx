@@ -948,7 +948,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
       }`}>
         <div className="flex items-center gap-2 min-w-0">
           <div className="min-w-0">
-            <h2 className="text-xs font-bold font-['Poppins'] truncate">Agenda de Atendimentos</h2>
+            <h2 className="text-xs font-bold font-['Poppins'] truncate">Agenda</h2>
           </div>
         </div>
       </div>
