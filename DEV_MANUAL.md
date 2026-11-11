@@ -1,89 +1,56 @@
-# 🛠️ Manual de Engenharia & Design UI/UX — Vagou
+# 🛠️ Manual de Engenharia & Design UI/UX — Vagou (`mnvapp`)
 
-> **Versão:** 1.2.0  
-> **Público-Alvo:** Engenheiros Frontend/Full-Stack e Designers de UI/UX  
-> **Objetivo:** Documentar a arquitetura visual, tokens de design, taxonomia de componentes, hierarquia de camadas e fluxos de estado do ecossistema **Vagou**.
+> **Versão:** 5.0.0  
+> **Público-Alvo:** Engenheiros Frontend/Full-Stack e Designers UI/UX da Tríade VagouApp  
+> **Objetivo:** Documentar os tokens visuais vigentes, regras inegociáveis de contraste, hierarquia de camadas (`z-index`), taxonomia de componentes e contratos de banco do **Meu Negócio & Vitrine White-Label (`mnvapp`)**.
 
 ---
 
-## 🎨 1. Design System & Tokens Visuais
+## 🎨 1. Design System & Paleta Oficial (`bol-158`)
 
-O aplicativo segue estritamente a Identidade Visual Oficial:
+O aplicativo opera com suporte dinâmico via `ThemeContext` (**Light Mint Default**, **Dark Slate** e **White-Label Customizado por Salão**):
 
-| Elemento | Token / Valor | Utilização |
-| :--- | :--- | :--- |
-| **Verde Vagou (Primário)** | `#20C933` (`emerald-500` / destaque) | Botões de ação principal (CTA), indicadores de status ativo, badge VIP e selos relâmpago. |
-| **Grafite Vagou (Base)** | `#151A1E` (`bg-[#151A1E]`) | Cor base dos cabeçalhos, rodapé (`BottomNav`), menus modais e gaveta de perfil. |
-| **Preto Profundo** | `slate-950` (`#020617`) | Fundo geral da aplicação para contraste e economia de bateria (OLED). |
-| **Superfícies de Cards** | `slate-900` (`#0f172a`) com borda `slate-800` | Cards de vagas do radar, container de carrossel e painéis. |
-| **Tipografia Principal** | **Poppins** (400, 500, 600, 700, 900) | Títulos, logotipo, chips de categoria e botões de ação. |
-| **Tipografia Secundária** | Sans-serif do sistema | Textos longos e regras de cancelamento. |
+| Elemento | Token Default (Modo Claro Verde Pastel) | Modo Escuro (Dark Slate) | Regra de Contraste |
+| :--- | :--- | :--- | :--- |
+| **Fundo Geral (`canvas`)** | `#F0FDF4` (moldura externa `#DCFCE7`) | `slate-950` (`#020617`) | Texto principal `#1E293B` (claro) / `#F8FAFC` (escuro). |
+| **Cabeçalho & `BottomNav`** | `#D1FAE5` com borda `#A7F3D0` (`solid`) | `#151A1E` com borda `slate-800` | Ícones e textos inativos em `#065F46` (claro) / `slate-300` (escuro). |
+| **Subcabeçalhos (`SectionHeader`)** | `#ECFDF5` com texto `#065F46` e ícone `#059669` | `slate-900` com texto `white` | Alinhado logo abaixo do cabeçalho sem vão visual. |
+| **Botão Ativo de Fundo Branco** | Fundo `#FFFFFF` no `BottomNav` | Fundo `#FFFFFF` (quando aplicável) | Ícone, texto e indicador superior assumem **obrigatoriamente a cor do tema** (`#059669` / `#10B981` ou cor do salão). |
+| **Verde Destaque / CTA Sólido** | `#10B981` / `#20C933` (`emerald-500/600`) | `#10B981` / `#20C933` | **REGRA INEGOCIÁVEL:** Fundo verde sólido exige **100% texto e ícone branco puro (`text-white`)**. Proibido texto escuro sobre verde sólido. |
+| **Geometria & Bordas** | Raio global `4px` (`rounded-[4px]`) | Raio global `4px` | **Proibido "Box dentro de Box"** (nunca aninhar `border rounded` dentro de `border rounded`). |
 
 ---
 
 ## 📐 2. Hierarquia de Camadas (`z-index`)
 
-A sobreposição visual foi matematicamente estruturada para garantir rolagem fluida e impedir vazamento de elementos:
-
 ```
-z-50: Modais do Sistema & Onboarding (InterestOnboardingModal, ProfileDrawer, InstallModal)
-  └── z-40: TopBar Unificada Fixa (VagouLogo, Perfil do Usuário e Chips de Categoria)
-        └── z-30: BottomNav Fixo no Rodapé (Radar, Buscar, Mapa, Agenda)
-              └── z-20: Visualizador Fullscreen de Stories (RadarStoryModal)
-                    └── z-10: Ações internas do card (Botão de Áudio, Carrossel de Fotos)
-                          └── z-0: Feed rolável e cards de vagas (RadarOfferCard)
+z-50: Cabeçalho Principal MobileHeader (menu suspenso do usuário nunca é coberto) e Modais Críticos
+  └── z-40: Barras superiores fixas secundárias
+        └── z-30: Barra de navegação inferior fixa (BottomNav)
+              └── z-20: Modais operacionais (SalonBookingModal, LiveAppointmentTrackerModal) e rodapés sticky (sticky bottom-0 z-20)
+                    └── z-10: Controles interativos internos de cards e subcabeçalhos de seção
+                          └── z-0: Conteúdo rolante das abas isoladas
 ```
 
 ---
 
-## 🧩 3. Arquitetura de Componentes
+## 🧩 3. Arquitetura de Componentes Principais
 
-### 3.1. `HomeScreen.tsx` (Feed Radar com Categorias Estilo Netflix)
-- **Top Header**:
-  - Lado Esquerdo: `VagouLogo` oficial vetorizado com isotipo de geolocalização.
-  - Centro/Direita: Seletor rápido de Perfil (`Barbearia (Anderson)` / `Salão (Esposa)`).
-  - Extremo Direito: Foto do avatar do usuário com anel verde `#20C933` que dispara a `ProfileDrawer`.
-- **Barra de Categorias Estilo Netflix**:
-  - Chips em linha única com scroll horizontal livre de scrollbar (`no-scrollbar`).
-  - **Regra de Anti-Poluição**: Sem emojis arbitrários de tesoura ou martelo. Apenas o raio `⚡` é mantido na categoria "Relâmpago".
-- **Feed Strip**:
-  - Indicador de vagas abertas em tempo real + Ordenação (Urgência, Distância, Preço).
-- **Stories do Radar**:
-  - Nível 3 (Vídeo vertical), Nível 2 (Fotos) e Nível 1 (Fallback temático).
+### 3.1. Portão Obrigatório de Autenticação (`src/App.tsx` + `PartnerAuthView.tsx`)
+- Nenhum visitante acessa o aplicativo sem sessão válida (`hasActiveAppSession()`).
+- Zero dados fictícios (`sanitizeMockStorageData()` remove resíduos legados de mock no `localStorage`).
+- Cadastro unificado (`TriadeUserRegisterForm.tsx`) com validação de CPF, WhatsApp, endereço ViaCEP/GIS e **Pergunta de Segurança** (`security_questions`).
 
-### 3.2. `SearchScreen.tsx` (Aba de Busca Dedicada)
-- Integrada na aba **Buscar** do `BottomNav`.
-- Campo de busca instantânea (por nome de salão, profissional, corte, barba ou bairro).
-- Filtro por bairro dinâmico (`Itaquera`, `Tatuapé`, `Mooca`, etc.).
-- Ordenação por urgência, distância e valor.
+### 3.2. Vitrine White-Label do Salão (`SalonProfileView.tsx` + `BottomNav.tsx`)
+- 4 seções 100% isoladas (`AnimatePresence mode="wait"`), onde cada seção exibe exatamente o mesmo título do seu respectivo botão no `BottomNav`:
+  1. **`Início`** (`home`): Destaques, comodidades, mídias e atalho rápido de agendamento.
+  2. **`Serviços`** (`servicos`): Catálogo plano categorizado com preços, durações e mídia.
+  3. **`Agenda`** (`vagas`): Calendário inteligente, vagas disponíveis e agendamentos ordenados do mais próximo para o mais distante (`date_str ASC, start_time ASC`).
+  4. **`Espaço`** (`espaco` — ou **`Atendimento`** em Home Care): Equipe em layout plano, fotos do ambiente e mapa estático do pino (`SalonLocationViewMap.tsx`, sem traçado de rotas).
 
-### 3.3. `ProfileDrawer.tsx` (Gaveta Lateral de Perfil do Usuário)
-- Disparada pelo clique na foto de perfil no cabeçalho superior.
-- Apresenta dados do usuário logado (ex: Anderson Silva, Cliente VIP).
-- Seletor rápido de perfil de recomendações (Barbearia x Salão x Geral).
-- Atalhos para Meus Agendamentos, Personalização de Interesses e **Painel do Parceiro (Sou Salão)**.
+### 3.3. Agendamento, Permuta & Navegação GPS/RTLS (`SalonBookingModal.tsx` & `InteractiveGoogleRouteMap.tsx`)
+- **Fluxo de Reserva:** Seleção de serviço, titular ou dependente (Conta Família), profissional, horário validado contra colisão inter-salões (`check_client_inter_salon_collision`) e origem de deslocamento (`Local Atual`, `De Casa`, `Outro Local`) com spinner limpo sem texto.
+- **Cockpit GPS Ao Vivo:** Navegação vertical **Course-Up ("Frente p/ Cima")**, Map-Matching ortogonal sobre a via, velocímetro `km/h`, ETA regressivo `HH:MM` e alerta automático de chegada (`<= 150m`) via backend (`server.ts` ➔ Hermes Agent).
 
-### 3.4. `InterestOnboardingModal.tsx` (Onboarding de Preferências)
-- Modal rápido de 1-toque para onboarding inicial ou reconfiguração.
-- Categorias agrupadas:
-  1. *Barbearia & Beleza Masculina* (Barba, Corte, Degradê)
-  2. *Salão Feminino & Mechas* (Corte, Escova, Hidratação)
-  3. *Unhas, Cílios & Sobrancelhas* (Manicure em Gel, Alongamento)
-  4. *Estética & Cuidados Faciais* (Limpeza de Pele, Massagem)
-
-### 3.5. `BottomNav.tsx` (Barra de Navegação Inferior)
-- Fundo em Grafite Vagou `#151A1E` com borda sutil `slate-800`.
-- 4 Abas principais:
-  - 📻 **Radar** (`home`): Vagas abertas agora com contagem regressiva.
-  - 🔍 **Buscar** (`busca`): Pesquisa de serviços, profissionais e salões.
-  - 📍 **Mapa** (`mapa`): Visão GIS geográfica em tempo real.
-  - 📅 **Agenda** (`agenda`): Agendamentos ativos e código do protocolo.
-
----
-
-## 🔄 4. Fluxo de Agendamento Imediato (Booking Flow)
-
-1. **Descoberta**: Usuário visualiza a vaga no feed com selo de contagem regressiva (`expiresInMinutes`).
-2. **Ação Imediata**: Botão `AGENDAR` (CTA verde `#20C933` com texto em `slate-950`).
-3. **Tela de Detalhes** (`OfferDetailScreen`): Horário do Agendamento, profissional e garantia "Agendamento Protegido".
-4. **Confirmação** (`ConfirmationScreen`): Gera protocolo único (ex: `#VGA-48291`), espelha na Agenda do Parceiro e dispara notificação PWA de lembrete.
+### 3.4. Painel Operacional do Parceiro (`ProfessionalDashboardView.tsx`)
+- Gestão da agenda do dia, bloqueio/pausa de horários (`is_blocked_slot`), baixa de caixa (`Pago` vs `À pagar`), DRE/medidores (`salon_utilities_records`) e customização visual em tempo real (`salons` + `salon_ui_settings`).

@@ -33,7 +33,7 @@ import { SalonCustomizationHub } from './professional/SalonCustomizationHub';
 import { UtilitiesAndToolsView } from './professional/UtilitiesAndToolsView';
 import { useSalonRole, SalonRole } from '../hooks/useSalonRole';
 import { useOwnerAccess } from '../hooks/useOwnerAccess';
-import { useTheme, sanitizeAccentColor } from '../context/ThemeContext';
+import { useTheme, sanitizeAccentColor, isLegacyOrSystemDefaultColor } from '../context/ThemeContext';
 import { getSalonLogo } from '../utils/salonLogos';
 import { DEFAULT_ROTA99_LOGO_DARK, DEFAULT_ROTA99_LOGO_LIGHT, DEFAULT_ROTA99_ICON } from '../utils/defaultSalonAssets';
 import { updateDynamicPwaAssets } from '../utils/pwaAssets';
@@ -208,7 +208,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   onNavigateToUserDashboard,
   onBackToAuth,
 }) => {
-  const { isDark, theme, setTheme, accentColor, setAccentColor: setAccentColorContext } = useTheme();
+  const { isDark, theme, setTheme, accentColor, setAccentColor: setAccentColorContext, neutralPreset, presetTokens } = useTheme();
   const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState<boolean>(false);
   const [profileDrawerInitialTab, setProfileDrawerInitialTab] = useState<'menu' | 'agenda' | 'dados' | 'dependentes' | 'config' | 'trajeto' | 'chat'>('menu');
   const [isClientAuthModalOpen, setIsClientAuthModalOpenState] = useState<boolean>(() => {
@@ -662,12 +662,14 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         navBgStyle: initialSalonData.nav_bg_style || initialSalonData.branding?.navBgStyle || (localSaved.navBgColor ? localSaved.navBgStyle : undefined) || 'solid',
         navBgColor: (() => {
           const candidate = (initialSalonData.nav_bg_color || initialSalonData.branding?.navBgColor || localSaved.navBgColor || '').trim();
-          const lower = candidate.toLowerCase();
-          return !candidate || lower === '#f1f5f9' || lower === '#005ca9' ? '#D1FAE5' : candidate;
+          return isLegacyOrSystemDefaultColor(candidate) ? undefined : candidate;
         })(),
         navBtnBgColor: initialSalonData.nav_btn_bg_color || initialSalonData.branding?.navBtnBgColor || localSaved.navBtnBgColor || undefined,
         navBtnActiveBgColor: initialSalonData.nav_btn_active_bg_color || initialSalonData.branding?.navBtnActiveBgColor || localSaved.navBtnActiveBgColor || undefined,
-        navActiveColor: initialSalonData.nav_active_color || initialSalonData.branding?.navActiveColor || localSaved.navActiveColor || resolvedColor,
+        navActiveColor: (() => {
+          const candidate = initialSalonData.nav_active_color || initialSalonData.branding?.navActiveColor || localSaved.navActiveColor || '';
+          return isLegacyOrSystemDefaultColor(candidate) ? undefined : candidate;
+        })(),
         navTextColor: initialSalonData.nav_text_color || initialSalonData.branding?.navTextColor || localSaved.navTextColor || undefined,
         navBtnShadow: initialSalonData.nav_btn_shadow || initialSalonData.branding?.navBtnShadow || localSaved.navBtnShadow || undefined,
         navBtnBlur: initialSalonData.nav_btn_blur || initialSalonData.branding?.navBtnBlur || localSaved.navBtnBlur || undefined,
@@ -726,8 +728,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       navShape: 'square',
       navBorder: 'bordered',
       navBgStyle: 'solid',
-      navBgColor: '#D1FAE5',
-      navActiveColor: effectiveColor,
+      navBgColor: undefined,
+      navActiveColor: undefined,
       navTextColor: undefined,
       welcomeStyle: 'atmospheric',
       bio: '',
@@ -738,13 +740,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         const saved = localStorage.getItem('vagou_salon_admin_settings');
         if (saved) {
           const parsed = JSON.parse(saved);
-          const parsedNavBgLower = String(parsed.navBgColor || '').trim().toLowerCase();
-          const resolvedNavBgColor =
-            !parsedNavBgLower || parsedNavBgLower === '#f1f5f9' || parsedNavBgLower === '#005ca9'
-              ? defaults.navBgColor
-              : parsed.navBgColor;
+          const resolvedNavBgColor = isLegacyOrSystemDefaultColor(parsed.navBgColor)
+            ? undefined
+            : parsed.navBgColor;
           const resolvedNavBgStyle =
-            parsed.navBgStyle === 'glass' && !parsed.navBgColor
+            parsed.navBgStyle === 'glass' && !resolvedNavBgColor
               ? 'solid'
               : (parsed.navBgStyle || defaults.navBgStyle);
           return {
@@ -2271,8 +2271,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   };
 
   const sectionHeaderStyleData = useMemo(() => {
-    return getSectionHeaderStyleData(adminSettings, isDark);
-  }, [adminSettings, isDark]);
+    return getSectionHeaderStyleData(adminSettings, isDark, neutralPreset);
+  }, [adminSettings, isDark, neutralPreset]);
 
   if (isLoadingSalon && hasActiveSubdomain) {
     return (
@@ -2788,8 +2788,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
                           {/* Topo do Card: Badge de Categoria */}
                           <div className="absolute top-2 left-2 right-2 z-10 pointer-events-none flex items-center justify-between gap-1">
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-slate-950/85 backdrop-blur-md border border-white/15 text-white text-[9px] font-bold uppercase tracking-wider shadow-xs">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#39B29B]" />
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-black/75 backdrop-blur-md border border-white/15 text-white text-[9px] font-bold uppercase tracking-wider shadow-xs">
+                              <span
+                                className="w-1.5 h-1.5 rounded-full shrink-0"
+                                style={{ backgroundColor: presetTokens.dotOnDarkCard }}
+                              />
                               {srv.category}
                             </span>
                           </div>
@@ -2800,7 +2803,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                               {srv.title}
                             </h3>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="text-[#39B29B] font-mono-tabular font-black text-xs sm:text-sm tracking-tight drop-shadow-xs">
+                              <span
+                                className="font-mono-tabular font-black text-xs sm:text-sm tracking-tight drop-shadow-xs"
+                                style={{ color: presetTokens.priceOnDarkCard }}
+                              >
                                 R$ {srv.price}
                               </span>
                               {srv.duration && (
@@ -3460,15 +3466,19 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 navBorder={adminSettings.navBorder || 'bordered'}
                 navBgStyle={adminSettings.navBgStyle || 'solid'}
                 navBgColor={
-                  !adminSettings.navBgColor ||
-                  adminSettings.navBgColor.trim().toLowerCase() === '#f1f5f9' ||
-                  adminSettings.navBgColor.trim().toLowerCase() === '#005ca9'
-                    ? '#D1FAE5'
+                  isLegacyOrSystemDefaultColor(adminSettings.navBgColor)
+                    ? undefined
                     : adminSettings.navBgColor
                 }
                 navBtnBgColor={adminSettings.navBtnBgColor}
                 navBtnActiveBgColor={adminSettings.navBtnActiveBgColor}
-                navActiveColor={adminSettings.navActiveColor || adminSettings.accentColor || accentColor || '#10B981'}
+                navActiveColor={
+                  !isLegacyOrSystemDefaultColor(adminSettings.navActiveColor)
+                    ? adminSettings.navActiveColor
+                    : !isLegacyOrSystemDefaultColor(adminSettings.accentColor)
+                      ? adminSettings.accentColor
+                      : undefined
+                }
                 navTextColor={adminSettings.navTextColor}
               />
             </div>

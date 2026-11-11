@@ -1,52 +1,79 @@
+import type { CSSProperties } from 'react';
 import { SalonAdminSettings } from '../types';
+import {
+  NEUTRAL_PRESETS,
+  NeutralPresetId,
+  getCurrentNeutralPreset,
+  isLegacyOrSystemDefaultColor,
+} from '../context/ThemeContext';
 
-export function getSectionHeaderStyleData(adminSettings: Partial<SalonAdminSettings>, isDark: boolean) {
-  const bgCol = adminSettings.sectionHeaderBgColor;
-  const txtCol = adminSettings.sectionHeaderTextColor;
-  const iconCol = adminSettings.sectionHeaderIconColor || (isDark ? '#10b981' : '#059669');
-  const bgStyle = adminSettings.sectionHeaderBgStyle || 'glass';
+export function getSectionHeaderStyleData(
+  adminSettings: Partial<SalonAdminSettings>,
+  isDark: boolean,
+  neutralPresetOverride?: NeutralPresetId
+) {
+  const preset = NEUTRAL_PRESETS[neutralPresetOverride || getCurrentNeutralPreset()] || NEUTRAL_PRESETS[1];
+
+  const bgCol =
+    adminSettings.sectionHeaderBgColor && !isLegacyOrSystemDefaultColor(adminSettings.sectionHeaderBgColor)
+      ? adminSettings.sectionHeaderBgColor
+      : undefined;
+
+  const txtCol =
+    adminSettings.sectionHeaderTextColor && !isLegacyOrSystemDefaultColor(adminSettings.sectionHeaderTextColor)
+      ? adminSettings.sectionHeaderTextColor
+      : undefined;
+
+  const iconCol =
+    adminSettings.sectionHeaderIconColor && !isLegacyOrSystemDefaultColor(adminSettings.sectionHeaderIconColor)
+      ? adminSettings.sectionHeaderIconColor
+      : isDark
+        ? '#F8FAFC'
+        : preset.sectionIcon;
+
+  const bgStyle = adminSettings.sectionHeaderBgStyle || 'solid';
   const border = adminSettings.sectionHeaderBorder || 'bordered';
 
-  // Opções de Estilização de Botões / Crachás da Barra de Títulos
   const btnBgCol = adminSettings.sectionHeaderBtnBgColor;
   const btnFont = adminSettings.sectionHeaderBtnFont || 'Plus Jakarta Sans';
   const btnShadow = adminSettings.sectionHeaderBtnShadow || 'none';
   const btnBlur = adminSettings.sectionHeaderBtnBlur || 'none';
   const btnBorder = adminSettings.sectionHeaderBtnBorder || 'bordered';
 
-  // Cálculo de Sombra
   let shadowCss = 'none';
-  if (btnShadow === 'subtle') shadowCss = '0 2px 8px -2px rgba(0,0,0,0.3)';
-  else if (btnShadow === 'medium') shadowCss = '0 4px 16px -2px rgba(0,0,0,0.5)';
-  else if (btnShadow === 'glow') shadowCss = `0 0 14px ${iconCol}80`;
+  if (btnShadow === 'subtle') shadowCss = '0 2px 8px -2px rgba(0,0,0,0.18)';
+  else if (btnShadow === 'medium') shadowCss = '0 4px 16px -2px rgba(0,0,0,0.3)';
+  else if (btnShadow === 'glow') shadowCss = `0 0 14px ${iconCol}40`;
 
-  // Cálculo de Blur (Desfoque)
   let blurCss = 'none';
   if (btnBlur === 'sm') blurCss = 'blur(4px)';
   else if (btnBlur === 'md') blurCss = 'blur(8px)';
   else if (btnBlur === 'lg') blurCss = 'blur(16px)';
 
-  const borderClass = border === 'none' ? 'border-b-0' : (isDark ? 'border-b border-slate-800' : 'border-b border-[#A7F3D0]');
-  let bgClass = '';
-  if (!bgCol) {
-    if (bgStyle === 'solid') {
-      bgClass = isDark ? 'bg-slate-900' : 'bg-[#ECFDF5]';
-    } else if (bgStyle === 'transparent') {
-      bgClass = 'bg-transparent';
-    } else {
-      bgClass = isDark ? 'bg-slate-900/95 backdrop-blur-md' : 'bg-[#ECFDF5]/95 backdrop-blur-md';
-    }
-  }
+  const borderClass =
+    border === 'none'
+      ? 'border-b-0'
+      : isDark
+        ? 'border-b border-slate-800'
+        : 'border-b';
+
+  const resolvedContainerStyle: CSSProperties = {
+    backgroundColor: bgCol || (bgStyle === 'transparent' ? 'transparent' : isDark ? '#0F172A' : preset.sectionBg),
+    borderColor: border === 'none' ? 'transparent' : isDark ? '#1E293B' : preset.sectionBorder,
+  };
 
   return {
-    containerClass: `w-full shrink-0 px-3.5 py-2.5 min-h-[44px] flex items-center justify-between transition-all sticky top-0 z-30 ${borderClass} ${bgClass}`,
-    containerStyle: bgCol ? { backgroundColor: bgCol } : undefined,
-    titleStyle: txtCol ? { color: txtCol, fontFamily: btnFont } : { fontFamily: btnFont },
+    containerClass: `w-full shrink-0 px-3.5 py-2.5 min-h-[44px] flex items-center justify-between transition-colors sticky top-0 z-30 ${borderClass}`,
+    containerStyle: resolvedContainerStyle,
+    titleStyle: {
+      color: txtCol || (isDark ? '#F8FAFC' : preset.sectionText),
+      fontFamily: btnFont,
+    },
     iconStyle: { color: iconCol },
     badgeStyle: {
-      color: txtCol || iconCol,
-      backgroundColor: btnBgCol || `${iconCol}1a`,
-      borderColor: btnBorder === 'none' ? 'transparent' : `${iconCol}33`,
+      color: txtCol || (isDark ? '#F8FAFC' : preset.sectionText),
+      backgroundColor: btnBgCol || (isDark ? '#1E293B' : preset.subtleHaloBg),
+      borderColor: btnBorder === 'none' ? 'transparent' : isDark ? '#334155' : preset.cardBorder,
       fontFamily: btnFont,
       boxShadow: shadowCss,
       backdropFilter: blurCss,

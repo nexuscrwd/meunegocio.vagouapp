@@ -64,7 +64,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   onLogout,
   onOpenUserSection,
 }) => {
-  const { isDark, toggleTheme } = useTheme();
+  const { isDark, toggleTheme, presetTokens } = useTheme();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   const firstName = (currentUser.name || 'Usuário').trim().split(' ')[0].toUpperCase();
@@ -77,7 +77,6 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     .substring(0, 2)
     .toUpperCase();
 
-  // Descrição do perfil: "Usuário", "Dependente" ou o cargo se for do estabelecimento
   const userSubtitle = (() => {
     if (currentUser.isDependent || currentUser.jobTitle?.toLowerCase() === 'dependente') {
       return 'Dependente';
@@ -91,7 +90,6 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     return 'Usuário';
   })();
 
-  // Resolução do Logo oficial ou Fallback "Logo"
   const resolvedLogo =
     logoUrl ||
     localStorage.getItem('vagou_salon_logo') ||
@@ -106,14 +104,32 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     !resolvedLogo.includes('placeholder') &&
     !resolvedLogo.startsWith('data:image/svg+xml');
 
+  const headerBg = isDark ? '#0F172A' : presetTokens.headerBg;
+  const headerBorder = isDark ? '#1E293B' : presetTokens.headerBorder;
+  const headerText = isDark ? '#F8FAFC' : presetTokens.headerText;
+  const headerSubtext = isDark ? '#94A3B8' : presetTokens.headerSubtext;
+  const boxBg = isDark ? '#1E293B' : presetTokens.headerBoxBg;
+  const boxBorder = isDark ? '#334155' : presetTokens.headerBoxBorder;
+
   return (
     <header className="w-full shrink-0 sticky top-0 z-50">
-      {/* Faixa Superior com Degradê Verde Pastel Suave (Default) */}
-      <div className="caixa-header-gradient px-4 pt-4 pb-5 text-[#065F46] relative">
+      <div
+        className="px-4 py-3.5 border-b relative transition-colors"
+        style={{
+          backgroundColor: headerBg,
+          borderColor: headerBorder,
+          color: headerText,
+        }}
+      >
         <div className="flex items-center justify-between gap-2">
-          
           {/* Bloco Esquerdo: Logo do Estabelecimento ou Fallback "Logo" */}
-          <div className="h-10 min-w-[70px] px-3 rounded-[4px] bg-white/80 backdrop-blur-xs border border-[#A7F3D0] flex items-center justify-center shadow-2xs overflow-hidden shrink-0">
+          <div
+            className="h-10 min-w-[70px] px-3 rounded-[4px] border flex items-center justify-center overflow-hidden shrink-0 transition-colors"
+            style={{
+              backgroundColor: boxBg,
+              borderColor: boxBorder,
+            }}
+          >
             {hasValidLogo ? (
               <img
                 src={resolvedLogo}
@@ -122,7 +138,10 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <span className="font-display font-extrabold text-xs tracking-wider text-[#065F46] uppercase select-none">
+              <span
+                className="font-display font-extrabold text-xs tracking-wider uppercase select-none"
+                style={{ color: headerText }}
+              >
                 Logo
               </span>
             )}
@@ -137,14 +156,27 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               title="Abrir menu de opções"
             >
               <div className="text-right flex flex-col items-end justify-center min-w-0">
-                <h1 className="font-display font-extrabold text-sm tracking-wide text-[#065F46] leading-tight truncate max-w-[150px]">
+                <h1
+                  className="font-display font-extrabold text-sm tracking-wide leading-tight truncate max-w-[150px]"
+                  style={{ color: headerText }}
+                >
                   {firstName}
                 </h1>
-                <p className="text-[10px] font-semibold text-[#047857] leading-tight tracking-wide mt-0.5 capitalize truncate max-w-[150px]">
+                <p
+                  className="text-[10px] font-semibold leading-tight tracking-wide mt-0.5 capitalize truncate max-w-[150px]"
+                  style={{ color: headerSubtext }}
+                >
                   {userSubtitle}
                 </p>
               </div>
-              <div className="w-10 h-10 rounded-[4px] bg-white/85 backdrop-blur-xs border border-[#A7F3D0] flex items-center justify-center font-display font-extrabold text-sm tracking-tight text-[#065F46] shadow-xs group-hover:bg-white transition-colors overflow-hidden shrink-0">
+              <div
+                className="w-10 h-10 rounded-[4px] border flex items-center justify-center font-display font-extrabold text-sm tracking-tight transition-colors overflow-hidden shrink-0"
+                style={{
+                  backgroundColor: boxBg,
+                  borderColor: boxBorder,
+                  color: headerText,
+                }}
+              >
                 {currentUser.avatarUrl &&
                 !currentUser.avatarUrl.startsWith('data:image/svg+xml') &&
                 !currentUser.avatarUrl.includes('unsplash.com') ? (
@@ -155,26 +187,26 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <span className="text-[#065F46]">{initials}</span>
+                  <span style={{ color: headerText }}>{initials}</span>
                 )}
               </div>
             </button>
 
-            {/* Menu Dropdown Flutuante do Usuário com os Itens Originais do App */}
+            {/* Menu Dropdown Flutuante Neutro do Usuário */}
             {isUserMenuOpen && (
               <>
                 <div
                   className="fixed inset-0 z-40"
                   onClick={() => setIsUserMenuOpen(false)}
                 />
-                <div className="absolute right-0 mt-2 w-72 max-h-[80vh] overflow-y-auto no-scrollbar bg-white rounded-[4px] shadow-xl border border-[#A7F3D0] z-50 text-[#1E293B]">
+                <div className="absolute right-0 mt-2 w-72 max-h-[80vh] overflow-y-auto no-scrollbar bg-white rounded-[4px] shadow-xl border border-slate-200 z-50 text-slate-900">
                   {/* Topo do Dropdown: Identificação do Usuário + Botão Claro/Escuro */}
-                  <div className="px-3.5 py-3 bg-[#ECFDF5] border-b border-[#A7F3D0] flex items-center justify-between gap-2">
+                  <div className="px-3.5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-extrabold font-display text-[#065F46] truncate">
+                      <p className="text-xs font-extrabold font-display text-slate-900 truncate">
                         {currentUser.name}
                       </p>
-                      <p className="text-[10px] text-[#047857] font-medium truncate">
+                      <p className="text-[10px] text-slate-500 font-medium truncate">
                         {currentUser.jobTitle || 'Cliente'} •{' '}
                         {currentUser.companyName || 'Estabelecimento'}
                       </p>
@@ -182,11 +214,11 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                     <button
                       type="button"
                       onClick={() => toggleTheme()}
-                      className="px-2 py-1 rounded-[4px] bg-white border border-[#A7F3D0] hover:bg-[#F0FDF4] flex flex-col items-center justify-center gap-0.5 text-amber-600 cursor-pointer shrink-0"
+                      className="px-2 py-1 rounded-[4px] bg-white border border-slate-200 hover:bg-slate-100 flex flex-col items-center justify-center gap-0.5 text-slate-700 cursor-pointer shrink-0"
                       title={isDark ? 'Mudar para Modo Claro' : 'Mudar para Modo Escuro'}
                     >
                       {isDark ? (
-                        <Moon className="w-3.5 h-3.5 text-amber-500" />
+                        <Moon className="w-3.5 h-3.5 text-slate-700" />
                       ) : (
                         <Sun className="w-3.5 h-3.5 text-amber-500" />
                       )}
@@ -198,14 +230,14 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
 
                   {/* Alternador Rápido de Modo (se logado no salão) */}
                   {isSalonLoggedIn && (
-                    <div className="p-2 bg-[#F0FDF4] border-b border-[#D1FAE5]">
+                    <div className="p-2 bg-slate-50 border-b border-slate-200">
                       <button
                         type="button"
                         onClick={() => {
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('ALTERNAR_MODO');
                         }}
-                        className="w-full px-3 py-2 rounded-[4px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-between transition-colors cursor-pointer"
+                        className="w-full px-3 py-2 rounded-[4px] bg-[#18181B] hover:bg-[#27272A] text-white font-bold text-[11px] flex items-center justify-between transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2">
                           {isGerMode ? (
@@ -222,93 +254,86 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                     </div>
                   )}
 
-                  {/* ============================================================ */}
-                  {/* ITENS ORIGINAIS DO MODO GESTÃO DO ESTABELECIMENTO (isGerMode) */}
-                  {/* ============================================================ */}
                   {isGerMode ? (
-                    <div className="py-1 divide-y divide-[#ECFDF5]">
-                      <div className="px-3.5 py-1.5 bg-[#F0FDF4]">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-[#047857]">
+                    <div className="py-1 divide-y divide-slate-100">
+                      <div className="px-3.5 py-1.5 bg-slate-50">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
                           Gestão do Estabelecimento
                         </span>
                       </div>
 
-                      {/* 1. Serviços */}
                       <button
                         type="button"
                         onClick={() => {
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('PRO_SERVICOS');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
                             <Scissors className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-[#1E293B] leading-tight">
+                            <p className="text-xs font-bold text-slate-900 leading-tight">
                               Serviços
                             </p>
-                            <p className="text-[10px] text-[#5F6C7B] truncate">
+                            <p className="text-[10px] text-slate-500 truncate">
                               Valores, durações e procedimentos
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8] shrink-0" />
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       </button>
 
-                      {/* 2. Espaço */}
                       <button
                         type="button"
                         onClick={() => {
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('PRO_ESPACO');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
                             <Store className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-[#1E293B] leading-tight">
+                            <p className="text-xs font-bold text-slate-900 leading-tight">
                               Espaço
                             </p>
-                            <p className="text-[10px] text-[#5F6C7B] truncate">
+                            <p className="text-[10px] text-slate-500 truncate">
                               Estrutura, localização e contatos
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8] shrink-0" />
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       </button>
 
-                      {/* 3. Equipe */}
                       <button
                         type="button"
                         onClick={() => {
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('PRO_EQUIPE');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
                             <Users className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-[#1E293B] leading-tight">
+                            <p className="text-xs font-bold text-slate-900 leading-tight">
                               Equipe
                             </p>
-                            <p className="text-[10px] text-[#5F6C7B] truncate">
+                            <p className="text-[10px] text-slate-500 truncate">
                               Colaboradores, permissões e comissões
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8] shrink-0" />
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       </button>
 
-                      {/* 4. Preferências */}
                       {isProAdmin && (
                         <button
                           type="button"
@@ -316,227 +341,216 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                             setIsUserMenuOpen(false);
                             onOpenUserSection?.('PRO_PREFERENCIAS');
                           }}
-                          className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
+                          className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
+                            <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
                               <Sliders className="w-4 h-4" />
                             </div>
                             <div className="min-w-0">
-                              <p className="text-xs font-bold text-[#1E293B] leading-tight">
+                              <p className="text-xs font-bold text-slate-900 leading-tight">
                                 Preferências
                               </p>
-                              <p className="text-[10px] text-[#5F6C7B] truncate">
+                              <p className="text-[10px] text-slate-500 truncate">
                                 Dados do negócio, ident. visual e layout
                               </p>
                             </div>
                           </div>
-                          <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8] shrink-0" />
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                         </button>
                       )}
 
-                      {/* 5. Utilidades */}
                       <button
                         type="button"
                         onClick={() => {
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('PRO_UTILIDADES');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
                             <Mail className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-[#1E293B] leading-tight">
+                            <p className="text-xs font-bold text-slate-900 leading-tight">
                               Utilidades
                             </p>
-                            <p className="text-[10px] text-[#5F6C7B] truncate">
+                            <p className="text-[10px] text-slate-500 truncate">
                               Financeiro, consumo, insumos e estoque
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8] shrink-0" />
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       </button>
 
-                      {/* 6. Meus Dados Pessoais */}
                       <button
                         type="button"
                         onClick={() => {
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('DADOS_PESSOAIS');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
                             <User className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-[#1E293B] leading-tight">
+                            <p className="text-xs font-bold text-slate-900 leading-tight">
                               Meus Dados Pessoais
                             </p>
-                            <p className="text-[10px] text-[#5F6C7B] truncate">
+                            <p className="text-[10px] text-slate-500 truncate">
                               Nome, e-mail, telefone e foto
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8] shrink-0" />
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       </button>
                     </div>
                   ) : (
-                    /* ============================================================ */
-                    /* ITENS ORIGINAIS DO MODO CLIENTE (!isGerMode) — MINHA CONTA   */
-                    /* ============================================================ */
-                    <div className="py-1 divide-y divide-[#ECFDF5]">
-                      <div className="px-3.5 py-1.5 bg-[#F0FDF4]">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-[#047857]">
+                    <div className="py-1 divide-y divide-slate-100">
+                      <div className="px-3.5 py-1.5 bg-slate-50">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
                           Minha Conta
                         </span>
                       </div>
 
-                      {/* 1. Minha Agenda */}
                       <button
                         type="button"
                         onClick={() => {
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('MINHA_AGENDA');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
                             <Calendar className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-[#1E293B] leading-tight">
+                            <p className="text-xs font-bold text-slate-900 leading-tight">
                               Minha Agenda
                             </p>
-                            <p className="text-[10px] text-[#5F6C7B] truncate">
+                            <p className="text-[10px] text-slate-500 truncate">
                               Ver agendamentos e propostas de permuta
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8] shrink-0" />
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       </button>
 
-                      {/* 2. Trajeto (Teste GPS) */}
                       <button
                         type="button"
                         onClick={() => {
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('TRAJETO_GPS');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
                             <Navigation className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <p className="text-xs font-bold text-[#1E293B] leading-tight">
+                              <p className="text-xs font-bold text-slate-900 leading-tight">
                                 Trajeto
                               </p>
-                              <span className="px-1.5 py-0.2 rounded-[3px] text-[8px] font-black uppercase bg-amber-50 text-amber-700 border border-amber-200">
+                              <span className="px-1.5 py-0.2 rounded-[3px] text-[8px] font-black uppercase bg-slate-100 text-slate-700 border border-slate-200">
                                 Teste
                               </span>
                             </div>
-                            <p className="text-[10px] text-[#5F6C7B] truncate">
+                            <p className="text-[10px] text-slate-500 truncate">
                               Inserir partida e destino para testar GPS
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8] shrink-0" />
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       </button>
 
-                      {/* 3. Conta Família • Dependentes */}
                       <button
                         type="button"
                         onClick={() => {
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('DEPENDENTES');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
                             <Users className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-[#1E293B] leading-tight">
+                            <p className="text-xs font-bold text-slate-900 leading-tight">
                               Conta Família • Dependentes
                             </p>
-                            <p className="text-[10px] text-[#5F6C7B] truncate">
+                            <p className="text-[10px] text-slate-500 truncate">
                               Cadastrar filhos, cônjuge ou familiares
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8] shrink-0" />
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       </button>
 
-                      {/* 4. Meus Dados Pessoais */}
                       <button
                         type="button"
                         onClick={() => {
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('DADOS_PESSOAIS');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
                             <User className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-[#1E293B] leading-tight">
+                            <p className="text-xs font-bold text-slate-900 leading-tight">
                               Meus Dados Pessoais
                             </p>
-                            <p className="text-[10px] text-[#5F6C7B] truncate">
+                            <p className="text-[10px] text-slate-500 truncate">
                               Nome, e-mail, telefone e endereço
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8] shrink-0" />
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       </button>
 
-                      {/* 5. Chat no App Vagou */}
                       <button
                         type="button"
                         onClick={() => {
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('CHAT_VAGOU');
                         }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-[#F0FDF4] transition-colors cursor-pointer"
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
                             <MessageSquare className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-[#1E293B] leading-tight">
+                            <p className="text-xs font-bold text-slate-900 leading-tight">
                               Chat no App Vagou
                             </p>
-                            <p className="text-[10px] text-[#5F6C7B] truncate">
+                            <p className="text-[10px] text-slate-500 truncate">
                               Mensagens diretas com a equipe
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8] shrink-0" />
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       </button>
                     </div>
                   )}
 
-                  {/* Rodapé do Dropdown: Abrir Menu em Tela Cheia + Encerrar Sessão */}
-                  <div className="p-2 bg-[#F0FDF4] border-t border-[#A7F3D0] space-y-1.5">
+                  <div className="p-2 bg-slate-50 border-t border-slate-200 space-y-1.5">
                     <button
                       type="button"
                       onClick={() => {
                         setIsUserMenuOpen(false);
                         onOpenUserSection?.('MENU_COMPLETO');
                       }}
-                      className="w-full py-1.5 rounded-[4px] bg-white hover:bg-[#ECFDF5] border border-[#A7F3D0] text-[#065F46] font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      className="w-full py-1.5 rounded-[4px] bg-white hover:bg-slate-100 border border-slate-200 text-slate-800 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <User className="w-3.5 h-3.5" />
                       Abrir Painel Completo / Alterar Foto
@@ -548,7 +562,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                         setIsUserMenuOpen(false);
                         onLogout();
                       }}
-                      className="w-full py-1.5 rounded-[4px] bg-[#FEE2E2] hover:bg-[#FECACA] text-[#DC2626] font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      className="w-full py-1.5 rounded-[4px] bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <LogOut className="w-3.5 h-3.5" />
                       {isSalonLoggedIn ? 'Sair da Conta Pro' : 'Sair da Conta'}
@@ -558,7 +572,6 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               </>
             )}
           </div>
-
         </div>
       </div>
     </header>

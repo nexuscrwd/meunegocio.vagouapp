@@ -109,16 +109,15 @@ Para oferecer uma experiência visual refinada e adaptável sem perder a elegân
 
 ### A. Escala Cromática: Modo Escuro vs. Modo Claro
 
-| Elemento | Tema Escuro (Dark Slate) | Tema Claro (Light Pearl) | Justificativa de UX/UI |
+| Elemento | Tema Escuro (Dark Slate) | Tema Claro Default (Verde Pastel Clarinho — `bol-158`) | Justificativa de UX/UI |
 | :--- | :--- | :--- | :--- |
-| **Fundo Global (`main`)** | `bg-slate-950` / `#151A1E` | `bg-slate-50` (Perolado suave) | Evita o branco puro `#FFF` ofuscante, mantendo conforto ótico. |
-| **Superfícies & Cards** | `bg-slate-900/90` | `bg-white` com sombra fina `shadow-xs` | Cria elevação dimensional limpa sem necessidade de bordas pesadas. |
-| **Bordas & Divisores** | `border-slate-800` | `border-slate-200` | Delimitação sutil e equilibrada. |
-| **Texto Principal** | `text-white` / `text-slate-100` | `text-slate-900` | Contraste máximo que atende aos critérios WCAG AA. |
-| **Texto Secundário / Apoio** | `text-slate-400` | `text-slate-500` / `text-slate-600` | Hierarquia visual de leitura com excelente legibilidade. |
-| **Botão de Destaque ("HORÁRIOS HOJE")** | `bg-gradient-to-r from-emerald-600 via-[#20C933] to-emerald-500 text-white shadow-emerald-500/20` | `bg-gradient-to-r from-emerald-600 to-[#1eb72e] text-white shadow-emerald-600/20` | Elimina o texto preto pesado sobre o verde, garantindo sofisticação e relevo em ambos os temas. |
-| **Abas Inativas** | `bg-slate-900/80 text-slate-300 border-slate-800` | `bg-white text-slate-700 border-slate-200 hover:bg-slate-50` | Contraste refinado, sem ofuscar a aba ativa. |
-| **Abas Ativas** | `bg-gradient-to-b from-emerald-500/20 to-slate-900 text-emerald-400 border-emerald-500/60` | `bg-emerald-50 text-emerald-700 border-emerald-500/50 shadow-xs` | Indicação imediata da seção em foco. |
+| **Fundo Global (`main`)** | `bg-slate-950` / `#151A1E` | `#F0FDF4` (moldura externa `#DCFCE7`) | Verde menta suave que descansa a vista e destaca os cards brancos. |
+| **Cabeçalho & `BottomNav`** | `#151A1E` / `border-slate-800` | `#D1FAE5` com borda `#A7F3D0` (`solid`) | Identidade acolhedora com ícones/textos inativos em `#065F46`. |
+| **Subcabeçalhos (`SectionHeader`)** | `bg-slate-900` / `text-white` | `#ECFDF5` com texto `#065F46` e ícone `#059669` | Hierarquia suave alinhada aos títulos das 4 abas (`Início`, `Serviços`, `Agenda`, `Espaço`). |
+| **Superfícies & Cards** | `bg-slate-900/90` | `bg-white` com borda `#D1FAE5` e `shadow-xs` | Cria elevação limpa sem necessidade de bordas pesadas. |
+| **Texto Principal** | `text-white` / `text-slate-100` | `text-slate-900` / `#065F46` | Contraste máximo que atende aos critérios WCAG AA. |
+| **Botão Sólido Verde (CTA)** | `bg-[#10B981]` / `bg-[#20C933] text-white` | `bg-[#10B981]` / `bg-emerald-600 text-white` | Regra inegociável: fundo verde sólido = texto e ícone 100% brancos (`text-white`). |
+| **Botão Ativo de Fundo Branco (`BottomNav`)** | Ícone e texto na cor do tema | Fundo `#FFFFFF` com ícone, texto e indicador na cor do tema (`#059669` / `#10B981`) | Evita sumiço de texto branco sobre botão branco (`bol-156`). |
 
 ### B. Regras de Ouro de Execução Visual (Anti-Slop):
 1. **Arredondamento Global Unificado de 4px (`rounded: 4px`):** Todos os contêineres, caixas, cards, botões, modais, inputs e superfícies da aplicação adotam estritamente o raio de curvatura de **4px** configurado centralmente no `@theme` (`--radius-*: 4px`). Isso garante coerência geométrica cirúrgica e elegância técnica em todas as telas.

@@ -11,6 +11,47 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-11] — Implementação ao Vivo das 3 Opções de Esquema Default Neutro & Independente + Botão Seletor de Comparação (`bol-160`)
+- **Tipo:** `[Feat / UI / Theme / Neutral Default Preview]`
+- **Motivo / Solicitação:** Substituir o aspecto "lavado em menta" e o conflito com o azul legado (`#2B82C9`) implementando simultaneamente as **3 opções de esquema default neutro e independente** (`1 · Puro`, `2 · Acetinado`, `3 · Grafite`) com um botão interativo na tela para o usuário alternar e escolher em tempo real.
+- **Arquivos Impactados:**
+  - `src/context/ThemeContext.tsx`
+  - `src/index.css`
+  - `src/utils/sectionHeaderStyle.ts`
+  - `src/components/NeutralThemePreviewSwitcher.tsx` *(novo seletor flutuante recolhível)*
+  - `src/components/MobileHeader.tsx`
+  - `src/components/BottomNav.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/App.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Motor de 3 Presets Neutros Independentes (`NEUTRAL_PRESETS` em `ThemeContext.tsx`):**
+     - **Opção 1 (`1 · Puro`):** Cabeçalho, subcabeçalhos e barra inferior em `#FFFFFF` com borda `#E2E8F0`, miolo em `#F8FAFC` e botões ativos em Grafite Carbono (`#18181B`) com texto branco.
+     - **Opção 2 (`2 · Acetinado`):** Cabeçalho e barra inferior em `#FAFAFA` com borda `#E4E4E7`, miolo Cinza Pérola (`#F4F4F5`), botões ativos em Ardósia (`#27272A`) e destaque semântico discreto nos valores.
+     - **Opção 3 (`3 · Grafite`):** Cabeçalho e barra inferior em Grafite (`#18181B`) com botão ativo branco (`#FFFFFF` + ícone/texto `#18181B`), mantendo miolo claro neutro (`#F8FAFC` / `#FFFFFF`).
+  2. **Eliminação do Conflito com Azul Legado (`#2B82C9` / `#005CA9`):** Unificados os utilitários de ação em `src/index.css` (incluindo o botão *"Qualquer Livre"* e gavetas) para seguirem `var(--neutral-action-bg)` com contraste branco puro (`#FFFFFF`).
+  3. **Seletor Interativo (`NeutralThemePreviewSwitcher.tsx`):** Barra compacta e recolhível (`1 · Puro` | `2 · Acetinado` | `3 · Grafite`) disponível em todas as telas até a escolha definitiva do usuário.
+
+### [2026-11-11] — Auditoria 360º da Tríade, Saneamento Documental/Código & Convergência Soberana Supabase SQL v5.0 (`App ⇄ Admin Master`) (`bol-159`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Audit / SQL v5.0 / Refactor / Docs / Clean Code]`
+- **Motivo / Solicitação:** Auditar toda a documentação `.md` e o código-fonte do `mnvapp`, auditar o repositório oficial do gestor corporativo `admvapp` (`nexuscrwd/admin.vagouapp.git`) frente ao estado atual do app (`bol-158`) e unificar o código SQL compartilhado do Supabase.
+- **Arquivos Impactados:**
+  - `supabase/migrations/20261111_master_convergence_v5_0.sql` *(novo script mestre convergente v5.0)*
+  - `supabase/schema.sql` *(atualizado para v5.0 idempotente, removendo `DROP TABLE CASCADE`)*
+  - `src/types/database.types.ts`
+  - `src/index.modular.ts`
+  - Remoção de arquivos duplicados/órfãos: `src/components/SalonBookingModal.new.tsx` e `src/components/admin/InteractiveGoogleRouteMap.tsx`
+  - Documentação sincronizada: `ARCHITECTURE.md`, `ECOSYSTEM_CONTRACT.md`, `MASTER_APPROVALS_AND_GUIDELINES.md`, `KNOWLEDGE_BASE.md`, `DEV_MANUAL.md`, `USER_MANUAL.md` e `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Saneamento de Código & Tipagem no `mnvapp`:**
+     - Removidos duplicados órfãos (`SalonBookingModal.new.tsx` e `admin/InteractiveGoogleRouteMap.tsx`) e corrigido re-export em `src/index.modular.ts`.
+     - `src/types/database.types.ts` sincronizado integralmente com o contrato relacional v5.0 (`salons`, `salon_ui_settings`, `system_admins`, `appointments`, `security_questions`, `user_security_answers`, `check_client_inter_salon_collision`, `get_busy_slots`).
+  2. **Convergência Soberana Supabase SQL v5.0 (`20261111_master_convergence_v5_0.sql` & `supabase/schema.sql`):**
+     - Script 100% idempotente e não-destrutivo (zero `DROP TABLE CASCADE`, zero mocks, preservando apenas as 3 perguntas oficiais em `security_questions`).
+     - Unificação das **23 tabelas** compartilhadas entre `mnvapp`, `admvapp` e `pvapp`, com triggers bidirecionais (`services ⇄ salon_services`, `dependents ⇄ client_family_members`, `fee_per_booking ⇄ billing_fee_value = 2.50`, `supply_items ⇄ inventory_items`, `is_paid ⇄ payment_status`), motor geotemporal anti-colisão (`check_client_inter_salon_collision` + trigger `trg_prevent_inter_salon_collision`), RPCs corporativas (`verify_admin_login`, `register_system_admin`, `register_triade_user`, `get_offers_in_radius`, `get_busy_slots`), RLS estruturado, Storage Buckets e `supabase_realtime`.
+  3. **Auditoria de Conformidade `admvapp` (`admin.vagouapp` parado em `bol-027`):**
+     - Mapeadas as 5 divergências exatas entre o Admin Master e o App atual (mocks residuais, competência fixa `'2026-09'` / ausência de `is_paid`/`swap_state`/colisão no monitor de agendamentos, defaults antigos `#20C933`/`dark`/`glass` no editor de salões, ausência de gestão de `security_questions` e divergência de colunas financeiras resolvida via trigger), gerando o Comunicado Técnico Oficial de atualização imediata.
+
 ### [2026-11-09] — Paleta Default em Verde Menta / Pastel Bem Clarinho (Pacote Completo — Opção 3) (`bol-158`)
 - **Tipo:** `[Feat / UI / Theme / Contrast]`
 - **Motivo / Solicitação:** Definir um tom de cor verde bem clarinho como padrão (default) do aplicativo em todo o ecossistema (Pacote Completo — Opção 3: Fundo Geral das Telas + Cabeçalho, Barra Inferior, Subcabeçalhos de Seção e Tema Default).

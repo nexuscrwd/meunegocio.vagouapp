@@ -67,7 +67,7 @@ export { DateSelectionStep } from './components/steps/DateSelectionStep';
 export { ProfessionalTimeStep } from './components/steps/ProfessionalTimeStep';
 
 // Components - Main
-export { SalonBookingModal } from './components/SalonBookingModal.new';
+export { SalonBookingModal } from './components/SalonBookingModal';
 export { SalonClientAuthModal } from './components/SalonClientAuthModal';
 
 // Utils

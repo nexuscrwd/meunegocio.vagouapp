@@ -126,8 +126,8 @@ O `SalonProfileView.tsx` é a peça central da experiência do salão dentro do 
 ### B. As 4 Abas Integradas com Isolamento Absoluto (Zero Vazamento):
 1. **Início (`home`):** Apresentação do estabelecimento, histórias/vídeos verticais dos trabalhos, comodidades do espaço e botão de ação primária *"HORÁRIOS HOJE"*.
 2. **Serviços (`servicos`):** Catálogo de procedimentos segmentado em categorias (Cabelo, Barba, Estética, Combos), com paginação e suporte a swap/seleção direta para agendamento.
-3. **Vagas / Agenda (`vagas`):** Calendário mensal inline inteligente que identifica domingos e dias de fechamento, calcula horários disponíveis em tempo real e exibe vagas imediatas.
-4. **Espaço / Equipe (`espaco`):** Apresentação plana dos profissionais (foto quadrada 4px, nome e especialidade sem caixas redundantes) e galeria de fotos do ambiente físico.
+3. **Agenda (`vagas`):** Calendário mensal inline inteligente que identifica domingos e dias de fechamento, calcula horários disponíveis em tempo real, exibe vagas imediatas e ordena agendamentos cronologicamente (`date_str ASC, start_time ASC`), com título idêntico ao botão **`Agenda`** do `BottomNav` (sem botões redundantes como *"Para Você"*).
+4. **Espaço / Atendimento (`espaco`):** Apresentação plana dos profissionais (foto quadrada 4px, nome e especialidade sem caixas redundantes), galeria de fotos do ambiente físico e mapa focado exclusivamente no pino do salão (`SalonLocationViewMap.tsx`, sem traçado de rotas).
 
 ### C. Fluxo de Agendamento em 4 Etapas (`SalonBookingModal.tsx`)
 - **Etapa 1:** Seleção do serviço desejado com preço e duração.
@@ -180,20 +180,19 @@ Consolidado e aprovado como padrão definitivo de interface de navegação e mob
 
 ---
 
-## 🗄️ 6. Banco de Dados Relacional & Schema SQL (Supabase / PostgreSQL)
+## 🗄️ 6. Banco de Dados Relacional & Schema SQL Soberano (Supabase / PostgreSQL v5.0)
 
-O arquivo `supabase/schema.sql` (versão 2.1.0) define a base de dados compartilhada com **extensão PostGIS**, **Row Level Security (RLS)** e suporte total às novas modalidades operacionais:
+Os arquivos `supabase/schema.sql` e `supabase/migrations/20261111_master_convergence_v5_0.sql` definem a base de dados convergente **v5.0** compartilhada entre `mnvapp`, `admvapp` e `pvapp` (**100% idempotente, zero `DROP TABLE CASCADE`, zero mocks**):
 
-1. **`salons`:** Cadastros dos parceiros com suporte aos 4 modelos operacionais (`'solo'`, `'team'`, `'home_delivery'`, `'hybrid'`), dados para atendimento em domicílio (`home_delivery_area`, `home_delivery_travel_fee`, `home_delivery_is_free_condo`, `home_delivery_max_distance_km`), identidade visual PWA completa (`logo_light_url`, `logo_dark_url`, `app_icon_url`, `primary_color`), coordenadas PostGIS `geom` com trigger automático e vínculo com `auth.users`.
-2. **`salon_media_slots`:** Tabela que restringe estritamente a 5 slots ativos de mídia por salão (`slot_number` de 1 a 5, tipo `video` ou `image`).
-3. **`professionals`:** Profissionais da equipe e donos solitários (`is_owner`, `system_role: 'admin' | 'staff' | 'receptionist'`), especialidades, cor e jornada de trabalho configurável.
-4. **`services`:** Procedimentos oferecidos com título direto, descrição, tempo estimado textual (`duration_estimated`), minutos (`duration_minutes`), valor base (`price`), preço promocional e flag `is_home_delivery_available`.
-5. **`service_offers`:** Vagas imediatas publicadas no Radar com georreferenciamento e contagem regressiva de expiração.
-6. **`clients`:** Usuários finais vinculados ao Supabase Auth, com telefone WhatsApp, status de verificação e tokens Push.
-7. **`appointments`:** Agendamentos efetuados com protocolo único, suporte a atendimento presencial ou a domicílio (`service_type: 'IN_SALON' | 'HOME_DELIVERY'`), endereço/condomínio (`client_address`), taxa de deslocamento (`travel_fee`) e total calculado.
-8. **`billing_invoices` & Monetização Vagou (Customizável por Parceiro):** Inicialmente definido no padrão de **R$ 1,50 por agendamento concluído**. O banco já está arquitetado para o futuro painel Admin Vagou com suporte a personalização por estabelecimento (`commission_value`, `billing_model: 'PER_APPOINTMENT' | 'SUBSCRIPTION' | 'HYBRID' | 'EXEMPT'`), permitindo ajustar taxas individuais ou migrar parceiros para cobrança de assinatura mensal fixa (`subscription_monthly_fee`).
-9. **Função PostGIS `get_offers_in_radius`:** Consulta geoespacial ultra-rápida filtrando estabelecimentos por raio em KM com suporte a modelos operacionais e logos claros/escuros.
-10. **Políticas de Segurança RLS:** Isolamento multi-tenant completo — salões e profissionais só alteram seus próprios registros, clientes só acessam seus agendamentos, e vagas ativas do Radar são públicas.
+1. **`salons` & `salon_ui_settings`:** Cadastro mestre dos estabelecimentos, 4 modelos operacionais (`'solo'`, `'team'`, `'home_delivery'`, `'hybrid'`), paleta default **Verde Pastel Clarinho** (`default_theme = 'light'`, `nav_bg_color = '#D1FAE5'`, `section_header_bg_color = '#ECFDF5'`, `primary_color = '#10B981'`) e preferências visuais white-label completas.
+2. **`system_admins` & `admin_access_logs`:** Governança corporativa do `admvapp` com autenticação criptografada (`verify_admin_login` / `register_system_admin`) e auditoria de acessos.
+3. **`professionals`, `salon_members` & `salon_users`:** Equipe, permissões multi-tenant, comissões e escalas individuais.
+4. **`services` ⇄ `salon_services`:** Catálogo de procedimentos sincronizado em tempo real por triggers bidirecionais entre o App e o Admin Master.
+5. **`service_offers`:** Vagas relâmpago publicadas no Radar com contagem regressiva (`expires_at`) e mídia em 3 níveis.
+6. **`clients`, `salon_clients`, `dependents` ⇄ `client_family_members`, `security_questions` & `user_security_answers`:** Identidade unificada do consumidor, carteira CRM por salão, Conta Família sincronizada por triggers e recuperação de senha por perguntas de segurança.
+7. **`appointments`:** Agendamentos reais com protocolo único, baixa financeira sincronizada (`is_paid` ⇄ `payment_status`: `Pago` / `À pagar`), pausa de agenda (`is_blocked_slot`), permuta em cascata (`swap_state`), telemetria GPS/RTLS ao vivo e **Motor Geotemporal Anti-Colisão** (`check_client_inter_salon_collision` + trigger `trg_prevent_inter_salon_collision`).
+8. **`billing_invoices`, `financial_transactions`, `salon_utilities_records`, `salon_media_items` & `salon_media_slots`:** Monetização VagouApp unificada no padrão de **R$ 2,50 por agendamento concluído** (`fee_per_booking` ⇄ `billing_fee_value = 2.50` sincronizados por trigger) ou **Assinatura Mensal R$ 89,90** (`monthly_subscription_fee = 89.90`, vencimento dia `10`), 100% customizável por salão no `admvapp`.
+9. **RPCs, Storage & Realtime:** `get_offers_in_radius`, `get_busy_slots`, `register_triade_user`, buckets públicos (`avatars`, `salon-media`, `documents`, `media`) e `supabase_realtime` ativo.
 
 
 ---
@@ -230,10 +229,10 @@ not_found_handling = "single-page-application"
    - É proibido o uso de `rounded-xl` ou `rounded-2xl` em elementos operacionais.
 2. **Eliminação da Síndrome de "Box dentro de Box":**
    - Substituição de caixas empilhadas com bordas por separadores sutis (`border-b`, `border-t`), alinhamentos de grade e respiro com `gap`.
-3. **Harmonização Cromática e Contraste WCAG AA no Tema Claro:**
-   - **Superfície Principal:** `bg-slate-50` com cartões em `bg-white` e bordas em `border-slate-200`.
-   - **Tipografia Escura de Alto Contraste:** Títulos em `text-slate-900` e subtítulos/labels em `text-slate-500` / `text-slate-600`.
-   - **Métricas Financeiras & Positivas:** `text-emerald-600` no tema claro (substituindo `text-emerald-400` que ficava ilegível sobre fundo claro).
+3. **Harmonização Cromática e Paleta Default Verde Pastel Clarinho (`bol-158`):**
+   - **Superfície Principal (Modo Claro Default):** Fundo geral `#F0FDF4` (moldura externa `#DCFCE7`), cartões em `bg-white` com borda `#D1FAE5`, cabeçalho e `BottomNav` em `#D1FAE5` e subcabeçalhos em `#ECFDF5`.
+   - **Tipografia Escura de Alto Contraste:** Títulos em `text-slate-900` / `#065F46` e subtítulos em `text-slate-600`.
+   - **Botão Ativo de Fundo Branco no `BottomNav` (`bol-156`):** Quando o botão ativo possui fundo branco/claro, ícone, texto e barra superior assumem automaticamente a cor do tema (`#059669` / `#10B981` ou cor primária do salão).
    - **Regra de Ouro do Fundo Verde:** Fundo verde sólido sempre exige texto e ícones 100% brancos (`text-white`).
 4. **Dimensionamento Proporcional de Inputs:**
    - Inputs numéricos curtos (como horas, dias, watts e medições de 2 a 4 caracteres) possuem largura contida (`max-w-[70px]`, `max-w-[80px]`, `max-w-xs`), eliminando campos gigantescos desproporcionais ao conteúdo.

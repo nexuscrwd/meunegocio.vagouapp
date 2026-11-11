@@ -1,6 +1,6 @@
 import React from 'react';
-import { Home, Calendar, LayoutDashboard, LayoutGrid, Users, Store, Wrench, Wallet, CirclePause } from 'lucide-react';
-import { useTheme, sanitizeAccentColor } from '../context/ThemeContext';
+import { Home, Calendar, LayoutDashboard, LayoutGrid, Store, Wallet, CirclePause } from 'lucide-react';
+import { useTheme, sanitizeAccentColor, isLegacyOrSystemDefaultColor } from '../context/ThemeContext';
 import { hapticLight } from '../utils/haptics';
 import { UserPersona } from '../types';
 
@@ -88,7 +88,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   navBtnBlur: propNavBtnBlur,
   navBtnFont: propNavBtnFont,
 }) => {
-  const { isDark, accentColor } = useTheme();
+  const { isDark, accentColor, presetTokens } = useTheme();
 
   const activeTab = propActiveTab || salonContext?.activeTab || 'home';
   const onSelectTab = propOnSelectTab || salonContext?.onSelectTab;
@@ -105,22 +105,27 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const navBorder = propNavBorder || salonContext?.navBorder || 'bordered';
   const navIconBorder = propNavIconBorder || salonContext?.navIconBorder || 'none';
   const navBgStyle = propNavBgStyle || salonContext?.navBgStyle || 'solid';
+
   const rawNavBgColor = propNavBgColor || salonContext?.navBgColor || '';
-  // Default: cor verde pastel bem clarinho (#D1FAE5) igual ao cabeçalho default, salvo se o usuário alterou nas ferramentas de estilo
-  const normalizedRawNavBg = rawNavBgColor.trim().toLowerCase();
-  const navBgColor =
-    !normalizedRawNavBg || normalizedRawNavBg === '#f1f5f9' || normalizedRawNavBg === '#005ca9'
-      ? '#D1FAE5'
-      : rawNavBgColor;
-  const isDefaultHeaderMatchBg = navBgColor.trim().toLowerCase() === '#005ca9';
+  const hasCustomSalonNavBg = Boolean(rawNavBgColor && !isLegacyOrSystemDefaultColor(rawNavBgColor));
+  const navBgColor = hasCustomSalonNavBg
+    ? rawNavBgColor
+    : isDark
+      ? '#0F172A'
+      : presetTokens.navBg;
+
   const navBtnBgColor = propNavBtnBgColor || salonContext?.navBtnBgColor;
   const navBtnActiveBgColor = propNavBtnActiveBgColor || salonContext?.navBtnActiveBgColor;
   const rawNavActiveColor = propNavActiveColor || salonContext?.navActiveColor;
-  const navActiveColor = sanitizeAccentColor(rawNavActiveColor || accentColor || '#10B981');
+  const hasCustomActiveColor = Boolean(rawNavActiveColor && !isLegacyOrSystemDefaultColor(rawNavActiveColor));
+  const navActiveColor = hasCustomActiveColor
+    ? sanitizeAccentColor(rawNavActiveColor)
+    : presetTokens.navActiveBtnBg;
+
   const navTextColor = propNavTextColor || salonContext?.navTextColor;
   const navBtnShadow = propNavBtnShadow || salonContext?.navBtnShadow || 'none';
   const navBtnBlur = propNavBtnBlur || salonContext?.navBtnBlur || 'none';
-  const navBtnFont = propNavBtnFont || salonContext?.navBtnFont || 'Poppins';
+  const navBtnFont = propNavBtnFont || salonContext?.navBtnFont || 'Plus Jakarta Sans';
 
   const isWhiteOrLightHex = React.useCallback((c?: string): boolean => {
     if (!c) return false;
@@ -130,23 +135,29 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       hex === '#ffffff' ||
       hex === '#fff' ||
       hex === 'white' ||
+      hex === '#fafafa' ||
       hex === '#f8fafc' ||
+      hex === '#f4f4f5' ||
       hex === '#f1f5f9' ||
       hex === '#f3f4f6' ||
       hex === '#e2e8f0' ||
+      hex === '#e4e4e7' ||
       hex === '#e5e7eb' ||
-      hex === '#d1fae5' ||
-      hex === '#dcfce7' ||
-      hex === '#ecfdf5' ||
-      hex === '#f0fdf4' ||
       hex.startsWith('#f') ||
       hex.startsWith('#e')
     );
   }, []);
 
-  // Cor do tema para aplicar em ícone e texto quando o botão ativo tem fundo branco/claro
+  const isLightNavBg = React.useMemo(() => {
+    if (navBgStyle === 'transparent') return !isDark;
+    if (!hasCustomSalonNavBg) {
+      return isDark ? false : !presetTokens.navIsDark;
+    }
+    return isWhiteOrLightHex(navBgColor);
+  }, [navBgColor, navBgStyle, isDark, hasCustomSalonNavBg, presetTokens.navIsDark, isWhiteOrLightHex]);
+
   const themeColorForWhiteBtn = React.useMemo(() => {
-    if (rawNavActiveColor && !isWhiteOrLightHex(rawNavActiveColor) && rawNavActiveColor.trim().toLowerCase() !== 'transparent') {
+    if (hasCustomActiveColor && rawNavActiveColor && !isWhiteOrLightHex(rawNavActiveColor)) {
       return rawNavActiveColor.trim();
     }
     if (accentColor && !isWhiteOrLightHex(accentColor)) {
@@ -155,38 +166,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     if (navBgColor && !isWhiteOrLightHex(navBgColor) && navBgColor !== 'transparent') {
       return navBgColor;
     }
-    return '#059669';
-  }, [rawNavActiveColor, accentColor, navBgColor, isWhiteOrLightHex]);
-
-  // Detecta se a barra inferior tem fundo claro para garantir contraste de bordas e textos
-  const isLightNavBg = React.useMemo(() => {
-    if (navBgStyle === 'transparent') return !isDark;
-    const hex = (navBgColor || '').trim().toLowerCase();
-    if (!hex) return false;
-    return (
-      hex === '#f1f5f9' ||
-      hex === '#f8fafc' ||
-      hex === '#ffffff' ||
-      hex === '#e2e8f0' ||
-      hex === '#e5e7eb' ||
-      hex === '#f3f4f6' ||
-      hex === '#d1fae5' ||
-      hex === '#dcfce7' ||
-      hex === '#ecfdf5' ||
-      hex === '#f0fdf4' ||
-      hex === '#a7f3d0' ||
-      hex.startsWith('#f') ||
-      hex.startsWith('#e') ||
-      hex.startsWith('#d')
-    );
-  }, [navBgColor, navBgStyle, isDark]);
+    return presetTokens.actionBg || '#18181B';
+  }, [hasCustomActiveColor, rawNavActiveColor, accentColor, navBgColor, presetTokens.actionBg, isWhiteOrLightHex]);
 
   const btnShadowCss = React.useMemo(() => {
-    if (navBtnShadow === 'subtle') return '0 2px 8px -2px rgba(0,0,0,0.3)';
-    if (navBtnShadow === 'medium') return '0 4px 16px -2px rgba(0,0,0,0.5)';
-    if (navBtnShadow === 'glow') return `0 0 14px ${navActiveColor || '#10b981'}80`;
+    if (navBtnShadow === 'subtle') return '0 2px 8px -2px rgba(0,0,0,0.22)';
+    if (navBtnShadow === 'medium') return '0 4px 16px -2px rgba(0,0,0,0.35)';
+    if (navBtnShadow === 'glow') return `0 0 14px ${themeColorForWhiteBtn}55`;
     return 'none';
-  }, [navBtnShadow, navActiveColor]);
+  }, [navBtnShadow, themeColorForWhiteBtn]);
 
   const btnBlurCss = React.useMemo(() => {
     if (navBtnBlur === 'sm') return 'blur(4px)';
@@ -195,78 +183,36 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     return 'none';
   }, [navBtnBlur]);
 
-  // Estilização dinâmica do contêiner da barra conforme navBgStyle e navBgColor (Default: fundo sólido verde pastel suave #D1FAE5)
   const navContainerStyle = React.useMemo(() => {
+    const borderHex = isDark ? '#1E293B' : presetTokens.navBorder;
     if (navBgStyle === 'transparent') {
-      return { 
-        backgroundColor: 'transparent', 
-        backgroundImage: 'none',
+      return {
+        backgroundColor: 'transparent',
         borderColor: 'transparent',
         boxShadow: 'none',
-        backdropFilter: 'none',
-        WebkitBackdropFilter: 'none',
-      };
-    }
-    if (navBgColor) {
-      if (navBgStyle === 'glass') {
-        const hex = navBgColor.startsWith('#') ? navBgColor : '#D1FAE5';
-        return {
-          backgroundColor: `color-mix(in srgb, ${hex} 75%, transparent)`,
-          borderColor: `color-mix(in srgb, ${hex} 45%, #A7F3D0)`,
-          backdropFilter: 'blur(16px) saturate(160%)',
-          WebkitBackdropFilter: 'blur(16px) saturate(160%)',
-        };
-      }
-      return {
-        backgroundColor: navBgColor,
-        backgroundImage: 'none',
-        borderColor: isLightNavBg ? '#A7F3D0' : 'rgba(255, 255, 255, 0.18)',
-        boxShadow: 'none',
-        backdropFilter: 'none',
-        WebkitBackdropFilter: 'none',
       };
     }
     if (navBgStyle === 'glass') {
       return {
-        backdropFilter: 'blur(16px) saturate(160%)',
-        WebkitBackdropFilter: 'blur(16px) saturate(160%)',
+        backgroundColor: `color-mix(in srgb, ${navBgColor} 82%, transparent)`,
+        borderColor: borderHex,
+        backdropFilter: 'blur(16px) saturate(150%)',
+        WebkitBackdropFilter: 'blur(16px) saturate(150%)',
       };
     }
     return {
-      backgroundColor: '#D1FAE5',
-      backgroundImage: 'none',
-      borderColor: '#A7F3D0',
+      backgroundColor: navBgColor,
+      borderColor: borderHex,
       boxShadow: 'none',
-      backdropFilter: 'none',
-      WebkitBackdropFilter: 'none',
     };
-  }, [navBgStyle, navBgColor, isLightNavBg]);
-
-  const navContainerClasses = React.useMemo(() => {
-    if (navBgStyle === 'transparent') {
-      return 'bg-transparent border-t-0 shadow-none backdrop-blur-none';
-    }
-    if (navBgStyle === 'solid') {
-      return `backdrop-blur-none border-t shadow-none ${
-        isLightNavBg ? 'text-[#065F46]' : 'text-white'
-      }`;
-    }
-    // 'glass' (caso o usuário selecione efeito vidro nas ferramentas de estilo)
-    return `backdrop-blur-md backdrop-saturate-150 border-t ${
-      navBgColor
-        ? ''
-        : isDark
-          ? 'bg-slate-900/50 border-white/10'
-          : 'bg-[#ECFDF5]/90 border-[#A7F3D0] text-[#065F46]'
-    }`;
-  }, [navBgStyle, navBgColor, isDark, isLightNavBg]);
+  }, [navBgStyle, navBgColor, isDark, presetTokens.navBorder]);
 
   if (!onSelectTab) {
     return null;
   }
 
   let establishmentTabs: Array<{
-    id: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout' | 'pausar';
+    id: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'pausar';
     label: string;
     icon: React.ComponentType<{ className?: string }>;
   }> = [];
@@ -294,33 +240,34 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   }
 
   return (
-    <nav 
+    <nav
       id="vagou-bottom-nav"
       style={navContainerStyle}
-      className={`shrink-0 w-full h-[80px] px-3 sm:px-6 gap-2 sm:gap-3 flex items-center justify-center z-30 transition-colors pb-[env(safe-area-inset-bottom,0px)] select-none ${navContainerClasses}`}
+      className={`shrink-0 w-full h-[76px] px-3 sm:px-6 gap-2 sm:gap-3 flex items-center justify-center z-30 transition-colors pb-[env(safe-area-inset-bottom,0px)] select-none ${
+        navBgStyle === 'transparent' ? 'border-t-0' : 'border-t'
+      }`}
     >
       {establishmentTabs.map((tab) => {
         const Icon = tab.icon;
         const isActive = activeTab === tab.id;
 
-        const effectiveActiveBg = (navBtnActiveBgColor && navBtnActiveBgColor !== 'transparent')
-          ? navBtnActiveBgColor
-          : navActiveColor;
+        const effectiveActiveBg =
+          navBtnActiveBgColor && navBtnActiveBgColor !== 'transparent'
+            ? navBtnActiveBgColor
+            : isDark
+              ? '#FFFFFF'
+              : navActiveColor;
 
-        // Se o botão ativo tem fundo branco/claro, a cor do ícone e textos deve ser a cor do tema
-        const resolvedActiveFg = (() => {
-          if (isWhiteOrLightHex(effectiveActiveBg)) {
-            return themeColorForWhiteBtn;
-          }
-          const bgLower = (effectiveActiveBg || '').trim().toLowerCase();
-          const fgLower = (rawNavActiveColor || navActiveColor || '').trim().toLowerCase();
-          if (bgLower && fgLower && bgLower === fgLower) {
-            return '#ffffff';
-          }
-          return '#ffffff';
-        })();
+        const resolvedActiveFg = isWhiteOrLightHex(effectiveActiveBg)
+          ? themeColorForWhiteBtn
+          : '#FFFFFF';
 
-        const resolvedInactiveFg = navTextColor && navTextColor !== 'transparent' ? navTextColor : undefined;
+        const resolvedInactiveFg =
+          navTextColor && navTextColor !== 'transparent' && !isLegacyOrSystemDefaultColor(navTextColor)
+            ? navTextColor
+            : isDark
+              ? '#94A3B8'
+              : presetTokens.navInactiveFg;
 
         if (navStyle === 'solid') {
           return (
@@ -332,9 +279,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 onSelectTab(tab.id);
               }}
               style={{
-                backgroundColor: isActive
-                  ? effectiveActiveBg
-                  : navBtnBgColor || undefined,
+                backgroundColor: isActive ? effectiveActiveBg : navBtnBgColor || undefined,
                 boxShadow: btnShadowCss !== 'none' ? btnShadowCss : undefined,
                 backdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
                 WebkitBackdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
@@ -346,46 +291,26 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               } ${
                 navBorder === 'bordered'
                   ? isActive
-                    ? isLightNavBg
-                      ? 'border border-emerald-600/40 shadow-sm'
-                      : 'border border-white/35 shadow-sm'
+                    ? 'border border-black/10 shadow-xs'
                     : isLightNavBg
-                      ? 'border border-slate-300 bg-white/70'
-                      : 'border border-slate-800/80'
+                      ? 'border border-slate-200 bg-slate-50/70 hover:bg-slate-100'
+                      : 'border border-white/15 bg-white/5 hover:bg-white/10'
                   : 'border-0'
-              } ${
-                isActive
-                  ? 'shadow-sm'
-                  : resolvedInactiveFg
-                    ? 'hover:opacity-90'
-                    : isLightNavBg
-                      ? 'text-slate-700 hover:text-slate-950 hover:bg-white'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
               }`}
             >
               {tab.id === 'pausar' && hasPausedSlots && (
-                <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-slate-950 animate-pulse" />
+                <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-slate-950" />
               )}
-              <Icon 
+              <Icon
                 className="w-5 h-5 stroke-[2.2] shrink-0"
-                style={{
-                  color: isActive ? resolvedActiveFg : resolvedInactiveFg,
-                }}
+                style={{ color: isActive ? resolvedActiveFg : resolvedInactiveFg }}
               />
-              <span 
+              <span
                 style={{
                   fontFamily: navBtnFont,
                   color: isActive ? resolvedActiveFg : resolvedInactiveFg,
                 }}
-                className={`text-[10px] tracking-wide font-bold truncate max-w-full leading-none ${
-                  isActive
-                    ? ''
-                    : resolvedInactiveFg
-                      ? ''
-                      : isLightNavBg
-                        ? 'text-slate-700'
-                        : 'text-slate-400'
-                }`}
+                className="text-[10px] tracking-wide font-bold truncate max-w-full leading-none"
               >
                 {tab.label}
               </span>
@@ -394,8 +319,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         }
 
         if (navStyle === 'boxed') {
-          const isBoxedBtnWhite = isWhiteOrLightHex(navBtnActiveBgColor) || isWhiteOrLightHex(effectiveActiveBg);
-          const boxedLabelActiveFg = isBoxedBtnWhite ? themeColorForWhiteBtn : (navActiveColor || resolvedActiveFg);
           return (
             <button
               key={tab.id}
@@ -407,7 +330,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               style={{
                 backgroundColor: !isActive && navBtnBgColor ? navBtnBgColor : isActive && navBtnActiveBgColor ? navBtnActiveBgColor : undefined,
                 fontFamily: navBtnFont,
-                color: isActive ? boxedLabelActiveFg : resolvedInactiveFg,
+                color: isActive ? (isLightNavBg ? themeColorForWhiteBtn : '#FFFFFF') : resolvedInactiveFg,
               }}
               className={`relative flex flex-col items-center justify-center gap-1 py-1 px-1.5 sm:px-3 transition active:scale-95 cursor-pointer group flex-1 min-w-0 max-w-[100px] ${
                 navShape === 'circle' ? 'rounded-2xl' : 'rounded-[4px]'
@@ -415,66 +338,50 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 navBorder === 'bordered'
                   ? isActive
                     ? isLightNavBg
-                      ? 'border border-emerald-500/60 bg-white shadow-xs'
-                      : 'border border-white/35 shadow-xs'
+                      ? 'border border-slate-300 bg-white shadow-xs'
+                      : 'border border-white/30 bg-white/10 shadow-xs'
                     : isLightNavBg
-                      ? 'border border-slate-300 bg-white/70'
-                      : 'border border-slate-800/80'
+                      ? 'border border-slate-200 bg-slate-50/70'
+                      : 'border border-white/15 bg-white/5'
                   : 'border-0'
               }`}
             >
               {tab.id === 'pausar' && hasPausedSlots && (
-                <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-slate-950 animate-pulse" />
+                <span className="absolute top-1 right-2 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-slate-950" />
               )}
-              <div 
+              <div
                 style={
                   isActive
-                    ? { 
-                        borderColor: navIconBorder === 'bordered' ? navActiveColor : 'transparent', 
+                    ? {
+                        borderColor: navIconBorder === 'bordered' ? effectiveActiveBg : 'transparent',
                         backgroundColor: effectiveActiveBg,
                         boxShadow: btnShadowCss !== 'none' ? btnShadowCss : undefined,
-                        backdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
-                        WebkitBackdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
                       }
                     : {
                         backgroundColor: navBtnBgColor || undefined,
-                        borderColor: navIconBorder === 'bordered' ? (resolvedInactiveFg ? `${resolvedInactiveFg}40` : undefined) : 'transparent',
-                        boxShadow: btnShadowCss !== 'none' ? btnShadowCss : undefined,
-                        backdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
-                        WebkitBackdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
                       }
                 }
                 className={`w-[34px] h-[34px] flex items-center justify-center transition-all ${
                   navShape === 'circle' ? 'rounded-full' : 'rounded-[4px]'
-                } ${
-                  navIconBorder === 'bordered' ? 'border' : 'border-0'
-                } ${
+                } ${navIconBorder === 'bordered' ? 'border' : 'border-0'} ${
                   isActive
                     ? 'scale-105 shadow-xs'
-                    : resolvedInactiveFg
-                      ? navIconBorder === 'bordered' ? 'border-white/25 bg-slate-950/30' : 'bg-slate-950/30 border-transparent'
-                      : isLightNavBg
-                        ? `text-slate-700 hover:text-slate-950 bg-slate-100 ${navIconBorder === 'bordered' ? 'border-slate-300 hover:border-emerald-500/40' : 'border-transparent'}`
-                        : `text-slate-400 hover:text-slate-200 bg-slate-950/70 ${navIconBorder === 'bordered' ? 'border-slate-800 hover:border-emerald-500/40' : 'border-transparent'}`
+                    : isLightNavBg
+                      ? 'bg-slate-100'
+                      : 'bg-white/10'
                 }`}
               >
-                <Icon 
+                <Icon
                   className="w-4.5 h-4.5 stroke-[2.2] shrink-0"
-                  style={{
-                    color: isActive ? resolvedActiveFg : resolvedInactiveFg,
-                  }}
+                  style={{ color: isActive ? resolvedActiveFg : resolvedInactiveFg }}
                 />
               </div>
-              <span 
+              <span
                 style={{
                   fontFamily: navBtnFont,
-                  color: isActive ? boxedLabelActiveFg : resolvedInactiveFg,
+                  color: isActive ? (isLightNavBg ? themeColorForWhiteBtn : '#FFFFFF') : resolvedInactiveFg,
                 }}
-                className={`text-[10px] tracking-wide font-bold truncate max-w-full transition-colors ${
-                  isActive || resolvedInactiveFg
-                    ? ''
-                    : isLightNavBg ? 'text-slate-700' : 'text-slate-400'
-                }`}
+                className="text-[10px] tracking-wide font-bold truncate max-w-full transition-colors"
               >
                 {tab.label}
               </span>
@@ -482,29 +389,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           );
         }
 
-        // Padrão 'minimal' (Clean Line — Botões com Borda Nítida + Indicador no Topo)
-        const hasCustomActiveBg = Boolean(navBtnActiveBgColor && navBtnActiveBgColor !== 'transparent');
-        const isMinimalActiveBgWhite = hasCustomActiveBg
-          ? isWhiteOrLightHex(navBtnActiveBgColor)
-          : isLightNavBg;
+        // Padrão 'minimal' (botão ativo nítido no tom do preset neutro)
+        const minimalBtnBg = isActive
+          ? effectiveActiveBg
+          : navBtnBgColor || (isLightNavBg ? '#FFFFFF' : 'rgba(255,255,255,0.06)');
 
-        const minimalActiveFg = (() => {
-          if (isMinimalActiveBgWhite) {
-            return themeColorForWhiteBtn;
-          }
-          if (hasCustomActiveBg) {
-            return resolvedActiveFg;
-          }
-          if (!isLightNavBg || isDefaultHeaderMatchBg) {
-            return '#ffffff';
-          }
-          return themeColorForWhiteBtn;
-        })();
-
-        const effectiveInactiveFg =
-          resolvedInactiveFg && (!isDefaultHeaderMatchBg || resolvedInactiveFg.toLowerCase() !== '#334155')
-            ? resolvedInactiveFg
-            : undefined;
+        const minimalBtnFg = isActive ? resolvedActiveFg : resolvedInactiveFg;
 
         return (
           <button
@@ -515,86 +405,43 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               onSelectTab(tab.id);
             }}
             style={{
-              backgroundColor: isActive && hasCustomActiveBg
-                ? navBtnActiveBgColor
-                : !isActive && navBtnBgColor
-                ? navBtnBgColor
-                : undefined,
+              backgroundColor: minimalBtnBg,
+              borderColor:
+                navBorder === 'bordered'
+                  ? isActive
+                    ? effectiveActiveBg
+                    : isLightNavBg
+                      ? presetTokens.navBorder
+                      : 'rgba(255,255,255,0.16)'
+                  : 'transparent',
               boxShadow: btnShadowCss !== 'none' ? btnShadowCss : undefined,
               backdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
               WebkitBackdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
               fontFamily: navBtnFont,
-              color: isActive ? minimalActiveFg : effectiveInactiveFg,
+              color: minimalBtnFg,
             }}
-            className={`relative h-[52px] flex flex-col items-center justify-center gap-1 px-1.5 sm:px-3.5 transition-all active:scale-95 cursor-pointer group flex-1 min-w-0 max-w-[100px] ${
+            className={`relative h-[50px] flex flex-col items-center justify-center gap-1 px-1.5 sm:px-3.5 transition-all active:scale-95 cursor-pointer group flex-1 min-w-0 max-w-[100px] ${
               navShape === 'circle' ? 'rounded-full' : 'rounded-[4px]'
-            } ${
-              navBorder === 'bordered'
-                ? isActive
-                  ? isLightNavBg
-                    ? navShape === 'circle'
-                      ? 'rounded-full border border-emerald-500/70 bg-white shadow-xs'
-                      : 'rounded-[4px] border border-emerald-500/70 bg-white shadow-xs'
-                    : navShape === 'circle'
-                      ? 'rounded-full border border-white/50 bg-white/20'
-                      : 'rounded-[4px] border border-white/50 bg-white/20'
-                  : isLightNavBg
-                    ? 'border border-[#A7F3D0] bg-white/75 hover:bg-white'
-                    : 'border border-white/25 bg-white/10 hover:bg-white/15'
-                : ''
-            }`}
+            } ${navBorder === 'bordered' ? 'border' : 'border-0'} ${isActive ? 'shadow-xs' : ''}`}
           >
             {tab.id === 'pausar' && hasPausedSlots && (
-              <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-slate-950 animate-pulse" />
+              <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-slate-950" />
             )}
-            {/* Indicador Superior */}
-            <span
-              style={
-                isActive
-                  ? {
-                      backgroundColor: isMinimalActiveBgWhite
-                        ? themeColorForWhiteBtn
-                        : !isLightNavBg || isDefaultHeaderMatchBg
-                          ? '#ffffff'
-                          : navActiveColor,
-                    }
-                  : undefined
-              }
-              className={`absolute top-0 left-1/2 -translate-x-1/2 h-[3px] rounded-b-[4px] transition-all duration-200 ${
-                isActive
-                  ? 'w-8 opacity-100'
-                  : 'w-0 bg-transparent opacity-0'
-              }`}
-            />
 
             <Icon
-              style={{
-                color: isActive ? minimalActiveFg : effectiveInactiveFg,
-              }}
+              style={{ color: minimalBtnFg }}
               className={`w-5 h-5 shrink-0 transition-transform duration-200 ${
-                isActive
-                  ? 'stroke-[2.4] -translate-y-0.5'
-                  : effectiveInactiveFg
-                    ? 'stroke-[2]'
-                    : isLightNavBg
-                      ? 'text-[#065F46] group-hover:text-[#047857] stroke-[2]'
-                      : 'text-white/85 group-hover:text-white stroke-[2]'
+                isActive ? 'stroke-[2.3]' : 'stroke-[1.9]'
               }`}
             />
 
             <span
               style={{
                 fontFamily: navBtnFont,
-                color: isActive ? minimalActiveFg : effectiveInactiveFg,
+                color: minimalBtnFg,
               }}
-              className={`text-[10px] tracking-wide font-bold truncate max-w-full leading-none transition-colors ${
-                isActive
-                  ? 'font-extrabold'
-                  : effectiveInactiveFg
-                    ? ''
-                    : isLightNavBg
-                      ? 'text-[#065F46] group-hover:text-[#047857]'
-                      : 'text-white/85 group-hover:text-white'
+              className={`text-[10px] tracking-wide truncate max-w-full leading-none transition-colors ${
+                isActive ? 'font-extrabold' : 'font-semibold'
               }`}
             >
               {tab.label}

@@ -1,58 +1,35 @@
-# 📖 Manual do Usuário & Guia de Uso — Vagou
+# 📖 Manual do Usuário & Guia Rápido — Vagou (`mnvapp`)
 
-> Bem-vindo ao **Vagou**, o aplicativo de agendamento de vagas imediatas e de última hora para barbearias, salões de beleza e estética!
-
----
-
-## 🚀 1. Como Funciona o Vagou?
-
-O Vagou conecta você em tempo real aos horários que acabaram de vagar nos melhores estabelecimentos próximos a você, muitas vezes com descontos relâmpago exclusivos.
+> Guia prático de uso do **VagouApp** para **Clientes** (Vitrine do Salão) e **Parceiros / Profissionais** (Gestão Meu Negócio).
 
 ---
 
-## 🧭 2. Navegando pelo Aplicativo
+## 🔐 1. Acesso Seguro (Login ou Cadastre-se)
 
-### 📱 Cabeçalho Superior (Topo da Tela)
-- **Logotipo Vagou**: Sempre visível à esquerda.
-- **Seletor Rápido de Perfil**: Alterne com um toque entre **Barbearia** (ideal para Anderson / homens) e **Salão** (ideal para esposa / mulheres). O feed se adapta automaticamente!
-- **Foto de Perfil (Extremo Direito)**: Toque na sua foto para abrir o **Menu do Perfil**, onde você pode gerenciar seus agendamentos, personalizar seus interesses ou acessar a área de parceiros.
-
-### 🏷️ Categorias Estilo Netflix
-Logo abaixo do cabeçalho, você encontra a barra horizontal de categorias limpas e diretas:
-- **Todas as Vagas**: Exibe todas as opções disponíveis.
-- **⚡ Relâmpago**: Vagas urgentes que expiram em poucos minutos com preços promocionais.
-- **Barba / Cabelo / Unhas / Sobrancelha / Estética**: Filtre exatamente pelo serviço que você precisa fazer agora.
+1. Ao abrir o aplicativo, entre com seu **E-mail, Usuário, CPF ou WhatsApp** e senha, ou toque em **Cadastre-se**.
+2. No cadastro, escolha uma **Pergunta de Segurança** para recuperar sua senha rapidamente sempre que precisar.
 
 ---
 
-## 🔍 3. Como Buscar um Estabelecimento ou Profissional
+## 🧭 2. Modo Cliente — Navegando pelo Salão
 
-1. Toque na aba **Buscar** no menu inferior.
-2. Digite o que procura: nome do salão, do barbeiro, do serviço (ex: *degradê*, *escova*, *gel*) ou do seu bairro (ex: *Itaquera*).
-3. Utilize os seletores de **Bairro** e de **Ordenação** (Mais Urgentes, Mais Próximos ou Menor Preço).
+A barra inferior possui **4 seções diretas**:
+- **Início**: Apresentação do salão, destaques, comodidades e acesso rápido aos horários do dia.
+- **Serviços**: Catálogo completo de procedimentos com valores e duração.
+- **Agenda**: Consulta de horários livres, reserva rápida e acompanhamento dos seus agendamentos (sempre ordenados do horário mais próximo para o mais distante).
+- **Espaço** *(ou Atendimento)*: Equipe de profissionais, fotos do ambiente e localização exata no mapa.
 
----
-
-## ⚡ 4. Como Agendar uma Vaga Imediata
-
-1. No feed do **Radar**, localize a vaga do seu interesse.
-2. Veja quanto tempo resta no cronômetro da vaga.
-3. Toque no botão verde **AGENDAR**.
-4. Confira o horário, a duração e o profissional.
-5. Toque em **AGENDAR AGORA**.
-6. Pronto! Você receberá seu **Código de Protocolo** para apresentar na recepção ao chegar.
+### ⚡ Recursos Exclusivos para o Cliente
+- **Conta Família**: No menu do seu perfil (canto superior direito), cadastre filhos ou dependentes e escolha para quem é o atendimento na hora de agendar.
+- **Permuta de Horário**: Precisa trocar de horário no mesmo dia? Solicite permuta direta com outro horário ocupado sem perder sua vez.
+- **Navegação GPS Ao Vivo**: No horário do atendimento, inicie o deslocamento (`Local Atual`, `De Casa` ou `Outro Local`) para acompanhar o mapa vertical em tempo real e avisar automaticamente o profissional quando estiver chegando.
 
 ---
 
-## 📅 5. Gerenciando Meus Agendamentos
+## 💈 3. Modo Parceiro — Gestão Meu Negócio
 
-- Acesse a aba **Agenda** na barra inferior.
-- Visualize todos os seus agendamentos ativos e concluídos.
-- Caso precise cancelar, você pode fazer isso gratuitamente até 1 hora antes do início do serviço com apenas um clique.
-
----
-
-## 🏢 6. Você é Dono de Salão ou Barbeiro?
-
-- Toque na sua foto de perfil no topo e selecione **Painel do Estabelecimento (Sou Parceiro)**.
-- Tenha acesso à sua grade de horários, profissionais da equipe e publique vagas relâmpago em segundos sempre que tiver uma desistência!
+Alterne para a visão profissional/administrador no menu superior para gerenciar o estabelecimento:
+- **Agenda & Pausar Horários**: Visualize os atendimentos do dia em ordem cronológica, encaixe clientes ou bloqueie intervalos de pausa/almoço.
+- **Caixa (`Pago` / `À pagar`)**: Registre pagamentos em PIX, cartão ou dinheiro e acompanhe o fechamento diário e comissões da equipe.
+- **Radar Relâmpago**: Publique horários vagos com destaque imediato para preencher desistências de última hora.
+- **Personalizar Salão**: Configure logotipo, cores da sua marca, fotos do espaço, serviços, equipe e medidores operacionais (água, energia, estoque e DRE).

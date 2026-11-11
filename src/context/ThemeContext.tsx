@@ -1,5 +1,192 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
+export type NeutralPresetId = 1 | 2 | 3;
+
+export interface NeutralPresetTokens {
+  id: NeutralPresetId;
+  shortLabel: string;
+  fullLabel: string;
+  outerBg: string;
+  canvasBg: string;
+  shellBorder: string;
+  cardBg: string;
+  cardBorder: string;
+  inputBg: string;
+  inputBorder: string;
+  headerBg: string;
+  headerBorder: string;
+  headerText: string;
+  headerSubtext: string;
+  headerBoxBg: string;
+  headerBoxBorder: string;
+  headerIsDark: boolean;
+  sectionBg: string;
+  sectionBorder: string;
+  sectionText: string;
+  sectionIcon: string;
+  navBg: string;
+  navBorder: string;
+  navIsDark: boolean;
+  navActiveBtnBg: string;
+  navActiveBtnFg: string;
+  navInactiveFg: string;
+  actionBg: string;
+  actionHover: string;
+  subtleHaloBg: string;
+  subtleHaloFg: string;
+  priceOnDarkCard: string;
+  dotOnDarkCard: string;
+}
+
+export const NEUTRAL_PRESETS: Record<NeutralPresetId, NeutralPresetTokens> = {
+  1: {
+    id: 1,
+    shortLabel: '1 · Puro',
+    fullLabel: 'Opção 1 — Neutro Puro Editorial (Branco, Gelo & Grafite)',
+    outerBg: '#EEF2F6',
+    canvasBg: '#F8FAFC',
+    shellBorder: '#E2E8F0',
+    cardBg: '#FFFFFF',
+    cardBorder: '#E2E8F0',
+    inputBg: '#F8FAFC',
+    inputBorder: '#CBD5E1',
+    headerBg: '#FFFFFF',
+    headerBorder: '#E2E8F0',
+    headerText: '#0F172A',
+    headerSubtext: '#64748B',
+    headerBoxBg: '#F8FAFC',
+    headerBoxBorder: '#E2E8F0',
+    headerIsDark: false,
+    sectionBg: '#FFFFFF',
+    sectionBorder: '#E2E8F0',
+    sectionText: '#0F172A',
+    sectionIcon: '#18181B',
+    navBg: '#FFFFFF',
+    navBorder: '#E2E8F0',
+    navIsDark: false,
+    navActiveBtnBg: '#18181B',
+    navActiveBtnFg: '#FFFFFF',
+    navInactiveFg: '#475569',
+    actionBg: '#18181B',
+    actionHover: '#27272A',
+    subtleHaloBg: '#F1F5F9',
+    subtleHaloFg: '#18181B',
+    priceOnDarkCard: '#FFFFFF',
+    dotOnDarkCard: '#E2E8F0',
+  },
+  2: {
+    id: 2,
+    shortLabel: '2 · Acetinado',
+    fullLabel: 'Opção 2 — Neutro Acetinado (Zinc / Pedra Suave)',
+    outerBg: '#E4E4E7',
+    canvasBg: '#F4F4F5',
+    shellBorder: '#D4D4D8',
+    cardBg: '#FFFFFF',
+    cardBorder: '#E4E4E7',
+    inputBg: '#FAFAFA',
+    inputBorder: '#D4D4D8',
+    headerBg: '#FAFAFA',
+    headerBorder: '#E4E4E7',
+    headerText: '#18181B',
+    headerSubtext: '#71717A',
+    headerBoxBg: '#FFFFFF',
+    headerBoxBorder: '#E4E4E7',
+    headerIsDark: false,
+    sectionBg: '#FAFAFA',
+    sectionBorder: '#E4E4E7',
+    sectionText: '#18181B',
+    sectionIcon: '#3F3F46',
+    navBg: '#FAFAFA',
+    navBorder: '#E4E4E7',
+    navIsDark: false,
+    navActiveBtnBg: '#27272A',
+    navActiveBtnFg: '#FFFFFF',
+    navInactiveFg: '#52525B',
+    actionBg: '#27272A',
+    actionHover: '#18181B',
+    subtleHaloBg: '#F4F4F5',
+    subtleHaloFg: '#27272A',
+    priceOnDarkCard: '#34D399',
+    dotOnDarkCard: '#34D399',
+  },
+  3: {
+    id: 3,
+    shortLabel: '3 · Grafite',
+    fullLabel: 'Opção 3 — Moldura Grafite + Miolo Neutro Claro',
+    outerBg: '#DDE3EA',
+    canvasBg: '#F8FAFC',
+    shellBorder: '#CBD5E1',
+    cardBg: '#FFFFFF',
+    cardBorder: '#E2E8F0',
+    inputBg: '#F8FAFC',
+    inputBorder: '#CBD5E1',
+    headerBg: '#18181B',
+    headerBorder: '#27272A',
+    headerText: '#FFFFFF',
+    headerSubtext: '#A1A1AA',
+    headerBoxBg: '#27272A',
+    headerBoxBorder: '#3F3F46',
+    headerIsDark: true,
+    sectionBg: '#FFFFFF',
+    sectionBorder: '#E2E8F0',
+    sectionText: '#0F172A',
+    sectionIcon: '#18181B',
+    navBg: '#18181B',
+    navBorder: '#27272A',
+    navIsDark: true,
+    navActiveBtnBg: '#FFFFFF',
+    navActiveBtnFg: '#18181B',
+    navInactiveFg: '#D4D4D8',
+    actionBg: '#18181B',
+    actionHover: '#27272A',
+    subtleHaloBg: '#F1F5F9',
+    subtleHaloFg: '#18181B',
+    priceOnDarkCard: '#FFFFFF',
+    dotOnDarkCard: '#E4E4E7',
+  },
+};
+
+const LEGACY_SYSTEM_COLORS = new Set([
+  '',
+  'transparent',
+  '#ffffff',
+  '#fff',
+  'white',
+  '#005ca9',
+  '#2b82c9',
+  '#10b981',
+  '#20c933',
+  '#059669',
+  '#065f46',
+  '#047857',
+  '#d1fae5',
+  '#dcfce7',
+  '#ecfdf5',
+  '#f0fdf4',
+  '#a7f3d0',
+  '#f1f5f9',
+  '#f8fafc',
+  '#fafafa',
+  '#f4f4f5',
+  '#18181b',
+  '#27272a',
+  '#0f172a',
+]);
+
+export function isLegacyOrSystemDefaultColor(rawColor?: string | null): boolean {
+  if (!rawColor) return true;
+  return LEGACY_SYSTEM_COLORS.has(rawColor.trim().toLowerCase());
+}
+
+export function getCurrentNeutralPreset(): NeutralPresetId {
+  if (typeof window === 'undefined') return 1;
+  try {
+    const saved = Number(localStorage.getItem('vagou_neutral_preset'));
+    if (saved === 1 || saved === 2 || saved === 3) return saved;
+  } catch {}
+  return 1;
+}
+
 export interface ThemeContextType {
   theme: 'dark' | 'light';
   isDark: boolean;
@@ -7,6 +194,10 @@ export interface ThemeContextType {
   setTheme: (theme: 'dark' | 'light', options?: { isExplicitUserChoice?: boolean }) => void;
   accentColor: string;
   setAccentColor: (color: string) => void;
+  neutralPreset: NeutralPresetId;
+  presetTokens: NeutralPresetTokens;
+  setNeutralPreset: (preset: NeutralPresetId) => void;
+  cycleNeutralPreset: () => void;
 }
 
 export const ThemeContext = createContext<ThemeContextType>({
@@ -14,34 +205,17 @@ export const ThemeContext = createContext<ThemeContextType>({
   isDark: false,
   toggleTheme: () => {},
   setTheme: () => {},
-  accentColor: '#10B981',
+  accentColor: '#18181B',
   setAccentColor: () => {},
+  neutralPreset: 1,
+  presetTokens: NEUTRAL_PRESETS[1],
+  setNeutralPreset: () => {},
+  cycleNeutralPreset: () => {},
 });
 
-const isAchromaticOrGreyHex = (hexStr: string): boolean => {
-  const clean = hexStr.replace('#', '').trim();
-  const full =
-    clean.length === 3
-      ? clean
-          .split('')
-          .map((c) => c + c)
-          .join('')
-      : clean;
-  if (full.length !== 6) return true;
-  const r = parseInt(full.slice(0, 2), 16);
-  const g = parseInt(full.slice(2, 4), 16);
-  const b = parseInt(full.slice(4, 6), 16);
-  if (isNaN(r) || isNaN(g) || isNaN(b)) return true;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  // Rejeita qualquer tom acinzentado/neutro (saturação baixa), branco ou preto
-  if (max - min < 38) return true;
-  if (max < 45 || min > 225) return true;
-  return false;
-};
-
-export const sanitizeAccentColor = (rawColor?: string | null): string => {
-  if (!rawColor) return '#10B981';
+export const sanitizeAccentColor = (rawColor?: string | null, fallbackPreset?: NeutralPresetId): string => {
+  const preset = NEUTRAL_PRESETS[fallbackPreset || getCurrentNeutralPreset()];
+  if (!rawColor) return preset.actionBg;
   const trimmed = rawColor.trim().toLowerCase();
   if (
     !trimmed ||
@@ -50,195 +224,98 @@ export const sanitizeAccentColor = (rawColor?: string | null): string => {
     trimmed === '#fff' ||
     trimmed === 'white' ||
     trimmed === '#005ca9' ||
-    trimmed === '#2b82c9'
+    trimmed === '#2b82c9' ||
+    trimmed === '#10b981' ||
+    trimmed === '#20c933'
   ) {
-    return '#10B981';
+    return preset.actionBg;
   }
   const colorMap: Record<string, string> = {
+    neutral: '#18181B',
+    zinc: '#27272A',
     emerald: '#10B981',
-    blue: '#2B82C9',
-    rose: '#ef4444',
-    amber: '#f59e0b',
-    violet: '#8b5cf6',
+    blue: '#2563EB',
+    rose: '#E11D48',
+    amber: '#D97706',
+    violet: '#7C3AED',
   };
   if (colorMap[trimmed]) return colorMap[trimmed];
-  if (!rawColor.startsWith('#')) return '#10B981';
-  if (isAchromaticOrGreyHex(trimmed)) {
-    return '#10B981';
-  }
+  if (!rawColor.startsWith('#')) return preset.actionBg;
   return rawColor.trim();
 };
 
-export const applyAccentColorToDom = (color: string) => {
-  const hex = sanitizeAccentColor(color || '#10B981');
+export const applyNeutralPresetToDom = (presetId: NeutralPresetId, customAccent?: string) => {
+  if (typeof document === 'undefined') return;
+  const tokens = NEUTRAL_PRESETS[presetId] || NEUTRAL_PRESETS[1];
+  const root = document.documentElement;
+  root.setAttribute('data-neutral-preset', String(tokens.id));
+
+  root.style.setProperty('--neutral-outer-bg', tokens.outerBg);
+  root.style.setProperty('--neutral-canvas-bg', tokens.canvasBg);
+  root.style.setProperty('--neutral-shell-border', tokens.shellBorder);
+  root.style.setProperty('--neutral-card-bg', tokens.cardBg);
+  root.style.setProperty('--neutral-card-border', tokens.cardBorder);
+  root.style.setProperty('--neutral-input-bg', tokens.inputBg);
+  root.style.setProperty('--neutral-input-border', tokens.inputBorder);
+  root.style.setProperty('--neutral-header-bg', tokens.headerBg);
+  root.style.setProperty('--neutral-header-border', tokens.headerBorder);
+  root.style.setProperty('--neutral-header-text', tokens.headerText);
+  root.style.setProperty('--neutral-header-subtext', tokens.headerSubtext);
+  root.style.setProperty('--neutral-header-box-bg', tokens.headerBoxBg);
+  root.style.setProperty('--neutral-header-box-border', tokens.headerBoxBorder);
+  root.style.setProperty('--neutral-section-bg', tokens.sectionBg);
+  root.style.setProperty('--neutral-section-border', tokens.sectionBorder);
+  root.style.setProperty('--neutral-section-text', tokens.sectionText);
+  root.style.setProperty('--neutral-section-icon', tokens.sectionIcon);
+  root.style.setProperty('--neutral-nav-bg', tokens.navBg);
+  root.style.setProperty('--neutral-nav-border', tokens.navBorder);
+  root.style.setProperty('--neutral-action-bg', customAccent && !isLegacyOrSystemDefaultColor(customAccent) ? customAccent : tokens.actionBg);
+  root.style.setProperty('--neutral-action-hover', tokens.actionHover);
+  root.style.setProperty('--neutral-halo-bg', tokens.subtleHaloBg);
+  root.style.setProperty('--neutral-halo-fg', tokens.subtleHaloFg);
+  root.style.setProperty('--neutral-price-on-dark', tokens.priceOnDarkCard);
+  root.style.setProperty('--neutral-dot-on-dark', tokens.dotOnDarkCard);
+};
+
+export const applyAccentColorToDom = (color: string, presetOverride?: NeutralPresetId) => {
+  const presetId = presetOverride || getCurrentNeutralPreset();
+  const tokens = NEUTRAL_PRESETS[presetId] || NEUTRAL_PRESETS[1];
+  const hex = isLegacyOrSystemDefaultColor(color)
+    ? tokens.actionBg
+    : sanitizeAccentColor(color, presetId);
 
   try {
-    localStorage.setItem('vagou_accent_color', hex);
+    applyNeutralPresetToDom(presetId, hex);
 
-    // 1. Atualiza propriedades CSS no documentElement
     const root = document.documentElement;
     root.style.setProperty('--accent-color', hex);
-    root.style.setProperty('--color-emerald-50', `color-mix(in srgb, ${hex} 10%, white 90%)`);
-    root.style.setProperty('--color-emerald-100', `color-mix(in srgb, ${hex} 18%, white 82%)`);
-    root.style.setProperty('--color-emerald-200', `color-mix(in srgb, ${hex} 30%, white 70%)`);
-    root.style.setProperty('--color-emerald-300', `color-mix(in srgb, ${hex} 70%, white 30%)`);
-    root.style.setProperty('--color-emerald-400', `color-mix(in srgb, ${hex} 85%, white 15%)`);
-    root.style.setProperty('--color-emerald-500', hex);
-    root.style.setProperty('--color-emerald-600', `color-mix(in srgb, ${hex} 85%, black 15%)`);
-    root.style.setProperty('--color-emerald-700', `color-mix(in srgb, ${hex} 70%, black 30%)`);
-    root.style.setProperty('--color-emerald-800', `color-mix(in srgb, ${hex} 55%, black 45%)`);
-    root.style.setProperty('--color-emerald-900', `color-mix(in srgb, ${hex} 40%, black 60%)`);
-    root.style.setProperty('--color-emerald-950', `color-mix(in srgb, ${hex} 20%, black 80%)`);
 
-    // 2. Injeta tag de estilo dinâmica para garantir reatividade total em botões, bordas, subtítulos e textos secundários
-    let styleEl = document.getElementById('vagou-dynamic-accent');
-    if (!styleEl) {
-      styleEl = document.createElement('style');
-      styleEl.id = 'vagou-dynamic-accent';
-      document.head.appendChild(styleEl);
-    }
-    styleEl.textContent = `
-      :root {
-        --accent-color: ${hex} !important;
-        --color-emerald-50: color-mix(in srgb, ${hex} 10%, white 90%) !important;
-        --color-emerald-100: color-mix(in srgb, ${hex} 18%, white 82%) !important;
-        --color-emerald-200: color-mix(in srgb, ${hex} 30%, white 70%) !important;
-        --color-emerald-300: color-mix(in srgb, ${hex} 70%, white 30%) !important;
-        --color-emerald-400: color-mix(in srgb, ${hex} 85%, white 15%) !important;
-        --color-emerald-500: ${hex} !important;
-        --color-emerald-600: color-mix(in srgb, ${hex} 85%, black 15%) !important;
-        --color-emerald-700: color-mix(in srgb, ${hex} 70%, black 30%) !important;
-        --color-emerald-800: color-mix(in srgb, ${hex} 55%, black 45%) !important;
-        --color-emerald-900: color-mix(in srgb, ${hex} 40%, black 60%) !important;
-        --color-emerald-950: color-mix(in srgb, ${hex} 20%, black 80%) !important;
-      }
-      .bg-accent, .bg-\\[\\#20C933\\], .status-green-bg {
-        background-color: ${hex} !important;
-        color: #ffffff !important;
-      }
-      .hover\\:bg-\\[\\#1bb32d\\]:hover, .hover\\:bg-\\[\\#1eb72e\\]:hover {
-        background-color: color-mix(in srgb, ${hex} 85%, black 15%) !important;
-      }
-      .text-accent, .text-\\[\\#20C933\\] {
-        color: ${hex} !important;
-      }
-      .text-\\[\\#087A2A\\] {
-        color: color-mix(in srgb, ${hex} 72%, black 28%) !important;
-      }
-      .border-accent, .border-\\[\\#20C933\\] {
-        border-color: ${hex} !important;
-      }
-      .dark .border-slate-800:not([style*="border-color"]),
-      .dark .border-slate-800\\/90:not([style*="border-color"]),
-      .dark .border-slate-800\\/80:not([style*="border-color"]),
-      .dark .border-slate-800\\/60:not([style*="border-color"]) {
-        border-color: color-mix(in srgb, ${hex} 24%, #1e293b 76%) !important;
-      }
-      .dark .border-slate-700:not([style*="border-color"]),
-      .dark .border-slate-700\\/80:not([style*="border-color"]),
-      .dark .border-slate-700\\/60:not([style*="border-color"]) {
-        border-color: color-mix(in srgb, ${hex} 32%, #334155 68%) !important;
-      }
-      html:not(.dark) .border-slate-200:not([style*="border-color"]),
-      html:not(.dark) .border-slate-200\\/90:not([style*="border-color"]),
-      html:not(.dark) .border-slate-200\\/80:not([style*="border-color"]),
-      html:not(.dark) .border-slate-800:not([style*="border-color"]),
-      html:not(.dark) .border-slate-800\\/90:not([style*="border-color"]),
-      html:not(.dark) .border-slate-800\\/80:not([style*="border-color"]),
-      html:not(.dark) .border-slate-800\\/60:not([style*="border-color"]) {
-        border-color: color-mix(in srgb, ${hex} 22%, #e2e8f0 78%) !important;
-      }
-      html:not(.dark) .border-slate-300:not([style*="border-color"]),
-      html:not(.dark) .border-slate-700:not([style*="border-color"]),
-      html:not(.dark) .border-slate-700\\/80:not([style*="border-color"]),
-      html:not(.dark) .border-slate-700\\/60:not([style*="border-color"]) {
-        border-color: color-mix(in srgb, ${hex} 28%, #cbd5e1 72%) !important;
-      }
-      .dark .text-slate-300:not([style*="color"]) {
-        color: color-mix(in srgb, ${hex} 16%, #cbd5e1 84%) !important;
-      }
-      .dark .text-slate-400:not([style*="color"]) {
-        color: color-mix(in srgb, ${hex} 24%, #94a3b8 76%) !important;
-      }
-      .dark .text-slate-500:not([style*="color"]) {
-        color: color-mix(in srgb, ${hex} 20%, #64748b 80%) !important;
-      }
-      html:not(.dark) .text-slate-400:not([style*="color"]) {
-        color: color-mix(in srgb, ${hex} 25%, #64748b 75%) !important;
-      }
-      html:not(.dark) .text-slate-500:not([style*="color"]) {
-        color: color-mix(in srgb, ${hex} 28%, #475569 72%) !important;
-      }
-      html:not(.dark) .text-slate-600:not([style*="color"]) {
-        color: color-mix(in srgb, ${hex} 24%, #334155 76%) !important;
-      }
-      .text-white, .dark .text-white {
-        color: #ffffff !important;
-      }
-    `;
-
-    // 3. Atualiza meta theme-color da barra de status móvel
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-      metaThemeColor.setAttribute('content', hex);
+      metaThemeColor.setAttribute('content', tokens.headerBg);
     }
   } catch (err) {
-    console.error('Erro ao aplicar cor de destaque:', err);
+    console.error('Erro ao aplicar tema:', err);
   }
 };
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [neutralPreset, setNeutralPresetState] = useState<NeutralPresetId>(() => {
+    const initialPreset = getCurrentNeutralPreset();
+    if (typeof document !== 'undefined') {
+      applyNeutralPresetToDom(initialPreset);
+    }
+    return initialPreset;
+  });
+
   const [theme, setThemeState] = useState<'dark' | 'light'>(() => {
     try {
       const explicitChoice = localStorage.getItem('vagou_user_theme_preference');
-      let salonDefaultTheme: 'dark' | 'light' | undefined = undefined;
-
-      const settingsStr = localStorage.getItem('vagou_salon_admin_settings');
-      if (settingsStr) {
-        try {
-          const parsed = JSON.parse(settingsStr);
-          if (parsed && (parsed.defaultTheme === 'dark' || parsed.defaultTheme === 'light')) {
-            salonDefaultTheme = parsed.defaultTheme;
-          }
-        } catch (e) {
-          console.warn('[Theme:ThemeProvider] Erro ao parsear vagou_salon_admin_settings:', e);
-        }
-      }
-
-      if (!salonDefaultTheme) {
-        try {
-          const partnerStr = localStorage.getItem('vagou_partner_data');
-          if (partnerStr) {
-            const parsed = JSON.parse(partnerStr);
-            if (parsed && (parsed.defaultTheme === 'dark' || parsed.defaultTheme === 'light')) {
-              salonDefaultTheme = parsed.defaultTheme;
-            }
-          }
-        } catch {}
-      }
-
-      const hasExplicitChoice = explicitChoice === 'dark' || explicitChoice === 'light';
-      const resolvedTheme: 'dark' | 'light' = hasExplicitChoice
-        ? (explicitChoice as 'dark' | 'light')
-        : (salonDefaultTheme === 'dark' || salonDefaultTheme === 'light')
-          ? salonDefaultTheme
+      const resolvedTheme: 'dark' | 'light' =
+        explicitChoice === 'dark' || explicitChoice === 'light'
+          ? explicitChoice
           : 'light';
 
-      const sourceDescription = hasExplicitChoice
-        ? 'vagou_user_theme_preference'
-        : salonDefaultTheme
-          ? 'salonSettings.defaultTheme'
-          : 'fallback_light';
-
-      console.log('[Theme:ThemeProvider] Rastreamento de Fonte de Preferência de Tema:', {
-        vagou_user_theme_preference: explicitChoice,
-        'salonSettings.defaultTheme': salonDefaultTheme,
-        source: sourceDescription,
-        resolvedTheme,
-        documentHasDarkClass: typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') : false
-      });
-
-      // Aplica imediatamente no documentElement para garantir alinhamento pré-render
       if (typeof document !== 'undefined') {
         if (resolvedTheme === 'dark') {
           document.documentElement.classList.add('dark');
@@ -248,99 +325,109 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       return resolvedTheme;
-    } catch (err) {
-      console.warn('[Theme:ThemeProvider] Erro inesperado na inicialização:', err);
+    } catch {
       return 'light';
     }
   });
 
   const [accentColor, setAccentColorState] = useState<string>(() => {
     try {
-      let saved = localStorage.getItem('vagou_accent_color');
-      if (!saved) {
-        const settingsStr = localStorage.getItem('vagou_salon_admin_settings');
-        if (settingsStr) {
-          const parsed = JSON.parse(settingsStr);
-          if (parsed && parsed.accentColor) saved = parsed.accentColor;
-        }
-      }
-      const initial = sanitizeAccentColor(saved);
-      applyAccentColorToDom(initial);
-      return initial;
+      const saved = localStorage.getItem('vagou_accent_color');
+      const initialPreset = getCurrentNeutralPreset();
+      const resolved = isLegacyOrSystemDefaultColor(saved)
+        ? NEUTRAL_PRESETS[initialPreset].actionBg
+        : sanitizeAccentColor(saved, initialPreset);
+      applyAccentColorToDom(resolved, initialPreset);
+      return resolved;
     } catch {
-      return '#20C933';
+      return NEUTRAL_PRESETS[1].actionBg;
     }
   });
 
   const isDark = theme === 'dark';
+  const presetTokens = NEUTRAL_PRESETS[neutralPreset] || NEUTRAL_PRESETS[1];
 
   useEffect(() => {
     try {
-      const hadDarkBefore = document.documentElement.classList.contains('dark');
       if (theme === 'dark') {
         document.documentElement.classList.add('dark');
       } else {
         document.documentElement.classList.remove('dark');
       }
-      const hasDarkAfter = document.documentElement.classList.contains('dark');
-      console.log('[Theme:useEffect[theme]] Sincronizando classe "dark" no DOM:', {
-        theme,
-        hadDarkBefore,
-        hasDarkAfter,
-        domDarkApplied: hasDarkAfter
-      });
-    } catch (err) {
-      console.warn('[Theme:useEffect[theme]] Erro ao sincronizar classes DOM:', err);
-    }
+    } catch {}
   }, [theme]);
 
   useEffect(() => {
-    applyAccentColorToDom(accentColor);
-  }, [accentColor]);
+    applyAccentColorToDom(accentColor, neutralPreset);
+  }, [accentColor, neutralPreset]);
 
   const toggleTheme = () => {
     setThemeState((prev) => {
       const next = prev === 'dark' ? 'light' : 'dark';
-      console.log('[Theme:toggleTheme] Alternando tema manualmente pelo usuário:', {
-        previousTheme: prev,
-        nextTheme: next
-      });
       try {
         localStorage.setItem('vagou_user_theme_preference', next);
         localStorage.setItem('vagou_theme', next);
-      } catch (err) {
-        console.warn('[Theme:toggleTheme] Erro ao persistir tema:', err);
-      }
+      } catch {}
       return next;
     });
   };
 
   const setTheme = (newTheme: 'dark' | 'light', options?: { isExplicitUserChoice?: boolean }) => {
     const isExplicit = options?.isExplicitUserChoice !== false;
-    console.log('[Theme:setTheme] Definindo tema:', {
-      newTheme,
-      isExplicitUserChoice: isExplicit,
-      source: isExplicit ? 'user_manual_selection' : 'salon_sync'
-    });
     setThemeState(newTheme);
     try {
       if (isExplicit) {
         localStorage.setItem('vagou_user_theme_preference', newTheme);
       }
       localStorage.setItem('vagou_theme', newTheme);
-    } catch (err) {
-      console.warn('[Theme:setTheme] Erro ao persistir tema:', err);
-    }
+    } catch {}
   };
 
   const setAccentColor = (color: string) => {
-    const clean = sanitizeAccentColor(color);
+    const clean = sanitizeAccentColor(color, neutralPreset);
     setAccentColorState(clean);
-    applyAccentColorToDom(clean);
+    try {
+      localStorage.setItem('vagou_accent_color', clean);
+    } catch {}
+    applyAccentColorToDom(clean, neutralPreset);
+  };
+
+  const setNeutralPreset = (preset: NeutralPresetId) => {
+    setNeutralPresetState(preset);
+    const nextTokens = NEUTRAL_PRESETS[preset];
+    try {
+      localStorage.setItem('vagou_neutral_preset', String(preset));
+      localStorage.removeItem('vagou_user_theme_preference');
+    } catch {}
+    setThemeState('light');
+    if (isLegacyOrSystemDefaultColor(accentColor)) {
+      setAccentColorState(nextTokens.actionBg);
+      applyAccentColorToDom(nextTokens.actionBg, preset);
+    } else {
+      applyAccentColorToDom(accentColor, preset);
+    }
+  };
+
+  const cycleNeutralPreset = () => {
+    const next: NeutralPresetId = neutralPreset === 1 ? 2 : neutralPreset === 2 ? 3 : 1;
+    setNeutralPreset(next);
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark, toggleTheme, setTheme, accentColor, setAccentColor }}>
+    <ThemeContext.Provider
+      value={{
+        theme,
+        isDark,
+        toggleTheme,
+        setTheme,
+        accentColor,
+        setAccentColor,
+        neutralPreset,
+        presetTokens,
+        setNeutralPreset,
+        cycleNeutralPreset,
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );
