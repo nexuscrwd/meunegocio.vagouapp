@@ -389,12 +389,19 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           );
         }
 
-        // Padrão 'minimal' (botão ativo nítido no tom do preset neutro)
+        // Padrão 'minimal' claro neutro: barra #F1F5F9 com botão ativo branco nítido (#FFFFFF) e inativos translúcidos claros
+        const isActiveWhiteOnLight = isActive && isLightNavBg && isWhiteOrLightHex(effectiveActiveBg);
         const minimalBtnBg = isActive
           ? effectiveActiveBg
-          : navBtnBgColor || (isLightNavBg ? '#FFFFFF' : 'rgba(255,255,255,0.06)');
+          : navBtnBgColor || (isLightNavBg ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.06)');
 
-        const minimalBtnFg = isActive ? resolvedActiveFg : resolvedInactiveFg;
+        const minimalBtnFg = isActive
+          ? isActiveWhiteOnLight
+            ? hasCustomActiveColor
+              ? themeColorForWhiteBtn
+              : presetTokens.navActiveBtnFg
+            : resolvedActiveFg
+          : resolvedInactiveFg;
 
         return (
           <button
@@ -409,12 +416,19 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               borderColor:
                 navBorder === 'bordered'
                   ? isActive
-                    ? effectiveActiveBg
+                    ? isActiveWhiteOnLight
+                      ? '#CBD5E1'
+                      : effectiveActiveBg
                     : isLightNavBg
                       ? presetTokens.navBorder
                       : 'rgba(255,255,255,0.16)'
                   : 'transparent',
-              boxShadow: btnShadowCss !== 'none' ? btnShadowCss : undefined,
+              boxShadow:
+                btnShadowCss !== 'none'
+                  ? btnShadowCss
+                  : isActiveWhiteOnLight
+                    ? '0 1px 3px rgba(15, 23, 42, 0.08)'
+                    : undefined,
               backdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
               WebkitBackdropFilter: btnBlurCss !== 'none' ? btnBlurCss : undefined,
               fontFamily: navBtnFont,
@@ -425,7 +439,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             } ${navBorder === 'bordered' ? 'border' : 'border-0'} ${isActive ? 'shadow-xs' : ''}`}
           >
             {tab.id === 'pausar' && hasPausedSlots && (
-              <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-slate-950" />
+              <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-white dark:ring-slate-950" />
             )}
 
             <Icon

@@ -11,6 +11,50 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-11] — Homologação do Comunicado `admvapp` (`bol-160`) & Fluxo de Recadastro de Pergunta Secreta pós-Reset de Suporte (`bol-163`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Feat / Security / Triad Sync]`
+- **Motivo / Solicitação:** Recepção e homologação do Comunicado Técnico do `admvapp` (`bol-160`), implementando no perfil do usuário (`ProfileDrawer` e `UserDashboard`) o recadastro imediato de pergunta secreta sempre que `clients.security_question_code` e `public.user_security_answers` estiverem vazios após um reset administrativo de suporte no `admvapp`, mantendo o esquema padrão Claro & Neutro (`bol-162`).
+- **Arquivos Impactados:**
+  - `src/components/auth/SecurityQuestionProfileCard.tsx` *(novo componente reutilizável)*
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/UserDashboard.tsx`
+  - `ECOSYSTEM_CONTRACT.md`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Detecção Pós-Reset (`SecurityQuestionProfileCard.tsx`):** Verifica `public.clients` (`security_question_code`, `security_answer_normalized`) e `public.user_security_answers` ao abrir *Meus Dados Pessoais*. Se ambos estiverem nulos/vazios após `POST /api/admin/users/:kind/:id/reset-security` no `admvapp`, limpa automaticamente o cache local correspondente (`vagou_user_security_answers`) e abre o formulário de cadastro de nova pergunta secreta com status *"Pendente"*.
+  2. **Persistência Sincronizada:** Salva simultaneamente em `public.clients` e `public.user_security_answers` (`client_id,question_code`), usando as 3 perguntas oficiais de `OFFICIAL_SECURITY_QUESTIONS` e normalização `NFD`.
+  3. **Limpeza de Código (`UserDashboard.tsx`):** Removidos `console.log` temporários e o indicador de telemetria pulsante do cabeçalho, unificando o padrão visual Claro & Neutro.
+
+### [2026-11-11] — Travamento Estrito do Tema Claro Neutro como Padrão Inicial Universal (`bol-162`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / UI / Theme / Light Default]`
+- **Motivo / Solicitação:** Garantir que **por padrão o tom seja sempre claro e neutro** em toda a aplicação, impedindo que caches antigos de `localStorage` (`vagou_user_theme_preference`, `vagou_theme`, `vagou_neutral_preset = '3'`) ou registros legados do Supabase (`default_theme = 'dark'`) escureçam o app ou as barras superior/inferior na abertura.
+- **Arquivos Impactados:**
+  - `index.html`
+  - `src/context/ThemeContext.tsx`
+  - `src/index.css`
+  - `src/components/MobileHeader.tsx`
+  - `src/components/BottomNav.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/LayoutCardView.tsx`
+  - `src/utils/pwaAssets.ts`
+  - `src/lib/supabase.ts`
+  - `supabase/schema.sql`
+  - `supabase/migrations/20261111_master_convergence_v5_0.sql`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Pré-Hidratação & `ThemeContext` Estritamente Claros (`default = 'light'`):** Purga automática de chaves legadas (`vagou_user_theme_preference`, `vagou_theme`, `vagou_neutral_preset`) e isolamento da escolha manual na chave limpa `vagou_theme_mode_v3`, garantindo que o HTML e o React iniciem sempre no modo claro neutro (`#FFFFFF` / `#F8FAFC` / `#F1F5F9`).
+  2. **Blindagem contra `default_theme = 'dark'` Legado no Banco:** `SalonProfileView.tsx` e `src/lib/supabase.ts` passaram a tratar `'light'` como padrão universal, ignorando valores `'dark'` herdados de migrações antigas quando não houver flag explícita `branding.themeExplicitlyCustomized = true`.
+  3. **Harmonia Visual Clara de Ponta a Ponta:** Cabeçalho e subcabeçalhos em branco (`#FFFFFF`) com borda `#E2E8F0`, fundo em gelo suave (`#F8FAFC`), barra inferior clara (`#F1F5F9`) com botão ativo branco nítido (`#FFFFFF` + borda `#CBD5E1` + ícone/texto `#0F172A`) e botões de ação neutros em Slate (`#334155` com texto branco `#FFFFFF`).
+
+### [2026-11-11] — Remoção do Seletor Flutuante de Temas (`NeutralThemePreviewSwitcher`) após Escolha (`bol-161`)
+- **Tipo:** `[UI / Clean Code / Focus Mode]`
+- **Motivo / Solicitação:** Remover o seletor flutuante (`aside` — `NeutralThemePreviewSwitcher`) selecionado via Focus Mode após a validação do esquema neutro.
+- **Arquivos Impactados:**
+  - `src/App.tsx`
+  - `src/components/NeutralThemePreviewSwitcher.tsx` *(removido)*
+  - `CHANGELOG.md`
+- **Resumo Técnico:** Removido o componente `<NeutralThemePreviewSwitcher />` e seu respectivo arquivo para manter o layout e o código 100% limpos, preservando o esquema neutro ativo.
+
 ### [2026-11-11] — Implementação ao Vivo das 3 Opções de Esquema Default Neutro & Independente + Botão Seletor de Comparação (`bol-160`)
 - **Tipo:** `[Feat / UI / Theme / Neutral Default Preview]`
 - **Motivo / Solicitação:** Substituir o aspecto "lavado em menta" e o conflito com o azul legado (`#2B82C9`) implementando simultaneamente as **3 opções de esquema default neutro e independente** (`1 · Puro`, `2 · Acetinado`, `3 · Grafite`) com um botão interativo na tela para o usuário alternar e escolher em tempo real.

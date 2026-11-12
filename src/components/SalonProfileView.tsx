@@ -33,7 +33,7 @@ import { SalonCustomizationHub } from './professional/SalonCustomizationHub';
 import { UtilitiesAndToolsView } from './professional/UtilitiesAndToolsView';
 import { useSalonRole, SalonRole } from '../hooks/useSalonRole';
 import { useOwnerAccess } from '../hooks/useOwnerAccess';
-import { useTheme, sanitizeAccentColor, isLegacyOrSystemDefaultColor } from '../context/ThemeContext';
+import { useTheme, sanitizeAccentColor, isLegacyOrSystemDefaultColor, EXPLICIT_THEME_STORAGE_KEY } from '../context/ThemeContext';
 import { getSalonLogo } from '../utils/salonLogos';
 import { DEFAULT_ROTA99_LOGO_DARK, DEFAULT_ROTA99_LOGO_LIGHT, DEFAULT_ROTA99_ICON } from '../utils/defaultSalonAssets';
 import { updateDynamicPwaAssets } from '../utils/pwaAssets';
@@ -635,7 +635,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         pwaName: initialSalonData.branding?.pwaName || localSaved.pwaName || resolvedName,
         slogan: initialSalonData.slogan || initialSalonData.branding?.slogan || localSaved.slogan || '',
         brandFont: initialSalonData.brand_font || initialSalonData.branding?.brandFont || localSaved.brandFont || 'Poppins',
-        defaultTheme: initialSalonData.default_theme || initialSalonData.branding?.defaultTheme || localSaved.defaultTheme,
+        defaultTheme: initialSalonData.branding?.themeExplicitlyCustomized
+          ? ((initialSalonData.default_theme || initialSalonData.branding?.defaultTheme || 'light') as 'dark' | 'light')
+          : 'light',
         showSlogan: initialSalonData.show_slogan !== undefined ? initialSalonData.show_slogan : (initialSalonData.branding?.showSlogan !== undefined ? initialSalonData.branding?.showSlogan : (localSaved.showSlogan !== false)),
         logoTextFallback: initialSalonData.logo_text_fallback || initialSalonData.branding?.logoTextFallback || localSaved.logoTextFallback || '',
         logoTextColor: initialSalonData.logo_text_color || initialSalonData.branding?.logoTextColor || localSaved.logoTextColor || resolvedColor,
@@ -702,7 +704,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       ? (salonName || '')
       : (salonName || partnerInfo?.salonName || 'Meu Estabelecimento');
     const effectivePhone = partnerInfo?.phoneWhatsapp || '';
-    const effectiveColor = partnerInfo?.primaryColor || localStorage.getItem('vagou_accent_color') || '#20C933';
+    const effectiveColor = sanitizeAccentColor(partnerInfo?.primaryColor || localStorage.getItem('vagou_accent_color'));
 
     const defaults: SalonAdminSettings = {
       salonName: effectiveSalonName,
@@ -723,7 +725,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       logoTextColor: effectiveColor,
       showHeroSlides: true,
       brandFont: 'Poppins',
-      defaultTheme: undefined,
+      defaultTheme: 'light',
       navStyle: 'minimal',
       navShape: 'square',
       navBorder: 'bordered',
@@ -760,7 +762,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             logoTextFallback: parsed.logoTextFallback !== undefined ? parsed.logoTextFallback : defaults.logoTextFallback,
             logoTextColor: parsed.logoTextColor || defaults.logoTextColor,
             showHeroSlides: parsed.showHeroSlides !== undefined ? parsed.showHeroSlides : defaults.showHeroSlides,
-            defaultTheme: parsed.defaultTheme || defaults.defaultTheme,
+            defaultTheme: parsed.themeExplicitlyCustomized ? (parsed.defaultTheme || 'light') : 'light',
             brandFont: parsed.brandFont || defaults.brandFont,
             navStyle: parsed.navStyle || defaults.navStyle,
             navShape: parsed.navShape || defaults.navShape,
@@ -768,7 +770,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             navIconBorder: parsed.navIconBorder || defaults.navIconBorder,
             navBgStyle: resolvedNavBgStyle,
             navBgColor: resolvedNavBgColor,
-            navActiveColor: parsed.navActiveColor || defaults.navActiveColor,
+            navActiveColor: isLegacyOrSystemDefaultColor(parsed.navActiveColor) ? undefined : parsed.navActiveColor,
             navTextColor: parsed.navTextColor !== undefined ? parsed.navTextColor : defaults.navTextColor,
             welcomeStyle: parsed.welcomeStyle || defaults.welcomeStyle,
             bio: parsed.bio || defaults.bio,
@@ -783,21 +785,20 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     return defaults;
   });
 
-  // Sincroniza tema padrão / permanente do estabelecimento sem criar loop de dependência com o tema do usuário
+  // Por padrão o tom é SEMPRE claro ('light'); só aplica outro tema se o usuário alternou explicitamente (v3)
   const initialThemeSyncDoneRef = useRef(false);
   useEffect(() => {
-    if (adminSettings.defaultTheme) {
-      const explicitUserPref = localStorage.getItem('vagou_user_theme_preference');
-      // Se não há preferência manual do usuário, aplica o tema padrão do salão na inicialização
-      if (!explicitUserPref && !initialThemeSyncDoneRef.current) {
-        setTheme(adminSettings.defaultTheme, { isExplicitUserChoice: false });
-        initialThemeSyncDoneRef.current = true;
+    if (!initialThemeSyncDoneRef.current) {
+      const explicitUserPref = localStorage.getItem(EXPLICIT_THEME_STORAGE_KEY);
+      if (!explicitUserPref) {
+        setTheme('light', { isExplicitUserChoice: false });
       }
+      initialThemeSyncDoneRef.current = true;
     }
-  }, [adminSettings.defaultTheme, setTheme]);
+  }, [setTheme]);
 
   // Cor de destaque / tema ativa e prioritária do estabelecimento
-  const effectiveAccentColor = adminSettings.accentColor || accentColor || '#20C933';
+  const effectiveAccentColor = sanitizeAccentColor(adminSettings.accentColor || accentColor);
 
   const effectiveSalonCacheSlug = (
     activeSubdomain ||
@@ -1045,14 +1046,15 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           const resolvedBrandFont = salonRecord.brand_font || salonRecord.branding?.brandFont || 'Poppins';
           updatedSettings.brandFont = resolvedBrandFont;
 
-          if (salonRecord.default_theme || salonRecord.branding?.defaultTheme) {
-            const remoteTheme = (salonRecord.default_theme || salonRecord.branding?.defaultTheme) as 'dark' | 'light';
-            updatedSettings.defaultTheme = remoteTheme;
-            const explicitUserChoice = localStorage.getItem('vagou_user_theme_preference');
-            if (!explicitUserChoice) {
-              setTheme(remoteTheme, { isExplicitUserChoice: false });
-              initialThemeSyncDoneRef.current = true;
-            }
+          const isExplicitlyCustomizedTheme = Boolean(salonRecord.branding?.themeExplicitlyCustomized);
+          const remoteTheme: 'dark' | 'light' = isExplicitlyCustomizedTheme
+            ? ((salonRecord.default_theme || salonRecord.branding?.defaultTheme || 'light') as 'dark' | 'light')
+            : 'light';
+          updatedSettings.defaultTheme = remoteTheme;
+          const explicitUserChoice = localStorage.getItem(EXPLICIT_THEME_STORAGE_KEY);
+          if (!explicitUserChoice && isExplicitlyCustomizedTheme) {
+            setTheme(remoteTheme, { isExplicitUserChoice: false });
+            initialThemeSyncDoneRef.current = true;
           }
           if (salonRecord.show_slogan !== undefined || salonRecord.branding?.showSlogan !== undefined) {
             updatedSettings.showSlogan = salonRecord.show_slogan !== undefined ? salonRecord.show_slogan : salonRecord.branding?.showSlogan;
@@ -1419,10 +1421,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
   const handleUpdateSettings = async (newSettings: Partial<SalonAdminSettings>) => {
     if (newSettings.defaultTheme) {
-      setTheme(newSettings.defaultTheme);
+      setTheme(newSettings.defaultTheme, { isExplicitUserChoice: true });
       try {
-        localStorage.setItem('vagou_user_theme_preference', newSettings.defaultTheme);
-        localStorage.setItem('vagou_theme', newSettings.defaultTheme);
+        localStorage.setItem(EXPLICIT_THEME_STORAGE_KEY, newSettings.defaultTheme);
       } catch {}
     }
     if (newSettings.accentColor) {
@@ -1433,7 +1434,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       } catch {}
     }
     setAdminSettings((prev) => {
-      const merged = { ...prev, ...newSettings };
+      const merged = {
+        ...prev,
+        ...newSettings,
+        ...(newSettings.defaultTheme ? { themeExplicitlyCustomized: true } : {}),
+      };
       try {
         localStorage.setItem('vagou_salon_admin_settings', JSON.stringify(merged));
         if (merged.accentColor) {
@@ -1444,7 +1449,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         const effectiveIsDark = (merged.defaultTheme || theme) === 'dark';
         updateDynamicPwaAssets(
           effectiveName, 
-          merged.salonIcon || merged.salonLogoDark || merged.salonLogo,
+          merged.salonIcon || merged.salonLogoLight || merged.salonLogoDark || merged.salonLogo,
           merged.accentColor,
           merged.slogan,
           effectiveIsDark

@@ -5,7 +5,7 @@ import {
   Home, Scissors, Calendar, MapPin, Eye, EyeOff,
   Circle, Square, ChevronRight, Sparkles
 } from 'lucide-react';
-import { useTheme } from '../../context/ThemeContext';
+import { useTheme, EXPLICIT_THEME_STORAGE_KEY, isLegacyOrSystemDefaultColor } from '../../context/ThemeContext';
 import { SalonAdminSettings } from '../../types';
 import { hapticLight, hapticSuccess } from '../../utils/haptics';
 import { getSectionHeaderStyleData } from '../../utils/sectionHeaderStyle';
@@ -27,17 +27,22 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
 }) => {
   const { isDark, setTheme } = useTheme();
 
-  const COLOR_PRESETS = getThemeColorPresets(adminSettings.accentColor || '#10b981');
-  const BG_COLOR_PRESETS = getThemeColorPresets(adminSettings.accentColor || '#10b981');
-  const TEXT_COLOR_PRESETS = getThemeColorPresets(adminSettings.accentColor || '#10b981');
-  const BTN_BG_PRESETS = getThemeColorPresets(adminSettings.accentColor || '#10b981');
+  const basePresetAccent =
+    adminSettings.accentColor && !isLegacyOrSystemDefaultColor(adminSettings.accentColor)
+      ? adminSettings.accentColor
+      : '#334155';
+
+  const COLOR_PRESETS = getThemeColorPresets(basePresetAccent);
+  const BG_COLOR_PRESETS = getThemeColorPresets(basePresetAccent);
+  const TEXT_COLOR_PRESETS = getThemeColorPresets(basePresetAccent);
+  const BTN_BG_PRESETS = getThemeColorPresets(basePresetAccent);
 
   // Seção ativa independente: null = tela de cards de opções; key = seção específica aberta
   const [activeSection, setActiveSection] = useState<LayoutSectionKey | null>(null);
 
-  // 1. Tema Permanente (Dark / Light)
+  // 1. Tema Permanente (Padrão: Claro 'light')
   const [defaultTheme, setDefaultTheme] = useState<'dark' | 'light'>(
-    adminSettings.defaultTheme || (isDark ? 'dark' : 'light')
+    isDark ? 'dark' : 'light'
   );
 
   // 2. Slogan do cabeçalho
@@ -50,7 +55,7 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
     adminSettings.logoTextFallback ?? ''
   );
   const [logoTextColor, setLogoTextColor] = useState<string>(
-    adminSettings.logoTextColor || '#10b981'
+    adminSettings.logoTextColor || basePresetAccent
   );
 
   // 3.5. Personalização da Barra de Títulos das Seções (Subcabeçalhos)
@@ -61,10 +66,10 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
     adminSettings.sectionHeaderTextColor || ''
   );
   const [sectionHeaderIconColor, setSectionHeaderIconColor] = useState<string>(
-    adminSettings.sectionHeaderIconColor || '#10b981'
+    adminSettings.sectionHeaderIconColor || '#475569'
   );
   const [sectionHeaderBgStyle, setSectionHeaderBgStyle] = useState<'solid' | 'glass' | 'transparent'>(
-    adminSettings.sectionHeaderBgStyle || 'glass'
+    adminSettings.sectionHeaderBgStyle || 'solid'
   );
   const [sectionHeaderBorder, setSectionHeaderBorder] = useState<'bordered' | 'none'>(
     adminSettings.sectionHeaderBorder || 'bordered'
@@ -75,7 +80,7 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
     adminSettings.showHeroSlides !== false
   );
 
-  // 5. Barra de navegação inferior (Rodapé)
+  // 5. Barra de navegação inferior (Rodapé Claro Neutro por padrão)
   const [navStyle, setNavStyle] = useState<'minimal' | 'solid' | 'boxed'>(
     adminSettings.navStyle || 'minimal'
   );
@@ -92,8 +97,8 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
     adminSettings.navBgStyle || 'solid'
   );
   const [navBgColor, setNavBgColor] = useState<string>(
-    !adminSettings.navBgColor || adminSettings.navBgColor.trim().toLowerCase() === '#f1f5f9'
-      ? '#005CA9'
+    !adminSettings.navBgColor || isLegacyOrSystemDefaultColor(adminSettings.navBgColor)
+      ? '#F1F5F9'
       : adminSettings.navBgColor
   );
   const [navBtnBgColor, setNavBtnBgColor] = useState<string>(
@@ -103,10 +108,10 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
     adminSettings.navBtnActiveBgColor || ''
   );
   const [navActiveColor, setNavActiveColor] = useState<string>(
-    adminSettings.navActiveColor || '#10b981'
+    adminSettings.navActiveColor || '#FFFFFF'
   );
   const [navTextColor, setNavTextColor] = useState<string>(
-    adminSettings.navTextColor || '#334155'
+    adminSettings.navTextColor || '#64748B'
   );
 
   // 6. Faixa de boas-vindas
@@ -128,10 +133,10 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
   const handleToggleTheme = (theme: 'dark' | 'light') => {
     hapticLight();
     setDefaultTheme(theme);
-    setTheme(theme);
+    setTheme(theme, { isExplicitUserChoice: true });
     autoSyncSettings({ defaultTheme: theme });
     try {
-      localStorage.setItem('vagou_user_theme_preference', theme);
+      localStorage.setItem(EXPLICIT_THEME_STORAGE_KEY, theme);
     } catch {}
   };
 

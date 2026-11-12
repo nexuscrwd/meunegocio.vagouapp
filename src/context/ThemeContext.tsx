@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export type NeutralPresetId = 1 | 2 | 3;
 
+export const EXPLICIT_THEME_STORAGE_KEY = 'vagou_theme_mode_v3';
+
 export interface NeutralPresetTokens {
   id: NeutralPresetId;
   shortLabel: string;
@@ -41,8 +43,8 @@ export interface NeutralPresetTokens {
 export const NEUTRAL_PRESETS: Record<NeutralPresetId, NeutralPresetTokens> = {
   1: {
     id: 1,
-    shortLabel: '1 · Puro',
-    fullLabel: 'Opção 1 — Neutro Puro Editorial (Branco, Gelo & Grafite)',
+    shortLabel: 'Claro Neutro',
+    fullLabel: 'Padrão Claro Neutro Independente (Branco, Gelo & Slate Suave)',
     outerBg: '#EEF2F6',
     canvasBg: '#F8FAFC',
     shellBorder: '#E2E8F0',
@@ -52,32 +54,32 @@ export const NEUTRAL_PRESETS: Record<NeutralPresetId, NeutralPresetTokens> = {
     inputBorder: '#CBD5E1',
     headerBg: '#FFFFFF',
     headerBorder: '#E2E8F0',
-    headerText: '#0F172A',
+    headerText: '#1E293B',
     headerSubtext: '#64748B',
     headerBoxBg: '#F8FAFC',
     headerBoxBorder: '#E2E8F0',
     headerIsDark: false,
     sectionBg: '#FFFFFF',
     sectionBorder: '#E2E8F0',
-    sectionText: '#0F172A',
-    sectionIcon: '#18181B',
-    navBg: '#FFFFFF',
+    sectionText: '#1E293B',
+    sectionIcon: '#475569',
+    navBg: '#F1F5F9',
     navBorder: '#E2E8F0',
     navIsDark: false,
-    navActiveBtnBg: '#18181B',
-    navActiveBtnFg: '#FFFFFF',
-    navInactiveFg: '#475569',
-    actionBg: '#18181B',
-    actionHover: '#27272A',
+    navActiveBtnBg: '#FFFFFF',
+    navActiveBtnFg: '#0F172A',
+    navInactiveFg: '#64748B',
+    actionBg: '#334155',
+    actionHover: '#1E293B',
     subtleHaloBg: '#F1F5F9',
-    subtleHaloFg: '#18181B',
+    subtleHaloFg: '#334155',
     priceOnDarkCard: '#FFFFFF',
     dotOnDarkCard: '#E2E8F0',
   },
   2: {
     id: 2,
-    shortLabel: '2 · Acetinado',
-    fullLabel: 'Opção 2 — Neutro Acetinado (Zinc / Pedra Suave)',
+    shortLabel: 'Claro Acetinado',
+    fullLabel: 'Claro Acetinado (Zinc Suave)',
     outerBg: '#E4E4E7',
     canvasBg: '#F4F4F5',
     shellBorder: '#D4D4D8',
@@ -95,54 +97,54 @@ export const NEUTRAL_PRESETS: Record<NeutralPresetId, NeutralPresetTokens> = {
     sectionBg: '#FAFAFA',
     sectionBorder: '#E4E4E7',
     sectionText: '#18181B',
-    sectionIcon: '#3F3F46',
-    navBg: '#FAFAFA',
+    sectionIcon: '#52525B',
+    navBg: '#F4F4F5',
     navBorder: '#E4E4E7',
     navIsDark: false,
-    navActiveBtnBg: '#27272A',
-    navActiveBtnFg: '#FFFFFF',
-    navInactiveFg: '#52525B',
-    actionBg: '#27272A',
-    actionHover: '#18181B',
+    navActiveBtnBg: '#FFFFFF',
+    navActiveBtnFg: '#18181B',
+    navInactiveFg: '#71717A',
+    actionBg: '#3F3F46',
+    actionHover: '#27272A',
     subtleHaloBg: '#F4F4F5',
-    subtleHaloFg: '#27272A',
-    priceOnDarkCard: '#34D399',
-    dotOnDarkCard: '#34D399',
+    subtleHaloFg: '#3F3F46',
+    priceOnDarkCard: '#FFFFFF',
+    dotOnDarkCard: '#E4E4E7',
   },
   3: {
     id: 3,
-    shortLabel: '3 · Grafite',
-    fullLabel: 'Opção 3 — Moldura Grafite + Miolo Neutro Claro',
-    outerBg: '#DDE3EA',
+    shortLabel: 'Claro Editorial',
+    fullLabel: 'Claro Editorial Suave',
+    outerBg: '#EEF2F6',
     canvasBg: '#F8FAFC',
-    shellBorder: '#CBD5E1',
+    shellBorder: '#E2E8F0',
     cardBg: '#FFFFFF',
     cardBorder: '#E2E8F0',
     inputBg: '#F8FAFC',
     inputBorder: '#CBD5E1',
-    headerBg: '#18181B',
-    headerBorder: '#27272A',
-    headerText: '#FFFFFF',
-    headerSubtext: '#A1A1AA',
-    headerBoxBg: '#27272A',
-    headerBoxBorder: '#3F3F46',
-    headerIsDark: true,
+    headerBg: '#FFFFFF',
+    headerBorder: '#E2E8F0',
+    headerText: '#1E293B',
+    headerSubtext: '#64748B',
+    headerBoxBg: '#F8FAFC',
+    headerBoxBorder: '#E2E8F0',
+    headerIsDark: false,
     sectionBg: '#FFFFFF',
     sectionBorder: '#E2E8F0',
-    sectionText: '#0F172A',
-    sectionIcon: '#18181B',
-    navBg: '#18181B',
-    navBorder: '#27272A',
-    navIsDark: true,
+    sectionText: '#1E293B',
+    sectionIcon: '#475569',
+    navBg: '#F1F5F9',
+    navBorder: '#E2E8F0',
+    navIsDark: false,
     navActiveBtnBg: '#FFFFFF',
-    navActiveBtnFg: '#18181B',
-    navInactiveFg: '#D4D4D8',
-    actionBg: '#18181B',
-    actionHover: '#27272A',
+    navActiveBtnFg: '#0F172A',
+    navInactiveFg: '#64748B',
+    actionBg: '#334155',
+    actionHover: '#1E293B',
     subtleHaloBg: '#F1F5F9',
-    subtleHaloFg: '#18181B',
+    subtleHaloFg: '#334155',
     priceOnDarkCard: '#FFFFFF',
-    dotOnDarkCard: '#E4E4E7',
+    dotOnDarkCard: '#E2E8F0',
   },
 };
 
@@ -171,6 +173,9 @@ const LEGACY_SYSTEM_COLORS = new Set([
   '#18181b',
   '#27272a',
   '#0f172a',
+  '#1e293b',
+  '#334155',
+  '#475569',
 ]);
 
 export function isLegacyOrSystemDefaultColor(rawColor?: string | null): boolean {
@@ -179,11 +184,11 @@ export function isLegacyOrSystemDefaultColor(rawColor?: string | null): boolean 
 }
 
 export function getCurrentNeutralPreset(): NeutralPresetId {
-  if (typeof window === 'undefined') return 1;
-  try {
-    const saved = Number(localStorage.getItem('vagou_neutral_preset'));
-    if (saved === 1 || saved === 2 || saved === 3) return saved;
-  } catch {}
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem('vagou_neutral_preset');
+    } catch {}
+  }
   return 1;
 }
 
@@ -205,7 +210,7 @@ export const ThemeContext = createContext<ThemeContextType>({
   isDark: false,
   toggleTheme: () => {},
   setTheme: () => {},
-  accentColor: '#18181B',
+  accentColor: '#334155',
   setAccentColor: () => {},
   neutralPreset: 1,
   presetTokens: NEUTRAL_PRESETS[1],
@@ -214,25 +219,15 @@ export const ThemeContext = createContext<ThemeContextType>({
 });
 
 export const sanitizeAccentColor = (rawColor?: string | null, fallbackPreset?: NeutralPresetId): string => {
-  const preset = NEUTRAL_PRESETS[fallbackPreset || getCurrentNeutralPreset()];
+  const preset = NEUTRAL_PRESETS[fallbackPreset || 1];
   if (!rawColor) return preset.actionBg;
   const trimmed = rawColor.trim().toLowerCase();
-  if (
-    !trimmed ||
-    trimmed === 'transparent' ||
-    trimmed === '#ffffff' ||
-    trimmed === '#fff' ||
-    trimmed === 'white' ||
-    trimmed === '#005ca9' ||
-    trimmed === '#2b82c9' ||
-    trimmed === '#10b981' ||
-    trimmed === '#20c933'
-  ) {
+  if (isLegacyOrSystemDefaultColor(trimmed)) {
     return preset.actionBg;
   }
   const colorMap: Record<string, string> = {
-    neutral: '#18181B',
-    zinc: '#27272A',
+    neutral: '#334155',
+    zinc: '#3F3F46',
     emerald: '#10B981',
     blue: '#2563EB',
     rose: '#E11D48',
@@ -269,7 +264,10 @@ export const applyNeutralPresetToDom = (presetId: NeutralPresetId, customAccent?
   root.style.setProperty('--neutral-section-icon', tokens.sectionIcon);
   root.style.setProperty('--neutral-nav-bg', tokens.navBg);
   root.style.setProperty('--neutral-nav-border', tokens.navBorder);
-  root.style.setProperty('--neutral-action-bg', customAccent && !isLegacyOrSystemDefaultColor(customAccent) ? customAccent : tokens.actionBg);
+  root.style.setProperty(
+    '--neutral-action-bg',
+    customAccent && !isLegacyOrSystemDefaultColor(customAccent) ? customAccent : tokens.actionBg
+  );
   root.style.setProperty('--neutral-action-hover', tokens.actionHover);
   root.style.setProperty('--neutral-halo-bg', tokens.subtleHaloBg);
   root.style.setProperty('--neutral-halo-fg', tokens.subtleHaloFg);
@@ -278,7 +276,7 @@ export const applyNeutralPresetToDom = (presetId: NeutralPresetId, customAccent?
 };
 
 export const applyAccentColorToDom = (color: string, presetOverride?: NeutralPresetId) => {
-  const presetId = presetOverride || getCurrentNeutralPreset();
+  const presetId = presetOverride || 1;
   const tokens = NEUTRAL_PRESETS[presetId] || NEUTRAL_PRESETS[1];
   const hex = isLegacyOrSystemDefaultColor(color)
     ? tokens.actionBg
@@ -292,7 +290,8 @@ export const applyAccentColorToDom = (color: string, presetOverride?: NeutralPre
 
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-      metaThemeColor.setAttribute('content', tokens.headerBg);
+      const isDarkActive = root.classList.contains('dark');
+      metaThemeColor.setAttribute('content', isDarkActive ? '#0F172A' : tokens.headerBg);
     }
   } catch (err) {
     console.error('Erro ao aplicar tema:', err);
@@ -310,11 +309,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [theme, setThemeState] = useState<'dark' | 'light'>(() => {
     try {
-      const explicitChoice = localStorage.getItem('vagou_user_theme_preference');
-      const resolvedTheme: 'dark' | 'light' =
-        explicitChoice === 'dark' || explicitChoice === 'light'
-          ? explicitChoice
-          : 'light';
+      localStorage.removeItem('vagou_user_theme_preference');
+      localStorage.removeItem('vagou_theme');
+      const explicitChoice = localStorage.getItem(EXPLICIT_THEME_STORAGE_KEY);
+      const resolvedTheme: 'dark' | 'light' = explicitChoice === 'dark' ? 'dark' : 'light';
 
       if (typeof document !== 'undefined') {
         if (resolvedTheme === 'dark') {
@@ -333,11 +331,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [accentColor, setAccentColorState] = useState<string>(() => {
     try {
       const saved = localStorage.getItem('vagou_accent_color');
-      const initialPreset = getCurrentNeutralPreset();
       const resolved = isLegacyOrSystemDefaultColor(saved)
-        ? NEUTRAL_PRESETS[initialPreset].actionBg
-        : sanitizeAccentColor(saved, initialPreset);
-      applyAccentColorToDom(resolved, initialPreset);
+        ? NEUTRAL_PRESETS[1].actionBg
+        : sanitizeAccentColor(saved, 1);
+      applyAccentColorToDom(resolved, 1);
       return resolved;
     } catch {
       return NEUTRAL_PRESETS[1].actionBg;
@@ -354,8 +351,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } else {
         document.documentElement.classList.remove('dark');
       }
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+      if (metaThemeColor) {
+        metaThemeColor.setAttribute('content', theme === 'dark' ? '#0F172A' : presetTokens.headerBg);
+      }
     } catch {}
-  }, [theme]);
+  }, [theme, presetTokens.headerBg]);
 
   useEffect(() => {
     applyAccentColorToDom(accentColor, neutralPreset);
@@ -365,8 +366,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setThemeState((prev) => {
       const next = prev === 'dark' ? 'light' : 'dark';
       try {
-        localStorage.setItem('vagou_user_theme_preference', next);
-        localStorage.setItem('vagou_theme', next);
+        localStorage.setItem(EXPLICIT_THEME_STORAGE_KEY, next);
       } catch {}
       return next;
     });
@@ -377,9 +377,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setThemeState(newTheme);
     try {
       if (isExplicit) {
-        localStorage.setItem('vagou_user_theme_preference', newTheme);
+        localStorage.setItem(EXPLICIT_THEME_STORAGE_KEY, newTheme);
       }
-      localStorage.setItem('vagou_theme', newTheme);
     } catch {}
   };
 
@@ -396,8 +395,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setNeutralPresetState(preset);
     const nextTokens = NEUTRAL_PRESETS[preset];
     try {
-      localStorage.setItem('vagou_neutral_preset', String(preset));
-      localStorage.removeItem('vagou_user_theme_preference');
+      localStorage.removeItem(EXPLICIT_THEME_STORAGE_KEY);
     } catch {}
     setThemeState('light');
     if (isLegacyOrSystemDefaultColor(accentColor)) {
@@ -409,8 +407,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const cycleNeutralPreset = () => {
-    const next: NeutralPresetId = neutralPreset === 1 ? 2 : neutralPreset === 2 ? 3 : 1;
-    setNeutralPreset(next);
+    setNeutralPreset(1);
   };
 
   return (

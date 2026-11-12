@@ -10,8 +10,6 @@ import {
   Heart, 
   Calendar,
   Upload,
-  Database as DatabaseIcon,
-  RefreshCw
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess } from '../utils/haptics';
@@ -23,6 +21,7 @@ import {
   uploadAvatarToSupabaseStorage,
   isValidAvatarUrlString
 } from '../lib/supabase';
+import { SecurityQuestionProfileCard } from './auth/SecurityQuestionProfileCard';
 
 interface UserDashboardProps {
   onBack: () => void;
@@ -53,14 +52,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const avatarUrl = userAvatarUrl;
   const setAvatarUrl = setUserAvatarUrl;
 
-  // Monitoramento de mudanças em userAvatarUrl para diagnóstico de estado e persistência
-  useEffect(() => {
-    console.log(
-      '[UserDashboard] Estado userAvatarUrl alterado:',
-      userAvatarUrl ? `${userAvatarUrl.slice(0, 80)}... (len=${userAvatarUrl.length})` : '(vazio)'
-    );
-  }, [userAvatarUrl]);
-
   const [email, setEmail] = useState(() => {
     const fromProfile = (() => {
       try {
@@ -85,7 +76,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   const [isSavedSuccessfully, setIsSavedSuccessfully] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [isSyncingDb, setIsSyncingDb] = useState(false);
   const [, setIsSavingDb] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -98,7 +88,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       const currentEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
       const currentCpf = localStorage.getItem('vagou_user_cpf') || '';
 
-      setIsSyncingDb(true);
       try {
         const dbProfile = await fetchUserProfileFromDb({
           name: currentName,
@@ -146,8 +135,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         }
       } catch (err) {
         console.warn('Erro ao sincronizar do banco:', err);
-      } finally {
-        if (isMounted) setIsSyncingDb(false);
       }
     }
 
@@ -275,13 +262,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       : isValidAvatarUrlString(storedAvatarFallback)
         ? storedAvatarFallback.trim()
         : '';
-
-    console.log(
-      '[UserDashboard] Antes de salvar - userAvatarUrl:',
-      userAvatarUrl ? `${userAvatarUrl.slice(0, 80)}...` : '(vazio)',
-      '| validatedAvatarUrl:',
-      validatedAvatarUrl ? `${validatedAvatarUrl.slice(0, 80)}...` : '(vazio)'
-    );
     
     try {
       localStorage.setItem('vagou_user_name', name.trim());
@@ -319,13 +299,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       if (finalSyncedAvatar) {
         localStorage.setItem('vagou_user_avatar', finalSyncedAvatar);
       }
-
-      console.log(
-        '[UserDashboard] Depois de salvar - userAvatarUrl sincronizado:',
-        finalSyncedAvatar ? `${finalSyncedAvatar.slice(0, 80)}...` : '(vazio)',
-        '| Resposta updateUserProfile:',
-        dbResult
-      );
       
       // Chamar callback global para propagar atualizações no resto do App
       if (onUpdateProfile) {
@@ -372,25 +345,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           <ArrowLeft className="w-4 h-4" />
         </button>
 
-        <div className="flex flex-col items-center">
-          <h1 className="text-sm font-black uppercase tracking-wider font-['Poppins'] text-emerald-400">
-            Meus Dados Pessoais
-          </h1>
-          {isSupabaseConfigured && (
-            <div className="flex items-center gap-1 mt-0.5 text-[9px] font-bold text-emerald-400">
-              <span className={`w-1.5 h-1.5 rounded-full bg-emerald-400 ${isSyncingDb ? 'animate-ping' : ''}`} />
-              <span>{isSyncingDb ? 'Sincronizando banco...' : 'Banco Conectado'}</span>
-            </div>
-          )}
-        </div>
+        <h1 className={`text-sm font-extrabold tracking-wide font-display ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          Meus Dados Pessoais
+        </h1>
 
-        <div className="w-8 h-8 flex items-center justify-end">
-          {isSyncingDb ? (
-            <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
-          ) : (
-            <DatabaseIcon className="w-4 h-4 text-emerald-500/50" />
-          )}
-        </div>
+        <div className="w-8 h-8" />
       </header>
 
       {/* CONTEÚDO ROLANTE */}
@@ -612,12 +571,19 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           {/* Botão de Envio Unificado */}
           <button
             type="submit"
-            className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white font-black text-xs rounded-[4px] transition uppercase tracking-widest font-['Poppins'] flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/10"
+            className="w-full py-3.5 bg-[#334155] hover:bg-[#1E293B] active:scale-[0.99] text-white font-bold text-xs rounded-[4px] transition uppercase tracking-wider font-display flex items-center justify-center gap-2 cursor-pointer shadow-xs"
           >
             <Check className="w-4 h-4 text-white" />
             <span className="text-white">Salvar Alterações</span>
           </button>
         </form>
+
+        {/* Segurança & Recuperação de Acesso (Suporte pós-reset admvapp) */}
+        <SecurityQuestionProfileCard
+          userEmail={email}
+          userPhone={phone}
+          userName={name}
+        />
       </div>
     </div>
   );

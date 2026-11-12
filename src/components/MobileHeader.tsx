@@ -237,7 +237,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('ALTERNAR_MODO');
                         }}
-                        className="w-full px-3 py-2 rounded-[4px] bg-[#18181B] hover:bg-[#27272A] text-white font-bold text-[11px] flex items-center justify-between transition-colors cursor-pointer"
+                        className="w-full px-3 py-2 rounded-[4px] bg-[#334155] hover:bg-[#1E293B] text-white font-bold text-[11px] flex items-center justify-between transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2">
                           {isGerMode ? (

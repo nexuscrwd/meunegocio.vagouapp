@@ -7,7 +7,7 @@
     --font-sans: 'Public Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: 'IBM Plex Mono', monospace;
 
-    /* Tokens Default Neutros & Independentes (Opção 1 como inicial) */
+    /* Tokens Default Claros, Neutros & Independentes */
     --neutral-outer-bg: #EEF2F6;
     --neutral-canvas-bg: #F8FAFC;
     --neutral-shell-border: #E2E8F0;
@@ -17,24 +17,24 @@
     --neutral-input-border: #CBD5E1;
     --neutral-header-bg: #FFFFFF;
     --neutral-header-border: #E2E8F0;
-    --neutral-header-text: #0F172A;
+    --neutral-header-text: #1E293B;
     --neutral-header-subtext: #64748B;
     --neutral-header-box-bg: #F8FAFC;
     --neutral-header-box-border: #E2E8F0;
     --neutral-section-bg: #FFFFFF;
     --neutral-section-border: #E2E8F0;
-    --neutral-section-text: #0F172A;
-    --neutral-section-icon: #18181B;
-    --neutral-nav-bg: #FFFFFF;
+    --neutral-section-text: #1E293B;
+    --neutral-section-icon: #475569;
+    --neutral-nav-bg: #F1F5F9;
     --neutral-nav-border: #E2E8F0;
-    --neutral-action-bg: #18181B;
-    --neutral-action-hover: #27272A;
+    --neutral-action-bg: #334155;
+    --neutral-action-hover: #1E293B;
     --neutral-halo-bg: #F1F5F9;
-    --neutral-halo-fg: #18181B;
+    --neutral-halo-fg: #334155;
     --neutral-price-on-dark: #FFFFFF;
     --neutral-dot-on-dark: #E2E8F0;
 
-    --accent-color: #18181B;
+    --accent-color: #334155;
     --safe-area-top: env(safe-area-inset-top, 0px);
     --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   }
@@ -362,6 +362,10 @@ html:not(.dark) .text-slate-600:not([style*="color"]) {
 .dark .text-white,
 .bg-\[\#18181B\],
 .bg-\[\#27272A\],
+.bg-\[\#334155\],
+.bg-\[\#1E293B\],
+.bg-slate-700,
+.bg-slate-800.text-white,
 .bg-zinc-900,
 .bg-zinc-800,
 .bg-\[\#005CA9\],

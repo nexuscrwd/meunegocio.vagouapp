@@ -36,17 +36,17 @@
 
 ---
 
-## 🎨 3. Contrato de Identidade Visual & Tokens Default (`bol-158`)
+## 🎨 3. Contrato de Identidade Visual & Tokens Default (`bol-162`)
 
-Quando um estabelecimento é criado sem customização própria (ou utiliza o tema padrão do ecossistema), **ambos `mnvapp` e `admvapp`** devem respeitar os mesmos valores default na tabela `salons` e `salon_ui_settings`:
+Quando um estabelecimento é criado sem customização própria (ou utiliza o tema padrão do ecossistema), **toda a Tríade (`mnvapp`, `admvapp` e `pvapp`)** deve respeitar o esquema **Claro & Neutro Independente** na tabela `salons` e `salon_ui_settings`:
 
 | Propriedade / Coluna | Valor Default Oficial | Regra de Contraste |
 | :--- | :--- | :--- |
-| `default_theme` | `'light'` | Paleta clara verde-menta suave como padrão inicial. |
-| **Fundo Geral da Tela (`canvas`)** | `#F0FDF4` (moldura `#DCFCE7`) | Tipografia principal escura (`#1E293B` / `#065F46`). |
-| `nav_bg_color` / `nav_bg_style` | `'#D1FAE5'` / `'solid'` | Botões inativos em `#065F46`; botão ativo branco assume a cor do tema (`#059669` / `#10B981`). |
-| `section_header_bg_color` | `'#ECFDF5'` (`'solid'`) | Texto `#065F46` e ícone `#059669` com borda `#A7F3D0`. |
-| `primary_color` / `nav_active_color` | `'#10B981'` | **REGRA INEGOCIÁVEL:** Qualquer botão/badge com fundo verde sólido (`#10B981`, `#20C933`, `bg-emerald-500/600`) exige obrigatoriamente texto e ícone **`#FFFFFF` (`text-white`)**. |
+| `default_theme` / `theme_preset_id` | `'light'` / `'neutral-light'` | Tom claro e neutro obrigatório por padrão na inicialização. |
+| **Fundo Geral da Tela (`canvas`)** | `#F8FAFC` (moldura `#EEF2F6`) | Cards em `#FFFFFF` com borda `#E2E8F0` e tipografia `#1E293B` / `#64748B`. |
+| `nav_bg_color` / `nav_bg_style` | `'#F1F5F9'` / `'solid'` | Barra inferior clara com botão ativo branco (`#FFFFFF`, borda `#CBD5E1`, ícone/texto `#0F172A`). |
+| `section_header_bg_color` | `'#FFFFFF'` (`'solid'`) | Texto `#1E293B` e ícone `#475569` com borda `#E2E8F0`. |
+| `primary_color` / `secondary_color` | `'#334155'` / `'#1E293B'` | **REGRA INEGOCIÁVEL:** Qualquer botão/badge sólido escuro (`#334155`) ou verde semântico (`#10B981`, `#20C933`, `bg-emerald-500/600`) exige obrigatoriamente texto e ícone **`#FFFFFF` (`text-white`)**. |
 | **Raio de Borda Global** | `4px` (`rounded-[4px]`) | Proibido aninhar caixas com bordas dentro de caixas com bordas (*Zero Box-in-Box*). |
 
 ---
@@ -60,7 +60,7 @@ Arquivo mestre de referência: `supabase/migrations/20261111_master_convergence_
 2. `system_admins`: Administradores corporativos do `admvapp` autenticados via `verify_admin_login` (`pgcrypto` bcrypt).
 3. `admin_access_logs`: Trilha imutável de auditoria administrativa do `admvapp`.
 4. `security_questions`: Catálogo oficial das 3 perguntas de segurança para recuperação de acesso (único seed permitido em produção).
-5. `user_security_answers`: Respostas normalizadas vinculadas a `clients`.
+5. `user_security_answers`: Respostas normalizadas vinculadas a `clients` (quando zeradas junto a `clients.security_question_code = NULL` via suporte do `admvapp`, o `mnvapp` libera recadastro imediato da pergunta secreta em *Meus Dados Pessoais*).
 
 ### 4.2. Estabelecimentos, White-Label & Equipe
 6. `salons`: Cadastro mestre do parceiro, geolocalização, branding white-label e plano financeiro (`billing_plan`, `fee_per_booking` ⇄ `billing_fee_value = 2.50`, `monthly_subscription_fee = 89.90`, `billing_due_day = 10`).

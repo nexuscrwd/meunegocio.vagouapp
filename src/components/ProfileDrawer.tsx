@@ -17,6 +17,7 @@ import { syncClientDependentToDatabase, refreshClientDependentsCount } from '../
 import { LiveRouteDepartureModal, LiveTrackingDrawerModal } from './live-tracking/LiveTrackingModal';
 import { RouteSimulatorModal } from './live-tracking/RouteSimulatorModal';
 import { getSavedBookingDraft, saveBookingDraft, BookingDraftItem } from '../utils/bookingSlots';
+import { SecurityQuestionProfileCard } from './auth/SecurityQuestionProfileCard';
 
 interface ProfileDrawerProps {
   isOpen: boolean;
@@ -2396,6 +2397,13 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   )}
                 </div>
               </form>
+
+              {/* Segurança & Recuperação de Acesso (Suporte pós-reset admvapp) */}
+              <SecurityQuestionProfileCard
+                userEmail={profile.email}
+                userPhone={profile.phone}
+                userName={profile.name}
+              />
             </div>
           )}
 

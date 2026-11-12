@@ -5,7 +5,6 @@ import { UserAppointmentsView } from './components/UserAppointmentsView';
 import { UserDashboard } from './components/UserDashboard';
 import { PartnerAuthView, PartnerAuthSuccessData } from './components/PartnerAuthView';
 import { SalonNotFoundScreen } from './components/public/SalonNotFoundScreen';
-import { NeutralThemePreviewSwitcher } from './components/NeutralThemePreviewSwitcher';
 import { useSalonRole } from './hooks/useSalonRole';
 import { ServiceOffer, BookingAppointment } from './types';
 import { initializeStoredPwaAssets } from './utils/pwaAssets';
@@ -809,9 +808,6 @@ export const App: React.FC = () => {
     <div className={`min-h-screen h-dvh w-full flex justify-center overflow-hidden font-sans ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-[#E6EEF6] text-[#0F172A]'
     }`}>
-      {/* Seletor ao vivo das 3 Opções Neutras (1 · Puro | 2 · Acetinado | 3 · Grafite) */}
-      <NeutralThemePreviewSwitcher />
-
       {/* Camada 2: Shell Mobile Principal (max-w-[430px] neutro e independente) */}
       <section 
         aria-label="Aplicativo Vagou"

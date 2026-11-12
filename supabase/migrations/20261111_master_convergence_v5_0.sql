@@ -8,7 +8,7 @@
 --   3. 23 TABELAS CONVERGENTES: Une 100% das tabelas do App (mnvapp) e do Gestor Corporativo (admvapp).
 --   4. PADRÃO FINANCEIRO UNIFICADO: R$ 2,50 por agendamento concluído (fee_per_booking ⇄ billing_fee_value)
 --      ou Assinatura Mensal R$ 89,90 (customizável individualmente por estabelecimento no Admin).
---   5. PALETA DEFAULT VERDE CLARINHO: default_theme = 'light', nav_bg_color = '#D1FAE5', primary_color = '#10B981'.
+--   5. PALETA DEFAULT CLARA & NEUTRA: default_theme = 'light', nav_bg_color = '#F1F5F9', primary_color = '#334155'.
 --   6. TRIGGERS BIDIRECIONAIS + MOTOR GEOTEMPORAL ANTI-COLISÃO + REALTIME + RLS ESTRUTURADO.
 -- =====================================================================================================
 
@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS public.salons (
     formatted_address TEXT,
     google_place_id TEXT,
 
-    -- Identidade Visual, Branding & Paleta Default Verde Pastel Clarinho (bol-158)
+    -- Identidade Visual, Branding & Paleta Default Clara & Neutra Independente (bol-162)
     favicon_url TEXT,
     slogan VARCHAR(255),
     brand_font VARCHAR(60) DEFAULT 'Poppins',
@@ -187,10 +187,10 @@ CREATE TABLE IF NOT EXISTS public.salons (
     cover_image_url TEXT,
     facade_photo_url TEXT,
     interior_photo_url TEXT,
-    theme_preset_id VARCHAR(50) DEFAULT 'mint-light',
-    branding JSONB DEFAULT '{"primaryColor": "#10B981", "secondaryColor": "#065F46", "navBgColor": "#D1FAE5", "themeMode": "light"}'::jsonb,
-    primary_color VARCHAR(30) DEFAULT '#10B981',
-    secondary_color VARCHAR(30) DEFAULT '#065F46',
+    theme_preset_id VARCHAR(50) DEFAULT 'neutral-light',
+    branding JSONB DEFAULT '{"primaryColor": "#334155", "secondaryColor": "#1E293B", "navBgColor": "#F1F5F9", "defaultTheme": "light", "themeMode": "light"}'::jsonb,
+    primary_color VARCHAR(30) DEFAULT '#334155',
+    secondary_color VARCHAR(30) DEFAULT '#1E293B',
     default_theme VARCHAR(20) DEFAULT 'light',
     pwa_name VARCHAR(150),
     show_slogan BOOLEAN DEFAULT TRUE,
@@ -200,9 +200,9 @@ CREATE TABLE IF NOT EXISTS public.salons (
     welcome_style VARCHAR(50) DEFAULT 'atmospheric',
 
     -- Subcabeçalhos de Seção (Section Header)
-    section_header_bg_color VARCHAR(30) DEFAULT '#ECFDF5',
-    section_header_text_color VARCHAR(30) DEFAULT '#065F46',
-    section_header_icon_color VARCHAR(30) DEFAULT '#059669',
+    section_header_bg_color VARCHAR(30) DEFAULT '#FFFFFF',
+    section_header_text_color VARCHAR(30) DEFAULT '#1E293B',
+    section_header_icon_color VARCHAR(30) DEFAULT '#475569',
     section_header_bg_style VARCHAR(30) DEFAULT 'solid',
     section_header_border VARCHAR(30) DEFAULT 'bordered',
     section_header_btn_bg_color VARCHAR(30),
@@ -218,10 +218,10 @@ CREATE TABLE IF NOT EXISTS public.salons (
     nav_border VARCHAR(30) DEFAULT 'bordered',
     nav_icon_border VARCHAR(30) DEFAULT 'none',
     nav_bg_style VARCHAR(30) DEFAULT 'solid',
-    nav_bg_color VARCHAR(30) DEFAULT '#D1FAE5',
+    nav_bg_color VARCHAR(30) DEFAULT '#F1F5F9',
     nav_btn_bg_color VARCHAR(30),
     nav_btn_active_bg_color VARCHAR(30),
-    nav_active_color VARCHAR(30) DEFAULT '#10B981',
+    nav_active_color VARCHAR(30) DEFAULT '#FFFFFF',
     nav_text_color VARCHAR(30),
     nav_btn_shadow VARCHAR(30),
     nav_btn_blur VARCHAR(30),
@@ -298,9 +298,9 @@ ALTER TABLE public.salons
   ADD COLUMN IF NOT EXISTS cover_image_url TEXT,
   ADD COLUMN IF NOT EXISTS facade_photo_url TEXT,
   ADD COLUMN IF NOT EXISTS interior_photo_url TEXT,
-  ADD COLUMN IF NOT EXISTS theme_preset_id VARCHAR(50) DEFAULT 'mint-light',
-  ADD COLUMN IF NOT EXISTS primary_color VARCHAR(30) DEFAULT '#10B981',
-  ADD COLUMN IF NOT EXISTS secondary_color VARCHAR(30) DEFAULT '#065F46',
+  ADD COLUMN IF NOT EXISTS theme_preset_id VARCHAR(50) DEFAULT 'neutral-light',
+  ADD COLUMN IF NOT EXISTS primary_color VARCHAR(30) DEFAULT '#334155',
+  ADD COLUMN IF NOT EXISTS secondary_color VARCHAR(30) DEFAULT '#1E293B',
   ADD COLUMN IF NOT EXISTS default_theme VARCHAR(20) DEFAULT 'light',
   ADD COLUMN IF NOT EXISTS pwa_name VARCHAR(150),
   ADD COLUMN IF NOT EXISTS slogan VARCHAR(255),
@@ -326,10 +326,10 @@ ALTER TABLE public.salons
   ADD COLUMN IF NOT EXISTS nav_border VARCHAR(30) DEFAULT 'bordered',
   ADD COLUMN IF NOT EXISTS nav_icon_border VARCHAR(30) DEFAULT 'none',
   ADD COLUMN IF NOT EXISTS nav_bg_style VARCHAR(30) DEFAULT 'solid',
-  ADD COLUMN IF NOT EXISTS nav_bg_color VARCHAR(30) DEFAULT '#D1FAE5',
+  ADD COLUMN IF NOT EXISTS nav_bg_color VARCHAR(30) DEFAULT '#F1F5F9',
   ADD COLUMN IF NOT EXISTS nav_btn_bg_color VARCHAR(30),
   ADD COLUMN IF NOT EXISTS nav_btn_active_bg_color VARCHAR(30),
-  ADD COLUMN IF NOT EXISTS nav_active_color VARCHAR(30) DEFAULT '#10B981',
+  ADD COLUMN IF NOT EXISTS nav_active_color VARCHAR(30) DEFAULT '#FFFFFF',
   ADD COLUMN IF NOT EXISTS nav_text_color VARCHAR(30),
   ADD COLUMN IF NOT EXISTS nav_btn_shadow VARCHAR(30),
   ADD COLUMN IF NOT EXISTS nav_btn_blur VARCHAR(30),
@@ -363,9 +363,9 @@ ALTER TABLE public.salons
   ADD COLUMN IF NOT EXISTS moderation_notes TEXT,
   ADD COLUMN IF NOT EXISTS pin_code VARCHAR(30);
 
-ALTER TABLE public.salons ALTER COLUMN primary_color SET DEFAULT '#10B981';
+ALTER TABLE public.salons ALTER COLUMN primary_color SET DEFAULT '#334155';
 ALTER TABLE public.salons ALTER COLUMN default_theme SET DEFAULT 'light';
-ALTER TABLE public.salons ALTER COLUMN nav_bg_color SET DEFAULT '#D1FAE5';
+ALTER TABLE public.salons ALTER COLUMN nav_bg_color SET DEFAULT '#F1F5F9';
 ALTER TABLE public.salons ALTER COLUMN billing_fee_value SET DEFAULT 2.50;
 ALTER TABLE public.salons ALTER COLUMN fee_per_booking SET DEFAULT 2.50;
 
@@ -373,8 +373,8 @@ CREATE TABLE IF NOT EXISTS public.salon_ui_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     salon_id UUID NOT NULL UNIQUE REFERENCES public.salons(id) ON DELETE CASCADE,
     default_theme VARCHAR(20) DEFAULT 'light',
-    primary_color VARCHAR(30) DEFAULT '#10B981',
-    secondary_color VARCHAR(30) DEFAULT '#065F46',
+    primary_color VARCHAR(30) DEFAULT '#334155',
+    secondary_color VARCHAR(30) DEFAULT '#1E293B',
     brand_font VARCHAR(60) DEFAULT 'Poppins',
     pwa_name VARCHAR(150),
     slogan VARCHAR(255),
@@ -383,9 +383,9 @@ CREATE TABLE IF NOT EXISTS public.salon_ui_settings (
     logo_text_color VARCHAR(20),
     show_hero_slides BOOLEAN DEFAULT TRUE,
     welcome_style VARCHAR(50) DEFAULT 'atmospheric',
-    section_header_bg_color VARCHAR(30) DEFAULT '#ECFDF5',
-    section_header_text_color VARCHAR(30) DEFAULT '#065F46',
-    section_header_icon_color VARCHAR(30) DEFAULT '#059669',
+    section_header_bg_color VARCHAR(30) DEFAULT '#FFFFFF',
+    section_header_text_color VARCHAR(30) DEFAULT '#1E293B',
+    section_header_icon_color VARCHAR(30) DEFAULT '#475569',
     section_header_bg_style VARCHAR(30) DEFAULT 'solid',
     section_header_border VARCHAR(30) DEFAULT 'bordered',
     section_header_btn_bg_color VARCHAR(30),
@@ -399,10 +399,10 @@ CREATE TABLE IF NOT EXISTS public.salon_ui_settings (
     nav_border VARCHAR(30) DEFAULT 'bordered',
     nav_icon_border VARCHAR(30) DEFAULT 'none',
     nav_bg_style VARCHAR(30) DEFAULT 'solid',
-    nav_bg_color VARCHAR(30) DEFAULT '#D1FAE5',
+    nav_bg_color VARCHAR(30) DEFAULT '#F1F5F9',
     nav_btn_bg_color VARCHAR(30),
     nav_btn_active_bg_color VARCHAR(30),
-    nav_active_color VARCHAR(30) DEFAULT '#10B981',
+    nav_active_color VARCHAR(30) DEFAULT '#FFFFFF',
     nav_text_color VARCHAR(30),
     nav_btn_shadow VARCHAR(30),
     nav_btn_blur VARCHAR(30),
@@ -416,9 +416,9 @@ ALTER TABLE public.salon_ui_settings
   ADD COLUMN IF NOT EXISTS nav_icon_border VARCHAR(30) DEFAULT 'none',
   ADD COLUMN IF NOT EXISTS branding_snapshot JSONB;
 
-ALTER TABLE public.salon_ui_settings ALTER COLUMN primary_color SET DEFAULT '#10B981';
+ALTER TABLE public.salon_ui_settings ALTER COLUMN primary_color SET DEFAULT '#334155';
 ALTER TABLE public.salon_ui_settings ALTER COLUMN default_theme SET DEFAULT 'light';
-ALTER TABLE public.salon_ui_settings ALTER COLUMN nav_bg_color SET DEFAULT '#D1FAE5';
+ALTER TABLE public.salon_ui_settings ALTER COLUMN nav_bg_color SET DEFAULT '#F1F5F9';
 
 -- =====================================================================================================
 -- 4. GESTÃO DE EQUIPE, MEMBROS E PROFISSIONAIS

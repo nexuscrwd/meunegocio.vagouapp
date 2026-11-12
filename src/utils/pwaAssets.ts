@@ -33,8 +33,16 @@ export function updateDynamicPwaAssets(
       ? isDarkTheme
       : (typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') : false);
 
-    const resolvedBgColor = effectiveIsDark ? '#151A1E' : '#FFFFFF';
-    const effectiveThemeColor = themeColor || (effectiveIsDark ? '#151A1E' : '#20C933');
+    const resolvedBgColor = effectiveIsDark ? '#0F172A' : '#FFFFFF';
+    const isLegacyAccent =
+      !themeColor ||
+      themeColor === '#20C933' ||
+      themeColor === '#10B981' ||
+      themeColor === '#005CA9' ||
+      themeColor === '#2B82C9';
+    const effectiveThemeColor = isLegacyAccent
+      ? (effectiveIsDark ? '#0F172A' : '#FFFFFF')
+      : themeColor;
 
     // 1. Atualizar Título da Página (Apenas Nome e Slogan)
     document.title = finalSlogan ? `${finalName} — ${finalSlogan}` : finalName;
@@ -146,32 +154,24 @@ export function initializeStoredPwaAssets() {
 
   try {
     const savedSettings = localStorage.getItem('vagou_salon_admin_settings');
-    const storedIcon = localStorage.getItem('vagou_salon_icon') || localStorage.getItem('vagou_salon_logo_dark');
-    const storedColor = localStorage.getItem('vagou_accent_color') || '#20C933';
+    const storedIcon = localStorage.getItem('vagou_salon_icon') || localStorage.getItem('vagou_salon_logo_light') || localStorage.getItem('vagou_salon_logo_dark');
+    const storedColor = localStorage.getItem('vagou_accent_color') || '#FFFFFF';
 
     let name = 'Meu Estabelecimento';
     let icon = storedIcon || '';
     let color = storedColor;
     let slogan = '';
-    let isDarkTheme: boolean | undefined = undefined;
-
-    const userPref = localStorage.getItem('vagou_user_theme_preference');
-    if (userPref === 'dark') isDarkTheme = true;
-    else if (userPref === 'light') isDarkTheme = false;
+    const isDarkTheme = localStorage.getItem('vagou_theme_mode_v3') === 'dark';
 
     if (savedSettings) {
       try {
         const parsed = JSON.parse(savedSettings);
         if (parsed.pwaName || parsed.salonName) name = parsed.pwaName || parsed.salonName;
-        if (parsed.salonIcon || parsed.salonLogoDark || parsed.salonLogo) {
-          icon = parsed.salonIcon || parsed.salonLogoDark || parsed.salonLogo;
+        if (parsed.salonIcon || parsed.salonLogoLight || parsed.salonLogoDark || parsed.salonLogo) {
+          icon = parsed.salonIcon || parsed.salonLogoLight || parsed.salonLogoDark || parsed.salonLogo;
         }
         if (parsed.accentColor) color = parsed.accentColor;
         if (parsed.slogan) slogan = parsed.slogan;
-        if (isDarkTheme === undefined) {
-          if (parsed.defaultTheme === 'dark') isDarkTheme = true;
-          else if (parsed.defaultTheme === 'light') isDarkTheme = false;
-        }
       } catch {}
     }
 
