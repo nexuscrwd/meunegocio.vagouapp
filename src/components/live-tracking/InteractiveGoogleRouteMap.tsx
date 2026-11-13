@@ -4,9 +4,12 @@ import 'leaflet/dist/leaflet.css';
 import { Navigation } from 'lucide-react';
 import {
   GoogleComputedRouteResult,
+  GoogleRouteStep,
+  computeGoogleDetailedRoute,
   snapAndReverseGeocodeGps,
-  decodeGooglePolyline,
+  formatDistanceMeters,
 } from '../../services/googleMapsService';
+import { TransportMode } from '../../types';
 import { isValidAvatarUrlString } from '../../lib/supabase';
 import { useTheme } from '../../context/ThemeContext';
 import { hapticLight } from '../../utils/haptics';
@@ -18,6 +21,8 @@ interface InteractiveGoogleRouteMapProps {
   destLat?: number;
   destLng?: number;
   destLabel: string;
+  destAddress?: string;
+  mode?: TransportMode;
   userAvatarUrl?: string;
   routeData: GoogleComputedRouteResult | null;
   initialDistanceKm: number;
@@ -26,8 +31,13 @@ interface InteractiveGoogleRouteMapProps {
   onLiveGpsUpdate?: (lat: number, lng: number, snappedStreetName?: string) => void;
   onDestinationReachedChange?: (reached: boolean) => void;
   onSpeedUpdate?: (speedKmh: number) => void;
-  onManeuverUpdate?: (maneuver: { instruction: string; distanceText: string; maneuver: string }) => void;
+  onManeuverUpdate?: (maneuver: {
+    instruction: string;
+    distanceText: string;
+    maneuver: string;
+  }) => void;
   onTelemetryUpdate?: (distanceKm: number, etaMinutes: number) => void;
+  onRouteResolved?: (route: GoogleComputedRouteResult) => void;
 }
 
 function computeHaversineKm(
@@ -56,8 +66,23 @@ function computeRoadDistanceKm(
   lng2: number
 ): number {
   const straightKm = computeHaversineKm(lat1, lng1, lat2, lng2);
-  if (straightKm < 0.05) return 0;
-  return Number((straightKm * 1.35).toFixed(1));
+  if (straightKm < 0.04) return 0;
+  return Number((straightKm * 1.32).toFixed(1));
+}
+
+function computePolylineLengthKm(points: Array<{ lat: number; lng: number }>): number {
+  if (!points || points.length < 2) return 0;
+  let totalKm = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    totalKm += computeHaversineKm(
+      points[i].lat,
+      points[i].lng,
+      points[i + 1].lat,
+      points[i + 1].lng
+    );
+  }
+  if (totalKm < 0.04) return 0;
+  return Number(totalKm.toFixed(1));
 }
 
 function computeBearingDeg(
@@ -76,6 +101,10 @@ function computeBearingDeg(
     Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLambda);
   const theta = (Math.atan2(y, x) * 180) / Math.PI;
   return (theta + 360) % 360;
+}
+
+function signedAngleDeltaDeg(fromBearing: number, toBearing: number): number {
+  return ((((toBearing - fromBearing) % 360) + 540) % 360) - 180;
 }
 
 function projectPointAhead(
@@ -108,12 +137,228 @@ function projectPointAhead(
 }
 
 function smoothAngleDeg(currentDeg: number, targetDeg: number, factor = 0.3): number {
-  const diff = ((((targetDeg - currentDeg) % 360) + 540) % 360) - 180;
+  const diff = signedAngleDeltaDeg(currentDeg, targetDeg);
   return (currentDeg + diff * factor + 360) % 360;
 }
 
 function angleDiffDeg(a: number, b: number): number {
-  return Math.abs(((((a - b) % 360) + 540) % 360) - 180);
+  return Math.abs(signedAngleDeltaDeg(b, a));
+}
+
+function isTurnManeuverCode(maneuverRaw: string, instructionRaw = ''): boolean {
+  const m = (maneuverRaw || '').toUpperCase();
+  const txt = (instructionRaw || '').toLowerCase();
+  return (
+    m.includes('LEFT') ||
+    m.includes('RIGHT') ||
+    m.includes('UTURN') ||
+    m.includes('ROUNDABOUT') ||
+    m.includes('RAMP') ||
+    m.includes('FORK') ||
+    txt.includes('esquerda') ||
+    txt.includes('direita') ||
+    txt.includes('retorno') ||
+    txt.includes('rotatória') ||
+    txt.includes('saída') ||
+    txt.includes('acesso')
+  );
+}
+
+/**
+ * Resolve a próxima manobra real (seta + instrução + distância regressiva exata)
+ * a partir da posição atual do GPS na malha viária, usando os steps da rota + geometria da polilinha.
+ */
+function resolveLiveManeuverFromGps(
+  userLat: number,
+  userLng: number,
+  closestIndex: number,
+  roadPath: Array<{ lat: number; lng: number }>,
+  steps: GoogleRouteStep[],
+  destLabel: string
+): { instruction: string; distanceText: string; maneuver: string } {
+  // 1. Se houver steps estruturados com coordenadas (Google Routes API / OSRM steps=true)
+  if (steps.length > 0 && roadPath.length > 2) {
+    let bestStepIdx = -1;
+    let minStepStartDistKm = Infinity;
+
+    // Localiza qual step está imediatamente à frente do ponto atual na polilinha
+    for (let i = 0; i < steps.length; i++) {
+      const st = steps[i];
+      const targetLat = st.startLat ?? st.endLat;
+      const targetLng = st.startLng ?? st.endLng;
+      if (typeof targetLat !== 'number' || typeof targetLng !== 'number') continue;
+
+      // Encontra o índice aproximado desse step na polilinha
+      let stepPolyIdx = 0;
+      let bestVertexDist = Infinity;
+      for (let p = 0; p < roadPath.length; p++) {
+        const d = computeHaversineKm(targetLat, targetLng, roadPath[p].lat, roadPath[p].lng);
+        if (d < bestVertexDist) {
+          bestVertexDist = d;
+          stepPolyIdx = p;
+        }
+      }
+
+      if (stepPolyIdx >= closestIndex && isTurnManeuverCode(st.maneuver, st.instruction)) {
+        const sliceToTurn = [
+          { lat: userLat, lng: userLng },
+          ...roadPath.slice(closestIndex + 1, stepPolyIdx + 1),
+          { lat: targetLat, lng: targetLng },
+        ];
+        let distKm = 0;
+        for (let k = 0; k < sliceToTurn.length - 1; k++) {
+          distKm += computeHaversineKm(
+            sliceToTurn[k].lat,
+            sliceToTurn[k].lng,
+            sliceToTurn[k + 1].lat,
+            sliceToTurn[k + 1].lng
+          );
+        }
+        if (distKm >= 0.015 && distKm < minStepStartDistKm) {
+          minStepStartDistKm = distKm;
+          bestStepIdx = i;
+          break;
+        }
+      }
+    }
+
+    if (bestStepIdx >= 0) {
+      const upcomingTurn = steps[bestStepIdx];
+      return {
+        instruction: upcomingTurn.instruction,
+        distanceText: formatDistanceMeters(minStepStartDistKm * 1000),
+        maneuver: upcomingTurn.maneuver,
+      };
+    }
+
+    // Fallback proporcional sobre os steps caso todos sejam retos ou sem startLat
+    const propIdx = Math.min(
+      steps.length - 1,
+      Math.floor((closestIndex / Math.max(1, roadPath.length - 1)) * steps.length)
+    );
+    const nextTurnIdx = steps.findIndex(
+      (s, idx) => idx >= propIdx && isTurnManeuverCode(s.maneuver, s.instruction)
+    );
+    const chosen = steps[nextTurnIdx >= 0 ? nextTurnIdx : propIdx];
+    if (chosen) {
+      return {
+        instruction: chosen.instruction,
+        distanceText: chosen.distanceText,
+        maneuver: chosen.maneuver,
+      };
+    }
+  }
+
+  // 2. Detecção geométrica pura na polilinha (caso steps ainda estejam carregando)
+  if (roadPath.length > closestIndex + 2) {
+    let accumMeters = 0;
+    let prevLat = userLat;
+    let prevLng = userLng;
+    const initialNext = roadPath[Math.min(roadPath.length - 1, closestIndex + 1)];
+    let prevBearing = computeBearingDeg(userLat, userLng, initialNext.lat, initialNext.lng);
+
+    for (let i = closestIndex + 1; i < roadPath.length - 1; i++) {
+      const A = roadPath[i];
+      const B = roadPath[i + 1];
+      const segMeters = computeHaversineKm(prevLat, prevLng, A.lat, A.lng) * 1000;
+      accumMeters += segMeters;
+      prevLat = A.lat;
+      prevLng = A.lng;
+
+      const nextSegMeters = computeHaversineKm(A.lat, A.lng, B.lat, B.lng) * 1000;
+      if (nextSegMeters < 12) continue;
+
+      const nextBearing = computeBearingDeg(A.lat, A.lng, B.lat, B.lng);
+      const delta = signedAngleDeltaDeg(prevBearing, nextBearing);
+
+      if (accumMeters >= 25 && accumMeters <= 1200) {
+        if (Math.abs(delta) >= 140) {
+          return {
+            instruction: 'Retorno à frente',
+            distanceText: formatDistanceMeters(accumMeters),
+            maneuver: 'UTURN_LEFT',
+          };
+        }
+        if (delta <= -32) {
+          return {
+            instruction: 'Curva à esquerda à frente',
+            distanceText: formatDistanceMeters(accumMeters),
+            maneuver: 'TURN_LEFT',
+          };
+        }
+        if (delta >= 32) {
+          return {
+            instruction: 'Curva à direita à frente',
+            distanceText: formatDistanceMeters(accumMeters),
+            maneuver: 'TURN_RIGHT',
+          };
+        }
+      }
+      prevBearing = nextBearing;
+      if (accumMeters > 1200) break;
+    }
+
+    const totalRemMeters = computePolylineLengthKm(roadPath.slice(closestIndex)) * 1000;
+    return {
+      instruction: `Siga em frente para ${destLabel}`,
+      distanceText: totalRemMeters > 30 ? formatDistanceMeters(totalRemMeters) : '',
+      maneuver: 'STRAIGHT',
+    };
+  }
+
+  return {
+    instruction: `Siga em direção a ${destLabel}`,
+    distanceText: '',
+    maneuver: 'STRAIGHT',
+  };
+}
+
+/**
+ * Calcula o Tempo Restante (ETA em minutos) combinando o ritmo real da rota (duração oficial / km)
+ * com a velocidade real suavizada do GPS em movimento, eliminando distorções como 01:21 para 18 km.
+ */
+function computeRealisticRemainingMinutes(params: {
+  remainingKm: number;
+  routeTotalKm: number;
+  routeTotalMinutes: number;
+  smoothedSpeedKmh: number;
+  mode?: TransportMode;
+}): number {
+  const { remainingKm, routeTotalKm, routeTotalMinutes, smoothedSpeedKmh, mode } = params;
+  if (remainingKm <= 0.12) return 0;
+
+  // Ritmo padrão caso rota detalhada ainda não tenha chegado (ex.: ~40 km/h urbano/arterial = 1.5 min/km)
+  const fallbackPaceMinPerKm =
+    mode === 'walking'
+      ? 12.0
+      : mode === 'bicycling'
+      ? 4.0
+      : mode === 'transit'
+      ? 2.6
+      : mode === 'motorcycle'
+      ? 1.25
+      : 1.55;
+
+  const rawRoutePace =
+    routeTotalKm > 0.25 && routeTotalMinutes > 0
+      ? routeTotalMinutes / routeTotalKm
+      : fallbackPaceMinPerKm;
+
+  const minAllowedPace = mode === 'walking' ? 8.0 : mode === 'bicycling' ? 2.2 : 0.55;
+  const maxAllowedPace = mode === 'walking' ? 16.0 : mode === 'bicycling' ? 6.5 : 2.85;
+  const routePaceMinPerKm = Math.min(maxAllowedPace, Math.max(minAllowedPace, rawRoutePace));
+
+  const routeBasedMinutes = remainingKm * routePaceMinPerKm;
+
+  // Se o veículo está em movimento real medido pelo GPS (>= 12 km/h), pondera com a velocidade ao vivo
+  if (smoothedSpeedKmh >= 12 && mode !== 'walking') {
+    const clampedSpeed = Math.min(115, Math.max(15, smoothedSpeedKmh));
+    const gpsPaceMinPerKm = (60 / clampedSpeed) * 1.12; // +12% margem para semáforos/acessos finais
+    const blendedMinutes = routeBasedMinutes * 0.55 + remainingKm * gpsPaceMinPerKm * 0.45;
+    return Math.max(1, Math.round(blendedMinutes));
+  }
+
+  return Math.max(1, Math.round(routeBasedMinutes));
 }
 
 /**
@@ -198,11 +443,9 @@ function findForwardRouteBearingAndRemainingPath(
     };
   }
 
-  // Snap-to-road: se estiver dentro de 55m da via, ancora o ponto na linha central da rua
   const effectiveLat = minDistKm <= 0.055 ? bestProjLat : userLat;
   const effectiveLng = minDistKm <= 0.055 ? bestProjLng : userLng;
 
-  // Procura ponto ~45m à frente ao longo dos segmentos da própria via para obter bearing 100% estável
   let targetAheadLat = roadPath[roadPath.length - 1].lat;
   let targetAheadLng = roadPath[roadPath.length - 1].lng;
   let accumKm = 0;
@@ -378,7 +621,6 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
     avatarBadge.style.alignItems = 'center';
     avatarBadge.style.justifyContent = 'center';
     avatarBadge.style.zIndex = '2';
-    // Contra-rotação automática para manter a foto do usuário sempre em pé (0° vertical na tela)
     avatarBadge.style.transform = 'rotate(var(--map-counter-rotate, 0deg))';
     avatarBadge.style.transition = 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)';
 
@@ -411,6 +653,8 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   destLat = -23.5621,
   destLng = -46.4795,
   destLabel,
+  destAddress,
+  mode = 'driving' as TransportMode,
   userAvatarUrl,
   routeData,
   initialDistanceKm,
@@ -420,6 +664,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   onSpeedUpdate,
   onManeuverUpdate,
   onTelemetryUpdate,
+  onRouteResolved,
 }) => {
   const { isDark } = useTheme();
   const effectiveUserAvatar = useMemo(
@@ -430,7 +675,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Instâncias persistentes do Leaflet Map
   const leafletMapRef = useRef<L.Map | null>(null);
   const leafletTileLayerRef = useRef<L.TileLayer | null>(null);
   const leafletOuterPolylineRef = useRef<L.Polyline | null>(null);
@@ -441,8 +685,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   const userMarkerRotorRef = useRef<HTMLDivElement | null>(null);
 
   const [isFollowingGps, setIsFollowingGps] = useState<boolean>(true);
-  // Course-Up (Modo Navegação Vertical): gira o mapa para que o sentido da via fique sempre para CIMA (0° vertical)
-  const [isCourseUp, setIsCourseUp] = useState<boolean>(true);
+  const [isCourseUp] = useState<boolean>(true);
   const isCourseUpRef = useRef<boolean>(true);
   isCourseUpRef.current = isCourseUp;
 
@@ -450,19 +693,14 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   const mapBearingDegRef = useRef<number>(0);
   const [isTouchInteracting, setIsTouchInteracting] = useState<boolean>(false);
 
-  const [isCalculatingRoad, setIsCalculatingRoad] = useState<boolean>(true);
-  const [currentSpeedKmh, setCurrentSpeedKmh] = useState<number>(0);
-  const [activeManeuver, setActiveManeuver] = useState<{
-    instruction: string;
-    distanceText: string;
-    maneuver: string;
-  }>({
-    instruction: `Em direção a ${destLabel}`,
-    distanceText: 'Em rota',
-    maneuver: 'TURN-LEFT',
-  });
-
   const roadPathRef = useRef<Array<{ lat: number; lng: number }>>([]);
+  const routeStepsRef = useRef<GoogleRouteStep[]>(routeData?.steps || []);
+  const routeMetaRef = useRef<{ totalDistanceKm: number; totalDurationMinutes: number }>({
+    totalDistanceKm: routeData?.distanceKm ?? initialDistanceKm ?? 6.0,
+    totalDurationMinutes: routeData?.etaMinutes ?? initialEtaMinutes ?? 12,
+  });
+  const smoothedSpeedKmhRef = useRef<number>(0);
+
   const lastGpsFixRef = useRef<{ lat: number; lng: number; ts: number } | null>(null);
   const lastSnappedApiTsRef = useRef<number>(0);
   const lastRerouteTsRef = useRef<number>(0);
@@ -478,6 +716,10 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   const liveUserPosRef = useRef<{ lat: number; lng: number }>({
     lat: originLat,
     lng: originLng,
+  });
+  const effectiveDestRef = useRef<{ lat: number; lng: number }>({
+    lat: destLat,
+    lng: destLng,
   });
 
   const onLiveGpsUpdateRef = useRef(onLiveGpsUpdate);
@@ -495,29 +737,41 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   const onTelemetryUpdateRef = useRef(onTelemetryUpdate);
   onTelemetryUpdateRef.current = onTelemetryUpdate;
 
+  const onRouteResolvedRef = useRef(onRouteResolved);
+  onRouteResolvedRef.current = onRouteResolved;
+
   const updateManeuver = useCallback(
     (m: { instruction: string; distanceText: string; maneuver: string }) => {
-      setActiveManeuver(m);
       onManeuverUpdateRef.current?.(m);
     },
     []
   );
 
-  useEffect(() => {
-    onManeuverUpdateRef.current?.(activeManeuver);
-  }, []);
-
-  const baseDistanceKm = routeData?.distanceKm ?? initialDistanceKm ?? 3.2;
-  const baseEtaMinutes = routeData?.etaMinutes ?? initialEtaMinutes ?? 14;
+  const baseDistanceKm = routeData?.distanceKm ?? initialDistanceKm ?? 6.0;
+  const baseEtaMinutes = routeData?.etaMinutes ?? initialEtaMinutes ?? 12;
 
   const [remainingDistanceKm, setRemainingDistanceKm] = useState<number>(baseDistanceKm);
   const [remainingMinutes, setRemainingMinutes] = useState<number>(baseEtaMinutes);
 
   useEffect(() => {
-    setRemainingDistanceKm(baseDistanceKm);
-    setRemainingMinutes(baseEtaMinutes);
-    onTelemetryUpdateRef.current?.(baseDistanceKm, baseEtaMinutes);
-  }, [baseDistanceKm, baseEtaMinutes]);
+    effectiveDestRef.current = { lat: destLat, lng: destLng };
+  }, [destLat, destLng]);
+
+  useEffect(() => {
+    if (routeData) {
+      routeStepsRef.current = routeData.steps || [];
+      routeMetaRef.current = {
+        totalDistanceKm: routeData.distanceKm,
+        totalDurationMinutes: routeData.etaMinutes,
+      };
+      if (routeData.resolvedDestination) {
+        effectiveDestRef.current = routeData.resolvedDestination;
+      }
+      setRemainingDistanceKm(routeData.distanceKm);
+      setRemainingMinutes(routeData.etaMinutes);
+      onTelemetryUpdateRef.current?.(routeData.distanceKm, routeData.etaMinutes);
+    }
+  }, [routeData]);
 
   const hasReachedDestination = remainingDistanceKm <= 0.15 || remainingMinutes <= 0;
 
@@ -525,12 +779,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     onDestinationReachedRef.current?.(hasReachedDestination);
   }, [hasReachedDestination]);
 
-  /**
-   * Sincronização de Posição, Direção e Rotação Vertical (Course-Up):
-   * - Gira o estágio do mapa por -roadBearingDeg para que a avenida à frente aponte SEMPRE para CIMA (0° vertical).
-   * - Desliza o mapa suavemente na vertical conforme o usuário avança.
-   * - Zero tremor: só move a câmera (panTo) quando há deslocamento real ou recenter.
-   */
   const syncPositionAndOrientation = useCallback(
     (
       userLat: number,
@@ -544,17 +792,14 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       const lmap = leafletMapRef.current;
       if (!lmap) return;
 
-      // 1. Atualiza posição do marcador do usuário
       if (leafletUserMarkerRef.current) {
         leafletUserMarkerRef.current.setLatLng([userLat, userLng]);
       }
 
-      // 2. Gira a ponteira e cone de visão no espaço do mapa
       if (userMarkerRotorRef.current) {
         userMarkerRotorRef.current.style.transform = `rotate(${headingDeg.toFixed(1)}deg)`;
       }
 
-      // 3. Atualiza rotação Course-Up do mapa se o modo vertical estiver ativo
       const isManualPan = Date.now() < userManualPanUntilRef.current;
       const roadCourse = routeLookAheadBearingRef.current;
 
@@ -572,7 +817,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         }
       }
 
-      // 4. Projeta a câmera ~150m à frente na direção exata da via (para que o ícone fique na linha de 1/3 inferior do mapa)
       if (shouldPanCamera && !isManualPan) {
         const lookAheadCenter = projectPointAhead(userLat, userLng, roadCourse, 0.15);
         try {
@@ -587,10 +831,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     []
   );
 
-  /**
-   * Inicialização ÚNICA do motor de mapa com Zoom Inteiro (Zero Costuras/Linhas de Grade)
-   * Desativa o arrasto nativo do Leaflet para usar o controlador de gestos rotacionado (1 dedo pan + 2 dedos giro/zoom).
-   */
   useEffect(() => {
     const containerEl = mapContainerRef.current;
     if (!containerEl) return;
@@ -618,8 +858,8 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
 
     const tileProviders = [
       {
-        url: 'https://mt{s}.google.com/vt/lyrs=m&hl=pt-BR&x={x}&y={y}&z={z}',
-        subdomains: ['0', '1', '2', '3'],
+        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        subdomains: ['a', 'b', 'c', 'd'],
       },
       {
         url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -667,7 +907,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
 
     mountTileLayer(0);
 
-    // Linha de rota dupla (outer dark glow + inner emerald road)
     const outerPoly = L.polyline([], {
       color: '#064e3b',
       weight: 9,
@@ -687,7 +926,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     leafletOuterPolylineRef.current = outerPoly;
     leafletInnerPolylineRef.current = innerPoly;
 
-    // Marcador de Saída
     const originIcon = L.divIcon({
       html: createPinBadge(
         isDark ? '#0f172a' : '#ffffff',
@@ -702,7 +940,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       icon: originIcon,
     }).addTo(lmap);
 
-    // Marcador de Destino
     const destIcon = L.divIcon({
       html: createPinBadge('#10b981', '#ffffff', destLabel.slice(0, 22)),
       className: 'vagou-leaflet-badge',
@@ -713,7 +950,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       icon: destIcon,
     }).addTo(lmap);
 
-    // Marcador Direcional do Usuário (Avatar com anel esmeralda e rotor)
     const { container, rotor } = createDirectionalUserMarkerElement(effectiveUserAvatar);
     userMarkerRotorRef.current = rotor;
     const userDivIcon = L.divIcon({
@@ -760,9 +996,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDark]);
 
-  /**
-   * Controlador de Gestos Rotacionado (1 Dedo Arrastar no sentido real da tela + 2 Dedos Girar Mapa e Zoom)
-   */
   useEffect(() => {
     const viewportEl = viewportRef.current;
     if (!viewportEl) return;
@@ -779,7 +1012,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     const panMapInScreenSpace = (dxScreen: number, dyScreen: number) => {
       const lmap = leafletMapRef.current;
       if (!lmap) return;
-      // Converte o vetor de arrasto da tela (dxScreen, dyScreen) para o sistema de coordenadas rotacionado do mapa
       const rad = (mapBearingDegRef.current * Math.PI) / 180;
       const cosA = Math.cos(rad);
       const sinA = Math.sin(rad);
@@ -837,14 +1069,12 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         const curAngle = (Math.atan2(dy, dx) * 180) / Math.PI;
         const curDist = Math.hypot(dx, dy);
 
-        // Giro de 2 dedos
-        const deltaAngle = ((((curAngle - lastTwoFingerAngle) % 360) + 540) % 360) - 180;
+        const deltaAngle = signedAngleDeltaDeg(lastTwoFingerAngle, curAngle);
         lastTwoFingerAngle = curAngle;
         const nextBearing = (mapBearingDegRef.current - deltaAngle + 360) % 360;
         mapBearingDegRef.current = nextBearing;
         setMapBearingDeg(nextBearing);
 
-        // Pinça de zoom em degraus inteiros (sem zoom fracionado que gera linhas)
         const lmap = leafletMapRef.current;
         if (lmap && Math.abs(curDist - lastTwoFingerDist) > 42) {
           const zoomDelta = curDist > lastTwoFingerDist ? 1 : -1;
@@ -860,7 +1090,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       setIsTouchInteracting(false);
     };
 
-    // Suporte para arrasto com mouse em desktop
     let isMouseDown = false;
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button !== 0 || (e.target as HTMLElement)?.closest('button, a')) return;
@@ -880,8 +1109,8 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       if (totalDragDist > 6) {
         userManualPanUntilRef.current = Date.now() + 8000;
         hasActiveGpsFollowRef.current = false;
-        setIsFollowingGps(false);
         setIsTouchInteracting(true);
+        setIsFollowingGps(false);
         panMapInScreenSpace(dx, dy);
       }
     };
@@ -912,7 +1141,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     };
   }, []);
 
-  // Atualiza ícone do destino ou avatar sem recriar o mapa
   useEffect(() => {
     if (leafletDestMarkerRef.current) {
       const destIcon = L.divIcon({
@@ -940,20 +1168,28 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     }
   }, [effectiveUserAvatar]);
 
-  /**
-   * Aplicação da geometria viária da rota (Exige > 2 pontos — Proibido Linha Reta)
-   */
   const applyRoadGeometry = useCallback(
-    (roadPath: Array<{ lat: number; lng: number }>) => {
+    (
+      roadPath: Array<{ lat: number; lng: number }>,
+      stepsOverride?: GoogleRouteStep[],
+      metaOverride?: { totalDistanceKm: number; totalDurationMinutes: number }
+    ) => {
       if (!roadPath || roadPath.length <= 2) return;
       roadPathRef.current = roadPath;
-      setIsCalculatingRoad(false);
+
+      if (stepsOverride) {
+        routeStepsRef.current = stepsOverride;
+      }
+      if (metaOverride) {
+        routeMetaRef.current = metaOverride;
+      }
 
       const startPt = roadPath[0];
       const endPt = roadPath[roadPath.length - 1];
+      effectiveDestRef.current = endPt;
       const currentPos = liveUserPosRef.current;
 
-      const { forwardBearingDeg, snappedLat, snappedLng, remainingPath } =
+      const { forwardBearingDeg, snappedLat, snappedLng, remainingPath, closestIndex } =
         findForwardRouteBearingAndRemainingPath(
           currentPos.lat,
           currentPos.lng,
@@ -984,97 +1220,72 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         leafletDestMarkerRef.current.setLatLng([endPt.lat, endPt.lng]);
       }
 
-      syncPositionAndOrientation(
+      syncPositionAndOrientation(snappedLat, snappedLng, forwardBearingDeg, true, true);
+
+      const liveDistKm =
+        polyToDraw.length >= 2
+          ? computePolylineLengthKm(polyToDraw)
+          : computeRoadDistanceKm(snappedLat, snappedLng, endPt.lat, endPt.lng);
+
+      const nextEta = computeRealisticRemainingMinutes({
+        remainingKm: liveDistKm,
+        routeTotalKm: routeMetaRef.current.totalDistanceKm,
+        routeTotalMinutes: routeMetaRef.current.totalDurationMinutes,
+        smoothedSpeedKmh: smoothedSpeedKmhRef.current,
+        mode,
+      });
+
+      setRemainingDistanceKm(liveDistKm);
+      setRemainingMinutes(nextEta);
+      onTelemetryUpdateRef.current?.(liveDistKm, nextEta);
+
+      const nextManeuver = resolveLiveManeuverFromGps(
         snappedLat,
         snappedLng,
-        forwardBearingDeg,
-        true,
-        true
+        closestIndex,
+        roadPath,
+        routeStepsRef.current,
+        destLabel
       );
-
-      if (routeData?.steps && routeData.steps.length > 0) {
-        const step = routeData.steps[0];
-        updateManeuver({
-          instruction: step.instruction,
-          distanceText: step.distanceText,
-          maneuver: step.maneuver,
-        });
-      }
+      updateManeuver(nextManeuver);
     },
-    [syncPositionAndOrientation, routeData]
+    [syncPositionAndOrientation, destLabel, mode, updateManeuver]
   );
 
-  /**
-   * Função reutilizável para buscar malha viária real (Backend 5-Layer Cascade + FOSSGIS OSRM + Global OSRM)
-   * Jamais desenha linha reta de 2 pontos.
-   */
   const fetchRealRoadNetwork = useCallback(
     async (startLat: number, startLng: number, targetLat: number, targetLng: number) => {
-      setIsCalculatingRoad(true);
+      const detailed = await computeGoogleDetailedRoute({
+        originLat: startLat,
+        originLng: startLng,
+        destLat: targetLat,
+        destLng: targetLng,
+        destAddress: destAddress || destLabel,
+        mode,
+      });
 
-      try {
-        const routeRes = await fetch('/api/geo/route', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            originLat: startLat,
-            originLng: startLng,
-            destLat: targetLat,
-            destLng: targetLng,
-            destAddress: destLabel,
-            travelMode: 'DRIVE',
-          }),
+      if (detailed && detailed.decodedPath.length > 2) {
+        applyRoadGeometry(detailed.decodedPath, detailed.steps, {
+          totalDistanceKm: detailed.distanceKm,
+          totalDurationMinutes: detailed.etaMinutes,
         });
-        if (routeRes.ok) {
-          const routeJson = await routeRes.json();
-          const encoded = routeJson?.routes?.[0]?.polyline?.encodedPolyline;
-          if (encoded) {
-            const pts = decodeGooglePolyline(encoded);
-            if (pts.length > 2) {
-              applyRoadGeometry(pts);
-              return true;
-            }
-          }
-        }
-      } catch {}
-
-      const directOsrmUrls = [
-        `https://routing.openstreetmap.de/routed-car/route/v1/driving/${startLng},${startLat};${targetLng},${targetLat}?overview=full&geometries=polyline`,
-        `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${targetLng},${targetLat}?overview=full&geometries=polyline`,
-      ];
-
-      for (const osrmUrl of directOsrmUrls) {
-        try {
-          const res = await fetch(osrmUrl);
-          if (res.ok) {
-            const data = await res.json();
-            const encoded = data?.routes?.[0]?.geometry;
-            if (encoded) {
-              const pts = decodeGooglePolyline(encoded);
-              if (pts.length > 2) {
-                applyRoadGeometry(pts);
-                return true;
-              }
-            }
-          }
-        } catch {}
+        onRouteResolvedRef.current?.(detailed);
+        return true;
       }
 
-      setIsCalculatingRoad(false);
       return false;
     },
-    [applyRoadGeometry, destLabel]
+    [applyRoadGeometry, destAddress, destLabel, mode]
   );
 
-  /**
-   * Cálculo viário real ao abrir ou receber routeData
-   */
   useEffect(() => {
     let active = true;
 
     const initRoadGeometry = async () => {
       if (routeData?.decodedPath && routeData.decodedPath.length > 2) {
-        applyRoadGeometry(routeData.decodedPath);
+        applyRoadGeometry(routeData.decodedPath, routeData.steps, {
+          totalDistanceKm: routeData.distanceKm,
+          totalDurationMinutes: routeData.etaMinutes,
+        });
         const firstPt = routeData.decodedPath[0];
         const distFromGpsKm = computeHaversineKm(
           liveUserPosRef.current.lat,
@@ -1091,8 +1302,8 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       await fetchRealRoadNetwork(
         liveUserPosRef.current.lat,
         liveUserPosRef.current.lng,
-        destLat,
-        destLng
+        effectiveDestRef.current.lat,
+        effectiveDestRef.current.lng
       );
     };
 
@@ -1103,11 +1314,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     };
   }, [routeData, destLat, destLng, applyRoadGeometry, fetchRealRoadNetwork]);
 
-  /**
-   * Bússola do celular (DeviceOrientation) — ESTABILIZADA (ZERO TREMOR):
-   * - JAMAIS chama panTo na câmera (o que causava o mapa tremer/chacoalhar no vídeo).
-   * - No modo Course-Up em rota, mantém a seta travada no alinhamento da via à frente (apontando para CIMA).
-   */
   useEffect(() => {
     if (typeof window === 'undefined') return;
     let lastCompassTs = 0;
@@ -1116,8 +1322,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       const now = Date.now();
       if (now - lastCompassTs < 250) return;
 
-      // Quando em navegação Course-Up seguindo a via, trava a ponteira no azimute da pista
-      // para que a seta aponte sempre 100% para CIMA na vertical sem oscilar com o magnetômetro.
       if (isCourseUpRef.current && hasActiveGpsFollowRef.current) {
         if (userMarkerRotorRef.current) {
           userMarkerRotorRef.current.style.transform = `rotate(${routeLookAheadBearingRef.current.toFixed(1)}deg)`;
@@ -1160,22 +1364,13 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     };
   }, []);
 
-  /**
-   * Rastreamento GPS ao vivo contínuo com Map-Matching Ortogonal e Deslizamento Vertical
-   */
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return;
-
-    const avgMinutesPerKm = baseDistanceKm > 0 ? baseEtaMinutes / baseDistanceKm : 4.2;
 
     const handleGpsFix = async (pos: GeolocationPosition, isInitial = false) => {
       const rawLat = pos.coords.latitude;
       const rawLng = pos.coords.longitude;
-      const gpsSpeed = pos.coords.speed ?? 0;
-
-      const kmh = Math.max(0, Math.round(gpsSpeed * 3.6));
-      setCurrentSpeedKmh(kmh);
-      onSpeedUpdateRef.current?.(kmh);
+      const gpsSpeedMps = pos.coords.speed;
 
       const prev = lastGpsFixRef.current;
       const now = Date.now();
@@ -1183,14 +1378,29 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         ? computeHaversineKm(prev.lat, prev.lng, rawLat, rawLng) * 1000
         : 9999;
 
-      // Filtro anti-tremor para GPS parado: ignora micro-oscilações menores que 4.5 metros
+      let kmh = 0;
+      if (typeof gpsSpeedMps === 'number' && Number.isFinite(gpsSpeedMps) && gpsSpeedMps >= 0) {
+        kmh = Math.round(gpsSpeedMps * 3.6);
+      } else if (prev && now - prev.ts >= 1500 && movedMeters >= 6) {
+        const dtHours = (now - prev.ts) / 3600000;
+        kmh = Math.min(130, Math.round(movedMeters / 1000 / dtHours));
+      }
+
+      if (kmh >= 6) {
+        smoothedSpeedKmhRef.current =
+          smoothedSpeedKmhRef.current > 0
+            ? smoothedSpeedKmhRef.current * 0.65 + kmh * 0.35
+            : kmh;
+      }
+      onSpeedUpdateRef.current?.(kmh);
+
       if (!isInitial && prev && movedMeters < 4.5 && now - prev.ts < 4000) {
         return;
       }
 
       lastGpsFixRef.current = { lat: rawLat, lng: rawLng, ts: now };
+      const targetDest = effectiveDestRef.current;
 
-      // 1. Projeta posição ortogonalmente na malha viária (Map-Matching)
       const {
         forwardBearingDeg,
         snappedLat,
@@ -1202,8 +1412,8 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         rawLat,
         rawLng,
         roadPathRef.current,
-        destLat,
-        destLng
+        targetDest.lat,
+        targetDest.lng
       );
 
       liveUserPosRef.current = { lat: snappedLat, lng: snappedLng };
@@ -1219,35 +1429,24 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         );
       }
 
-      // Se o usuário saiu da rota (> 220m), recalcula a malha viária real sem linha reta
       if (isOffRoute && now - lastRerouteTsRef.current >= 6000) {
         lastRerouteTsRef.current = now;
-        const targetEnd =
-          roadPathRef.current.length > 2
-            ? roadPathRef.current[roadPathRef.current.length - 1]
-            : { lat: destLat, lng: destLng };
-        fetchRealRoadNetwork(rawLat, rawLng, targetEnd.lat, targetEnd.lng);
+        fetchRealRoadNetwork(rawLat, rawLng, targetDest.lat, targetDest.lng);
       }
 
-      // 2. Atualiza instrução da próxima manobra com base no progresso na rota
-      if (routeData?.steps && routeData.steps.length > 0 && roadPathRef.current.length > 2) {
-        const stepIdx = Math.min(
-          routeData.steps.length - 1,
-          Math.floor(
-            (closestIndex / Math.max(1, roadPathRef.current.length)) * routeData.steps.length
-          )
+      // Atualiza e propaga seta de conversão + distância regressiva para o cabeçalho superior
+      if (roadPathRef.current.length > 2) {
+        const liveManeuver = resolveLiveManeuverFromGps(
+          snappedLat,
+          snappedLng,
+          closestIndex,
+          roadPathRef.current,
+          routeStepsRef.current,
+          destLabel
         );
-        const currentStep = routeData.steps[stepIdx];
-        if (currentStep) {
-          setActiveManeuver({
-            instruction: currentStep.instruction,
-            distanceText: currentStep.distanceText,
-            maneuver: currentStep.maneuver,
-          });
-        }
+        updateManeuver(liveManeuver);
       }
 
-      // 3. Move o marcador sobre a linha da rua e desliza o mapa verticalmente
       const shouldPan = isInitial || movedMeters >= 4.0;
       syncPositionAndOrientation(
         snappedLat,
@@ -1257,21 +1456,24 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         isInitial
       );
 
-      // 4. Atualiza km e minutos restantes até o ponto final real da rota
-      const endPt =
-        roadPathRef.current.length > 2
-          ? roadPathRef.current[roadPathRef.current.length - 1]
-          : { lat: destLat, lng: destLng };
-      const liveDistKm = computeRoadDistanceKm(snappedLat, snappedLng, endPt.lat, endPt.lng);
-      if (liveDistKm <= 250) {
+      const liveDistKm =
+        remainingPath.length >= 2
+          ? computePolylineLengthKm(remainingPath)
+          : computeRoadDistanceKm(snappedLat, snappedLng, targetDest.lat, targetDest.lng);
+
+      if (liveDistKm <= 400) {
+        const nextMin = computeRealisticRemainingMinutes({
+          remainingKm: liveDistKm,
+          routeTotalKm: routeMetaRef.current.totalDistanceKm,
+          routeTotalMinutes: routeMetaRef.current.totalDurationMinutes,
+          smoothedSpeedKmh: smoothedSpeedKmhRef.current,
+          mode,
+        });
         setRemainingDistanceKm(liveDistKm);
-        const nextMin =
-          liveDistKm <= 0.15 ? 0 : Math.max(1, Math.round(liveDistKm * avgMinutesPerKm));
         setRemainingMinutes(nextMin);
         onTelemetryUpdateRef.current?.(liveDistKm, nextMin);
       }
 
-      // 5. Reverse geocode do nome da rua atual no backend com throttle de 15s (sem sacudir a câmera)
       if (isInitial || now - lastSnappedApiTsRef.current >= 15000) {
         lastSnappedApiTsRef.current = now;
         const snapped = await snapAndReverseGeocodeGps(rawLat, rawLng);
@@ -1298,15 +1500,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     return () => {
       navigator.geolocation.clearWatch(watchId);
     };
-  }, [
-    destLat,
-    destLng,
-    baseDistanceKm,
-    baseEtaMinutes,
-    routeData,
-    syncPositionAndOrientation,
-    fetchRealRoadNetwork,
-  ]);
+  }, [destLabel, mode, syncPositionAndOrientation, fetchRealRoadNetwork, updateManeuver]);
 
   const handleRecenterGps = () => {
     hapticLight();
@@ -1349,7 +1543,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         <div ref={mapContainerRef} className="w-full h-full" />
       </div>
 
-      {/* BOTÃO FLUTUANTE RECENTRALIZAR NO GPS (NO TOPO DIREITO DO MAPA PARA NÃO COLIDIR COM O RODAPÉ SWIPE) */}
+      {/* BOTÃO FLUTUANTE RECENTRALIZAR NO GPS */}
       {!isFollowingGps && (
         <button
           type="button"

@@ -130,47 +130,153 @@ async function startServer() {
     return points;
   };
 
-  // Helper: Resolve known landmarks or geocode destination/origin address when default placeholder coords are passed
+  const isPlaceholderCoordPair = (lat: number, lng: number): boolean =>
+    (Math.abs(lat - -23.5621) < 0.0008 && Math.abs(lng - -46.4795) < 0.0008) ||
+    (Math.abs(lat - -23.5592) < 0.0008 && Math.abs(lng - -46.6589) < 0.0008) ||
+    (Math.abs(lat - -23.5505) < 0.0008 && Math.abs(lng - -46.6333) < 0.0008);
+
+  const mapOsrmManeuverToGoogle = (
+    typeRaw: unknown,
+    modifierRaw: unknown,
+    roadNameRaw: unknown,
+    idx: number
+  ): { maneuver: string; instruction: string } => {
+    const type = String(typeRaw || '').toLowerCase();
+    const mod = String(modifierRaw || '').toLowerCase();
+    const road = String(roadNameRaw || '').trim();
+    const viaSuffix = road ? ` em ${road}` : '';
+
+    if (type === 'arrive') {
+      return {
+        maneuver: 'STRAIGHT',
+        instruction: road ? `Chegada em ${road}` : 'Chegada ao destino',
+      };
+    }
+    if (mod.includes('uturn')) {
+      return {
+        maneuver: 'UTURN_LEFT',
+        instruction: `Faça o retorno${viaSuffix}`,
+      };
+    }
+    if (type === 'roundabout' || type === 'rotary') {
+      return {
+        maneuver: mod.includes('left') ? 'ROUNDABOUT_LEFT' : 'ROUNDABOUT_RIGHT',
+        instruction: `Na rotatória, pegue a saída${viaSuffix}`,
+      };
+    }
+    if (type === 'on ramp' || type === 'off ramp' || type === 'fork') {
+      if (mod.includes('left')) {
+        return {
+          maneuver: 'RAMP_LEFT',
+          instruction: `Pegue o acesso à esquerda${viaSuffix}`,
+        };
+      }
+      return {
+        maneuver: 'RAMP_RIGHT',
+        instruction: `Pegue o acesso à direita${viaSuffix}`,
+      };
+    }
+    if (mod === 'sharp left') {
+      return { maneuver: 'TURN_SHARP_LEFT', instruction: `Curva acentuada à esquerda${viaSuffix}` };
+    }
+    if (mod === 'left') {
+      return { maneuver: 'TURN_LEFT', instruction: `Vire à esquerda${viaSuffix}` };
+    }
+    if (mod === 'slight left') {
+      return { maneuver: 'TURN_SLIGHT_LEFT', instruction: `Mantenha-se à esquerda${viaSuffix}` };
+    }
+    if (mod === 'sharp right') {
+      return { maneuver: 'TURN_SHARP_RIGHT', instruction: `Curva acentuada à direita${viaSuffix}` };
+    }
+    if (mod === 'right') {
+      return { maneuver: 'TURN_RIGHT', instruction: `Vire à direita${viaSuffix}` };
+    }
+    if (mod === 'slight right') {
+      return { maneuver: 'TURN_SLIGHT_RIGHT', instruction: `Mantenha-se à direita${viaSuffix}` };
+    }
+    return {
+      maneuver: 'STRAIGHT',
+      instruction: road ? `Siga por ${road}` : `Siga pela via principal (${idx + 1})`,
+    };
+  };
+
+  // Helper: Geocode destination/origin address via Google Geocoding API -> Nominatim when placeholder/missing coords are passed
   const resolveSmartCoordinates = async (
     lat: unknown,
     lng: unknown,
     address?: string,
     defaultLat = -23.5505,
-    defaultLng = -46.6333
+    defaultLng = -46.6333,
+    options?: {
+      mapsKey?: string;
+      referer?: string;
+      biasLat?: number;
+      biasLng?: number;
+    }
   ): Promise<{ lat: number; lng: number }> => {
-    const numLat = typeof lat === 'number' && !Number.isNaN(lat) ? lat : defaultLat;
-    const numLng = typeof lng === 'number' && !Number.isNaN(lng) ? lng : defaultLng;
+    const hasExplicitCoords =
+      typeof lat === 'number' &&
+      typeof lng === 'number' &&
+      Number.isFinite(lat) &&
+      Number.isFinite(lng);
+    const numLat = hasExplicitCoords ? (lat as number) : defaultLat;
+    const numLng = hasExplicitCoords ? (lng as number) : defaultLng;
 
-    const isDefaultCoord =
-      (Math.abs(numLat - -23.5621) < 0.0005 && Math.abs(numLng - -46.4795) < 0.0005) ||
-      (Math.abs(numLat - -23.5592) < 0.0005 && Math.abs(numLng - -46.6589) < 0.0005);
+    const cleanAddr = String(address || '')
+      .replace(/^local atual\s*\(gps\)$/i, '')
+      .replace(/^estabelecimento$/i, '')
+      .trim();
 
-    const cleanAddr = String(address || '').trim();
-    if (!cleanAddr || (!isDefaultCoord && typeof lat === 'number' && typeof lng === 'number')) {
+    if (!cleanAddr || (hasExplicitCoords && !isPlaceholderCoordPair(numLat, numLng))) {
       return { lat: numLat, lng: numLng };
     }
 
-    const lower = cleanAddr.toLowerCase();
-    if (lower.includes('guarulhos') || lower.includes('helio smidt') || lower.includes('hélio smidt') || lower.includes('aeroporto')) {
-      return { lat: -23.4356, lng: -46.4731 };
-    }
-    if (lower.includes('paulista')) {
-      return { lat: -23.5614, lng: -46.6559 };
-    }
-    if (lower.includes('morumbi') || lower.includes('roque petroni')) {
-      return { lat: -23.6226, lng: -46.6987 };
-    }
-    if (lower.includes('ibirapuera') || lower.includes('pedro álvares') || lower.includes('pedro alvares')) {
-      return { lat: -23.5874, lng: -46.6576 };
-    }
-    if (lower.includes('congonhas')) {
-      return { lat: -23.6261, lng: -46.6564 };
+    const queryWithCountry = /brasil|brazil/i.test(cleanAddr) ? cleanAddr : `${cleanAddr}, Brasil`;
+    const hasBias =
+      typeof options?.biasLat === 'number' &&
+      typeof options?.biasLng === 'number' &&
+      Number.isFinite(options.biasLat) &&
+      Number.isFinite(options.biasLng) &&
+      !isPlaceholderCoordPair(options.biasLat, options.biasLng);
+
+    // Camada 1: Google Geocoding REST API com viewport bias regional
+    if (options?.mapsKey) {
+      try {
+        const boundsParam = hasBias
+          ? `&bounds=${(options.biasLat! - 0.28).toFixed(4)},${(options.biasLng! - 0.28).toFixed(4)}|${(options.biasLat! + 0.28).toFixed(4)},${(options.biasLng! + 0.28).toFixed(4)}`
+          : '';
+        const gHeaders: Record<string, string> = {
+          'X-Goog-Maps-Solution-ID': 'gmp_mcp_codeassist_v1_aistudio',
+        };
+        if (options.referer) gHeaders['Referer'] = options.referer;
+
+        const geoRes = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+            queryWithCountry
+          )}&language=pt-BR&region=br${boundsParam}&key=${encodeURIComponent(options.mapsKey)}`,
+          { headers: gHeaders, signal: AbortSignal.timeout(4000) }
+        );
+        if (geoRes.ok) {
+          const geoData = await geoRes.json();
+          const loc = geoData?.results?.[0]?.geometry?.location;
+          if (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number') {
+            return { lat: loc.lat, lng: loc.lng };
+          }
+        }
+      } catch {}
     }
 
+    // Camada 2: Nominatim OpenStreetMap com viewbox bias regional
     try {
-      const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(cleanAddr)}`;
+      const viewboxParam = hasBias
+        ? `&viewbox=${(options!.biasLng! - 0.3).toFixed(4)},${(options!.biasLat! + 0.3).toFixed(4)},${(options!.biasLng! + 0.3).toFixed(4)},${(options!.biasLat! - 0.3).toFixed(4)}&bounded=0`
+        : '';
+      const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br${viewboxParam}&q=${encodeURIComponent(cleanAddr)}`;
       const nomRes = await fetch(nomUrl, {
-        headers: { 'User-Agent': 'VagouApp-GIS/1.0' },
+        headers: {
+          'User-Agent': 'VagouApp-GIS/1.0',
+          'Accept-Language': 'pt-BR',
+        },
         signal: AbortSignal.timeout(3500),
       });
       if (nomRes.ok) {
@@ -190,6 +296,7 @@ async function startServer() {
   // 2. Routes API v2 — computeRoutes + /api/geo/route (5-Layer Real-Road Routing Cascade)
   app.post(['/api/maps/compute-route', '/api/geo/route'], async (req, res) => {
     const mapsKey = getMapsApiKey();
+    const reqReferer = String(req.headers.referer || req.headers.origin || '');
     const {
       originLat,
       originLng,
@@ -205,14 +312,21 @@ async function startServer() {
       originLng,
       originAddress,
       -23.5505,
-      -46.6333
+      -46.6333,
+      { mapsKey, referer: reqReferer }
     );
     const resolvedDest = await resolveSmartCoordinates(
       destLat,
       destLng,
       destAddress,
       -23.5621,
-      -46.4795
+      -46.4795,
+      {
+        mapsKey,
+        referer: reqReferer,
+        biasLat: resolvedOrigin.lat,
+        biasLng: resolvedOrigin.lng,
+      }
     );
 
     const safeOriginLat = resolvedOrigin.lat;
@@ -285,7 +399,11 @@ async function startServer() {
 
         const data = await response.json();
         if (response.ok && data?.routes?.[0]?.polyline?.encodedPolyline) {
-          return res.json(data);
+          return res.json({
+            ...data,
+            resolvedOrigin: { lat: safeOriginLat, lng: safeOriginLng },
+            resolvedDestination: { lat: safeDestLat, lng: safeDestLng },
+          });
         }
       } catch {}
     }
@@ -321,11 +439,16 @@ async function startServer() {
           if (osrmRoute?.geometry) {
             const osrmLeg = osrmRoute.legs?.[0];
             const osrmSteps = Array.isArray(osrmLeg?.steps) ? osrmLeg.steps : [];
+            const filteredSteps = osrmSteps.filter(
+              (st: any) => Number(st?.distance || 0) > 15 || st?.maneuver?.type === 'arrive'
+            );
             return res.json({
+              resolvedOrigin: { lat: safeOriginLat, lng: safeOriginLng },
+              resolvedDestination: { lat: safeDestLat, lng: safeDestLng },
               routes: [
                 {
                   distanceMeters: Math.round(Number(osrmRoute.distance || 3200)),
-                  duration: `${Math.round(Number(osrmRoute.duration || 840))}s`,
+                  duration: `${Math.round(Number(osrmRoute.duration || 600))}s`,
                   description: osrmLeg?.summary || 'Trajeto Viário Principal',
                   polyline: {
                     encodedPolyline: osrmRoute.geometry,
@@ -333,19 +456,46 @@ async function startServer() {
                   legs: [
                     {
                       distanceMeters: Math.round(Number(osrmRoute.distance || 3200)),
-                      duration: `${Math.round(Number(osrmRoute.duration || 840))}s`,
-                      steps: osrmSteps
-                        .filter((st: any) => Number(st?.distance || 0) > 15)
-                        .map((st: any, idx: number) => ({
+                      duration: `${Math.round(Number(osrmRoute.duration || 600))}s`,
+                      steps: filteredSteps.map((st: any, idx: number) => {
+                        const mapped = mapOsrmManeuverToGoogle(
+                          st?.maneuver?.type,
+                          st?.maneuver?.modifier,
+                          st?.name || st?.ref,
+                          idx
+                        );
+                        const loc = Array.isArray(st?.maneuver?.location)
+                          ? st.maneuver.location
+                          : null;
+                        const nextLoc = Array.isArray(filteredSteps[idx + 1]?.maneuver?.location)
+                          ? filteredSteps[idx + 1].maneuver.location
+                          : null;
+                        return {
                           distanceMeters: Math.round(Number(st.distance || 0)),
                           staticDuration: `${Math.round(Number(st.duration || 0))}s`,
+                          ...(loc && loc.length >= 2
+                            ? {
+                                startLocation: {
+                                  latLng: { latitude: Number(loc[1]), longitude: Number(loc[0]) },
+                                },
+                              }
+                            : {}),
+                          ...(nextLoc && nextLoc.length >= 2
+                            ? {
+                                endLocation: {
+                                  latLng: {
+                                    latitude: Number(nextLoc[1]),
+                                    longitude: Number(nextLoc[0]),
+                                  },
+                                },
+                              }
+                            : {}),
                           navigationInstruction: {
-                            instructions: st.name
-                              ? `Siga por ${st.name}`
-                              : `Continue pelo trecho ${idx + 1}`,
-                            maneuver: 'STRAIGHT',
+                            instructions: mapped.instruction,
+                            maneuver: mapped.maneuver,
                           },
-                        })),
+                        };
+                      }),
                     },
                   ],
                 },
@@ -392,6 +542,8 @@ async function startServer() {
             const durationSec = Math.round(Number(leg.summary?.time || 840));
             const maneuvers = Array.isArray(leg.maneuvers) ? leg.maneuvers : [];
             return res.json({
+              resolvedOrigin: { lat: safeOriginLat, lng: safeOriginLng },
+              resolvedDestination: { lat: safeDestLat, lng: safeDestLng },
               routes: [
                 {
                   distanceMeters: distMeters,
@@ -406,14 +558,47 @@ async function startServer() {
                     {
                       distanceMeters: distMeters,
                       duration: `${durationSec}s`,
-                      steps: maneuvers.map((m: any) => ({
-                        distanceMeters: Math.round(Number(m.length || 0) * 1000),
-                        staticDuration: `${Math.round(Number(m.time || 0))}s`,
-                        navigationInstruction: {
-                          instructions: m.instruction || 'Siga pela via principal',
-                          maneuver: 'STRAIGHT',
-                        },
-                      })),
+                      steps: maneuvers.map((m: any) => {
+                        const instr = String(m.instruction || 'Siga pela via principal');
+                        const lower = instr.toLowerCase();
+                        const valManeuver = lower.includes('retorno')
+                          ? 'UTURN_LEFT'
+                          : lower.includes('esquerda')
+                          ? 'TURN_LEFT'
+                          : lower.includes('direita')
+                          ? 'TURN_RIGHT'
+                          : 'STRAIGHT';
+                        const beginPt =
+                          typeof m.begin_shape_index === 'number'
+                            ? decodedPts[m.begin_shape_index]
+                            : undefined;
+                        const endPt =
+                          typeof m.end_shape_index === 'number'
+                            ? decodedPts[m.end_shape_index]
+                            : undefined;
+                        return {
+                          distanceMeters: Math.round(Number(m.length || 0) * 1000),
+                          staticDuration: `${Math.round(Number(m.time || 0))}s`,
+                          ...(beginPt
+                            ? {
+                                startLocation: {
+                                  latLng: { latitude: beginPt.lat, longitude: beginPt.lng },
+                                },
+                              }
+                            : {}),
+                          ...(endPt
+                            ? {
+                                endLocation: {
+                                  latLng: { latitude: endPt.lat, longitude: endPt.lng },
+                                },
+                              }
+                            : {}),
+                          navigationInstruction: {
+                            instructions: instr,
+                            maneuver: valManeuver,
+                          },
+                        };
+                      }),
                     },
                   ],
                 },
@@ -629,7 +814,9 @@ async function startServer() {
 
       let snappedLat = rawLat;
       let snappedLng = rawLng;
-      const gHeaders: Record<string, string> = {};
+      const gHeaders: Record<string, string> = {
+        'X-Goog-Maps-Solution-ID': 'gmp_mcp_codeassist_v1_aistudio',
+      };
       if (reqReferer) gHeaders['Referer'] = reqReferer;
 
       // Step A: Snap to nearest road via Roads API
@@ -747,6 +934,8 @@ async function startServer() {
       city = '',
       state = 'SP',
       cep = '',
+      biasLat,
+      biasLng,
     } = req.body || {};
 
     const cleanCep = String(cep || '').replace(/\D/g, '');
@@ -762,17 +951,28 @@ async function startServer() {
       .filter(Boolean);
     const fullQuery = queryParts.join(', ');
     const reqReferer = String(req.headers.referer || req.headers.origin || '');
+    const hasBias =
+      typeof biasLat === 'number' &&
+      typeof biasLng === 'number' &&
+      Number.isFinite(biasLat) &&
+      Number.isFinite(biasLng) &&
+      !isPlaceholderCoordPair(biasLat, biasLng);
 
-    // Camada 1: Google Geocoding API (com cabeçalho Referer encaminhado)
+    // Camada 1: Google Geocoding API (com cabeçalho Referer encaminhado + viewport bounds bias)
     if (mapsKey && fullQuery) {
       try {
-        const headers: Record<string, string> = {};
+        const headers: Record<string, string> = {
+          'X-Goog-Maps-Solution-ID': 'gmp_mcp_codeassist_v1_aistudio',
+        };
         if (reqReferer) headers['Referer'] = reqReferer;
+        const boundsParam = hasBias
+          ? `&bounds=${(biasLat - 0.28).toFixed(4)},${(biasLng - 0.28).toFixed(4)}|${(biasLat + 0.28).toFixed(4)},${(biasLng + 0.28).toFixed(4)}`
+          : '';
 
         const geoRes = await fetch(
           `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
             fullQuery
-          )}&language=pt-BR&region=br&key=${encodeURIComponent(mapsKey)}`,
+          )}&language=pt-BR&region=br${boundsParam}&key=${encodeURIComponent(mapsKey)}`,
           { headers }
         );
         if (geoRes.ok) {
@@ -795,8 +995,11 @@ async function startServer() {
     // Camada 2: Nominatim OpenStreetMap
     if (fullQuery) {
       try {
+        const viewboxParam = hasBias
+          ? `&viewbox=${(biasLng - 0.3).toFixed(4)},${(biasLat + 0.3).toFixed(4)},${(biasLng + 0.3).toFixed(4)},${(biasLat - 0.3).toFixed(4)}&bounded=0`
+          : '';
         const nomRes = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(
+          `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br${viewboxParam}&q=${encodeURIComponent(
             fullQuery
           )}`,
           {

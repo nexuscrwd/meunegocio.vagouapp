@@ -11,6 +11,22 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-13] — Correção Integral de Navegação GPS em Tempo Real: ETA Realista, Seta de Manobra Dinâmica, Geocodificação Regional e Itinerário Real (`bol-166`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / GIS / RTLS / Google Maps Platform]`
+- **Motivo / Solicitação:** Corrigir três inconsistências na navegação GPS ao vivo: (1) tempo restante inflado (`01:21` para `18,6 km` a `62 km/h`), (2) seta de instrução de conversão travada sempre à esquerda (`TURN-LEFT` + `Curva Em rota`), e (3) lista de ruas do Itinerário presa em ruas mockadas legadas (`Av. Paulista`, `Rua da Consolação`, `Av. Rebouças`, `Rua Oscar Freire`).
+- **Arquivos Impactados:**
+  - `server.ts`
+  - `src/services/googleMapsService.ts`
+  - `src/hooks/useLiveRouteTracker.ts`
+  - `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
+  - `src/components/live-tracking/LiveTrackingModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Google Maps Platform Provisionado + Geocodificação Regional (`bounds` / `viewbox`):** Geocodificação automática do endereço de destino via Google Geocoding API (com `bounds` regional ao redor da origem GPS do usuário e `X-Goog-Maps-Solution-ID: gmp_mcp_codeassist_v1_aistudio`) e fallback Nominatim CORS-safe para builds estáticos (Cloudflare Pages), eliminando coordenadas fixas na região da Av. Paulista.
+  2. **Seta de Conversão Dinâmica & Distância Regressiva (`resolveLiveManeuverFromGps` + `onManeuverUpdate`):** Removido o estado inicial fixo `TURN-LEFT`; mapeadas manobras reais (`TURN_LEFT`, `TURN_RIGHT`, `TURN_SLIGHT_*`, `TURN_SHARP_*`, `UTURN_LEFT`, `ROUNDABOUT_*`, `RAMP_*`, `STRAIGHT`) tanto na Routes API v2 quanto no fallback OSRM (`steps=true`) e na geometria da polilinha, propagando `onManeuverUpdate` a cada fix do GPS.
+  3. **Distância Real na Polilinha & ETA Ponderado com Velocidade GPS (`computePolylineLengthKm` + `computeRealisticRemainingMinutes`):** Cálculo exato da distância restante somando os segmentos reais de `remainingPath` e fusão do ritmo oficial da rota com a velocidade suavizada do GPS em movimento (`km/h`).
+  4. **Expurgo Definitivo do Mock `Av. Paulista` & Auto-Cura do Itinerário (`isPlaceholderCheckpoints` + `buildConsolidatedCheckpoints`):** Eliminados os arrays fixos de ruas em `useLiveRouteTracker.ts`, com detecção e substituição automática de checkpoints legados pelas vias reais consolidadas da rota e progresso sincronizado com `current_street_name`.
+
 ### [2026-11-13] — Motor Global de Tema em Cascata, Estúdio Unificado por Abas & Botão Default com Confirmação Modal (`bol-165`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Refactor / Feat / UI / Theme Engine]`
 - **Motivo / Solicitação:** Corrigir inconsistências de cores entre cabeçalho, fundo, bordas, barra de navegação inferior (`BottomNav`), botões ativos/inativos e módulos internos do Modo Salão; consolidar as ferramentas de design em uma única tela organizada por abas; garantir padrão **Default** em cinza, branco e escuro suave (`#334155`) com modal de confirmação in-app e opção de manter apenas o logotipo; e aplicar cascata completa em todo o aplicativo ao escolher qualquer tema rápido.

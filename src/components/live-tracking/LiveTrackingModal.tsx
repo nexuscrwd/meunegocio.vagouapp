@@ -36,6 +36,7 @@ import {
   formatCurrentClockTime,
   syncAppointmentAcrossStorageAndDb,
   useLiveRouteTracker,
+  isPlaceholderCheckpoints,
 } from '../../hooks/useLiveRouteTracker';
 import {
   buildTransportDeepLinks,
@@ -46,6 +47,8 @@ import {
   computeGoogleDetailedRoute,
   GoogleComputedRouteResult,
   snapAndReverseGeocodeGps,
+  geocodeAddressThreeLayers,
+  isPlaceholderCoordinates,
 } from '../../services/googleMapsService';
 import { InteractiveGoogleRouteMap } from './InteractiveGoogleRouteMap';
 import { SalonLocationGroundingPanel } from '../public/SalonLocationGroundingPanel';
@@ -97,6 +100,21 @@ interface RouteTrafficAlertItem {
   source: 'waze' | 'osm_overpass' | 'telemetry';
 }
 
+function formatCompactManeuverSuffix(
+  maneuver?: string,
+  distanceText?: string,
+  instruction?: string
+): string {
+  const dist = String(distanceText || '').trim();
+  if (!dist || dist.toLowerCase() === 'em rota') return '';
+  const m = String(maneuver || '').toUpperCase();
+  const txt = String(instruction || '').toLowerCase();
+  if (m.includes('UTURN') || txt.includes('retorno')) return ` • Retorno em ${dist}`;
+  if (m.includes('LEFT') || txt.includes('esquerda')) return ` • Esquerda em ${dist}`;
+  if (m.includes('RIGHT') || txt.includes('direita')) return ` • Direita em ${dist}`;
+  return ` • Siga ${dist}`;
+}
+
 const WazeTrafficAlertsContainer: React.FC<{
   isDark: boolean;
   originLat: number;
@@ -104,7 +122,18 @@ const WazeTrafficAlertsContainer: React.FC<{
   destLat: number;
   destLng: number;
   maneuverDistanceText?: string;
-}> = ({ isDark, originLat, originLng, destLat, destLng, maneuverDistanceText }) => {
+  maneuverCode?: string;
+  maneuverInstruction?: string;
+}> = ({
+  isDark,
+  originLat,
+  originLng,
+  destLat,
+  destLng,
+  maneuverDistanceText,
+  maneuverCode,
+  maneuverInstruction,
+}) => {
   const [alerts, setAlerts] = useState<RouteTrafficAlertItem[]>([
     {
       id: 'init-radar',
@@ -224,7 +253,7 @@ const WazeTrafficAlertsContainer: React.FC<{
           </div>
           <span className="text-[10px] font-semibold truncate text-slate-500 dark:text-slate-400 leading-tight">
             {currentAlert.subtitle}
-            {maneuverDistanceText ? ` • Curva ${maneuverDistanceText}` : ''}
+            {formatCompactManeuverSuffix(maneuverCode, maneuverDistanceText, maneuverInstruction)}
           </span>
         </div>
       </div>
@@ -547,6 +576,7 @@ function normalizeBookingTransportMode(mode?: TransportMode): BookingTransportMo
 function resolveAppointmentDestFallbackCoords(appointment: BookingAppointment): {
   lat: number;
   lng: number;
+  isExplicit: boolean;
 } {
   const anyApt = appointment as any;
   const rawLat =
@@ -566,33 +596,39 @@ function resolveAppointmentDestFallbackCoords(appointment: BookingAppointment): 
     typeof rawLat === 'number' &&
     typeof rawLng === 'number' &&
     Number.isFinite(rawLat) &&
-    Number.isFinite(rawLng)
+    Number.isFinite(rawLng) &&
+    !isPlaceholderCoordinates(rawLat, rawLng)
   ) {
-    return { lat: rawLat, lng: rawLng };
+    return { lat: rawLat, lng: rawLng, isExplicit: true };
   }
 
-  const text = `${appointment.address || ''} ${appointment.salonName || ''}`.toLowerCase();
-  if (
-    text.includes('guarulhos') ||
-    text.includes('helio smidt') ||
-    text.includes('hélio smidt') ||
-    text.includes('aeroporto')
-  ) {
-    return { lat: -23.4356, lng: -46.4731 };
+  return { lat: -23.5505, lng: -46.6333, isExplicit: false };
+}
+
+function syncCheckpointsProgressWithStreet(
+  checkpoints: LiveRouteCheckpoint[],
+  currentStreetName?: string
+): LiveRouteCheckpoint[] {
+  const streetClean = String(currentStreetName || '').trim().toLowerCase();
+  if (!streetClean || streetClean === 'local atual (gps)' || checkpoints.length === 0) {
+    return checkpoints;
   }
-  if (text.includes('paulista')) {
-    return { lat: -23.5614, lng: -46.6559 };
-  }
-  if (text.includes('morumbi') || text.includes('roque petroni')) {
-    return { lat: -23.6226, lng: -46.6987 };
-  }
-  if (text.includes('ibirapuera')) {
-    return { lat: -23.5874, lng: -46.6576 };
-  }
-  if (text.includes('congonhas')) {
-    return { lat: -23.6261, lng: -46.6564 };
-  }
-  return { lat: -23.5592, lng: -46.6589 };
+  const matchIdx = checkpoints.findIndex((cp) => {
+    const cpText = String(cp.street || '').toLowerCase();
+    const streetBase = streetClean.split(',')[0].trim();
+    return streetBase.length >= 4 && cpText.includes(streetBase);
+  });
+  if (matchIdx < 0) return checkpoints;
+  const nowClock = formatCurrentClockTime(0);
+  return checkpoints.map((cp, idx) => {
+    if (idx < matchIdx) {
+      return { ...cp, status: 'passed', timestamp: cp.timestamp || nowClock };
+    }
+    if (idx === matchIdx) {
+      return { ...cp, status: 'current', timestamp: cp.timestamp || nowClock };
+    }
+    return { ...cp, status: 'upcoming' };
+  });
 }
 
 export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = ({
@@ -633,9 +669,9 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     distanceText: string;
     maneuver: string;
   }>({
-    instruction: 'Próxima Esquerda',
-    distanceText: 'Em rota',
-    maneuver: 'TURN-LEFT',
+    instruction: 'Siga pela via principal',
+    distanceText: '',
+    maneuver: 'STRAIGHT',
   });
 
   const transportMode: TransportMode = appointment.transport_mode || 'driving';
@@ -647,6 +683,10 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     lat: number;
     lng: number;
     address?: string;
+  } | null>(null);
+  const [geocodedDestCoords, setGeocodedDestCoords] = useState<{
+    lat: number;
+    lng: number;
   } | null>(null);
 
   const anyApt = appointment as any;
@@ -706,7 +746,37 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     };
   }, [isOpen, appointmentKey]);
 
-  // Coordenadas efetivas: prioriza a georreferência real do dispositivo (deviceGpsOrigin) sobre o endereço antigo do agendamento
+  const salonDestAddress = useMemo(() => {
+    return appointment.address || appointment.salonName || 'Estabelecimento';
+  }, [appointment.address, appointment.salonName]);
+
+  // Geocodifica o endereço real do destino quando não houver lat/lng explícitas no agendamento
+  useEffect(() => {
+    if (!isOpen) return;
+    const destInfo = resolveAppointmentDestFallbackCoords(appointment);
+    if (destInfo.isExplicit) {
+      setGeocodedDestCoords({ lat: destInfo.lat, lng: destInfo.lng });
+      return;
+    }
+    const cleanAddr = String(salonDestAddress || '').trim();
+    if (!cleanAddr || cleanAddr === 'Estabelecimento') return;
+
+    let active = true;
+    geocodeAddressThreeLayers({
+      address: cleanAddr,
+      biasLat: deviceGpsOrigin?.lat ?? appointment.client_lat,
+      biasLng: deviceGpsOrigin?.lng ?? appointment.client_lng,
+    }).then((geo) => {
+      if (!active || !geo) return;
+      setGeocodedDestCoords({ lat: geo.lat, lng: geo.lng });
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, appointmentKey, salonDestAddress, deviceGpsOrigin?.lat, deviceGpsOrigin?.lng]);
+
+  // Coordenadas efetivas: prioriza a georreferência real do dispositivo (deviceGpsOrigin) e o destino geocodificado
   const stableCoords = useMemo(() => {
     const oLat = Number(
       deviceGpsOrigin?.lat ?? anyApt.originLat ?? appointment.client_lat ?? -23.5505
@@ -716,20 +786,38 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     );
 
     const routeDestPt =
-      liveRouteData?.decodedPath && liveRouteData.decodedPath.length > 2
+      liveRouteData?.resolvedDestination ||
+      (liveRouteData?.decodedPath && liveRouteData.decodedPath.length > 2
         ? liveRouteData.decodedPath[liveRouteData.decodedPath.length - 1]
-        : null;
+        : null);
 
     const fallbackDest = resolveAppointmentDestFallbackCoords(appointment);
-    const dLat = Number(routeDestPt?.lat ?? fallbackDest.lat);
-    const dLng = Number(routeDestPt?.lng ?? fallbackDest.lng);
+    const dLat = Number(
+      routeDestPt?.lat ??
+        geocodedDestCoords?.lat ??
+        (fallbackDest.isExplicit ? fallbackDest.lat : -23.5505)
+    );
+    const dLng = Number(
+      routeDestPt?.lng ??
+        geocodedDestCoords?.lng ??
+        (fallbackDest.isExplicit ? fallbackDest.lng : -46.6333)
+    );
     return {
       originLat: Number.isFinite(oLat) ? oLat : -23.5505,
       originLng: Number.isFinite(oLng) ? oLng : -46.6333,
       destLat: Number.isFinite(dLat) ? dLat : fallbackDest.lat,
       destLng: Number.isFinite(dLng) ? dLng : fallbackDest.lng,
+      hasResolvedDest: Boolean(routeDestPt || geocodedDestCoords || fallbackDest.isExplicit),
     };
-  }, [appointment, appointmentKey, deviceGpsOrigin?.lat, deviceGpsOrigin?.lng, liveRouteData]);
+  }, [
+    appointment,
+    appointmentKey,
+    deviceGpsOrigin?.lat,
+    deviceGpsOrigin?.lng,
+    geocodedDestCoords?.lat,
+    geocodedDestCoords?.lng,
+    liveRouteData,
+  ]);
 
   const { secondsUntilNextPing } = useLiveRouteTracker({
     appointment,
@@ -770,10 +858,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     );
   }, [appointmentKey, deviceGpsOrigin?.address]);
 
-  const salonDestAddress = useMemo(() => {
-    return appointment.address || appointment.salonName || 'Estabelecimento';
-  }, [appointment.address, appointment.salonName]);
-
   // Busca Rota Real seguindo a malha viária a partir da localização atual do dispositivo
   useEffect(() => {
     if (!isOpen) return;
@@ -783,8 +867,8 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
       originLat: stableCoords.originLat,
       originLng: stableCoords.originLng,
       originAddress: deviceGpsOrigin ? undefined : clientOriginAddress,
-      destLat: stableCoords.destLat,
-      destLng: stableCoords.destLng,
+      destLat: stableCoords.hasResolvedDest ? stableCoords.destLat : undefined,
+      destLng: stableCoords.hasResolvedDest ? stableCoords.destLng : undefined,
       destAddress: salonDestAddress,
       mode: bookingTransportMode,
     }).then((res) => {
@@ -802,10 +886,39 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     stableCoords.originLng,
     stableCoords.destLat,
     stableCoords.destLng,
+    stableCoords.hasResolvedDest,
     clientOriginAddress,
     salonDestAddress,
     Boolean(deviceGpsOrigin),
   ]);
+
+  // Sincroniza checkpoints reais automaticamente (substituindo mocks antigos da Av. Paulista se houver)
+  useEffect(() => {
+    if (!isOpen || !liveRouteData || liveRouteData.checkpoints.length === 0) return;
+    const shouldSyncCheckpoints =
+      step === 'in_app_map' ||
+      isAlreadySharing ||
+      isPlaceholderCheckpoints(appointment.route_checkpoints);
+    if (!shouldSyncCheckpoints) return;
+
+    const currentSerialized = JSON.stringify(
+      (appointment.route_checkpoints || []).map((c) => c.street)
+    );
+    const nextSerialized = JSON.stringify(liveRouteData.checkpoints.map((c) => c.street));
+    if (currentSerialized === nextSerialized) return;
+
+    syncAppointmentAcrossStorageAndDb(
+      appointment,
+      {
+        route_checkpoints: liveRouteData.checkpoints,
+        selected_route_summary: liveRouteData.description,
+        route_polyline: liveRouteData.decodedPath,
+        distance_km: liveRouteData.distanceKm,
+        eta_minutes: liveRouteData.etaMinutes,
+      },
+      onUpdateAppointment
+    );
+  }, [isOpen, step, isAlreadySharing, liveRouteData]);
 
   const transportLinks = useMemo(() => {
     const anyApt = appointment as any;
@@ -843,16 +956,13 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
 
   const handleStartInAppMapRoute = () => {
     hapticSuccess();
-    const nowClock = formatCurrentClockTime();
     const initialCheckpoints: LiveRouteCheckpoint[] =
       liveRouteData?.checkpoints && liveRouteData.checkpoints.length > 0
         ? liveRouteData.checkpoints
-        : selectedRoute.streets.map((s, idx) => ({
-            street: s.street,
-            distanceText: s.distanceText,
-            status: idx === 0 ? 'current' : 'upcoming',
-            timestamp: idx === 0 ? nowClock : undefined,
-          }));
+        : !isPlaceholderCheckpoints(appointment.route_checkpoints) &&
+          appointment.route_checkpoints
+        ? appointment.route_checkpoints
+        : [];
 
     const nextStatus = metrics.etaMinutes <= 5 ? 'arriving_5min' : 'live_sharing';
 
@@ -862,9 +972,10 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
         tracking_status: nextStatus,
         transport_mode: transportMode,
         selected_route_summary: liveRouteData?.description || selectedRoute.summary,
-        route_polyline: liveRouteData?.decodedPath || selectedRoute.polyline,
-        current_street_name: initialCheckpoints[0]?.street || selectedRoute.streets[0].street,
-        route_checkpoints: initialCheckpoints,
+        ...(liveRouteData?.decodedPath ? { route_polyline: liveRouteData.decodedPath } : {}),
+        current_street_name:
+          initialCheckpoints[0]?.street || deviceGpsOrigin?.address || 'Local Atual (GPS)',
+        ...(initialCheckpoints.length > 0 ? { route_checkpoints: initialCheckpoints } : {}),
         eta_minutes: metrics.etaMinutes,
         distance_km: metrics.distanceKm,
         delay_minutes: 0,
@@ -946,22 +1057,35 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     onClose();
   };
 
-  const checkpoints: LiveRouteCheckpoint[] =
-    appointment.route_checkpoints && appointment.route_checkpoints.length > 0
-      ? appointment.route_checkpoints
-      : liveRouteData?.checkpoints && liveRouteData.checkpoints.length > 0
-      ? liveRouteData.checkpoints
-      : selectedRoute.streets.map((s, idx) => ({
-          street: s.street,
-          distanceText: s.distanceText,
-          status: idx === 0 ? 'current' : 'upcoming',
-          timestamp: idx === 0 ? formatCurrentClockTime(0) : undefined,
-        }));
-
   const destinationLabel =
     appointment.service_location_type === 'home_delivery'
       ? appointment.address || 'Residência do Cliente'
       : appointment.salonName || 'Recepção do Salão';
+
+  const rawCheckpoints: LiveRouteCheckpoint[] =
+    liveRouteData?.checkpoints && liveRouteData.checkpoints.length > 0
+      ? liveRouteData.checkpoints
+      : appointment.route_checkpoints &&
+        appointment.route_checkpoints.length > 0 &&
+        !isPlaceholderCheckpoints(appointment.route_checkpoints)
+      ? appointment.route_checkpoints
+      : [
+          {
+            street:
+              appointment.current_street_name &&
+              appointment.current_street_name !== 'Local Atual (GPS)'
+                ? `Siga por ${appointment.current_street_name}`
+                : `Calculando ruas até ${destinationLabel}...`,
+            distanceText: '',
+            status: 'current',
+            timestamp: formatCurrentClockTime(0),
+          },
+        ];
+
+  const checkpoints = syncCheckpointsProgressWithStreet(
+    rawCheckpoints,
+    appointment.current_street_name
+  );
 
   // SE ESTIVER NA TELA EXPANDIDA DE MAPA IN-APP + ITINERÁRIO
   if (step === 'in_app_map') {
@@ -1113,7 +1237,13 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                   ? 'bg-amber-500/15 border-amber-500/40'
                   : 'bg-amber-500/15 border-amber-500/50'
               }`}
-              title={activeManeuver.distanceText ? `Próxima manobra em ${activeManeuver.distanceText}` : 'Direção da via'}
+              title={
+                activeManeuver.instruction
+                  ? `${activeManeuver.instruction}${
+                      activeManeuver.distanceText ? ` (${activeManeuver.distanceText})` : ''
+                    }`
+                  : 'Direção da via'
+              }
             >
               {renderManeuverIcon(activeManeuver.maneuver, activeManeuver.instruction)}
             </div>
@@ -1125,6 +1255,8 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
               destLat={stableCoords.destLat}
               destLng={stableCoords.destLng}
               maneuverDistanceText={activeManeuver.distanceText}
+              maneuverCode={activeManeuver.maneuver}
+              maneuverInstruction={activeManeuver.instruction}
             />
           </div>
 
@@ -1138,6 +1270,8 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                 destLat={stableCoords.destLat}
                 destLng={stableCoords.destLng}
                 destLabel={appointment.salonName || salonDestAddress}
+                destAddress={salonDestAddress}
+                mode={transportMode}
                 userAvatarUrl={
                   anyApt.clientAvatar ||
                   anyApt.avatar_url ||
@@ -1151,17 +1285,22 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                 fallbackEmbedUrl={transportLinks.googleMapsEmbedUrl}
                 onSpeedUpdate={(speed) => setCurrentSpeedKmh(speed)}
                 onManeuverUpdate={(m) => setActiveManeuver(m)}
+                onRouteResolved={(resolved) => setLiveRouteData(resolved)}
                 onTelemetryUpdate={(distKm, etaMin) =>
                   setLiveTelemetry({ distanceKm: distKm, etaMinutes: etaMin })
                 }
                 onLiveGpsUpdate={(lat, lng, snappedStreet) => {
                   const currentEta =
                     liveTelemetry?.etaMinutes ?? appointment.eta_minutes ?? metrics.etaMinutes;
+                  const currentDist =
+                    liveTelemetry?.distanceKm ?? appointment.distance_km ?? metrics.distanceKm;
                   syncAppointmentAcrossStorageAndDb(
                     appointment,
                     {
                       client_lat: lat,
                       client_lng: lng,
+                      distance_km: Number(currentDist.toFixed(2)),
+                      eta_minutes: Math.max(1, Math.round(currentEta)),
                       ...(snappedStreet ? { current_street_name: snappedStreet } : {}),
                       tracking_status: currentEta <= 5 ? 'arriving_5min' : 'live_sharing',
                     },
@@ -1735,9 +1874,9 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
     distanceText: string;
     maneuver: string;
   }>({
-    instruction: 'Próxima Esquerda',
-    distanceText: 'Em rota',
-    maneuver: 'TURN-LEFT',
+    instruction: 'Siga pela via principal',
+    distanceText: '',
+    maneuver: 'STRAIGHT',
   });
   const transportMode: TransportMode = appointment.transport_mode || 'driving';
   const [liveRouteData, setLiveRouteData] = useState<GoogleComputedRouteResult | null>(null);
@@ -1745,6 +1884,10 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
     lat: number;
     lng: number;
     address?: string;
+  } | null>(null);
+  const [geocodedDrawerDest, setGeocodedDrawerDest] = useState<{
+    lat: number;
+    lng: number;
   } | null>(null);
 
   const anyApt = appointment as any;
@@ -1793,6 +1936,35 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
     };
   }, [isOpen, viewerRole, drawerAppointmentKey]);
 
+  const salonDestAddress = useMemo(() => {
+    return appointment.address || appointment.salonName || 'Estabelecimento';
+  }, [appointment.address, appointment.salonName]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const destInfo = resolveAppointmentDestFallbackCoords(appointment);
+    if (destInfo.isExplicit) {
+      setGeocodedDrawerDest({ lat: destInfo.lat, lng: destInfo.lng });
+      return;
+    }
+    const cleanAddr = String(salonDestAddress || '').trim();
+    if (!cleanAddr || cleanAddr === 'Estabelecimento') return;
+
+    let active = true;
+    geocodeAddressThreeLayers({
+      address: cleanAddr,
+      biasLat: deviceGpsOrigin?.lat ?? appointment.client_lat,
+      biasLng: deviceGpsOrigin?.lng ?? appointment.client_lng,
+    }).then((geo) => {
+      if (!active || !geo) return;
+      setGeocodedDrawerDest({ lat: geo.lat, lng: geo.lng });
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, drawerAppointmentKey, salonDestAddress, deviceGpsOrigin?.lat, deviceGpsOrigin?.lng]);
+
   const stableDrawerCoords = useMemo(() => {
     const oLat = Number(
       deviceGpsOrigin?.lat ?? anyApt.originLat ?? appointment.client_lat ?? -23.5505
@@ -1802,20 +1974,38 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
     );
 
     const routeDestPt =
-      liveRouteData?.decodedPath && liveRouteData.decodedPath.length > 2
+      liveRouteData?.resolvedDestination ||
+      (liveRouteData?.decodedPath && liveRouteData.decodedPath.length > 2
         ? liveRouteData.decodedPath[liveRouteData.decodedPath.length - 1]
-        : null;
+        : null);
 
     const fallbackDest = resolveAppointmentDestFallbackCoords(appointment);
-    const dLat = Number(routeDestPt?.lat ?? fallbackDest.lat);
-    const dLng = Number(routeDestPt?.lng ?? fallbackDest.lng);
+    const dLat = Number(
+      routeDestPt?.lat ??
+        geocodedDrawerDest?.lat ??
+        (fallbackDest.isExplicit ? fallbackDest.lat : -23.5505)
+    );
+    const dLng = Number(
+      routeDestPt?.lng ??
+        geocodedDrawerDest?.lng ??
+        (fallbackDest.isExplicit ? fallbackDest.lng : -46.6333)
+    );
     return {
       originLat: Number.isFinite(oLat) ? oLat : -23.5505,
       originLng: Number.isFinite(oLng) ? oLng : -46.6333,
       destLat: Number.isFinite(dLat) ? dLat : fallbackDest.lat,
       destLng: Number.isFinite(dLng) ? dLng : fallbackDest.lng,
+      hasResolvedDest: Boolean(routeDestPt || geocodedDrawerDest || fallbackDest.isExplicit),
     };
-  }, [appointment, drawerAppointmentKey, deviceGpsOrigin?.lat, deviceGpsOrigin?.lng, liveRouteData]);
+  }, [
+    appointment,
+    drawerAppointmentKey,
+    deviceGpsOrigin?.lat,
+    deviceGpsOrigin?.lng,
+    geocodedDrawerDest?.lat,
+    geocodedDrawerDest?.lng,
+    liveRouteData,
+  ]);
 
   const { secondsUntilNextPing } = useLiveRouteTracker({
     appointment,
@@ -1840,10 +2030,6 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
     );
   }, [drawerAppointmentKey, deviceGpsOrigin?.address]);
 
-  const salonDestAddress = useMemo(() => {
-    return appointment.address || appointment.salonName || 'Estabelecimento';
-  }, [appointment.address, appointment.salonName]);
-
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
@@ -1852,8 +2038,8 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
       originLat: stableDrawerCoords.originLat,
       originLng: stableDrawerCoords.originLng,
       originAddress: deviceGpsOrigin ? undefined : clientOriginAddress,
-      destLat: stableDrawerCoords.destLat,
-      destLng: stableDrawerCoords.destLng,
+      destLat: stableDrawerCoords.hasResolvedDest ? stableDrawerCoords.destLat : undefined,
+      destLng: stableDrawerCoords.hasResolvedDest ? stableDrawerCoords.destLng : undefined,
       destAddress: salonDestAddress,
       mode: bookingTransportMode,
     }).then((res) => {
@@ -1872,10 +2058,26 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
     stableDrawerCoords.originLng,
     stableDrawerCoords.destLat,
     stableDrawerCoords.destLng,
+    stableDrawerCoords.hasResolvedDest,
     clientOriginAddress,
     salonDestAddress,
     Boolean(deviceGpsOrigin),
   ]);
+
+  useEffect(() => {
+    if (!isOpen || !liveRouteData || liveRouteData.checkpoints.length === 0) return;
+    if (!isPlaceholderCheckpoints(appointment.route_checkpoints)) return;
+    syncAppointmentAcrossStorageAndDb(
+      appointment,
+      {
+        route_checkpoints: liveRouteData.checkpoints,
+        selected_route_summary: liveRouteData.description,
+        distance_km: liveRouteData.distanceKm,
+        eta_minutes: liveRouteData.etaMinutes,
+      },
+      onUpdateAppointment
+    );
+  }, [isOpen, liveRouteData]);
 
   const transportLinks = useMemo(() => {
     return buildTransportDeepLinks({
@@ -1892,20 +2094,38 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
 
   if (!isOpen) return null;
 
-  const drawerDistanceKm = liveRouteData?.distanceKm ?? appointment.distance_km ?? 3.2;
-  const drawerEtaMinutes = liveRouteData?.etaMinutes ?? appointment.eta_minutes ?? 14;
+  const drawerDistanceKm = liveRouteData?.distanceKm ?? appointment.distance_km ?? 6.0;
+  const drawerEtaMinutes = liveRouteData?.etaMinutes ?? appointment.eta_minutes ?? 12;
 
-  const checkpoints: LiveRouteCheckpoint[] =
-    appointment.route_checkpoints && appointment.route_checkpoints.length > 0
-      ? appointment.route_checkpoints
-      : liveRouteData?.checkpoints && liveRouteData.checkpoints.length > 0
+  const destinationLabel =
+    appointment.service_location_type === 'home_delivery'
+      ? appointment.address || 'Residência do Cliente'
+      : appointment.salonName || 'Recepção do Salão';
+
+  const rawDrawerCheckpoints: LiveRouteCheckpoint[] =
+    liveRouteData?.checkpoints && liveRouteData.checkpoints.length > 0
       ? liveRouteData.checkpoints
-      : GOOGLE_MAPS_ROUTE_OPTIONS[0].streets.map((s, idx) => ({
-          street: s.street,
-          distanceText: s.distanceText,
-          status: idx === 0 ? 'passed' : idx === 1 ? 'current' : 'upcoming',
-          timestamp: idx <= 1 ? formatCurrentClockTime(idx === 0 ? -4 : 0) : undefined,
-        }));
+      : appointment.route_checkpoints &&
+        appointment.route_checkpoints.length > 0 &&
+        !isPlaceholderCheckpoints(appointment.route_checkpoints)
+      ? appointment.route_checkpoints
+      : [
+          {
+            street:
+              appointment.current_street_name &&
+              appointment.current_street_name !== 'Local Atual (GPS)'
+                ? `Siga por ${appointment.current_street_name}`
+                : `Calculando ruas até ${destinationLabel}...`,
+            distanceText: '',
+            status: 'current',
+            timestamp: formatCurrentClockTime(0),
+          },
+        ];
+
+  const checkpoints = syncCheckpointsProgressWithStreet(
+    rawDrawerCheckpoints,
+    appointment.current_street_name
+  );
 
   const isArriving5Min =
     appointment.tracking_status === 'arriving_5min' ||
@@ -1915,11 +2135,6 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
     appointment.service_location_type === 'home_delivery'
       ? `Profissional ${appointment.professionalName || appointment.professional}`
       : appointment.customerName || appointment.clientName || 'Cliente';
-
-  const destinationLabel =
-    appointment.service_location_type === 'home_delivery'
-      ? appointment.address || 'Residência do Cliente'
-      : appointment.salonName || 'Recepção do Salão';
 
   const handleMarkArrived = () => {
     hapticSuccess();
@@ -2074,7 +2289,13 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                 ? 'bg-amber-500/15 border-amber-500/40'
                 : 'bg-amber-500/15 border-amber-500/50'
             }`}
-            title={activeManeuver.distanceText ? `Próxima manobra em ${activeManeuver.distanceText}` : 'Direção da via'}
+            title={
+              activeManeuver.instruction
+                ? `${activeManeuver.instruction}${
+                    activeManeuver.distanceText ? ` (${activeManeuver.distanceText})` : ''
+                  }`
+                : 'Direção da via'
+            }
           >
             {renderManeuverIcon(activeManeuver.maneuver, activeManeuver.instruction)}
           </div>
@@ -2086,6 +2307,8 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
             destLat={stableDrawerCoords.destLat}
             destLng={stableDrawerCoords.destLng}
             maneuverDistanceText={activeManeuver.distanceText}
+            maneuverCode={activeManeuver.maneuver}
+            maneuverInstruction={activeManeuver.instruction}
           />
         </div>
 
@@ -2116,6 +2339,8 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
               destLat={stableDrawerCoords.destLat}
               destLng={stableDrawerCoords.destLng}
               destLabel={appointment.salonName || salonDestAddress}
+              destAddress={salonDestAddress}
+              mode={transportMode}
               userAvatarUrl={
                 anyApt.clientAvatar ||
                 anyApt.avatar_url ||
@@ -2129,6 +2354,7 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
               fallbackEmbedUrl={transportLinks.googleMapsEmbedUrl}
               onSpeedUpdate={(speed) => setCurrentSpeedKmh(speed)}
               onManeuverUpdate={(m) => setActiveManeuver(m)}
+              onRouteResolved={(resolved) => setLiveRouteData(resolved)}
               onTelemetryUpdate={(distKm, etaMin) =>
                 setDrawerLiveTelemetry({ distanceKm: distKm, etaMinutes: etaMin })
               }

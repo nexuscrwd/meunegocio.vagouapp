@@ -19,36 +19,53 @@ export interface GoogleMapsRouteOption {
   streets: Array<{ street: string; distanceText: string }>;
 }
 
+const LEGACY_MOCK_STREETS = new Set([
+  'av. paulista',
+  'rua da consolação',
+  'rua da consolacao',
+  'av. rebouças',
+  'av. reboucas',
+  'rua oscar freire',
+  'alameda santos',
+  'av. brigadeiro luís antônio',
+  'av. brigadeiro luis antonio',
+  'av. brasil',
+  'rua augusta',
+]);
+
+/**
+ * Detecta se a lista de checkpoints contém o antigo mock fixo (Av. Paulista / Consolação / Rebouças / Oscar Freire)
+ * para substituí-lo automaticamente pelas vias reais calculadas pela rota.
+ */
+export function isPlaceholderCheckpoints(
+  checkpoints?: LiveRouteCheckpoint[] | null
+): boolean {
+  if (!Array.isArray(checkpoints) || checkpoints.length === 0) return true;
+  const normalized = checkpoints.map((c) => String(c?.street || '').trim().toLowerCase());
+  const legacyMatches = normalized.filter((s) => LEGACY_MOCK_STREETS.has(s)).length;
+  return legacyMatches >= 2;
+}
+
 export const GOOGLE_MAPS_ROUTE_OPTIONS: GoogleMapsRouteOption[] = [
   {
     id: 'route_1',
-    badge: 'Mais rápida • Trânsito livre',
-    title: 'Rota 1 (Recomendada)',
-    summary: 'Rota 1 • Via Av. Paulista, Av. Rebouças e Rua Oscar Freire',
-    baseEtaMinutes: 14,
-    distanceKm: 3.2,
-    polyline: 'p~iF~ps|U_ulLnnqC_mqNvxq`@',
-    streets: [
-      { street: 'Av. Paulista', distanceText: '1.2 km' },
-      { street: 'Rua da Consolação', distanceText: '650 m' },
-      { street: 'Av. Rebouças', distanceText: '850 m' },
-      { street: 'Rua Oscar Freire', distanceText: '500 m' },
-    ],
+    badge: 'Mais rápida • Tempo real',
+    title: 'Rota Principal',
+    summary: 'Malha viária calculada em tempo real',
+    baseEtaMinutes: 12,
+    distanceKm: 6.0,
+    polyline: '',
+    streets: [],
   },
   {
     id: 'route_2',
-    badge: 'Alternativa • Sem semáforos pesados',
-    title: 'Rota 2 (Alternativa)',
-    summary: 'Rota 2 • Via Av. Brasil, Alameda Santos e Rua Augusta',
-    baseEtaMinutes: 18,
-    distanceKm: 4.1,
-    polyline: 'q~iF~ps|U_ulLnnqC_mqNvxq`@alt',
-    streets: [
-      { street: 'Alameda Santos', distanceText: '1.1 km' },
-      { street: 'Av. Brigadeiro Luís Antônio', distanceText: '900 m' },
-      { street: 'Av. Brasil', distanceText: '1.4 km' },
-      { street: 'Rua Augusta', distanceText: '700 m' },
-    ],
+    badge: 'Alternativa',
+    title: 'Rota Alternativa',
+    summary: 'Trajeto alternativo na malha viária',
+    baseEtaMinutes: 15,
+    distanceKm: 7.2,
+    polyline: '',
+    streets: [],
   },
 ];
 
@@ -57,17 +74,17 @@ export function getAdjustedRouteMetrics(
   mode: TransportMode
 ): { etaMinutes: number; distanceKm: number } {
   const factorMap: Record<TransportMode, number> = {
-    motorcycle: 0.75,
+    motorcycle: 0.78,
     car: 1.0,
     driving: 1.0,
     rideshare: 1.05,
-    bicycling: 1.15,
+    bicycling: 1.6,
     transit: 1.45,
-    walking: 2.6,
+    walking: 3.4,
   };
   const factor = factorMap[mode] || 1.0;
   return {
-    etaMinutes: Math.max(3, Math.round(route.baseEtaMinutes * factor)),
+    etaMinutes: Math.max(2, Math.round(route.baseEtaMinutes * factor)),
     distanceKm: route.distanceKm,
   };
 }
@@ -166,92 +183,69 @@ export function useLiveRouteTracker({
     appointment?.tracking_status === 'live_sharing' ||
     appointment?.tracking_status === 'arriving_5min';
 
-  // Avança 1 ciclo de telemetria (a cada 10s ou via toque manual de teste)
-  const advanceRouteStep = useCallback(() => {
-    if (!appointment) return;
-    const checkpoints: LiveRouteCheckpoint[] =
-      appointment.route_checkpoints && appointment.route_checkpoints.length > 0
-        ? [...appointment.route_checkpoints]
-        : GOOGLE_MAPS_ROUTE_OPTIONS[0].streets.map((s, idx) => ({
-            street: s.street,
-            distanceText: s.distanceText,
-            status: idx === 0 ? 'current' : 'upcoming',
-            timestamp: idx === 0 ? formatCurrentClockTime() : undefined,
-          }));
+  // Atualiza telemetria real a cada ciclo de 10s usando coordenadas reais do navegador
+  const advanceRouteStep = useCallback(
+    (gpsCoords?: { lat: number; lng: number; speedMps?: number | null }) => {
+      if (!appointment) return;
 
-    const currentIndex = checkpoints.findIndex((c) => c.status === 'current');
-    const nowClock = formatCurrentClockTime();
-    const currentEta = appointment.eta_minutes ?? 12;
-    const currentDist = appointment.distance_km ?? 2.4;
+      const hasRealCheckpoints =
+        appointment.route_checkpoints &&
+        appointment.route_checkpoints.length > 0 &&
+        !isPlaceholderCheckpoints(appointment.route_checkpoints);
 
-    // Se já está na última rua e o ETA é baixo, conclui a chegada (desliga GPS por LGPD)
-    if (currentIndex === checkpoints.length - 1 && currentEta <= 3) {
-      const completedCheckpoints: LiveRouteCheckpoint[] = checkpoints.map((c) => ({
-        ...c,
-        status: 'passed',
-        timestamp: c.timestamp || nowClock,
-      }));
+      if (!hasRealCheckpoints && !gpsCoords) {
+        setSecondsUntilNextPing(10);
+        return;
+      }
 
-      syncAppointmentAcrossStorageAndDb(
-        appointment,
-        {
-          tracking_status: 'arrived',
-          route_checkpoints: completedCheckpoints,
-          current_street_name:
-            appointment.service_location_type === 'home_delivery'
-              ? 'No endereço do cliente (Check-in)'
-              : 'Na recepção do salão (Check-in)',
-          eta_minutes: 0,
-          distance_km: 0,
-          active_adversity: null,
-        },
-        onUpdateAppointment
-      );
+      const checkpoints: LiveRouteCheckpoint[] = hasRealCheckpoints
+        ? [...(appointment.route_checkpoints || [])]
+        : [];
+
+      const nowClock = formatCurrentClockTime();
+      const currentEta = appointment.eta_minutes ?? 12;
+      const currentDist = appointment.distance_km ?? 3.0;
+
+      if (currentDist <= 0.15 || currentEta <= 0) {
+        const completedCheckpoints: LiveRouteCheckpoint[] = checkpoints.map((c) => ({
+          ...c,
+          status: 'passed',
+          timestamp: c.timestamp || nowClock,
+        }));
+
+        syncAppointmentAcrossStorageAndDb(
+          appointment,
+          {
+            tracking_status: 'arrived',
+            ...(completedCheckpoints.length > 0 ? { route_checkpoints: completedCheckpoints } : {}),
+            current_street_name:
+              appointment.service_location_type === 'home_delivery'
+                ? 'No endereço do cliente (Check-in)'
+                : 'Na recepção do salão (Check-in)',
+            eta_minutes: 0,
+            distance_km: 0,
+            active_adversity: null,
+          },
+          onUpdateAppointment
+        );
+        setSecondsUntilNextPing(10);
+        return;
+      }
+
+      const patch: Partial<BookingAppointment> = {};
+      if (gpsCoords && Number.isFinite(gpsCoords.lat) && Number.isFinite(gpsCoords.lng)) {
+        patch.client_lat = Number(gpsCoords.lat.toFixed(6));
+        patch.client_lng = Number(gpsCoords.lng.toFixed(6));
+      }
+
+      if (Object.keys(patch).length > 0) {
+        syncAppointmentAcrossStorageAndDb(appointment, patch, onUpdateAppointment);
+      }
+
       setSecondsUntilNextPing(10);
-      return;
-    }
-
-    // Move para a próxima rua ou reduz ETA/distância
-    const nextIdx =
-      currentIndex >= 0 && currentIndex < checkpoints.length - 1
-        ? currentIndex + 1
-        : Math.max(0, currentIndex);
-
-    const nextCheckpoints: LiveRouteCheckpoint[] = checkpoints.map((c, idx) => {
-      if (idx < nextIdx) {
-        return { ...c, status: 'passed', timestamp: c.timestamp || nowClock };
-      }
-      if (idx === nextIdx) {
-        return { ...c, status: 'current', timestamp: nowClock };
-      }
-      return { ...c, status: 'upcoming' };
-    });
-
-    const nextStreet = nextCheckpoints[nextIdx]?.street || appointment.current_street_name || 'Av. Rebouças';
-    const nextEta = Math.max(2, currentEta - 3);
-    const nextDist = Number(Math.max(0.2, currentDist - 0.65).toFixed(2));
-    const nextStatus: LiveTrackingStatus = nextEta <= 5 ? 'arriving_5min' : 'live_sharing';
-
-    // Coordenadas com deslocamento progressivo realista (ou geolocalização real se disponível)
-    const baseLat = appointment.client_lat ?? -23.5614;
-    const baseLng = appointment.client_lng ?? -46.6558;
-
-    syncAppointmentAcrossStorageAndDb(
-      appointment,
-      {
-        tracking_status: nextStatus,
-        current_street_name: nextStreet,
-        route_checkpoints: nextCheckpoints,
-        eta_minutes: nextEta,
-        distance_km: nextDist,
-        client_lat: Number((baseLat + 0.0012).toFixed(6)),
-        client_lng: Number((baseLng - 0.0011).toFixed(6)),
-      },
-      onUpdateAppointment
-    );
-
-    setSecondsUntilNextPing(10);
-  }, [appointment, onUpdateAppointment]);
+    },
+    [appointment, onUpdateAppointment]
+  );
 
   // Reportar adversidade de trânsito em 1 toque (+X min)
   const reportAdversity = useCallback(
@@ -261,7 +255,7 @@ export function useLiveRouteTracker({
       const currentStreet =
         appointment.current_street_name ||
         appointment.route_checkpoints?.find((c) => c.status === 'current')?.street ||
-        'Av. Rebouças';
+        'Via atual';
 
       const adversityObj: LiveAdversityReport = {
         type,
@@ -271,15 +265,13 @@ export function useLiveRouteTracker({
         reportedAt: nowClock,
       };
 
+      const hasRealCheckpoints =
+        appointment.route_checkpoints &&
+        appointment.route_checkpoints.length > 0 &&
+        !isPlaceholderCheckpoints(appointment.route_checkpoints);
+
       const updatedCheckpoints: LiveRouteCheckpoint[] = (
-        appointment.route_checkpoints && appointment.route_checkpoints.length > 0
-          ? appointment.route_checkpoints
-          : GOOGLE_MAPS_ROUTE_OPTIONS[0].streets.map((s, idx) => ({
-              street: s.street,
-              distanceText: s.distanceText,
-              status: (idx === 0 ? 'current' : 'upcoming') as 'passed' | 'current' | 'upcoming',
-              timestamp: idx === 0 ? nowClock : undefined,
-            }))
+        hasRealCheckpoints ? appointment.route_checkpoints || [] : []
       ).map((cp) => {
         if (cp.status === 'current' || cp.street === currentStreet) {
           return {
@@ -305,7 +297,7 @@ export function useLiveRouteTracker({
           delay_minutes: prevDelay + addedMinutes,
           eta_minutes: newEta,
           tracking_status: newEta <= 5 ? 'arriving_5min' : 'live_sharing',
-          route_checkpoints: updatedCheckpoints,
+          ...(updatedCheckpoints.length > 0 ? { route_checkpoints: updatedCheckpoints } : {}),
           current_street_name: currentStreet,
         },
         onUpdateAppointment
@@ -314,7 +306,7 @@ export function useLiveRouteTracker({
     [appointment, onUpdateAppointment]
   );
 
-  // Ciclo de 10 segundos (contagem regressiva visual de 10s a 1s + ping GPS/telemetria)
+  // Ciclo de 10 segundos (contagem regressiva visual de 10s a 1s + ping GPS real)
   useEffect(() => {
     if (!isLiveActive || !autoTickEnabled) {
       setSecondsUntilNextPing(10);
@@ -324,16 +316,19 @@ export function useLiveRouteTracker({
     const interval = window.setInterval(() => {
       setSecondsUntilNextPing((prev) => {
         if (prev <= 1) {
-          // Tenta capturar coordenada real do navegador sem bloquear a execução
           if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
             navigator.geolocation.getCurrentPosition(
-              () => {
-                advanceRouteStep();
+              (pos) => {
+                advanceRouteStep({
+                  lat: pos.coords.latitude,
+                  lng: pos.coords.longitude,
+                  speedMps: pos.coords.speed,
+                });
               },
               () => {
                 advanceRouteStep();
               },
-              { timeout: 2500, maximumAge: 8000 }
+              { enableHighAccuracy: true, timeout: 3500, maximumAge: 5000 }
             );
           } else {
             advanceRouteStep();
