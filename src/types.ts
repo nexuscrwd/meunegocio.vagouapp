@@ -276,10 +276,16 @@ export interface SalonAdminSettings {
   isOpenNow: boolean;
   pinCode?: string;
   accentColor?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  themePresetId?: string;
+  themeExplicitlyCustomized?: boolean;
   salonLogo?: string; // Logo padrão / fallback
   salonLogoLight?: string; // Logo horizontal para o tema claro (fundo claro)
   salonLogoDark?: string; // Logo horizontal para o tema escuro (fundo escuro)
   salonIcon?: string; // Ícone quadrado (1:1) para o PWA (instalação no celular)
+  facadePhotoUrl?: string;
+  interiorPhotoUrl?: string;
   pwaName?: string;   // Nome curto/completo exibido na tela inicial do celular
   slogan?: string;    // Assinatura curta da marca (até 60 caracteres) exibida abaixo do nome do salão
   showSlogan?: boolean; // Ocultar ou exibir slogan do cabeçalho (padrão true)

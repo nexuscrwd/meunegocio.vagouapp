@@ -1,8 +1,16 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import {
+  AppThemePalette,
+  DEFAULT_NEUTRAL_HEX,
+  LEGACY_UNCUSTOMIZED_HEXES,
+  normalizeHex,
+  resolveAppThemeTokens,
+} from '../utils/themePalette';
 
 export type NeutralPresetId = 1 | 2 | 3;
 
 export const EXPLICIT_THEME_STORAGE_KEY = 'vagou_theme_mode_v3';
+export const CUSTOMIZED_THEME_STORAGE_KEY = 'vagou_theme_customized';
 
 export interface NeutralPresetTokens {
   id: NeutralPresetId;
@@ -44,7 +52,7 @@ export const NEUTRAL_PRESETS: Record<NeutralPresetId, NeutralPresetTokens> = {
   1: {
     id: 1,
     shortLabel: 'Claro Neutro',
-    fullLabel: 'Padrão Claro Neutro Independente (Branco, Gelo & Slate Suave)',
+    fullLabel: 'Padrão Claro Neutro Independente (Cinza, Branco & Escuro Suave)',
     outerBg: '#EEF2F6',
     canvasBg: '#F8FAFC',
     shellBorder: '#E2E8F0',
@@ -148,39 +156,9 @@ export const NEUTRAL_PRESETS: Record<NeutralPresetId, NeutralPresetTokens> = {
   },
 };
 
-const LEGACY_SYSTEM_COLORS = new Set([
-  '',
-  'transparent',
-  '#ffffff',
-  '#fff',
-  'white',
-  '#005ca9',
-  '#2b82c9',
-  '#10b981',
-  '#20c933',
-  '#059669',
-  '#065f46',
-  '#047857',
-  '#d1fae5',
-  '#dcfce7',
-  '#ecfdf5',
-  '#f0fdf4',
-  '#a7f3d0',
-  '#f1f5f9',
-  '#f8fafc',
-  '#fafafa',
-  '#f4f4f5',
-  '#18181b',
-  '#27272a',
-  '#0f172a',
-  '#1e293b',
-  '#334155',
-  '#475569',
-]);
-
 export function isLegacyOrSystemDefaultColor(rawColor?: string | null): boolean {
   if (!rawColor) return true;
-  return LEGACY_SYSTEM_COLORS.has(rawColor.trim().toLowerCase());
+  return LEGACY_UNCUSTOMIZED_HEXES.has(rawColor.trim().toLowerCase());
 }
 
 export function getCurrentNeutralPreset(): NeutralPresetId {
@@ -198,20 +176,28 @@ export interface ThemeContextType {
   toggleTheme: () => void;
   setTheme: (theme: 'dark' | 'light', options?: { isExplicitUserChoice?: boolean }) => void;
   accentColor: string;
-  setAccentColor: (color: string) => void;
+  themeExplicitlyCustomized: boolean;
+  setAccentColor: (color: string, options?: { isExplicitUserChoice?: boolean }) => void;
+  resetToDefaultPalette: () => void;
+  resolvedPalette: AppThemePalette;
   neutralPreset: NeutralPresetId;
   presetTokens: NeutralPresetTokens;
   setNeutralPreset: (preset: NeutralPresetId) => void;
   cycleNeutralPreset: () => void;
 }
 
+const DEFAULT_RESOLVED_PALETTE = resolveAppThemeTokens(DEFAULT_NEUTRAL_HEX, false, false);
+
 export const ThemeContext = createContext<ThemeContextType>({
   theme: 'light',
   isDark: false,
   toggleTheme: () => {},
   setTheme: () => {},
-  accentColor: '#334155',
+  accentColor: DEFAULT_NEUTRAL_HEX,
+  themeExplicitlyCustomized: false,
   setAccentColor: () => {},
+  resetToDefaultPalette: () => {},
+  resolvedPalette: DEFAULT_RESOLVED_PALETTE,
   neutralPreset: 1,
   presetTokens: NEUTRAL_PRESETS[1],
   setNeutralPreset: () => {},
@@ -220,92 +206,109 @@ export const ThemeContext = createContext<ThemeContextType>({
 
 export const sanitizeAccentColor = (rawColor?: string | null, fallbackPreset?: NeutralPresetId): string => {
   const preset = NEUTRAL_PRESETS[fallbackPreset || 1];
-  if (!rawColor) return preset.actionBg;
-  const trimmed = rawColor.trim().toLowerCase();
-  if (isLegacyOrSystemDefaultColor(trimmed)) {
-    return preset.actionBg;
-  }
-  const colorMap: Record<string, string> = {
-    neutral: '#334155',
-    zinc: '#3F3F46',
-    emerald: '#10B981',
-    blue: '#2563EB',
-    rose: '#E11D48',
-    amber: '#D97706',
-    violet: '#7C3AED',
-  };
-  if (colorMap[trimmed]) return colorMap[trimmed];
-  if (!rawColor.startsWith('#')) return preset.actionBg;
-  return rawColor.trim();
+  const normalized = normalizeHex(rawColor);
+  if (!normalized) return preset.actionBg;
+  return normalized;
 };
 
-export const applyNeutralPresetToDom = (presetId: NeutralPresetId, customAccent?: string) => {
-  if (typeof document === 'undefined') return;
-  const tokens = NEUTRAL_PRESETS[presetId] || NEUTRAL_PRESETS[1];
-  const root = document.documentElement;
-  root.setAttribute('data-neutral-preset', String(tokens.id));
-
-  root.style.setProperty('--neutral-outer-bg', tokens.outerBg);
-  root.style.setProperty('--neutral-canvas-bg', tokens.canvasBg);
-  root.style.setProperty('--neutral-shell-border', tokens.shellBorder);
-  root.style.setProperty('--neutral-card-bg', tokens.cardBg);
-  root.style.setProperty('--neutral-card-border', tokens.cardBorder);
-  root.style.setProperty('--neutral-input-bg', tokens.inputBg);
-  root.style.setProperty('--neutral-input-border', tokens.inputBorder);
-  root.style.setProperty('--neutral-header-bg', tokens.headerBg);
-  root.style.setProperty('--neutral-header-border', tokens.headerBorder);
-  root.style.setProperty('--neutral-header-text', tokens.headerText);
-  root.style.setProperty('--neutral-header-subtext', tokens.headerSubtext);
-  root.style.setProperty('--neutral-header-box-bg', tokens.headerBoxBg);
-  root.style.setProperty('--neutral-header-box-border', tokens.headerBoxBorder);
-  root.style.setProperty('--neutral-section-bg', tokens.sectionBg);
-  root.style.setProperty('--neutral-section-border', tokens.sectionBorder);
-  root.style.setProperty('--neutral-section-text', tokens.sectionText);
-  root.style.setProperty('--neutral-section-icon', tokens.sectionIcon);
-  root.style.setProperty('--neutral-nav-bg', tokens.navBg);
-  root.style.setProperty('--neutral-nav-border', tokens.navBorder);
-  root.style.setProperty(
-    '--neutral-action-bg',
-    customAccent && !isLegacyOrSystemDefaultColor(customAccent) ? customAccent : tokens.actionBg
-  );
-  root.style.setProperty('--neutral-action-hover', tokens.actionHover);
-  root.style.setProperty('--neutral-halo-bg', tokens.subtleHaloBg);
-  root.style.setProperty('--neutral-halo-fg', tokens.subtleHaloFg);
-  root.style.setProperty('--neutral-price-on-dark', tokens.priceOnDarkCard);
-  root.style.setProperty('--neutral-dot-on-dark', tokens.dotOnDarkCard);
-};
-
-export const applyAccentColorToDom = (color: string, presetOverride?: NeutralPresetId) => {
-  const presetId = presetOverride || 1;
-  const tokens = NEUTRAL_PRESETS[presetId] || NEUTRAL_PRESETS[1];
-  const hex = isLegacyOrSystemDefaultColor(color)
-    ? tokens.actionBg
-    : sanitizeAccentColor(color, presetId);
+export const applyThemePaletteToDom = (
+  color: string,
+  isDarkActive: boolean,
+  isExplicitlyCustomized: boolean
+): AppThemePalette => {
+  const palette = resolveAppThemeTokens(color, isDarkActive, isExplicitlyCustomized);
+  if (typeof document === 'undefined') return palette;
 
   try {
-    applyNeutralPresetToDom(presetId, hex);
-
     const root = document.documentElement;
-    root.style.setProperty('--accent-color', hex);
+    root.setAttribute('data-neutral-preset', '1');
+    root.setAttribute('data-theme-customized', palette.isCustomized ? 'true' : 'false');
+
+    // Variáveis Neutras / Superfícies Base do App
+    root.style.setProperty('--neutral-outer-bg', palette.outerBg);
+    root.style.setProperty('--neutral-canvas-bg', palette.canvasBg);
+    root.style.setProperty('--neutral-shell-border', palette.shellBorder);
+    root.style.setProperty('--neutral-card-bg', palette.cardBg);
+    root.style.setProperty('--neutral-card-border', palette.cardBorder);
+    root.style.setProperty('--neutral-input-bg', palette.inputBg);
+    root.style.setProperty('--neutral-input-border', palette.inputBorder);
+    root.style.setProperty('--neutral-header-bg', palette.headerBg);
+    root.style.setProperty('--neutral-header-border', palette.headerBorder);
+    root.style.setProperty('--neutral-header-text', palette.headerText);
+    root.style.setProperty('--neutral-header-subtext', palette.headerSubtext);
+    root.style.setProperty('--neutral-header-box-bg', palette.headerBoxBg);
+    root.style.setProperty('--neutral-header-box-border', palette.headerBoxBorder);
+    root.style.setProperty('--neutral-section-bg', palette.sectionBg);
+    root.style.setProperty('--neutral-section-border', palette.sectionBorder);
+    root.style.setProperty('--neutral-section-text', palette.sectionText);
+    root.style.setProperty('--neutral-section-icon', palette.sectionIcon);
+    root.style.setProperty('--neutral-nav-bg', palette.navBg);
+    root.style.setProperty('--neutral-nav-border', palette.navBorder);
+    root.style.setProperty('--neutral-action-bg', palette.primary);
+    root.style.setProperty('--neutral-action-hover', palette.primaryHover);
+    root.style.setProperty('--neutral-halo-bg', palette.softBg);
+    root.style.setProperty('--neutral-halo-fg', palette.softFg);
+    root.style.setProperty('--neutral-price-on-dark', '#FFFFFF');
+    root.style.setProperty('--neutral-dot-on-dark', '#E2E8F0');
+
+    // Tokens Semânticos de Marca (--brand-*) para Cascata Completa
+    root.style.setProperty('--brand-primary', palette.primary);
+    root.style.setProperty('--brand-primary-hover', palette.primaryHover);
+    root.style.setProperty('--brand-primary-fg', palette.primaryFg);
+    root.style.setProperty('--brand-soft-bg', palette.softBg);
+    root.style.setProperty('--brand-soft-border', palette.softBorder);
+    root.style.setProperty('--brand-soft-fg', palette.softFg);
+    root.style.setProperty('--brand-canvas-bg', palette.canvasBg);
+    root.style.setProperty('--brand-card-bg', palette.cardBg);
+    root.style.setProperty('--brand-card-border', palette.cardBorder);
+    root.style.setProperty('--brand-header-bg', palette.headerBg);
+    root.style.setProperty('--brand-header-border', palette.headerBorder);
+    root.style.setProperty('--brand-header-text', palette.headerText);
+    root.style.setProperty('--brand-nav-bg', palette.navBg);
+    root.style.setProperty('--brand-nav-border', palette.navBorder);
+    root.style.setProperty('--brand-nav-active-bg', palette.navActiveBtnBg);
+    root.style.setProperty('--brand-nav-active-fg', palette.navActiveBtnFg);
+    root.style.setProperty('--accent-color', palette.primary);
 
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-      const isDarkActive = root.classList.contains('dark');
-      metaThemeColor.setAttribute('content', isDarkActive ? '#0F172A' : tokens.headerBg);
+      metaThemeColor.setAttribute('content', palette.headerBg);
     }
   } catch (err) {
-    console.error('Erro ao aplicar tema:', err);
+    console.error('Erro ao aplicar paleta no DOM:', err);
   }
+
+  return palette;
+};
+
+export const applyNeutralPresetToDom = (presetId: NeutralPresetId, customAccent?: string) => {
+  const tokens = NEUTRAL_PRESETS[presetId] || NEUTRAL_PRESETS[1];
+  const isDarkActive = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  const hasCustom = Boolean(customAccent && !isLegacyOrSystemDefaultColor(customAccent));
+  applyThemePaletteToDom(hasCustom ? customAccent! : tokens.actionBg, isDarkActive, hasCustom);
+};
+
+export const applyAccentColorToDom = (
+  color: string,
+  _presetOverride?: NeutralPresetId,
+  forceCustomized?: boolean
+) => {
+  const isDarkActive = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  const norm = normalizeHex(color);
+  let isCustomized = forceCustomized;
+  if (isCustomized === undefined) {
+    try {
+      const savedCust = typeof window !== 'undefined' && localStorage.getItem(CUSTOMIZED_THEME_STORAGE_KEY) === '1';
+      isCustomized = savedCust || Boolean(norm && !isLegacyOrSystemDefaultColor(norm));
+    } catch {
+      isCustomized = Boolean(norm && !isLegacyOrSystemDefaultColor(norm));
+    }
+  }
+  applyThemePaletteToDom(norm || DEFAULT_NEUTRAL_HEX, isDarkActive, isCustomized);
 };
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [neutralPreset, setNeutralPresetState] = useState<NeutralPresetId>(() => {
-    const initialPreset = getCurrentNeutralPreset();
-    if (typeof document !== 'undefined') {
-      applyNeutralPresetToDom(initialPreset);
-    }
-    return initialPreset;
-  });
+  const [neutralPreset, setNeutralPresetState] = useState<NeutralPresetId>(() => getCurrentNeutralPreset());
 
   const [theme, setThemeState] = useState<'dark' | 'light'>(() => {
     try {
@@ -328,21 +331,40 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   });
 
+  const [themeExplicitlyCustomized, setThemeExplicitlyCustomized] = useState<boolean>(() => {
+    try {
+      if (localStorage.getItem(CUSTOMIZED_THEME_STORAGE_KEY) === '1') return true;
+      const savedAccent = localStorage.getItem('vagou_accent_color');
+      if (savedAccent && !isLegacyOrSystemDefaultColor(savedAccent)) return true;
+      return false;
+    } catch {
+      return false;
+    }
+  });
+
   const [accentColor, setAccentColorState] = useState<string>(() => {
     try {
+      const isCust = localStorage.getItem(CUSTOMIZED_THEME_STORAGE_KEY) === '1';
       const saved = localStorage.getItem('vagou_accent_color');
-      const resolved = isLegacyOrSystemDefaultColor(saved)
-        ? NEUTRAL_PRESETS[1].actionBg
-        : sanitizeAccentColor(saved, 1);
-      applyAccentColorToDom(resolved, 1);
-      return resolved;
+      if (isCust && saved) {
+        return sanitizeAccentColor(saved, 1);
+      }
+      if (saved && !isLegacyOrSystemDefaultColor(saved)) {
+        return sanitizeAccentColor(saved, 1);
+      }
+      return DEFAULT_NEUTRAL_HEX;
     } catch {
-      return NEUTRAL_PRESETS[1].actionBg;
+      return DEFAULT_NEUTRAL_HEX;
     }
   });
 
   const isDark = theme === 'dark';
   const presetTokens = NEUTRAL_PRESETS[neutralPreset] || NEUTRAL_PRESETS[1];
+
+  const resolvedPalette = useMemo(
+    () => resolveAppThemeTokens(accentColor, isDark, themeExplicitlyCustomized),
+    [accentColor, isDark, themeExplicitlyCustomized]
+  );
 
   useEffect(() => {
     try {
@@ -351,16 +373,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } else {
         document.documentElement.classList.remove('dark');
       }
-      const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-      if (metaThemeColor) {
-        metaThemeColor.setAttribute('content', theme === 'dark' ? '#0F172A' : presetTokens.headerBg);
-      }
+      applyThemePaletteToDom(accentColor, isDark, themeExplicitlyCustomized);
     } catch {}
-  }, [theme, presetTokens.headerBg]);
-
-  useEffect(() => {
-    applyAccentColorToDom(accentColor, neutralPreset);
-  }, [accentColor, neutralPreset]);
+  }, [theme, isDark, accentColor, themeExplicitlyCustomized]);
 
   const toggleTheme = () => {
     setThemeState((prev) => {
@@ -382,28 +397,49 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch {}
   };
 
-  const setAccentColor = (color: string) => {
+  const setAccentColor = (color: string, options?: { isExplicitUserChoice?: boolean }) => {
     const clean = sanitizeAccentColor(color, neutralPreset);
+    const isExplicit = options?.isExplicitUserChoice !== false;
     setAccentColorState(clean);
+    if (isExplicit) {
+      setThemeExplicitlyCustomized(true);
+      try {
+        localStorage.setItem(CUSTOMIZED_THEME_STORAGE_KEY, '1');
+        localStorage.setItem('vagou_accent_color', clean);
+      } catch {}
+    } else {
+      const customDetected = !isLegacyOrSystemDefaultColor(clean);
+      setThemeExplicitlyCustomized(customDetected);
+      try {
+        if (customDetected) {
+          localStorage.setItem(CUSTOMIZED_THEME_STORAGE_KEY, '1');
+          localStorage.setItem('vagou_accent_color', clean);
+        } else {
+          localStorage.removeItem(CUSTOMIZED_THEME_STORAGE_KEY);
+        }
+      } catch {}
+    }
+    applyThemePaletteToDom(clean, isDark, isExplicit ? true : !isLegacyOrSystemDefaultColor(clean));
+  };
+
+  const resetToDefaultPalette = () => {
+    setThemeState('light');
+    setAccentColorState(DEFAULT_NEUTRAL_HEX);
+    setThemeExplicitlyCustomized(false);
+    setNeutralPresetState(1);
     try {
-      localStorage.setItem('vagou_accent_color', clean);
+      localStorage.removeItem(EXPLICIT_THEME_STORAGE_KEY);
+      localStorage.removeItem(CUSTOMIZED_THEME_STORAGE_KEY);
+      localStorage.removeItem('vagou_accent_color');
+      localStorage.removeItem('vagou_accent_color_timestamp');
+      localStorage.removeItem('vagou_neutral_preset');
     } catch {}
-    applyAccentColorToDom(clean, neutralPreset);
+    applyThemePaletteToDom(DEFAULT_NEUTRAL_HEX, false, false);
   };
 
   const setNeutralPreset = (preset: NeutralPresetId) => {
     setNeutralPresetState(preset);
-    const nextTokens = NEUTRAL_PRESETS[preset];
-    try {
-      localStorage.removeItem(EXPLICIT_THEME_STORAGE_KEY);
-    } catch {}
-    setThemeState('light');
-    if (isLegacyOrSystemDefaultColor(accentColor)) {
-      setAccentColorState(nextTokens.actionBg);
-      applyAccentColorToDom(nextTokens.actionBg, preset);
-    } else {
-      applyAccentColorToDom(accentColor, preset);
-    }
+    resetToDefaultPalette();
   };
 
   const cycleNeutralPreset = () => {
@@ -418,7 +454,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         toggleTheme,
         setTheme,
         accentColor,
+        themeExplicitlyCustomized,
         setAccentColor,
+        resetToDefaultPalette,
+        resolvedPalette,
         neutralPreset,
         presetTokens,
         setNeutralPreset,

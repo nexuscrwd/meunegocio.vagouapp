@@ -1162,7 +1162,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
           <button
             type="button"
             onClick={() => handleSaveProfessional()}
-            className="flex-1 py-2.5 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98"
+            className="flex-1 py-2.5 px-4 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98"
           >
             <Save className="w-4 h-4 text-white" />
             <span className="text-white">Salvar Profissional</span>
@@ -1178,7 +1178,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
   return (
     <div
       className={`flex flex-col h-full ${
-        isDark ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-800'
+        isDark ? 'bg-slate-950 text-slate-200' : 'bg-[var(--brand-canvas-bg)] text-slate-800'
       }`}
     >
       {/* HEADER */}
@@ -1189,7 +1189,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
       >
         <div>
           <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
-            <Users className="w-4 h-4 text-emerald-500" />
+            <Users className="w-4 h-4 brand-icon" />
             <span>Gestão de Equipe</span>
           </h2>
         </div>
@@ -1197,7 +1197,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
         <button
           type="button"
           onClick={() => handleOpenProfessionalSection()}
-          className="px-3 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider transition shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+          className="px-3 py-1.5 rounded-[4px] brand-btn font-bold text-xs uppercase tracking-wider transition shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
         >
           <UserPlus className="w-3.5 h-3.5 text-white" />
           <span className="text-white">Adicionar</span>
@@ -1213,8 +1213,8 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
             onClick={() => handleOpenProfessionalSection(member)}
             className={`w-full p-3 rounded-[4px] border flex items-center justify-between gap-3 text-left transition cursor-pointer active:scale-[0.99] ${
               isDark
-                ? 'bg-slate-900/70 hover:bg-slate-900 border-slate-800 hover:border-emerald-500/40'
-                : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-emerald-500/40 shadow-xs'
+                ? 'bg-slate-900/70 hover:bg-slate-900 border-slate-800 hover:border-[var(--brand-primary)]'
+                : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-[var(--brand-primary)] shadow-xs'
             }`}
           >
             <div className="flex items-center gap-3 min-w-0">
@@ -1250,7 +1250,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
               </h3>
             </div>
 
-            <ChevronRight className="w-4 h-4 text-emerald-400 shrink-0" />
+            <ChevronRight className="w-4 h-4 brand-icon shrink-0" />
           </button>
         ))}
       </div>

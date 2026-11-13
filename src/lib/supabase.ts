@@ -1,6 +1,7 @@
 import { createClient, User } from '@supabase/supabase-js';
 import type { Database, AppointmentStatus, OfferStatus } from '../types/database.types';
 import type { BookingAppointment } from '../types';
+import { DEFAULT_NEUTRAL_HEX, resolveThemePresetId } from '../utils/themePalette';
 
 const DEFAULT_SUPABASE_URL = 'https://xemenxdhuoekytyhmgyt.supabase.co';
 const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlbWVueGRodW9la3l0eWhtZ3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMDE2MzAsImV4cCI6MjEwNTc3NzYzMH0.P-q6bQspwuQNhub08hjWmsjLrugr3CVA1NIdznWJxuo';
@@ -2989,18 +2990,19 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
     }
 
     // Tema Camaleão (theme_preset_id) e Fotos do Espaço (facade_photo_url / interior_photo_url)
-    const effectiveHex = (settings.accentColor || settings.primaryColor || existingBranding.primaryColor || existingRow?.primary_color || '#20C933').toLowerCase();
+    const effectiveHex = (
+      settings.accentColor ||
+      settings.primaryColor ||
+      existingBranding.primaryColor ||
+      existingRow?.primary_color ||
+      DEFAULT_NEUTRAL_HEX
+    ).toLowerCase();
+    const nextIsCustomized =
+      settings.themeExplicitlyCustomized !== undefined
+        ? Boolean(settings.themeExplicitlyCustomized)
+        : settings.defaultTheme === 'dark' || Boolean(existingBranding.themeExplicitlyCustomized);
     const resolvedThemePreset =
-      settings.themePresetId ||
-      (effectiveHex === '#f59e0b' || effectiveHex === '#d97706'
-        ? 'gold-luxury'
-        : effectiveHex === '#ef4444' || effectiveHex === '#ec4899' || effectiveHex === '#f43f5e'
-        ? 'rose-glam'
-        : effectiveHex === '#8b5cf6' || effectiveHex === '#a855f7'
-        ? 'purple-neon'
-        : effectiveHex === '#3b82f6' || effectiveHex === '#0ea5e9'
-        ? 'clean-light'
-        : 'emerald-dark');
+      settings.themePresetId || resolveThemePresetId(effectiveHex, nextIsCustomized);
     payload.theme_preset_id = resolvedThemePreset;
 
     const firstSpacePhoto = Array.isArray(settings.spacePhotos) && settings.spacePhotos.length > 0 ? settings.spacePhotos[0]?.url : undefined;
@@ -3014,40 +3016,40 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
 
     if (settings.bio !== undefined) payload.bio = settings.bio;
 
-    // Colunas de Layout, Cores de Seção e Barra de Navegação Inferior
+    // Colunas de Layout, Cores de Seção e Barra de Navegação Inferior (string vazia -> null para limpar overrides)
     if (settings.defaultTheme !== undefined) payload.default_theme = settings.defaultTheme;
     if (settings.pwaName !== undefined) payload.pwa_name = settings.pwaName;
     if (settings.showSlogan !== undefined) payload.show_slogan = settings.showSlogan;
-    if (settings.logoTextFallback !== undefined) payload.logo_text_fallback = settings.logoTextFallback;
-    if (settings.logoTextColor !== undefined) payload.logo_text_color = settings.logoTextColor;
+    if (settings.logoTextFallback !== undefined) payload.logo_text_fallback = settings.logoTextFallback || null;
+    if (settings.logoTextColor !== undefined) payload.logo_text_color = settings.logoTextColor || null;
     if (settings.showHeroSlides !== undefined) payload.show_hero_slides = settings.showHeroSlides;
     if (settings.welcomeStyle !== undefined) payload.welcome_style = settings.welcomeStyle;
 
-    if (settings.sectionHeaderBgColor !== undefined) payload.section_header_bg_color = settings.sectionHeaderBgColor;
-    if (settings.sectionHeaderTextColor !== undefined) payload.section_header_text_color = settings.sectionHeaderTextColor;
-    if (settings.sectionHeaderIconColor !== undefined) payload.section_header_icon_color = settings.sectionHeaderIconColor;
+    if (settings.sectionHeaderBgColor !== undefined) payload.section_header_bg_color = settings.sectionHeaderBgColor || null;
+    if (settings.sectionHeaderTextColor !== undefined) payload.section_header_text_color = settings.sectionHeaderTextColor || null;
+    if (settings.sectionHeaderIconColor !== undefined) payload.section_header_icon_color = settings.sectionHeaderIconColor || null;
     if (settings.sectionHeaderBgStyle !== undefined) payload.section_header_bg_style = settings.sectionHeaderBgStyle;
     if (settings.sectionHeaderBorder !== undefined) payload.section_header_border = settings.sectionHeaderBorder;
-    if (settings.sectionHeaderBtnBgColor !== undefined) payload.section_header_btn_bg_color = settings.sectionHeaderBtnBgColor;
-    if (settings.sectionHeaderBtnActiveBgColor !== undefined) payload.section_header_btn_active_bg_color = settings.sectionHeaderBtnActiveBgColor;
+    if (settings.sectionHeaderBtnBgColor !== undefined) payload.section_header_btn_bg_color = settings.sectionHeaderBtnBgColor || null;
+    if (settings.sectionHeaderBtnActiveBgColor !== undefined) payload.section_header_btn_active_bg_color = settings.sectionHeaderBtnActiveBgColor || null;
     if (settings.sectionHeaderBtnBorder !== undefined) payload.section_header_btn_border = settings.sectionHeaderBtnBorder;
     if (settings.sectionHeaderBtnShadow !== undefined) payload.section_header_btn_shadow = settings.sectionHeaderBtnShadow;
     if (settings.sectionHeaderBtnBlur !== undefined) payload.section_header_btn_blur = settings.sectionHeaderBtnBlur;
-    if (settings.sectionHeaderBtnFont !== undefined) payload.section_header_btn_font = settings.sectionHeaderBtnFont;
+    if (settings.sectionHeaderBtnFont !== undefined) payload.section_header_btn_font = settings.sectionHeaderBtnFont || null;
 
     if (settings.navStyle !== undefined) payload.nav_style = settings.navStyle;
     if (settings.navShape !== undefined) payload.nav_shape = settings.navShape;
     if (settings.navBorder !== undefined) payload.nav_border = settings.navBorder;
     if (settings.navIconBorder !== undefined) payload.nav_icon_border = settings.navIconBorder;
     if (settings.navBgStyle !== undefined) payload.nav_bg_style = settings.navBgStyle;
-    if (settings.navBgColor !== undefined) payload.nav_bg_color = settings.navBgColor;
-    if (settings.navBtnBgColor !== undefined) payload.nav_btn_bg_color = settings.navBtnBgColor;
-    if (settings.navBtnActiveBgColor !== undefined) payload.nav_btn_active_bg_color = settings.navBtnActiveBgColor;
-    if (settings.navActiveColor !== undefined) payload.nav_active_color = settings.navActiveColor;
-    if (settings.navTextColor !== undefined) payload.nav_text_color = settings.navTextColor;
+    if (settings.navBgColor !== undefined) payload.nav_bg_color = settings.navBgColor || null;
+    if (settings.navBtnBgColor !== undefined) payload.nav_btn_bg_color = settings.navBtnBgColor || null;
+    if (settings.navBtnActiveBgColor !== undefined) payload.nav_btn_active_bg_color = settings.navBtnActiveBgColor || null;
+    if (settings.navActiveColor !== undefined) payload.nav_active_color = settings.navActiveColor || null;
+    if (settings.navTextColor !== undefined) payload.nav_text_color = settings.navTextColor || null;
     if (settings.navBtnShadow !== undefined) payload.nav_btn_shadow = settings.navBtnShadow;
     if (settings.navBtnBlur !== undefined) payload.nav_btn_blur = settings.navBtnBlur;
-    if (settings.navBtnFont !== undefined) payload.nav_btn_font = settings.navBtnFont;
+    if (settings.navBtnFont !== undefined) payload.nav_btn_font = settings.navBtnFont || null;
 
     const resolvedIcon =
       settings.salonIcon !== undefined
@@ -3056,25 +3058,30 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
             ? settings.faviconUrl
             : (existingBranding.salonIcon || existingBranding.faviconUrl || existingRow?.logo_url || ''));
 
+    const resolvedDefaultTheme =
+      settings.defaultTheme ||
+      (nextIsCustomized ? existingBranding.defaultTheme : 'light') ||
+      'light';
+
     payload.branding = {
       ...existingBranding,
       themePresetId: resolvedThemePreset,
-      primaryColor: settings.accentColor || settings.primaryColor || existingBranding.primaryColor || existingRow?.primary_color || '#334155',
+      primaryColor: settings.accentColor || settings.primaryColor || existingBranding.primaryColor || existingRow?.primary_color || DEFAULT_NEUTRAL_HEX,
       ...(settings.secondaryColor !== undefined ? { secondaryColor: settings.secondaryColor } : {}),
       ...(payload.facade_photo_url !== undefined ? { facadePhotoUrl: payload.facade_photo_url } : {}),
       ...(payload.interior_photo_url !== undefined ? { interiorPhotoUrl: payload.interior_photo_url } : {}),
       pwaName: settings.pwaName || settings.salonName || existingBranding.pwaName || existingRow?.trade_name,
-      defaultTheme: settings.defaultTheme || (existingBranding.themeExplicitlyCustomized ? existingBranding.defaultTheme : 'light') || 'light',
-      themeMode: settings.defaultTheme || (existingBranding.themeExplicitlyCustomized ? existingBranding.themeMode : 'light') || 'light',
-      themeExplicitlyCustomized: settings.defaultTheme !== undefined ? true : Boolean(existingBranding.themeExplicitlyCustomized),
+      defaultTheme: resolvedDefaultTheme,
+      themeMode: resolvedDefaultTheme,
+      themeExplicitlyCustomized: nextIsCustomized,
       showSlogan: settings.showSlogan !== undefined ? settings.showSlogan : (existingBranding.showSlogan !== false),
       logoTextFallback: settings.logoTextFallback !== undefined ? settings.logoTextFallback : (existingBranding.logoTextFallback || ''),
-      logoTextColor: settings.logoTextColor !== undefined ? settings.logoTextColor : (existingBranding.logoTextColor || settings.accentColor || '#334155'),
+      logoTextColor: settings.logoTextColor !== undefined ? settings.logoTextColor : (existingBranding.logoTextColor || settings.accentColor || DEFAULT_NEUTRAL_HEX),
       showHeroSlides: settings.showHeroSlides !== undefined ? settings.showHeroSlides : (existingBranding.showHeroSlides !== false),
       faviconUrl: resolvedIcon,
       salonIcon: resolvedIcon,
       slogan: settings.slogan !== undefined ? (settings.slogan || '') : (existingBranding.slogan || ''),
-      brandFont: settings.brandFont || existingBranding.brandFont || 'Poppins',
+      brandFont: settings.brandFont || existingBranding.brandFont || 'Plus Jakarta Sans',
       welcomeStyle: settings.welcomeStyle || existingBranding.welcomeStyle || 'atmospheric',
 
       // Barra de Títulos das Seções (Section Header)
@@ -3099,7 +3106,7 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       navBgColor: settings.navBgColor !== undefined ? settings.navBgColor : existingBranding.navBgColor,
       navBtnBgColor: settings.navBtnBgColor !== undefined ? settings.navBtnBgColor : existingBranding.navBtnBgColor,
       navBtnActiveBgColor: settings.navBtnActiveBgColor !== undefined ? settings.navBtnActiveBgColor : existingBranding.navBtnActiveBgColor,
-      navActiveColor: settings.navActiveColor || existingBranding.navActiveColor || '#FFFFFF',
+      navActiveColor: settings.navActiveColor !== undefined ? settings.navActiveColor : existingBranding.navActiveColor,
       navTextColor: settings.navTextColor !== undefined ? settings.navTextColor : existingBranding.navTextColor,
       navBtnShadow: settings.navBtnShadow !== undefined ? settings.navBtnShadow : existingBranding.navBtnShadow,
       navBtnBlur: settings.navBtnBlur !== undefined ? settings.navBtnBlur : existingBranding.navBtnBlur,
@@ -3164,45 +3171,47 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
 
     const resolvedSalonUuid = data?.id || (isUuid ? salonIdOrSlug : null);
 
-    // Espelhar na tabela dedicada public.salon_ui_settings para persistência estruturada
+    // Espelhar na tabela dedicada public.salon_ui_settings para persistência estruturada (usando payload.branding mesclado)
     if (resolvedSalonUuid) {
       try {
+        const mergedUi = payload.branding as Record<string, any>;
         await (supabaseAdmin.from('salon_ui_settings' as any) as any).upsert({
           salon_id: resolvedSalonUuid,
-          default_theme: settings.defaultTheme || 'light',
-          primary_color: settings.accentColor || settings.primaryColor || '#334155',
-          secondary_color: settings.secondaryColor || '#1E293B',
-          brand_font: settings.brandFont || 'Poppins',
-          pwa_name: settings.pwaName || settings.salonName || null,
-          slogan: settings.slogan || null,
-          show_slogan: settings.showSlogan !== false,
-          logo_text_fallback: settings.logoTextFallback || null,
-          logo_text_color: settings.logoTextColor || null,
-          show_hero_slides: settings.showHeroSlides !== false,
-          welcome_style: settings.welcomeStyle || 'atmospheric',
-          section_header_bg_color: settings.sectionHeaderBgColor || null,
-          section_header_text_color: settings.sectionHeaderTextColor || null,
-          section_header_icon_color: settings.sectionHeaderIconColor || null,
-          section_header_bg_style: settings.sectionHeaderBgStyle || 'glass',
-          section_header_border: settings.sectionHeaderBorder || 'bordered',
-          section_header_btn_bg_color: settings.sectionHeaderBtnBgColor || null,
-          section_header_btn_active_bg_color: settings.sectionHeaderBtnActiveBgColor || null,
-          section_header_btn_border: settings.sectionHeaderBtnBorder || null,
-          section_header_btn_shadow: settings.sectionHeaderBtnShadow || null,
-          section_header_btn_blur: settings.sectionHeaderBtnBlur || null,
-          section_header_btn_font: settings.sectionHeaderBtnFont || null,
-          nav_style: settings.navStyle || 'minimal',
-          nav_shape: settings.navShape || 'square',
-          nav_border: settings.navBorder || 'bordered',
-          nav_bg_style: settings.navBgStyle || 'glass',
-          nav_bg_color: settings.navBgColor || null,
-          nav_btn_bg_color: settings.navBtnBgColor || null,
-          nav_btn_active_bg_color: settings.navBtnActiveBgColor || null,
-          nav_active_color: settings.navActiveColor || settings.accentColor || '#20C933',
-          nav_text_color: settings.navTextColor || null,
-          nav_btn_shadow: settings.navBtnShadow || null,
-          nav_btn_blur: settings.navBtnBlur || null,
-          nav_btn_font: settings.navBtnFont || null,
+          default_theme: mergedUi.defaultTheme || 'light',
+          primary_color: payload.primary_color || mergedUi.primaryColor || DEFAULT_NEUTRAL_HEX,
+          secondary_color: payload.secondary_color || mergedUi.secondaryColor || '#1E293B',
+          brand_font: mergedUi.brandFont || 'Plus Jakarta Sans',
+          pwa_name: mergedUi.pwaName || null,
+          slogan: mergedUi.slogan || null,
+          show_slogan: mergedUi.showSlogan !== false,
+          logo_text_fallback: mergedUi.logoTextFallback || null,
+          logo_text_color: mergedUi.logoTextColor || null,
+          show_hero_slides: mergedUi.showHeroSlides !== false,
+          welcome_style: mergedUi.welcomeStyle || 'atmospheric',
+          section_header_bg_color: mergedUi.sectionHeaderBgColor || null,
+          section_header_text_color: mergedUi.sectionHeaderTextColor || null,
+          section_header_icon_color: mergedUi.sectionHeaderIconColor || null,
+          section_header_bg_style: mergedUi.sectionHeaderBgStyle || 'solid',
+          section_header_border: mergedUi.sectionHeaderBorder || 'bordered',
+          section_header_btn_bg_color: mergedUi.sectionHeaderBtnBgColor || null,
+          section_header_btn_active_bg_color: mergedUi.sectionHeaderBtnActiveBgColor || null,
+          section_header_btn_border: mergedUi.sectionHeaderBtnBorder || null,
+          section_header_btn_shadow: mergedUi.sectionHeaderBtnShadow || null,
+          section_header_btn_blur: mergedUi.sectionHeaderBtnBlur || null,
+          section_header_btn_font: mergedUi.sectionHeaderBtnFont || null,
+          nav_style: mergedUi.navStyle || 'minimal',
+          nav_shape: mergedUi.navShape || 'square',
+          nav_border: mergedUi.navBorder || 'bordered',
+          nav_icon_border: mergedUi.navIconBorder || 'none',
+          nav_bg_style: mergedUi.navBgStyle || 'solid',
+          nav_bg_color: mergedUi.navBgColor || null,
+          nav_btn_bg_color: mergedUi.navBtnBgColor || null,
+          nav_btn_active_bg_color: mergedUi.navBtnActiveBgColor || null,
+          nav_active_color: mergedUi.navActiveColor || null,
+          nav_text_color: mergedUi.navTextColor || null,
+          nav_btn_shadow: mergedUi.navBtnShadow || null,
+          nav_btn_blur: mergedUi.navBtnBlur || null,
+          nav_btn_font: mergedUi.navBtnFont || null,
           branding_snapshot: payload.branding,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'salon_id' });

@@ -915,7 +915,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
 
       {/* Toast Feedback */}
       {toastMessage && (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 px-3.5 py-2 rounded bg-emerald-500 text-white font-bold text-xs shadow-lg animate-in fade-in flex items-center gap-1.5 whitespace-nowrap">
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 px-3.5 py-2 rounded-[4px] brand-btn font-bold text-xs shadow-lg animate-in fade-in flex items-center gap-1.5 whitespace-nowrap">
           <Check className="w-4 h-4 text-white stroke-[2.5]" />
           <span>{toastMessage}</span>
         </div>
@@ -927,8 +927,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
       }`}>
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <h2 className="text-xs font-black uppercase tracking-wider font-['Poppins'] flex items-center gap-1.5 text-emerald-400">
-              <Scissors className="w-4 h-4 text-emerald-400" />
+            <h2 className="text-xs font-black uppercase tracking-wider font-['Poppins'] flex items-center gap-1.5 brand-text">
+              <Scissors className="w-4 h-4 brand-icon" />
               <span>Categorias & Serviços</span>
             </h2>
           </div>
@@ -940,7 +940,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               hapticLight();
               setIsChooseCreateModalOpen(true);
             }}
-            className="px-2.5 py-1.5 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10.5px] uppercase tracking-wider transition shadow-sm flex items-center gap-1 cursor-pointer active:scale-95"
+            className="px-2.5 py-1.5 rounded-[4px] brand-btn font-bold text-[10.5px] uppercase tracking-wider transition shadow-sm flex items-center gap-1 cursor-pointer active:scale-95"
           >
             <Plus className="w-3.5 h-3.5 text-white stroke-[2.5]" />
             <span>Novo</span>
@@ -960,17 +960,17 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   hapticLight();
                   setSelectedCategory(cat);
                 }}
-                className={`py-1 px-2.5 rounded-full text-[11px] font-bold whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 border ${
+                className={`py-1 px-2.5 rounded-[4px] text-[11px] font-bold whitespace-nowrap transition cursor-pointer shrink-0 flex items-center gap-1.5 border ${
                   isSelected
-                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                    ? 'brand-btn shadow-xs'
                     : isDark
                     ? 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
                     : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
                 }`}
               >
                 <span>{cat}</span>
-                <span className={`text-[9px] px-1 py-0.2 rounded-full ${
-                  isSelected ? 'bg-emerald-600 text-white' : isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-600'
+                <span className={`text-[9px] px-1.5 py-0.2 rounded-[4px] ${
+                  isSelected ? 'bg-black/20 text-white' : isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-600'
                 }`}>
                   {count}
                 </span>
@@ -995,10 +995,10 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               <button
                 type="button"
                 onClick={() => handleOpenNew(selectedCategory)}
-                className="px-4 py-2 rounded bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider shadow-sm cursor-pointer flex items-center gap-1.5"
+                className="px-4 py-2 rounded-[4px] brand-btn font-bold text-xs uppercase tracking-wider shadow-sm cursor-pointer flex items-center gap-1.5"
               >
                 <Plus className="w-4 h-4 text-white stroke-[2.5]" />
-                <span>+ Criar Serviço</span>
+                <span>Criar Serviço</span>
               </button>
             </div>
           </div>
@@ -1008,13 +1008,13 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               {/* Header da Categoria Mestre */}
               <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-3.5 rounded-full bg-emerald-500 shadow-xs" />
+                  <Tag className="w-3.5 h-3.5 brand-icon shrink-0" />
                   <h3 className={`text-xs font-black uppercase tracking-wider font-['Poppins'] ${
                     isDark ? 'text-slate-200' : 'text-slate-800'
                   }`}>
                     {categoryName}
                   </h3>
-                  <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full ${
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-[4px] ${
                     isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-600'
                   }`}>
                     {catServices.length} {catServices.length === 1 ? 'serviço' : 'serviços'}
@@ -1072,8 +1072,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                               playsInline
                               className="w-full h-full object-cover"
                             />
-                            <div className="absolute top-1 right-1 px-1 py-0.2 rounded bg-slate-950/90 border border-emerald-500/40 text-emerald-400 text-[8px] font-black flex items-center gap-0.5 shadow-xs">
-                              <Video className="w-2 h-2 text-emerald-400" />
+                            <div className="absolute top-1 right-1 px-1 py-0.2 rounded-[4px] bg-slate-950/90 border border-[var(--brand-primary)] text-white text-[8px] font-black flex items-center gap-0.5 shadow-xs">
+                              <Video className="w-2 h-2 text-white" />
                               <span>5s</span>
                             </div>
                           </>
@@ -1085,17 +1085,21 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                               className="w-full h-full object-cover"
                             />
                             {isSlideshowMode && photoCount > 1 && (
-                              <div className="absolute top-1 right-1 px-1 py-0.2 rounded bg-slate-950/90 border border-emerald-500/40 text-emerald-400 text-[8px] font-black flex items-center gap-0.5 shadow-xs">
-                                <Images className="w-2 h-2 text-emerald-400" />
+                              <div className="absolute top-1 right-1 px-1 py-0.2 rounded-[4px] bg-slate-950/90 border border-[var(--brand-primary)] text-white text-[8px] font-black flex items-center gap-0.5 shadow-xs">
+                                <Images className="w-2 h-2 text-white" />
                                 <span>{photoCount}</span>
                               </div>
                             )}
                           </>
                         ) : (
                           /* Estado Sem Mídia: Ícone chamativo para inserção */
-                          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900/90 border border-dashed border-emerald-500/40 text-emerald-400 group-hover:bg-emerald-500/10 transition p-1">
-                            <Camera className="w-4 h-4 text-emerald-400" />
-                            <span className="text-[7.5px] font-bold text-emerald-400 mt-0.5 text-center leading-tight">
+                          <div className={`w-full h-full flex flex-col items-center justify-center border border-dashed transition p-1 ${
+                            isDark
+                              ? 'bg-slate-900/90 border-slate-700 text-slate-300 group-hover:bg-slate-800'
+                              : 'bg-slate-50 border-slate-300 text-slate-600 group-hover:bg-slate-100'
+                          }`}>
+                            <Camera className="w-4 h-4 brand-icon" />
+                            <span className="text-[7.5px] font-bold brand-text mt-0.5 text-center leading-tight">
                               + Mídia
                             </span>
                           </div>
@@ -1114,7 +1118,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                         title="Clique para editar serviço"
                       >
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <h4 className={`text-xs font-bold truncate group-hover/info:text-emerald-400 transition ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                          <h4 className={`text-xs font-bold truncate transition ${isDark ? 'text-white' : 'text-slate-900'}`}>
                             {srv.title}
                           </h4>
                         </div>
@@ -1126,12 +1130,12 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                         )}
 
                         <div className="flex items-center gap-2 text-[10px]">
-                          <span className="font-black text-emerald-400 text-xs">
+                          <span className="font-black brand-text text-xs">
                             R$ {srv.price.toFixed(0)}
                           </span>
                           <span className={isDark ? 'text-slate-600' : 'text-slate-300'}>•</span>
                           <span className={`flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            <Clock className="w-2.5 h-2.5 text-emerald-400" />
+                            <Clock className="w-2.5 h-2.5 brand-icon" />
                             <span>{srv.duration}</span>
                           </span>
                         </div>
@@ -1178,7 +1182,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-200 bg-slate-50'
             }`}>
               <div className="flex items-center gap-2">
-                <Scissors className="w-4 h-4 text-emerald-400" />
+                <Scissors className="w-4 h-4 brand-icon" />
                 <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
                   {editingServiceId ? 'Editar Serviço' : 'Novo Serviço'}
                 </h3>
@@ -1186,7 +1190,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-white cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1205,10 +1209,10 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
                   placeholder="Ex: Corte Degradê, Alinhamento de Fios, etc."
-                  className={`w-full px-3 py-2 rounded text-xs border ${
+                  className={`w-full px-3 py-2 rounded-[4px] text-xs border ${
                     isDark 
-                      ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-emerald-500'
+                      ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-[var(--brand-primary)]' 
+                      : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-[var(--brand-primary)]'
                   } outline-hidden`}
                 />
               </div>
@@ -1226,9 +1230,9 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                         hapticLight();
                         setIsCreatingCategoryInline(true);
                       }}
-                      className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-0.5 cursor-pointer"
+                      className="text-[10px] font-bold brand-text flex items-center gap-0.5 cursor-pointer"
                     >
-                      <FolderPlus className="w-3 h-3 text-emerald-400" />
+                      <FolderPlus className="w-3 h-3 brand-icon" />
                       <span>+ Criar Categoria</span>
                     </button>
                   )}
@@ -1236,7 +1240,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
 
                 {/* Bloco inline de criação de categoria rápida ou Lista Suspensa */}
                 {isCreatingCategoryInline ? (
-                  <div className={`p-2.5 rounded border space-y-2 ${isDark ? 'bg-slate-900/80 border-emerald-500/40' : 'bg-emerald-50/60 border-emerald-200'}`}>
+                  <div className={`p-2.5 rounded-[4px] border space-y-2 ${isDark ? 'bg-slate-900/80 border-slate-700' : 'bg-slate-50 border-slate-300'}`}>
                     <div className="flex items-center gap-1.5">
                       <input
                         type="text"
@@ -1244,7 +1248,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                         value={newCategoryName}
                         onChange={(e) => setNewCategoryName(e.target.value)}
                         placeholder="Nome da nova categoria..."
-                        className={`flex-1 px-2.5 py-1.5 rounded text-xs border outline-hidden ${
+                        className={`flex-1 px-2.5 py-1.5 rounded-[4px] text-xs border outline-hidden ${
                           isDark ? 'bg-slate-950 border-slate-800 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-slate-900'
                         }`}
                       />
@@ -1252,14 +1256,14 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                         type="button"
                         onClick={() => handleCreateCategory()}
                         disabled={!newCategoryName.trim()}
-                        className="px-3 py-1.5 rounded bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold text-[11px] cursor-pointer"
+                        className="px-3 py-1.5 rounded-[4px] brand-btn disabled:opacity-50 font-bold text-[11px] cursor-pointer"
                       >
                         Criar
                       </button>
                       <button
                         type="button"
                         onClick={() => setIsCreatingCategoryInline(false)}
-                        className="p-1.5 rounded text-slate-400 hover:text-white cursor-pointer"
+                        className="p-1.5 rounded text-slate-400 hover:text-slate-600 cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -1273,10 +1277,10 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                         hapticLight();
                         setFormCategory(e.target.value);
                       }}
-                      className={`w-full px-3 py-2 rounded text-xs font-bold border cursor-pointer outline-hidden transition ${
+                      className={`w-full px-3 py-2 rounded-[4px] text-xs font-bold border cursor-pointer outline-hidden transition ${
                         isDark
-                          ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500'
-                          : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-emerald-500'
+                          ? 'bg-slate-900 border-slate-800 text-white focus:border-[var(--brand-primary)]'
+                          : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-[var(--brand-primary)]'
                       }`}
                     >
                       {categoryList.map((cat) => (
@@ -1300,7 +1304,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                     3. Preço (R$) *
                   </label>
                   <div className="relative max-w-[90px]">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-emerald-400">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold brand-text">
                       R$
                     </span>
                     <input
@@ -1314,10 +1318,10 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                         setFormPrice(masked);
                       }}
                       placeholder="0,00"
-                      className={`w-full pl-8 pr-3 py-2 rounded text-xs font-bold border ${
+                      className={`w-full pl-8 pr-3 py-2 rounded-[4px] text-xs font-bold border ${
                         isDark 
-                          ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500' 
-                          : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-emerald-500'
+                          ? 'bg-slate-900 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                          : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-[var(--brand-primary)]'
                       } outline-hidden`}
                     />
                   </div>
@@ -1329,10 +1333,10 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   </label>
                   <div className="flex items-center gap-1.5">
                     {/* Bloco de Horas */}
-                    <div className={`flex items-center px-2 py-1.5 rounded border transition ${
+                    <div className={`flex items-center px-2 py-1.5 rounded-[4px] border transition ${
                       isDark 
-                        ? 'bg-slate-900 border-slate-800 focus-within:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-200 focus-within:border-emerald-500'
+                        ? 'bg-slate-900 border-slate-800 focus-within:border-[var(--brand-primary)]' 
+                        : 'bg-slate-50 border-slate-200 focus-within:border-[var(--brand-primary)]'
                     }`}>
                       <input
                         type="text"
@@ -1366,10 +1370,10 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                     <span className={`text-xs font-bold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>:</span>
 
                     {/* Bloco de Minutos */}
-                    <div className={`flex items-center px-2 py-1.5 rounded border transition ${
+                    <div className={`flex items-center px-2 py-1.5 rounded-[4px] border transition ${
                       isDark 
-                        ? 'bg-slate-900 border-slate-800 focus-within:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-200 focus-within:border-emerald-500'
+                        ? 'bg-slate-900 border-slate-800 focus-within:border-[var(--brand-primary)]' 
+                        : 'bg-slate-50 border-slate-200 focus-within:border-[var(--brand-primary)]'
                     }`}>
                       <input
                         ref={minutesInputRef}
@@ -1398,9 +1402,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                     </div>
 
                     {/* Badge de Resumo Formatado */}
-                    <span className={`text-[10.5px] font-bold shrink-0 ml-2 px-1.5 py-0.5 rounded border whitespace-nowrap ${
-                      isDark ? 'bg-slate-900/60 border-slate-800 text-emerald-400' : 'bg-slate-100 border-slate-200 text-emerald-600'
-                    }`}>
+                    <span className="text-[10.5px] font-bold shrink-0 ml-2 px-1.5 py-0.5 rounded-[4px] border whitespace-nowrap brand-soft-badge">
                       {formatHoursMinutesToDuration(formHours, formMinutes)}
                     </span>
                   </div>
@@ -1417,22 +1419,22 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
                   placeholder="Descreva a técnica, acabamento, produtos ou benefícios..."
-                  className={`w-full px-3 py-2 rounded text-xs border resize-none ${
+                  className={`w-full px-3 py-2 rounded-[4px] text-xs border resize-none ${
                     isDark 
-                      ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-emerald-500'
+                      ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-[var(--brand-primary)]' 
+                      : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-[var(--brand-primary)]'
                   } outline-hidden`}
                 />
               </div>
 
-              {/* 6. MÍDIA DO SERVIÇO & GALERIA PRONTA (3 ABAS: FOTOS PRONTAS | ESCOLHER DA GALERIA | DO DISPOSITIVO) */}
+              {/* 6. MÍDIA DO SERVIÇO & GALERIA PRONTA */}
               <div className="space-y-2.5 pt-1">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                    <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                    <Camera className="w-3.5 h-3.5 brand-icon" />
                     <span>6. Mídia / Galeria do Serviço</span>
                   </label>
-                  <span className="text-[9.5px] font-bold text-emerald-400">
+                  <span className="text-[9.5px] font-bold brand-text">
                     {formPhotoCover ? 'Foto Selecionada' : 'Escolha Rápida'}
                   </span>
                 </div>
@@ -1445,15 +1447,15 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                       hapticLight();
                       setFormMediaTab('prontas');
                     }}
-                    className={`py-2 px-1.5 rounded text-[10px] font-bold transition cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap border ${
+                    className={`py-2 px-1.5 rounded-[4px] text-[10px] font-bold transition cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap border ${
                       formMediaTab === 'prontas'
-                        ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                        ? 'brand-btn shadow-xs'
                         : isDark
                         ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white'
                         : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
                     }`}
                   >
-                    <Sparkles className={`w-3 h-3 shrink-0 ${formMediaTab === 'prontas' ? 'text-white' : 'text-emerald-400'}`} />
+                    <Sparkles className={`w-3 h-3 shrink-0 ${formMediaTab === 'prontas' ? 'text-white' : 'brand-icon'}`} />
                     <span className={formMediaTab === 'prontas' ? 'text-white' : ''}>Fotos Prontas</span>
                   </button>
 
@@ -1463,15 +1465,15 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                       hapticLight();
                       setFormMediaTab('galeria');
                     }}
-                    className={`py-2 px-1.5 rounded text-[10px] font-bold transition cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap border ${
+                    className={`py-2 px-1.5 rounded-[4px] text-[10px] font-bold transition cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap border ${
                       formMediaTab === 'galeria'
-                        ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                        ? 'brand-btn shadow-xs'
                         : isDark
                         ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white'
                         : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
                     }`}
                   >
-                    <Images className={`w-3 h-3 shrink-0 ${formMediaTab === 'galeria' ? 'text-white' : 'text-emerald-400'}`} />
+                    <Images className={`w-3 h-3 shrink-0 ${formMediaTab === 'galeria' ? 'text-white' : 'brand-icon'}`} />
                     <span className={formMediaTab === 'galeria' ? 'text-white' : ''}>Escolher da galeria</span>
                   </button>
 
@@ -1481,15 +1483,15 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                       hapticLight();
                       setFormMediaTab('dispositivo');
                     }}
-                    className={`py-2 px-1.5 rounded text-[10px] font-bold transition cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap border ${
+                    className={`py-2 px-1.5 rounded-[4px] text-[10px] font-bold transition cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap border ${
                       formMediaTab === 'dispositivo'
-                        ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                        ? 'brand-btn shadow-xs'
                         : isDark
                         ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white'
                         : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
                     }`}
                   >
-                    <Camera className={`w-3 h-3 shrink-0 ${formMediaTab === 'dispositivo' ? 'text-white' : 'text-emerald-400'}`} />
+                    <Camera className={`w-3 h-3 shrink-0 ${formMediaTab === 'dispositivo' ? 'text-white' : 'brand-icon'}`} />
                     <span className={formMediaTab === 'dispositivo' ? 'text-white' : ''}>Do Dispositivo</span>
                   </button>
                 </div>
@@ -1734,7 +1736,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                               handleOpenMediaManager(currentService);
                             }
                           }}
-                          className="px-2.5 py-1.5 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10px] cursor-pointer shrink-0 flex items-center gap-1 shadow-sm active:scale-98 whitespace-nowrap"
+                          className="px-2.5 py-1.5 rounded-[4px] brand-btn font-bold text-[10px] cursor-pointer shrink-0 flex items-center gap-1 shadow-sm active:scale-98 whitespace-nowrap"
                         >
                           <Camera className="w-3.5 h-3.5 text-white" />
                           <span className="text-white">Mídia Pro</span>
@@ -1743,11 +1745,11 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                     );
                   })()
                 ) : (
-                  <div className={`p-2 rounded border text-[9.5px] flex items-center justify-between gap-2 ${
+                  <div className={`p-2 rounded-[4px] border text-[9.5px] flex items-center justify-between gap-2 ${
                     isDark ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'
                   }`}>
                     <span className="flex items-center gap-1.5 truncate">
-                      <Sparkles className="w-3 h-3 text-emerald-400 shrink-0" />
+                      <Sparkles className="w-3 h-3 brand-icon shrink-0" />
                       <span>{formPhotoCover ? 'Capa selecionada!' : 'Escolha uma foto em uma das 3 abas acima.'}</span>
                     </span>
                     {formPhotoCover && (
@@ -1777,7 +1779,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                         setDeleteConfirmService(currentSrv);
                       }
                     }}
-                    className={`px-3 py-2.5 rounded border transition cursor-pointer font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 ${
+                    className={`px-3 py-2.5 rounded-[4px] border transition cursor-pointer font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 ${
                       isDark 
                         ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20' 
                         : 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100'
@@ -1791,7 +1793,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
 
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded bg-[#20C933] hover:bg-[#1bb32d] active:scale-98 text-white font-bold text-xs uppercase tracking-wider transition shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2.5 rounded-[4px] brand-btn active:scale-98 font-bold text-xs uppercase tracking-wider transition shadow-md cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <Check className="w-4 h-4 text-white stroke-[2.5]" />
                   <span>{editingServiceId ? 'SALVAR ALTERAÇÕES' : 'CADASTRAR SERVIÇO'}</span>
@@ -2537,7 +2539,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   setPreviewService(null);
                   handleOpenMediaManager(srv);
                 }}
-                className="flex-1 py-2 rounded bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
+                className="flex-1 py-2 rounded-[4px] brand-btn font-bold text-xs uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
               >
                 <Camera className="w-3.5 h-3.5 text-white" />
                 <span>Mídia</span>
@@ -2579,7 +2581,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               <button
                 type="button"
                 onClick={() => setDeleteConfirmService(null)}
-                className={`px-3.5 py-2 rounded text-xs font-bold transition cursor-pointer border ${
+                className={`px-3.5 py-2 rounded-[4px] text-xs font-bold transition cursor-pointer border ${
                   isDark 
                     ? 'border-slate-800 text-slate-300 hover:bg-slate-900' 
                     : 'border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -2590,7 +2592,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               <button
                 type="button"
                 onClick={() => handleDeleteService(deleteConfirmService.id)}
-                className="px-4 py-2 rounded bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-sm cursor-pointer flex items-center gap-1.5 active:scale-98"
+                className="px-4 py-2 rounded-[4px] bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-sm cursor-pointer flex items-center gap-1.5 active:scale-98"
               >
                 <Trash2 className="w-3.5 h-3.5 text-white" />
                 <span>Excluir Serviço</span>
@@ -2615,13 +2617,13 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b pb-2 border-slate-800/60">
-              <h3 className="text-xs font-black uppercase tracking-wider font-['Poppins'] text-emerald-400">
+              <h3 className="text-xs font-black uppercase tracking-wider font-['Poppins'] brand-text">
                 O que deseja criar?
               </h3>
               <button 
                 type="button" 
                 onClick={() => setIsChooseCreateModalOpen(false)}
-                className="text-slate-400 hover:text-white cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2635,13 +2637,13 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   setIsChooseCreateModalOpen(false);
                   handleOpenNew(selectedCategory);
                 }}
-                className={`p-3 rounded-lg border text-left flex items-center gap-3 transition cursor-pointer active:scale-[0.98] ${
+                className={`p-3 rounded-[4px] border text-left flex items-center gap-3 transition cursor-pointer active:scale-[0.98] ${
                   isDark 
-                    ? 'bg-slate-900 border-slate-800 hover:border-emerald-500/50 text-white' 
-                    : 'bg-slate-50 border-slate-200 hover:border-emerald-500 text-slate-900'
+                    ? 'bg-slate-900 border-slate-800 hover:border-[var(--brand-primary)] text-white' 
+                    : 'bg-slate-50 border-slate-200 hover:border-[var(--brand-primary)] text-slate-900'
                 }`}
               >
-                <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
+                <div className="w-8 h-8 rounded-full brand-soft-badge flex items-center justify-center shrink-0">
                   <Scissors className="w-4 h-4" />
                 </div>
                 <div>
@@ -2657,13 +2659,13 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   setIsChooseCreateModalOpen(false);
                   setIsNewCategoryModalOpen(true);
                 }}
-                className={`p-3 rounded-lg border text-left flex items-center gap-3 transition cursor-pointer active:scale-[0.98] ${
+                className={`p-3 rounded-[4px] border text-left flex items-center gap-3 transition cursor-pointer active:scale-[0.98] ${
                   isDark 
-                    ? 'bg-slate-900 border-slate-800 hover:border-emerald-500/50 text-white' 
-                    : 'bg-slate-50 border-slate-200 hover:border-emerald-500 text-slate-900'
+                    ? 'bg-slate-900 border-slate-800 hover:border-[var(--brand-primary)] text-white' 
+                    : 'bg-slate-50 border-slate-200 hover:border-[var(--brand-primary)] text-slate-900'
                 }`}
               >
-                <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
+                <div className="w-8 h-8 rounded-full brand-soft-badge flex items-center justify-center shrink-0">
                   <Tag className="w-4 h-4" />
                 </div>
                 <div>
@@ -2694,7 +2696,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b pb-2 border-slate-800/60">
-              <h3 className="text-xs font-black uppercase tracking-wider font-['Poppins'] text-emerald-400">
+              <h3 className="text-xs font-black uppercase tracking-wider font-['Poppins'] brand-text">
                 Nova Categoria
               </h3>
               <button 
@@ -2703,7 +2705,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   setIsNewCategoryModalOpen(false);
                   setNewCategoryModalName('');
                 }}
-                className="text-slate-400 hover:text-white cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2719,10 +2721,10 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 onChange={(e) => setNewCategoryModalName(e.target.value)}
                 placeholder="Ex: Barba, Depilação, Unhas..."
                 autoFocus
-                className={`w-full px-3 py-2 rounded text-xs border ${
+                className={`w-full px-3 py-2 rounded-[4px] text-xs border ${
                   isDark 
-                    ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-emerald-500' 
-                    : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-emerald-500'
+                    ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-[var(--brand-primary)]' 
+                    : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-[var(--brand-primary)]'
                 } outline-hidden`}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {

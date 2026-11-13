@@ -11,6 +11,38 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-13] — Motor Global de Tema em Cascata, Estúdio Unificado por Abas & Botão Default com Confirmação Modal (`bol-165`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Refactor / Feat / UI / Theme Engine]`
+- **Motivo / Solicitação:** Corrigir inconsistências de cores entre cabeçalho, fundo, bordas, barra de navegação inferior (`BottomNav`), botões ativos/inativos e módulos internos do Modo Salão; consolidar as ferramentas de design em uma única tela organizada por abas; garantir padrão **Default** em cinza, branco e escuro suave (`#334155`) com modal de confirmação in-app e opção de manter apenas o logotipo; e aplicar cascata completa em todo o aplicativo ao escolher qualquer tema rápido.
+- **Arquivos Impactados:**
+  - `src/utils/themePalette.ts` *(novo)*
+  - `src/components/professional/DefaultThemeConfirmModal.tsx` *(novo)*
+  - `src/components/professional/SalonDesignStudioView.tsx` *(novo — Estúdio Unificado: Tema & Cores, Marca & Logos, Estrutura)*
+  - `src/context/ThemeContext.tsx`
+  - `src/utils/colorPresets.ts`
+  - `src/utils/sectionHeaderStyle.ts`
+  - `src/index.css`
+  - `src/types.ts`
+  - `src/lib/supabase.ts`
+  - `src/App.tsx`
+  - `src/components/MobileHeader.tsx`
+  - `src/components/BottomNav.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/UnifiedButtonEditor.tsx`
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `src/components/professional/VisualIdentityCardView.tsx`
+  - `src/components/professional/LayoutCardView.tsx`
+  - `src/components/professional/BusinessDataCardView.tsx`
+  - `src/components/professional/ProfessionalServicesManager.tsx`
+  - `src/components/professional/TeamManager.tsx`
+  - `src/components/professional/ProfessionalSpaceManager.tsx`
+  - `src/components/professional/ProfessionalDashboardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Tema Default Neutro Universal (`#334155` / `#FFFFFF` / `#F8FAFC` / `#F1F5F9`):** Removidos fallbacks legados (`#20C933` / `#2B82C9`) e substituídos pelo padrão neutro claro cinza, branco e escuro suave em `ThemeContext`, `App.tsx`, `SalonProfileView.tsx` e `supabase.ts`.
+  2. **Cascata Completa de Tema (`applyThemePaletteToDom` + `--brand-*`):** Ao escolher uma cor rápida ou hex no Estúdio de Design, todos os overrides manuais anteriores de barra superior, cabeçalhos de seção e `BottomNav` são limpos e todo o aplicativo (vitrine pública, barra inferior ativa/inativa, cabeçalhos, botões, bordas, ícones e abas do Modo Salão) adota a paleta harmônica derivada com contraste WCAG automático.
+  3. **Estúdio Unificado & Botão Default Global (`SalonDesignStudioView` + `DefaultThemeConfirmModal`):** Unificação de *Identidade Visual* e *Layout* em `Visual & Layout` com 3 abas (`Tema & Cores`, `Marca & Logos`, `Estrutura`), códigos `#HEX` alinhados à esquerda do seletor com contraste automático e botão **Default** em todas as entradas de design abrindo modal in-app com checkbox *"Manter apenas o logotipo atual"*.
+
 ### [2026-11-12] — Posicionamento Lateral do Código de Cor ao Lado do Seletor com Fonte Automática (`bol-164`)
 - **Tipo:** `[Fix / UI / Focus Mode]`
 - **Motivo / Solicitação:** Reposicionar o indicador do código hexadecimal da cor que ficava acima do seu seletor (`input[type="color"]`) para ficar alinhado ao lado esquerdo do box correspondente, com cor de fonte automática conforme o tema ativo (evitando invisibilidade ao selecionar tons claros sobre fundo claro).

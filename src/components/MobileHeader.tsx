@@ -64,7 +64,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   onLogout,
   onOpenUserSection,
 }) => {
-  const { isDark, toggleTheme, presetTokens } = useTheme();
+  const { isDark, toggleTheme, resolvedPalette } = useTheme();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   const firstName = (currentUser.name || 'Usuário').trim().split(' ')[0].toUpperCase();
@@ -104,17 +104,19 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     !resolvedLogo.includes('placeholder') &&
     !resolvedLogo.startsWith('data:image/svg+xml');
 
-  const headerBg = isDark ? '#0F172A' : presetTokens.headerBg;
-  const headerBorder = isDark ? '#1E293B' : presetTokens.headerBorder;
-  const headerText = isDark ? '#F8FAFC' : presetTokens.headerText;
-  const headerSubtext = isDark ? '#94A3B8' : presetTokens.headerSubtext;
-  const boxBg = isDark ? '#1E293B' : presetTokens.headerBoxBg;
-  const boxBorder = isDark ? '#334155' : presetTokens.headerBoxBorder;
+  const headerBg = resolvedPalette.headerBg;
+  const headerBorder = resolvedPalette.headerBorder;
+  const headerText = resolvedPalette.headerText;
+  const headerSubtext = resolvedPalette.headerSubtext;
+  const boxBg = resolvedPalette.headerBoxBg;
+  const boxBorder = resolvedPalette.headerBoxBorder;
 
   return (
     <header className="w-full shrink-0 sticky top-0 z-50">
       <div
-        className="px-4 py-3.5 border-b relative transition-colors"
+        className={`px-4 py-3.5 relative transition-colors ${
+          resolvedPalette.isCustomized ? 'border-b-2' : 'border-b'
+        }`}
         style={{
           backgroundColor: headerBg,
           borderColor: headerBorder,
@@ -140,7 +142,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             ) : (
               <span
                 className="font-display font-extrabold text-xs tracking-wider uppercase select-none"
-                style={{ color: headerText }}
+                style={{ color: resolvedPalette.isCustomized && !isDark ? headerText : headerText }}
               >
                 Logo
               </span>
@@ -192,7 +194,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               </div>
             </button>
 
-            {/* Menu Dropdown Flutuante Neutro do Usuário */}
+            {/* Menu Dropdown Flutuante do Usuário */}
             {isUserMenuOpen && (
               <>
                 <div
@@ -237,19 +239,19 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                           setIsUserMenuOpen(false);
                           onOpenUserSection?.('ALTERNAR_MODO');
                         }}
-                        className="w-full px-3 py-2 rounded-[4px] bg-[#334155] hover:bg-[#1E293B] text-white font-bold text-[11px] flex items-center justify-between transition-colors cursor-pointer"
+                        className="w-full px-3 py-2 rounded-[4px] brand-btn font-bold text-[11px] flex items-center justify-between transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-2">
                           {isGerMode ? (
-                            <LayoutDashboard className="w-3.5 h-3.5 text-white shrink-0" />
+                            <LayoutDashboard className="w-3.5 h-3.5 shrink-0" />
                           ) : (
-                            <Store className="w-3.5 h-3.5 text-white shrink-0" />
+                            <Store className="w-3.5 h-3.5 shrink-0" />
                           )}
-                          <span className="text-white">
+                          <span>
                             {isGerMode ? 'MODO SALÃO (Ir p/ Cliente)' : 'MODO CLIENTE (Ir p/ Salão)'}
                           </span>
                         </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-white shrink-0" />
+                        <ChevronRight className="w-3.5 h-3.5 shrink-0" />
                       </button>
                     </div>
                   )}

@@ -24,9 +24,12 @@ import {
   ThemeContext, 
   ThemeProvider, 
   useTheme, 
-  applyAccentColorToDom, 
+  applyAccentColorToDom,
+  CUSTOMIZED_THEME_STORAGE_KEY,
+  EXPLICIT_THEME_STORAGE_KEY,
   type ThemeContextType 
 } from './context/ThemeContext';
+import { DEFAULT_NEUTRAL_HEX } from './utils/themePalette';
 
 export { ThemeContext, ThemeProvider, useTheme, applyAccentColorToDom, type ThemeContextType };
 
@@ -726,10 +729,27 @@ export const App: React.FC = () => {
             localStorage.setItem('vagou_salon_name', displayName);
             localStorage.setItem('vagou_salon_slug', salon.slug || sub);
 
-            const resolvedColor = salon.primary_color || salon.branding?.primaryColor;
-            if (resolvedColor) {
+            const isCustomized = Boolean(
+              salon.branding?.themeExplicitlyCustomized || salon.default_theme === 'dark'
+            );
+            const resolvedColor = isCustomized
+              ? (salon.primary_color || salon.branding?.primaryColor || DEFAULT_NEUTRAL_HEX)
+              : DEFAULT_NEUTRAL_HEX;
+
+            if (isCustomized) {
+              localStorage.setItem(CUSTOMIZED_THEME_STORAGE_KEY, '1');
               localStorage.setItem('vagou_accent_color', resolvedColor);
-              applyAccentColorToDom(resolvedColor);
+              if (salon.default_theme === 'dark' && !localStorage.getItem(EXPLICIT_THEME_STORAGE_KEY)) {
+                document.documentElement.classList.add('dark');
+              }
+              applyAccentColorToDom(resolvedColor, 1, true);
+            } else {
+              localStorage.removeItem(CUSTOMIZED_THEME_STORAGE_KEY);
+              localStorage.removeItem('vagou_accent_color');
+              if (!localStorage.getItem(EXPLICIT_THEME_STORAGE_KEY)) {
+                document.documentElement.classList.remove('dark');
+              }
+              applyAccentColorToDom(DEFAULT_NEUTRAL_HEX, 1, false);
             }
           }
         } else {
@@ -754,10 +774,27 @@ export const App: React.FC = () => {
               localStorage.setItem('vagou_salon_name', displayName);
               localStorage.setItem('vagou_salon_slug', resolvedSalon.slug);
 
-              const resolvedColor = resolvedSalon.primary_color || resolvedSalon.branding?.primaryColor;
-              if (resolvedColor) {
+              const isCustomized = Boolean(
+                resolvedSalon.branding?.themeExplicitlyCustomized || resolvedSalon.default_theme === 'dark'
+              );
+              const resolvedColor = isCustomized
+                ? (resolvedSalon.primary_color || resolvedSalon.branding?.primaryColor || DEFAULT_NEUTRAL_HEX)
+                : DEFAULT_NEUTRAL_HEX;
+
+              if (isCustomized) {
+                localStorage.setItem(CUSTOMIZED_THEME_STORAGE_KEY, '1');
                 localStorage.setItem('vagou_accent_color', resolvedColor);
-                applyAccentColorToDom(resolvedColor);
+                if (resolvedSalon.default_theme === 'dark' && !localStorage.getItem(EXPLICIT_THEME_STORAGE_KEY)) {
+                  document.documentElement.classList.add('dark');
+                }
+                applyAccentColorToDom(resolvedColor, 1, true);
+              } else {
+                localStorage.removeItem(CUSTOMIZED_THEME_STORAGE_KEY);
+                localStorage.removeItem('vagou_accent_color');
+                if (!localStorage.getItem(EXPLICIT_THEME_STORAGE_KEY)) {
+                  document.documentElement.classList.remove('dark');
+                }
+                applyAccentColorToDom(DEFAULT_NEUTRAL_HEX, 1, false);
               }
             }
           }
@@ -793,8 +830,8 @@ export const App: React.FC = () => {
   // ⏳ Enquanto valida o subdomínio no Supabase, exibe tela limpa no padrão institucional
   if (isValidatingSubdomain) {
     return (
-      <div className="min-h-screen w-full bg-[#E6EEF6] flex items-center justify-center font-sans">
-        <Loader2 className="w-7 h-7 animate-spin text-[#2B82C9]" />
+      <div className="min-h-screen w-full bg-[var(--neutral-outer-bg)] flex items-center justify-center font-sans">
+        <Loader2 className="w-7 h-7 animate-spin brand-icon" />
       </div>
     );
   }
@@ -806,13 +843,13 @@ export const App: React.FC = () => {
 
   return (
     <div className={`min-h-screen h-dvh w-full flex justify-center overflow-hidden font-sans ${
-      isDark ? 'bg-slate-950 text-slate-100' : 'bg-[#E6EEF6] text-[#0F172A]'
+      isDark ? 'bg-slate-950 text-slate-100' : 'bg-[var(--neutral-outer-bg)] text-[#0F172A]'
     }`}>
       {/* Camada 2: Shell Mobile Principal (max-w-[430px] neutro e independente) */}
       <section 
         aria-label="Aplicativo Vagou"
         className={`w-full max-w-[430px] min-h-screen h-dvh flex flex-col relative overflow-hidden shadow-lg sm:border-x ${
-          isDark ? 'bg-[#151A1E] sm:border-slate-800/80' : 'bg-[#F7F9FC] sm:border-[#E6EDF5]'
+          isDark ? 'bg-[#151A1E] sm:border-slate-800/80' : 'bg-[var(--brand-canvas-bg)] sm:border-[var(--neutral-shell-border)]'
         }`}
       >
         {/* Toast Notificação de Status */}
@@ -862,7 +899,7 @@ export const App: React.FC = () => {
                   ? initialSalonData?.logo_dark_url || initialSalonData?.logo_url || ''
                   : initialSalonData?.logo_light_url || initialSalonData?.logo_url || ''
               }
-              primaryColor={initialSalonData?.primary_color || initialSalonData?.branding?.primaryColor || '#20C933'}
+              primaryColor={initialSalonData?.primary_color || initialSalonData?.branding?.primaryColor || DEFAULT_NEUTRAL_HEX}
               onSuccess={(partnerData?: PartnerAuthSuccessData) => {
                 if (partnerData?.salonName) {
                   setSalonName(partnerData.salonName);

@@ -311,7 +311,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
           </div>
 
           {savedSuccess && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-emerald-500 px-2 py-0.5 rounded-[4px] shadow-xs animate-in fade-in">
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold brand-btn px-2 py-0.5 rounded-[4px] shadow-xs animate-in fade-in">
               <Check className="w-3 h-3 text-white" />
               Salvo
             </span>
@@ -327,8 +327,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
         <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
           isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
         }`}>
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
-            <Building2 className="w-4 h-4 text-emerald-400" />
+          <div className={`flex items-center gap-2 pb-2 border-b ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
+            <Building2 className="w-4 h-4 brand-icon" />
             <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
               Identificação Comercial
             </h3>
@@ -348,8 +348,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                 placeholder="Ex: Studio Elegance"
                 className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
                   isDark 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[var(--brand-primary)]'
                 }`}
               />
             </div>
@@ -364,8 +364,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                   onChange={(e) => setCategory(e.target.value)}
                   className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition appearance-none cursor-pointer ${
                     isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[var(--brand-primary)]'
                   }`}
                 >
                   {SALON_CATEGORIES.map((cat) => (
@@ -386,9 +386,9 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
         <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
           isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
         }`}>
-          <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
+          <div className={`flex items-center justify-between pb-2 border-b ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
             <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-emerald-400" />
+              <FileText className="w-4 h-4 brand-icon" />
               <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
                 Dados Fiscais & Cadastro
               </h3>
@@ -413,7 +413,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                 }}
                 className={`py-2 px-3 rounded-[4px] border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   !hasCnpj
-                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                    ? 'brand-btn shadow-xs'
                     : isDark
                     ? 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
                     : 'bg-slate-100 border-slate-200 text-slate-600 hover:border-slate-300'
@@ -432,7 +432,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                 }}
                 className={`py-2 px-3 rounded-[4px] border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   hasCnpj
-                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                    ? 'brand-btn shadow-xs'
                     : isDark
                     ? 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
                     : 'bg-slate-100 border-slate-200 text-slate-600 hover:border-slate-300'
@@ -460,15 +460,15 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                     maxLength={18}
                     className={`flex-1 px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
                       isDark 
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[var(--brand-primary)]'
                     }`}
                   />
                   <button
                     type="button"
                     onClick={handleSearchCnpj}
                     disabled={isSearchingCnpj || cnpj.replace(/\D/g, '').length !== 14}
-                    className="px-3 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                    className="px-3 py-2 rounded-[4px] brand-btn disabled:opacity-40 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0"
                     title="Buscar dados na Receita Federal"
                   >
                     {isSearchingCnpj ? (
@@ -482,7 +482,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
 
                 {cnpjFeedback && (
                   <p className={`text-[11px] mt-1.5 flex items-center gap-1 font-medium ${
-                    cnpjFeedback.type === 'success' ? 'text-emerald-400' : 'text-rose-400'
+                    cnpjFeedback.type === 'success' ? 'brand-text' : 'text-rose-400'
                   }`}>
                     {cnpjFeedback.type === 'success' ? (
                       <Sparkles className="w-3 h-3 shrink-0" />
@@ -505,8 +505,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                   placeholder="Nome empresarial na Receita Federal"
                   className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
                     isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[var(--brand-primary)]'
                   }`}
                 />
               </div>
@@ -514,7 +514,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
           )}
 
           {/* Dados do Responsável Legal / Titular do Negócio */}
-          <div className="pt-2 border-t border-slate-800/60 space-y-3">
+          <div className={`pt-2 border-t space-y-3 ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
               Responsável Legal / Titular
             </span>
@@ -531,8 +531,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                   placeholder="Nome civil do proprietário"
                   className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
                     isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[var(--brand-primary)]'
                   }`}
                 />
               </div>
@@ -551,8 +551,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                     cpfError
                       ? 'border-rose-500 bg-rose-500/10 text-white'
                       : isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[var(--brand-primary)]'
                   }`}
                 />
                 {cpfError && (
@@ -577,8 +577,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                   maxLength={15}
                   className={`w-full px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
                     isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[var(--brand-primary)]'
                   }`}
                 />
               </div>
@@ -594,8 +594,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                   placeholder="seu.email@exemplo.com"
                   className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
                     isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[var(--brand-primary)]'
                   }`}
                 />
               </div>
@@ -624,7 +624,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
         <button
           type="button"
           onClick={() => handleSave()}
-          className="flex-1 py-2.5 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98"
+          className="flex-1 py-2.5 px-4 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98"
         >
           <Save className="w-4 h-4 text-white" />
           <span className="text-white">Salvar Dados do Negócio</span>

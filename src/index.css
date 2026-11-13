@@ -34,6 +34,24 @@
     --neutral-price-on-dark: #FFFFFF;
     --neutral-dot-on-dark: #E2E8F0;
 
+    /* Tokens Semânticos de Marca (Cascata Dinâmica em Todo o App) */
+    --brand-primary: #334155;
+    --brand-primary-hover: #1E293B;
+    --brand-primary-fg: #FFFFFF;
+    --brand-soft-bg: #F1F5F9;
+    --brand-soft-border: #CBD5E1;
+    --brand-soft-fg: #1E293B;
+    --brand-canvas-bg: #F8FAFC;
+    --brand-card-bg: #FFFFFF;
+    --brand-card-border: #E2E8F0;
+    --brand-header-bg: #FFFFFF;
+    --brand-header-border: #E2E8F0;
+    --brand-header-text: #1E293B;
+    --brand-nav-bg: #F1F5F9;
+    --brand-nav-border: #E2E8F0;
+    --brand-nav-active-bg: #FFFFFF;
+    --brand-nav-active-fg: #0F172A;
+
     --accent-color: #334155;
     --safe-area-top: env(safe-area-inset-top, 0px);
     --safe-area-bottom: env(safe-area-inset-bottom, 0px);
@@ -72,7 +90,52 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Superfícies Padrão Neutras (60-30-10) no Modo Claro */
+/* Utilitários Semânticos do Tema Ativo (--brand-*) */
+.brand-btn {
+  background-color: var(--brand-primary) !important;
+  border-color: var(--brand-primary) !important;
+  color: var(--brand-primary-fg) !important;
+}
+.brand-btn:hover {
+  background-color: var(--brand-primary-hover) !important;
+  border-color: var(--brand-primary-hover) !important;
+}
+.brand-btn svg,
+.brand-btn span {
+  color: var(--brand-primary-fg) !important;
+}
+
+.brand-text {
+  color: var(--brand-soft-fg) !important;
+}
+
+.brand-icon {
+  color: var(--brand-primary) !important;
+}
+.dark .brand-icon {
+  color: var(--brand-soft-fg) !important;
+}
+
+.brand-soft-badge {
+  background-color: var(--brand-soft-bg) !important;
+  border-color: var(--brand-soft-border) !important;
+  color: var(--brand-soft-fg) !important;
+}
+
+.brand-border-active {
+  border-color: var(--brand-primary) !important;
+}
+
+.brand-canvas {
+  background-color: var(--brand-canvas-bg);
+}
+
+.brand-card {
+  background-color: var(--brand-card-bg);
+  border-color: var(--brand-card-border);
+}
+
+/* Superfícies Padrão Neutras / Tintadas pelo Tema Ativo no Modo Claro */
 html:not(.dark) .bg-\[\#F7F9FC\] {
   background-color: var(--neutral-canvas-bg) !important;
 }
@@ -81,14 +144,14 @@ html:not(.dark) .bg-\[\#E6EEF6\] {
   background-color: var(--neutral-outer-bg) !important;
 }
 
-/* Cabeçalho Superior Neutro / Independente */
+/* Cabeçalho Superior Semântico */
 .caixa-header-gradient {
   background: var(--neutral-header-bg);
   border-bottom: 1px solid var(--neutral-header-border);
   color: var(--neutral-header-text);
 }
 
-/* Card Padrão Universal — Branco Puro e Borda Fina Neutra */
+/* Card Padrão Universal */
 .caixa-card {
   background-color: var(--neutral-card-bg);
   border: 1px solid var(--neutral-card-border);
@@ -97,8 +160,8 @@ html:not(.dark) .bg-\[\#E6EEF6\] {
 }
 
 .dark .caixa-card {
-  background-color: #0F172A;
-  border: 1px solid #1E293B;
+  background-color: var(--neutral-card-bg);
+  border: 1px solid var(--neutral-card-border);
   border-radius: 4px;
   box-shadow: 0 2px 5px -1px rgba(0, 0, 0, 0.45), 0 1px 2px 0 rgba(0, 0, 0, 0.3);
 }
@@ -114,17 +177,17 @@ html:not(.dark) .bg-\[\#E6EEF6\] {
 
 .caixa-tile:hover {
   box-shadow: 0 4px 10px -2px rgba(15, 23, 42, 0.12);
-  border-color: #94A3B8;
+  border-color: var(--brand-primary);
 }
 
 .dark .caixa-tile {
-  background-color: #0F172A;
-  border: 1px solid #1E293B;
+  background-color: var(--neutral-card-bg);
+  border: 1px solid var(--neutral-card-border);
   border-radius: 4px;
   box-shadow: 0 2px 5px -1px rgba(0, 0, 0, 0.45), 0 1px 2px 0 rgba(0, 0, 0, 0.3);
 }
 
-/* Halo Circular Neutro para Ícones */
+/* Halo Circular para Ícones */
 .caixa-icon-halo {
   width: 40px;
   height: 40px;
@@ -138,11 +201,11 @@ html:not(.dark) .bg-\[\#E6EEF6\] {
 }
 
 .dark .caixa-icon-halo {
-  background-color: rgba(255, 255, 255, 0.08);
-  color: #F8FAFC;
+  background-color: var(--brand-soft-bg);
+  color: var(--brand-soft-fg);
 }
 
-/* Inputs e Selects Padronizados Neutros */
+/* Inputs e Selects Padronizados */
 .caixa-input {
   width: 100%;
   height: 40px;
@@ -157,18 +220,18 @@ html:not(.dark) .bg-\[\#E6EEF6\] {
 
 .caixa-input:focus {
   outline: none;
-  border-color: var(--neutral-action-bg);
+  border-color: var(--brand-primary);
   background-color: #FFFFFF;
 }
 
 .dark .caixa-input {
   background-color: #0F172A;
-  border-color: #1E293B;
+  border-color: var(--neutral-input-border);
   color: #F8FAFC;
 }
 
 .dark .caixa-input:focus {
-  border-color: #E2E8F0;
+  border-color: var(--brand-primary);
   background-color: #1E293B;
 }
 
@@ -205,37 +268,37 @@ input[type="number"] {
   appearance: textfield;
 }
 
-/* Unificação de Ações Primárias: substitui o azul avulso legado (#2B82C9 / #005CA9) pelo Tom Neutro de Ação */
+/* Unificação de Ações Primárias */
 .bg-accent,
 .status-blue-bg,
 .bg-\[\#005CA9\],
 .bg-\[\#2B82C9\] {
-  background-color: var(--neutral-action-bg) !important;
-  color: #FFFFFF !important;
+  background-color: var(--brand-primary) !important;
+  color: var(--brand-primary-fg) !important;
 }
 .hover\:bg-\[\#004A88\]:hover,
 .hover\:bg-\[\#1F6FB0\]:hover {
-  background-color: var(--neutral-action-hover) !important;
+  background-color: var(--brand-primary-hover) !important;
 }
 .text-accent,
 .text-\[\#005CA9\],
 .text-\[\#2B82C9\] {
-  color: var(--neutral-action-bg) !important;
+  color: var(--brand-primary) !important;
 }
 .dark .text-\[\#005CA9\],
 .dark .text-\[\#2B82C9\] {
-  color: #E2E8F0 !important;
+  color: var(--brand-soft-fg) !important;
 }
 .border-accent,
 .border-\[\#005CA9\],
 .border-\[\#2B82C9\] {
-  border-color: var(--neutral-action-bg) !important;
+  border-color: var(--brand-primary) !important;
 }
 .bg-\[\#EBF5FF\] {
-  background-color: var(--neutral-halo-bg) !important;
+  background-color: var(--brand-soft-bg) !important;
 }
 
-/* Semântica de Sucesso / Confirmação — Fundo Verde Sólido = Texto Branco Puro */
+/* Semântica de Sucesso / Confirmação */
 .status-green-bg,
 .bg-\[\#20C933\],
 .bg-\[\#008B47\] {
@@ -261,16 +324,16 @@ input[type="number"] {
 .dark .border-slate-800\/90:not([style*="border-color"]),
 .dark .border-slate-800\/80:not([style*="border-color"]),
 .dark .border-slate-800\/60:not([style*="border-color"]) {
-  border-color: #1E293B;
+  border-color: var(--neutral-card-border);
 }
 
 .dark .border-slate-700:not([style*="border-color"]),
 .dark .border-slate-700\/80:not([style*="border-color"]),
 .dark .border-slate-700\/60:not([style*="border-color"]) {
-  border-color: #334155;
+  border-color: var(--neutral-input-border);
 }
 
-/* Harmonização de Bordas — Tema Claro Neutro */
+/* Harmonização de Bordas — Tema Claro */
 html:not(.dark) .border-slate-200:not([style*="border-color"]),
 html:not(.dark) .border-slate-200\/90:not([style*="border-color"]),
 html:not(.dark) .border-slate-200\/80:not([style*="border-color"]),
@@ -290,15 +353,15 @@ html:not(.dark) .border-slate-700\/60:not([style*="border-color"]) {
   border-color: var(--neutral-input-border);
 }
 
-/* Harmonização Automática de Superfícies no Modo Claro Neutro */
-html:not(.dark) .bg-slate-950:not([style*="background-color"]):not(.caixa-tile):not(.vagou-dark-media),
+/* Harmonização Automática de Superfícies no Modo Claro */
+html:not(.dark) .bg-slate-950:not([style*="background-color"]):not(.caixa-tile):not(.vagou-dark-media):not(.brand-btn),
 html:not(.dark) .bg-slate-950\/95:not([style*="background-color"]),
 html:not(.dark) .bg-slate-950\/90:not([style*="background-color"]),
 html:not(.dark) .bg-slate-950\/80:not([style*="background-color"]),
 html:not(.dark) .bg-slate-950\/60:not([style*="background-color"]),
 html:not(.dark) .bg-slate-950\/50:not([style*="background-color"]),
 html:not(.dark) .bg-slate-950\/40:not([style*="background-color"]),
-html:not(.dark) .bg-slate-50:not([style*="background-color"]) {
+html:not(.dark) .bg-slate-50:not([style*="background-color"]):not(.brand-btn) {
   background-color: var(--neutral-canvas-bg);
   color: #0F172A;
 }
@@ -317,7 +380,7 @@ html:not(.dark) .bg-white.border {
   box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05);
 }
 
-html:not(.dark) .bg-slate-900:not([style*="background-color"]),
+html:not(.dark) .bg-slate-900:not([style*="background-color"]):not(.brand-btn),
 html:not(.dark) .bg-slate-900\/95:not([style*="background-color"]),
 html:not(.dark) .bg-slate-900\/90:not([style*="background-color"]),
 html:not(.dark) .bg-slate-900\/80:not([style*="background-color"]),
@@ -329,13 +392,14 @@ html:not(.dark) .bg-slate-900\/40:not([style*="background-color"]) {
   color: #0F172A;
 }
 
-html:not(.dark) .bg-slate-800:not([style*="background-color"]),
-html:not(.dark) .bg-slate-800\/90:not([style*="background-color"]),
-html:not(.dark) .bg-slate-800\/80:not([style*="background-color"]),
-html:not(.dark) .bg-slate-800\/60:not([style*="background-color"]),
-html:not(.dark) .bg-slate-800\/50:not([style*="background-color"]) {
+/* Correção crítica: não transforma botões intencionalmente escuros (.text-white) em fundo claro sem contraste */
+html:not(.dark) .bg-slate-800:not([style*="background-color"]):not(.text-white):not(.brand-btn),
+html:not(.dark) .bg-slate-800\/90:not([style*="background-color"]):not(.text-white),
+html:not(.dark) .bg-slate-800\/80:not([style*="background-color"]):not(.text-white),
+html:not(.dark) .bg-slate-800\/60:not([style*="background-color"]):not(.text-white),
+html:not(.dark) .bg-slate-800\/50:not([style*="background-color"]):not(.text-white) {
   background-color: var(--neutral-halo-bg);
-  color: #475569;
+  color: #334155;
 }
 
 html:not(.dark) .text-slate-100:not([style*="color"]),
@@ -357,7 +421,7 @@ html:not(.dark) .text-slate-600:not([style*="color"]) {
   color: #64748B;
 }
 
-/* Regra inegociável de contraste: texto sobre fundo sólido escuro ou verde sempre branco puro */
+/* Regra de contraste: texto sobre fundo sólido escuro ou verde sempre branco puro */
 .text-white,
 .dark .text-white,
 .bg-\[\#18181B\],
@@ -391,7 +455,7 @@ body,
 }
 
 html.dark body {
-  background-color: #0B0F17;
+  background-color: var(--neutral-outer-bg);
   color: #FFFFFF;
 }
 

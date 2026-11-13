@@ -969,7 +969,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 </div>
               ) : (
                 <div className="flex items-center justify-center w-full h-full">
-                  <User className="w-5 h-5 text-emerald-500 dark:text-emerald-400 stroke-[1.75]" />
+                  <User className="w-5 h-5 brand-icon stroke-[1.75]" />
                 </div>
               )}
             </div>
@@ -1174,7 +1174,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 isDark ? 'text-slate-200' : 'text-slate-800'
               }`}
             >
-              <Scissors className="w-3.5 h-3.5 shrink-0 text-[#005CA9] dark:text-emerald-400" />
+              <Scissors className="w-3.5 h-3.5 shrink-0 brand-icon" />
               <span className="truncate">{serviceText}</span>
             </p>
 
@@ -1221,7 +1221,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
             isDark ? 'bg-slate-900/40 border-slate-800/80 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-500'
           }`}
         >
-          <Navigation className="w-4 h-4 mb-0.5 opacity-60 text-emerald-500" />
+          <Navigation className="w-4 h-4 mb-0.5 opacity-60 brand-icon" />
           <p className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
             Próximo
           </p>
@@ -1249,7 +1249,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
 
   return (
     <div className={`w-full h-full flex-1 min-h-0 flex flex-col overflow-y-auto no-scrollbar ${
-      isDark ? 'bg-slate-950 text-slate-100' : 'bg-[#F7F9FC] text-[#333E48]'
+      isDark ? 'bg-slate-950 text-slate-100' : 'bg-[var(--brand-canvas-bg)] text-[#333E48]'
     }`}>
       {/* 2. Conteúdo Rolável: Fila & Agenda seguido de Dashboard & Metas */}
       <div className="p-2.5 flex flex-col gap-3 flex-1">
@@ -1258,7 +1258,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
           {/* Título do Grupo de Atendimento */}
           <div className="flex items-center justify-between px-0.5 pt-0.5">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] dark:text-slate-400 flex items-center gap-1.5">
-              <CalendarCheck className="w-3.5 h-3.5 text-[#005CA9] dark:text-emerald-400 shrink-0" />
+              <CalendarCheck className="w-3.5 h-3.5 brand-icon shrink-0" />
               <span>Fila de Atendimento da Cadeira</span>
             </span>
           </div>
@@ -1312,13 +1312,13 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
           <div 
             id="professional-appointment-action-modal-overlay"
             className={`fixed inset-0 z-[9999] w-full max-w-[430px] mx-auto h-full flex flex-col overflow-hidden animate-in fade-in duration-150 select-none ${
-              isDark ? 'bg-slate-950 text-white' : 'bg-[#F7F9FC] text-[#333E48]'
+              isDark ? 'bg-slate-950 text-white' : 'bg-[var(--brand-canvas-bg)] text-[#333E48]'
             }`}
           >
             <div 
               id="professional-appointment-action-modal"
               className={`w-full h-full flex flex-col justify-between overflow-y-auto no-scrollbar relative p-4 gap-4 ${
-                isDark ? 'bg-slate-950 text-white' : 'bg-[#F7F9FC] text-[#333E48]'
+                isDark ? 'bg-slate-950 text-white' : 'bg-[var(--brand-canvas-bg)] text-[#333E48]'
               }`}
               onClick={(e) => e.stopPropagation()}
             >
@@ -1333,11 +1333,11 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     setActionModalAppointment(null);
                   }}
                   className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs font-bold transition cursor-pointer ${
-                    isDark ? 'bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800' : 'bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#005CA9] border border-[#E2E8F0]'
+                    isDark ? 'bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800' : 'bg-[#FFFFFF] hover:bg-[#F1F5F9] text-slate-800 border border-[#E2E8F0]'
                   }`}
                   title="Voltar"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5 text-[#005CA9] dark:text-emerald-400" />
+                  <ArrowLeft className="w-3.5 h-3.5 brand-icon" />
                   <span>Voltar</span>
                 </button>
 
@@ -1432,7 +1432,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                   <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">
                     Início
                   </span>
-                  <span className={`font-mono text-xs font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                  <span className="font-mono text-xs font-black brand-text">
                     {startTimeStr}
                   </span>
                 </div>
@@ -1448,7 +1448,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                   <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold block">
                     Término
                   </span>
-                  <span className={`font-mono text-xs font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                  <span className="font-mono text-xs font-black brand-text">
                     {endTimeHhMm}
                   </span>
                 </div>
@@ -1563,22 +1563,22 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                       id="modal-btn-start-appointment"
                       disabled={isModalBlockedByPrevious}
                       onClick={handleStartFromModal}
-                      className={`w-full py-2.5 px-4 rounded font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition ${
+                      className={`w-full py-2.5 px-4 rounded-[4px] font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition ${
                         isModalBlockedByPrevious
                           ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
-                          : 'bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer active:scale-98'
+                          : 'brand-btn cursor-pointer active:scale-98'
                       }`}
                       title={isModalBlockedByPrevious ? 'Conclua o atendimento anterior para iniciar este' : undefined}
                     >
-                      <Play className={`w-4 h-4 ${isModalBlockedByPrevious ? 'text-slate-500' : 'text-white fill-white'}`} />
-                      <span className={isModalBlockedByPrevious ? '' : 'text-white'}>{isModalBlockedByPrevious ? 'Início Bloqueado (Cadeira Ocupada)' : (isPaused ? 'Retomar Atendimento' : 'Iniciar Atendimento')}</span>
+                      <Play className={`w-4 h-4 ${isModalBlockedByPrevious ? 'text-slate-500' : 'fill-current'}`} />
+                      <span>{isModalBlockedByPrevious ? 'Início Bloqueado (Cadeira Ocupada)' : (isPaused ? 'Retomar Atendimento' : 'Iniciar Atendimento')}</span>
                     </button>
                   ) : (
                     <button
                       type="button"
                       id="modal-btn-pause-appointment"
                       onClick={handlePauseFromModal}
-                      className="w-full py-2.5 px-4 rounded bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition cursor-pointer active:scale-98"
+                      className="w-full py-2.5 px-4 rounded-[4px] bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition cursor-pointer active:scale-98"
                     >
                       <Pause className="w-4 h-4 text-white fill-white" />
                       <span>Pausar Atendimento</span>
@@ -1586,12 +1586,12 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                   )}
 
                   {/* Ação 2: Adicionar Mais Tempo (Estender) */}
-                  <div className={`p-2.5 rounded border flex flex-col gap-1.5 ${
+                  <div className={`p-2.5 rounded-[4px] border flex flex-col gap-1.5 ${
                     isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-slate-50 border-slate-200'
                   }`}>
                     <div className="flex items-center justify-between px-0.5">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-emerald-400" />
+                        <Clock className="w-3 h-3 brand-icon" />
                         <span>Adicionar Mais Tempo</span>
                       </span>
                       <span className="text-[9px] text-slate-500">
@@ -1605,11 +1605,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                           type="button"
                           id={`modal-btn-add-time-${mins}`}
                           onClick={() => handleAddMoreTime(mins)}
-                          className={`py-1.5 px-1 rounded border border-dashed font-mono font-bold text-[11px] flex items-center justify-center gap-0.5 transition cursor-pointer active:scale-95 ${
-                            isDark 
-                              ? 'border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-white' 
-                              : 'border-emerald-500/60 bg-emerald-50 hover:bg-emerald-100 text-emerald-700'
-                          }`}
+                          className="py-1.5 px-1 rounded-[4px] border border-dashed brand-soft-badge font-mono font-bold text-[11px] flex items-center justify-center gap-0.5 transition cursor-pointer active:scale-95 hover:opacity-90"
                           title={`Adicionar +${mins} minutos à duração`}
                         >
                           <Plus className="w-2.5 h-2.5" />
@@ -1624,9 +1620,9 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     type="button"
                     id="modal-btn-complete-appointment"
                     onClick={handleCompleteFromModal}
-                    className="w-full py-2.5 px-4 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition cursor-pointer active:scale-98"
+                    className="w-full py-2.5 px-4 rounded-[4px] brand-btn font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition cursor-pointer active:scale-98"
                   >
-                    <Check className="w-4 h-4 text-white stroke-[2.5]" />
+                    <Check className="w-4 h-4 stroke-[2.5]" />
                     <span>Finalizar Serviço</span>
                   </button>
 

@@ -1,24 +1,30 @@
 import React, { useState } from 'react';
-import { 
-  Building2, Palette, Users, DollarSign, 
+import {
+  Building2, Palette, Users, DollarSign,
   ArrowLeft, ChevronRight, ShieldCheck, Sparkles,
-  Wrench, LayoutGrid, Sliders
+  Sliders, RotateCcw
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
-import { 
-  SalonAdminSettings, CatalogServiceItem, SalonProfessionalItem, 
-  BookingAppointment 
+import {
+  SalonAdminSettings, CatalogServiceItem, SalonProfessionalItem,
+  BookingAppointment
 } from '../../types';
-import { hapticLight } from '../../utils/haptics';
+import { hapticLight, hapticSuccess } from '../../utils/haptics';
 import { BusinessDataCardView } from './BusinessDataCardView';
-import { VisualIdentityCardView } from './VisualIdentityCardView';
-import { LayoutCardView } from './LayoutCardView';
+import { SalonDesignStudioView } from './SalonDesignStudioView';
+import { DefaultThemeConfirmModal } from './DefaultThemeConfirmModal';
 import { ProfessionalServicesManager } from './ProfessionalServicesManager';
 import { TeamManager } from './TeamManager';
 import { ProfessionalSpaceManager } from './ProfessionalSpaceManager';
 import { FinancialManagerView } from './FinancialManagerView';
 import { UtilitiesAndToolsView } from './UtilitiesAndToolsView';
 import { getSectionHeaderStyleData } from '../../utils/sectionHeaderStyle';
+import {
+  DEFAULT_NEUTRAL_HEX,
+  DEFAULT_NEUTRAL_PRESET_ID,
+  QUICK_THEME_PRESETS,
+  normalizeHex,
+} from '../../utils/themePalette';
 
 export type ManagementCardId = 'dados' | 'visual' | 'layout' | 'servicos' | 'equipe' | 'espaco' | 'financeiro' | 'utilidades';
 
@@ -47,10 +53,11 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
   onUpdateAppointments,
   onBack,
 }) => {
-  const { isDark } = useTheme();
+  const { isDark, themeExplicitlyCustomized, resetToDefaultPalette, setTheme } = useTheme();
+  const [isDefaultModalOpen, setIsDefaultModalOpen] = useState(false);
 
   // Mapeamento de sub-abas para os cards se vier via props
-  const initialCard: ManagementCardId | null = 
+  const initialCard: ManagementCardId | null =
     initialSubTab === 'servicos' ? 'servicos' :
     initialSubTab === 'equipe' ? 'equipe' :
     initialSubTab === 'espaco' ? 'espaco' :
@@ -79,18 +86,74 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
     return getSectionHeaderStyleData(adminSettings, isDark);
   }, [adminSettings, isDark]);
 
-  const getAccentBadge = (colorHex?: string) => {
-    if (!colorHex) return 'Esmeralda';
-    const c = colorHex.toLowerCase();
-    if (c === '#10b981') return 'Esmeralda';
-    if (c === '#3b82f6') return 'Azul Real';
-    if (c === '#f59e0b') return 'Âmbar Ouro';
-    if (c === '#ef4444') return 'Rubi';
-    if (c === '#8b5cf6') return 'Violeta';
-    return colorHex.toUpperCase();
+  const getThemeBadgeLabel = () => {
+    const isCust = Boolean(adminSettings.themeExplicitlyCustomized ?? themeExplicitlyCustomized);
+    if (!isCust && !isDark) return 'Default Neutro';
+    const norm = normalizeHex(adminSettings.accentColor);
+    const match = QUICK_THEME_PRESETS.find((p) => p.hex.toLowerCase() === (norm || '').toLowerCase());
+    if (match && match.id !== DEFAULT_NEUTRAL_PRESET_ID) return match.label;
+    return norm || 'Personalizado';
   };
 
-  // Os 3 Cards Oficiais do menu Preferências: Dados do negócio, Ident. Visual e Layout
+  const handleConfirmDefaultReset = async (keepLogos: boolean) => {
+    resetToDefaultPalette();
+    setTheme('light', { isExplicitUserChoice: false });
+    if (!keepLogos) {
+      try {
+        localStorage.removeItem('vagou_salon_logo');
+        localStorage.removeItem('vagou_salon_logo_light');
+        localStorage.removeItem('vagou_salon_logo_dark');
+        localStorage.removeItem('vagou_salon_icon');
+      } catch {}
+    }
+
+    await onUpdateSettings({
+      defaultTheme: 'light',
+      accentColor: DEFAULT_NEUTRAL_HEX,
+      primaryColor: DEFAULT_NEUTRAL_HEX,
+      themePresetId: DEFAULT_NEUTRAL_PRESET_ID,
+      themeExplicitlyCustomized: false,
+      showSlogan: true,
+      showHeroSlides: true,
+      welcomeStyle: 'atmospheric',
+      brandFont: 'Plus Jakarta Sans',
+      logoTextColor: DEFAULT_NEUTRAL_HEX,
+      sectionHeaderBgColor: '',
+      sectionHeaderTextColor: '',
+      sectionHeaderIconColor: '',
+      sectionHeaderBgStyle: 'solid',
+      sectionHeaderBorder: 'bordered',
+      sectionHeaderBtnBgColor: '',
+      sectionHeaderBtnActiveBgColor: '',
+      sectionHeaderBtnBorder: 'bordered',
+      sectionHeaderBtnShadow: 'none',
+      sectionHeaderBtnBlur: 'none',
+      navStyle: 'minimal',
+      navShape: 'square',
+      navBorder: 'bordered',
+      navIconBorder: 'none',
+      navBgStyle: 'solid',
+      navBgColor: '',
+      navBtnBgColor: '',
+      navBtnActiveBgColor: '',
+      navActiveColor: '',
+      navTextColor: '',
+      navBtnShadow: 'none',
+      navBtnBlur: 'none',
+      ...(keepLogos
+        ? {}
+        : {
+            salonLogo: '',
+            salonLogoLight: '',
+            salonLogoDark: '',
+            salonIcon: '',
+            logoTextFallback: '',
+          }),
+    });
+    hapticSuccess();
+  };
+
+  // Cards unificados do menu Preferências: Dados do negócio + Visual & Layout
   const cards = [
     {
       id: 'dados' as ManagementCardId,
@@ -98,23 +161,13 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
       description: 'Informações comerciais e fiscais do estabelecimento',
       icon: Building2,
       badge: adminSettings.cnpj ? 'CNPJ Ativo' : 'Comercial & Fiscal',
-      highlightColor: 'emerald',
     },
     {
       id: 'visual' as ManagementCardId,
-      title: 'Ident. Visual',
-      description: 'Logo do salão, cores de destaque, fonte da marca e ícone do aplicativo',
+      title: 'Visual & Layout',
+      description: 'Tema neutro/cores em cascata, logotipos, topo e barra inferior',
       icon: Palette,
-      badge: getAccentBadge(adminSettings.accentColor),
-      highlightColor: 'emerald',
-    },
-    {
-      id: 'layout' as ManagementCardId,
-      title: 'Layout',
-      description: 'Barra de navegação inferior (rodapé), faixa de boas-vindas e estilo da vitrine',
-      icon: LayoutGrid,
-      badge: adminSettings.navStyle === 'solid' ? 'Sólido' : adminSettings.navStyle === 'boxed' ? 'Emoldurado' : 'Minimalista',
-      highlightColor: 'emerald',
+      badge: getThemeBadgeLabel(),
     },
   ];
 
@@ -138,33 +191,16 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
     );
   }
 
-  // SUB-VIEW: 2. Identidade Visual
-  if (selectedCard === 'visual') {
+  // SUB-VIEW UNIFICADA: 2. Visual & Layout (Tema & Cores / Marca & Logos / Estrutura)
+  if (selectedCard === 'visual' || selectedCard === 'layout') {
     return (
-      <VisualIdentityCardView
+      <SalonDesignStudioView
+        initialTab={selectedCard === 'layout' ? 'estrutura' : 'tema'}
         adminSettings={adminSettings}
         onUpdateSettings={onUpdateSettings}
         onBack={() => {
           hapticLight();
-          if (initialSubTab === 'visual') {
-            if (onBack) onBack();
-          } else {
-            setSelectedCard(null);
-          }
-        }}
-      />
-    );
-  }
-
-  // SUB-VIEW: 3. Layout
-  if (selectedCard === 'layout') {
-    return (
-      <LayoutCardView
-        adminSettings={adminSettings}
-        onUpdateSettings={onUpdateSettings}
-        onBack={() => {
-          hapticLight();
-          if (initialSubTab === 'layout') {
+          if (initialSubTab === 'visual' || initialSubTab === 'layout') {
             if (onBack) onBack();
           } else {
             setSelectedCard(null);
@@ -246,13 +282,13 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
               <ArrowLeft className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-emerald-500 shrink-0" />
+              <Users className="w-4 h-4 brand-icon shrink-0" />
               <h2 className="text-xs sm:text-sm font-bold font-['Poppins']">
                 Equipe & Escalas de Atendimento
               </h2>
             </div>
           </div>
-          <span className="text-[10px] font-bold text-emerald-400 font-mono">
+          <span className="text-[10px] font-bold brand-text font-mono">
             Sincronizado Supabase
           </span>
         </div>
@@ -304,7 +340,7 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
                 if (onBack) onBack();
                 else setSelectedCard(null);
               }}
-              className={`p-1.5 rounded transition cursor-pointer active:scale-95 ${
+              className={`p-1.5 rounded-[4px] transition cursor-pointer active:scale-95 ${
                 isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
               }`}
               title="Voltar ao Painel"
@@ -312,13 +348,13 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
               <ArrowLeft className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-1.5">
-              <DollarSign className="w-4 h-4 text-emerald-500 shrink-0" />
+              <DollarSign className="w-4 h-4 brand-icon shrink-0" />
               <h2 className="text-xs sm:text-sm font-bold font-['Poppins']">
                 Financeiro & Caixa
               </h2>
             </div>
           </div>
-          <span className="text-[10px] font-bold text-white bg-emerald-500 px-2 py-0.5 rounded shadow-xs">
+          <span className="text-[10px] font-bold brand-btn px-2 py-0.5 rounded-[4px] shadow-xs">
             Visão Geral
           </span>
         </div>
@@ -356,10 +392,10 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
   // VISÃO PRINCIPAL DO HUB: CARDS DE ACESSO AO GERENCIAMENTO
   return (
     <div className={`w-full h-full flex flex-col overflow-y-auto no-scrollbar ${
-      isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
+      isDark ? 'bg-slate-950 text-white' : 'bg-[var(--brand-canvas-bg)] text-slate-900'
     }`}>
       {/* Cabeçalho Fixo do Gerenciamento */}
-      <div 
+      <div
         className={sectionHeaderStyleData.containerClass}
         style={sectionHeaderStyleData.containerStyle}
       >
@@ -371,7 +407,7 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
                 hapticLight();
                 onBack();
               }}
-              className={`p-1.5 rounded transition cursor-pointer active:scale-95 ${
+              className={`p-1.5 rounded-[4px] transition cursor-pointer active:scale-95 ${
                 isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'
               }`}
               title="Voltar ao Menu"
@@ -389,10 +425,25 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-1 ${
-            isDark ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-          }`}>
-            <ShieldCheck className="w-3 h-3 text-emerald-400" />
+          <button
+            type="button"
+            onClick={() => {
+              hapticLight();
+              setIsDefaultModalOpen(true);
+            }}
+            className={`text-[10px] font-bold px-2 py-1 rounded-[4px] border flex items-center gap-1 transition cursor-pointer active:scale-95 whitespace-nowrap ${
+              isDark
+                ? 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
+                : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
+            }`}
+            title="Restaurar tema Default neutro"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>Default</span>
+          </button>
+
+          <span className="text-[10px] font-bold px-2 py-1 rounded-[4px] border uppercase tracking-wider flex items-center gap-1 brand-soft-badge whitespace-nowrap">
+            <ShieldCheck className="w-3 h-3" />
             Admin Dono
           </span>
         </div>
@@ -400,19 +451,18 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
 
       {/* Grid de Cards de Acesso */}
       <div className="p-3.5 space-y-2.5 max-w-2xl mx-auto w-full pb-20">
-        
         {/* Banner Informativo Sintético */}
-        <div className={`px-3 py-2 rounded border flex items-center justify-between text-xs ${
+        <div className={`px-3 py-2 rounded-[4px] border flex items-center justify-between text-xs ${
           isDark ? 'bg-slate-900/70 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700 shadow-2xs'
         }`}>
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span className="text-[11px] font-medium">
-              Configure os dados do negócio, identidade visual e layout da vitrine
+          <div className="flex items-center gap-2 min-w-0">
+            <Sparkles className="w-4 h-4 brand-icon shrink-0" />
+            <span className="text-[11px] font-medium truncate">
+              Dados do negócio, tema em cascata e layout unificados
             </span>
           </div>
-          <span className="text-[10px] font-mono text-emerald-400 font-bold shrink-0">
-            3 Cards
+          <span className="text-[10px] font-mono brand-text font-bold shrink-0">
+            {cards.length} Cards
           </span>
         </div>
 
@@ -428,52 +478,59 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
                   hapticLight();
                   setSelectedCard(card.id);
                 }}
-                className={`p-3.5 rounded border text-left transition cursor-pointer flex items-center justify-between gap-3 group active:scale-[0.99] ${
-                  isDark 
-                    ? 'bg-slate-900/90 border-slate-800 hover:border-emerald-500/60 hover:bg-slate-900' 
-                    : 'bg-white border-slate-200 hover:border-emerald-500/60 hover:bg-slate-50 shadow-2xs'
+                className={`p-3.5 rounded-[4px] border text-left transition cursor-pointer flex items-center justify-between gap-3 group active:scale-[0.99] ${
+                  isDark
+                    ? 'bg-slate-900/90 border-slate-800 hover:border-[var(--brand-primary)] hover:bg-slate-900'
+                    : 'bg-white border-slate-200 hover:border-[var(--brand-primary)] hover:bg-slate-50 shadow-2xs'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-10 h-10 rounded border flex items-center justify-center shrink-0 transition group-hover:scale-105 ${
-                    isDark 
-                      ? 'bg-slate-950 border-slate-800 text-emerald-400 group-hover:border-emerald-500/50' 
-                      : 'bg-emerald-50 border-emerald-200 text-emerald-600 group-hover:border-emerald-400'
+                  <div className={`w-10 h-10 rounded-[4px] border flex items-center justify-center shrink-0 transition group-hover:scale-105 ${
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 brand-icon'
+                      : 'brand-soft-badge'
                   }`}>
                     <Icon className="w-5 h-5" />
                   </div>
 
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-xs font-bold font-['Poppins'] group-hover:text-emerald-400 transition">
+                      <h2 className="text-xs font-bold font-['Poppins'] transition">
                         {card.title}
                       </h2>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border uppercase tracking-wider flex items-center gap-1 ${
+                      <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-[4px] border uppercase tracking-wider flex items-center gap-1 whitespace-nowrap ${
                         isDark ? 'bg-slate-950 border-slate-800 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
                       }`}>
                         {card.id === 'visual' && (
-                          <span 
-                            className="w-2 h-2 rounded-full shrink-0 shadow-2xs border border-white/20" 
-                            style={{ backgroundColor: adminSettings.accentColor || '#10b981' }} 
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0 border border-black/15"
+                            style={{ backgroundColor: normalizeHex(adminSettings.accentColor) || DEFAULT_NEUTRAL_HEX }}
                           />
                         )}
                         <span>{card.badge}</span>
                       </span>
                     </div>
-                    <p className="text-[10.5px] text-slate-400 mt-0.5 line-clamp-1 leading-snug">
+                    <p className={`text-[10.5px] mt-0.5 line-clamp-1 leading-snug ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                       {card.description}
                     </p>
                   </div>
                 </div>
 
-                <div className="shrink-0 flex items-center text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition">
-                  <ChevronRight className="w-4 h-4" />
+                <div className="shrink-0 flex items-center text-slate-400 group-hover:translate-x-0.5 transition">
+                  <ChevronRight className="w-4 h-4 brand-icon" />
                 </div>
               </button>
             );
           })}
         </div>
       </div>
+
+      <DefaultThemeConfirmModal
+        isOpen={isDefaultModalOpen}
+        isDark={isDark}
+        onClose={() => setIsDefaultModalOpen(false)}
+        onConfirm={handleConfirmDefaultReset}
+      />
     </div>
   );
 };
