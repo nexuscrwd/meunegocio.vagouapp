@@ -673,9 +673,6 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
                       <Palette className="w-3.5 h-3.5 text-emerald-400" />
                       Cor da Fonte do Texto Provisório
                     </label>
-                    <span className="text-[10px] font-mono font-bold" style={{ color: logoTextColor }}>
-                      {logoTextColor}
-                    </span>
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
@@ -703,6 +700,9 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
                     ))}
 
                     <div className="flex items-center gap-1.5 ml-auto">
+                      <span className={`text-[10px] font-mono font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                        {logoTextColor}
+                      </span>
                       <input
                         type="color"
                         value={logoTextColor}
@@ -851,9 +851,6 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
                       <Type className="w-3.5 h-3.5 text-emerald-400" />
                       Cor do Texto do Título da Seção
                     </label>
-                    <span className="text-[10px] font-mono font-bold" style={{ color: sectionHeaderTextColor || (isDark ? '#ffffff' : '#0f172a') }}>
-                      {sectionHeaderTextColor || 'Padrão'}
-                    </span>
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
@@ -884,6 +881,9 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
                     })}
 
                     <div className="flex items-center gap-1.5 ml-auto">
+                      <span className={`text-[10px] font-mono font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                        {sectionHeaderTextColor || 'Padrão'}
+                      </span>
                       <input
                         type="color"
                         value={sectionHeaderTextColor || (isDark ? '#ffffff' : '#0f172a')}
@@ -905,9 +905,6 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
                       <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
                       Cor do Ícone de Destaque
                     </label>
-                    <span className="text-[10px] font-mono font-bold" style={{ color: sectionHeaderIconColor }}>
-                      {sectionHeaderIconColor}
-                    </span>
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
@@ -938,6 +935,9 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
                     })}
 
                     <div className="flex items-center gap-1.5 ml-auto">
+                      <span className={`text-[10px] font-mono font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                        {sectionHeaderIconColor}
+                      </span>
                       <input
                         type="color"
                         value={sectionHeaderIconColor}
@@ -1480,9 +1480,6 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
                       <Palette className="w-3.5 h-3.5 text-emerald-400" />
                       Cor de Fundo dos Botões (Inativos / Base)
                     </label>
-                    <span className="text-[10px] font-mono font-bold text-slate-400">
-                      {navBtnBgColor || 'Transparente'}
-                    </span>
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1519,6 +1516,9 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
                     ))}
 
                     <div className="flex items-center gap-1.5 ml-auto">
+                      <span className={`text-[10px] font-mono font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                        {navBtnBgColor || 'Transparente'}
+                      </span>
                       <input
                         type="color"
                         value={navBtnBgColor && navBtnBgColor !== 'transparent' ? navBtnBgColor : '#0f172a'}
@@ -1540,9 +1540,6 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
                       <Palette className="w-3.5 h-3.5 text-emerald-400" />
                       Cor de Fundo do Botão Ativo
                     </label>
-                    <span className="text-[10px] font-mono font-bold text-slate-400">
-                      {navBtnActiveBgColor || 'Mesma do Destaque'}
-                    </span>
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1579,6 +1576,9 @@ export const LayoutCardView: React.FC<LayoutCardViewProps> = ({
                     ))}
 
                     <div className="flex items-center gap-1.5 ml-auto">
+                      <span className={`text-[10px] font-mono font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                        {navBtnActiveBgColor || 'Mesma do Destaque'}
+                      </span>
                       <input
                         type="color"
                         value={navBtnActiveBgColor && navBtnActiveBgColor !== 'transparent' ? navBtnActiveBgColor : '#10b981'}

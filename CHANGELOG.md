@@ -11,6 +11,16 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-12] — Posicionamento Lateral do Código de Cor ao Lado do Seletor com Fonte Automática (`bol-164`)
+- **Tipo:** `[Fix / UI / Focus Mode]`
+- **Motivo / Solicitação:** Reposicionar o indicador do código hexadecimal da cor que ficava acima do seu seletor (`input[type="color"]`) para ficar alinhado ao lado esquerdo do box correspondente, com cor de fonte automática conforme o tema ativo (evitando invisibilidade ao selecionar tons claros sobre fundo claro).
+- **Arquivos Impactados:**
+  - `src/components/professional/LayoutCardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. Movido o `<span>` do código hexadecimal da linha de título superior para dentro do contêiner `flex items-center gap-1.5 ml-auto` imediatamente à esquerda do box seletor de cor (`<input type="color">`).
+  2. Removido o `style={{ color: ... }}` fixo na cor escolhida, adotando contraste automático adaptativo ao tema (`text-slate-700` no modo claro e `text-slate-200` no modo escuro).
+
 ### [2026-11-11] — Homologação do Comunicado `admvapp` (`bol-160`) & Fluxo de Recadastro de Pergunta Secreta pós-Reset de Suporte (`bol-163`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Feat / Security / Triad Sync]`
 - **Motivo / Solicitação:** Recepção e homologação do Comunicado Técnico do `admvapp` (`bol-160`), implementando no perfil do usuário (`ProfileDrawer` e `UserDashboard`) o recadastro imediato de pergunta secreta sempre que `clients.security_question_code` e `public.user_security_answers` estiverem vazios após um reset administrativo de suporte no `admvapp`, mantendo o esquema padrão Claro & Neutro (`bol-162`).
