@@ -11,6 +11,17 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-13] — Campo de Destino Limpo ("Para onde você vai?") & Botão Rápido "Para Casa" no Simulador de Trajeto GPS (`bol-168`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / UX / GIS]`
+- **Motivo / Solicitação:** Remover o destino fixo pré-preenchido (`"Aeroporto de Guarulhos - Rod. Hélio Smidt"`) da tela *Trajeto (Simulador GPS)* para que o campo **"Para onde você vai?"** abra sempre em branco e limpo para digitação de CEP ou endereço, além de adicionar o botão rápido **"Para Casa"**.
+- **Arquivos Impactados:**
+  - `src/components/live-tracking/RouteSimulatorModal.tsx`
+  - `src/lib/supabase.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Campo "Para onde você vai?" 100% Limpo na Abertura:** Removido o texto fixo `'Aeroporto de Guarulhos - Rod. Hélio Smidt'`, iniciando `destAddress` vazio (`''`) com placeholder objetivo (`"Digite o CEP ou endereço de destino"`) e botão `X` para limpeza em 1 toque.
+  2. **Botão Rápido "Para Casa" (`applyHomeAddressToField('dest')`):** Adicionado no cabeçalho de **"Para onde você vai?"**, preenchendo e geocodificando automaticamente o endereço/CEP residencial do usuário salvo no perfil (`vagou_user_home_address`, `vagou_user_address`, `vagou_user_address_json`, `vagou_user_profile`, `vagou_user_cep` ou sincronizado de `public.clients` no Supabase).
+
 ### [2026-11-13] — Restauração do Mapa Oficial com Chave Credenciada Google Maps (`@vis.gl/react-google-maps`) & Remoção de Tiles `cartocdn.com` (`bol-167`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Fix / GIS / Google Maps Platform]`
 - **Motivo / Solicitação:** Eliminar a marca d'água `"API KEY REQUIRED — carto.com/basemaps/apikey"` exibida no fundo do mapa após a atualização `bol-166` (causada pelo servidor externo `basemaps.cartocdn.com` retornando imagens `200 OK` com marca d'água) e conectar diretamente a chave credenciada do usuário (`VITE_GOOGLE_MAPS_API_KEY` / `/api/maps/config`) via SDK oficial `@vis.gl/react-google-maps`.

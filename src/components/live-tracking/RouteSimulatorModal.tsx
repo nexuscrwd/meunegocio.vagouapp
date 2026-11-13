@@ -18,8 +18,10 @@ import { BookingAppointment, TransportMode } from '../../types';
 import {
   snapAndReverseGeocodeGps,
   searchGooglePlacesSuggestions,
+  geocodeAddressThreeLayers,
   GooglePlaceSuggestion,
 } from '../../services/googleMapsService';
+import { fetchUserProfileFromDb } from '../../lib/supabase';
 
 interface RouteSimulatorModalProps {
   isOpen: boolean;
@@ -27,6 +29,48 @@ interface RouteSimulatorModalProps {
   onStartRoute: (appointment: BookingAppointment) => void;
   defaultOriginAddress?: string;
   defaultDestAddress?: string;
+}
+
+function resolveSavedUserHomeAddress(): string {
+  if (typeof window === 'undefined') return '';
+
+  const directHome = (localStorage.getItem('vagou_user_home_address') || '').trim();
+  if (directHome) return directHome;
+
+  const userAddress = (localStorage.getItem('vagou_user_address') || '').trim();
+  if (userAddress) return userAddress;
+
+  try {
+    const rawAddrJson = localStorage.getItem('vagou_user_address_json');
+    if (rawAddrJson) {
+      const parsed = JSON.parse(rawAddrJson);
+      if (parsed?.street) {
+        return `${parsed.street}${parsed.number ? `, ${parsed.number}` : ''}${
+          parsed.neighborhood ? ` - ${parsed.neighborhood}` : ''
+        }${parsed.city ? `, ${parsed.city}` : ''}${
+          parsed.uf ? `/${parsed.uf}` : ''
+        }${parsed.cep ? `, CEP ${parsed.cep}` : ''}`;
+      }
+      if (parsed?.cep) return String(parsed.cep).trim();
+    }
+  } catch {}
+
+  try {
+    const rawProfile = localStorage.getItem('vagou_user_profile');
+    if (rawProfile) {
+      const parsed = JSON.parse(rawProfile);
+      const profAddr = (parsed?.address || parsed?.default_address || parsed?.cep || '').trim();
+      if (profAddr) return profAddr;
+    }
+  } catch {}
+
+  const userCep = (localStorage.getItem('vagou_user_cep') || '').trim();
+  if (userCep) return userCep;
+
+  const testAddr = (localStorage.getItem('vagou_client_test_address') || '').trim();
+  if (testAddr) return testAddr;
+
+  return '';
 }
 
 export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
@@ -37,15 +81,15 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
   defaultDestAddress,
 }) => {
   const { isDark } = useTheme();
+  const destInputRef = useRef<HTMLInputElement | null>(null);
 
   const [originAddress, setOriginAddress] = useState<string>(defaultOriginAddress || '');
   const [originCoords, setOriginCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [originSuggestions, setOriginSuggestions] = useState<GooglePlaceSuggestion[]>([]);
   const [isSearchingOrigin, setIsSearchingOrigin] = useState<boolean>(false);
 
-  const [destAddress, setDestAddress] = useState<string>(
-    defaultDestAddress || 'Aeroporto de Guarulhos - Rod. Hélio Smidt'
-  );
+  // Destino inicia 100% em branco e limpo para receber CEP, endereço ou "Para Casa"
+  const [destAddress, setDestAddress] = useState<string>(defaultDestAddress || '');
   const [destCoords, setDestCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [destSuggestions, setDestSuggestions] = useState<GooglePlaceSuggestion[]>([]);
   const [isSearchingDest, setIsSearchingDest] = useState<boolean>(false);
@@ -55,10 +99,27 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
-  // Obtém o GPS real do dispositivo imediatamente ao abrir, exibindo a bolinha girando sem texto de carregando
+  // Sincroniza endereço residencial do banco caso ainda não esteja no cache local e captura o GPS de partida
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
+
+    setDestAddress(defaultDestAddress || '');
+    setDestCoords(null);
+    setDestSuggestions([]);
+    setErrorMessage('');
+
+    // Pré-sincroniza endereço de casa do perfil no Supabase em background
+    if (!resolveSavedUserHomeAddress()) {
+      fetchUserProfileFromDb()
+        .then((dbProf) => {
+          if (!active || !dbProf?.address) return;
+          try {
+            localStorage.setItem('vagou_user_home_address', dbProf.address);
+          } catch {}
+        })
+        .catch(() => {});
+    }
 
     if (typeof navigator !== 'undefined' && navigator.geolocation) {
       setIsLocatingOrigin(true);
@@ -82,11 +143,8 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
           if (!active) return;
           setIsLocatingOrigin(false);
           if (!originAddress) {
-            const saved =
-              localStorage.getItem('vagou_user_address') ||
-              localStorage.getItem('vagou_user_cep') ||
-              'Av. Paulista, 1000 - São Paulo, SP';
-            setOriginAddress(saved);
+            const saved = resolveSavedUserHomeAddress();
+            if (saved) setOriginAddress(saved);
           }
         },
         { enableHighAccuracy: true, timeout: 6000 }
@@ -97,9 +155,27 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, defaultDestAddress]);
 
   if (!isOpen) return null;
+
+  const geocodeAddress = async (
+    query: string,
+    biasCoords?: { lat: number; lng: number } | null
+  ): Promise<{ lat: number; lng: number } | null> => {
+    const cleanQuery = query.trim();
+    if (!cleanQuery) return null;
+
+    const res = await geocodeAddressThreeLayers({
+      address: cleanQuery,
+      biasLat: biasCoords?.lat ?? originCoords?.lat,
+      biasLng: biasCoords?.lng ?? originCoords?.lng,
+    });
+    if (res && typeof res.lat === 'number' && typeof res.lng === 'number') {
+      return { lat: res.lat, lng: res.lng };
+    }
+    return null;
+  };
 
   const handleUseCurrentLocation = () => {
     hapticLight();
@@ -110,6 +186,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
 
     setIsLocatingOrigin(true);
     setOriginAddress('');
+    setOriginSuggestions([]);
     setErrorMessage('');
 
     navigator.geolocation.getCurrentPosition(
@@ -139,32 +216,50 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
     );
   };
 
-  const handleUseHomeAddress = () => {
+  const applyHomeAddressToField = async (target: 'origin' | 'dest') => {
     hapticLight();
     setErrorMessage('');
-    const savedHome =
-      localStorage.getItem('vagou_user_address') ||
-      localStorage.getItem('vagou_user_cep') ||
-      localStorage.getItem('vagou_client_test_address') ||
-      '08235-770';
-    setOriginCoords(null);
-    setOriginAddress(savedHome);
-  };
 
-  const geocodeAddress = async (query: string): Promise<{ lat: number; lng: number } | null> => {
-    try {
-      const res = await fetch('/api/geo/geocode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address: query }),
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (typeof data?.lat === 'number' && typeof data?.lng === 'number') {
-        return { lat: data.lat, lng: data.lng };
+    let savedHome = resolveSavedUserHomeAddress();
+    if (!savedHome) {
+      const dbProf = await fetchUserProfileFromDb().catch(() => null);
+      if (dbProf?.address) {
+        savedHome = dbProf.address.trim();
+        try {
+          localStorage.setItem('vagou_user_home_address', savedHome);
+        } catch {}
       }
-    } catch {}
-    return null;
+    }
+
+    if (!savedHome) {
+      setErrorMessage('Cadastre seu endereço em Meus Dados ou digite o CEP/endereço no campo.');
+      if (target === 'dest') {
+        destInputRef.current?.focus();
+      }
+      return;
+    }
+
+    if (target === 'origin') {
+      setOriginSuggestions([]);
+      await handleSmartInputChange(
+        savedHome,
+        setOriginAddress,
+        setOriginCoords,
+        setOriginSuggestions,
+        setIsSearchingOrigin,
+        true
+      );
+    } else {
+      setDestSuggestions([]);
+      await handleSmartInputChange(
+        savedHome,
+        setDestAddress,
+        setDestCoords,
+        setDestSuggestions,
+        setIsSearchingDest,
+        true
+      );
+    }
   };
 
   // Manipulador inteligente para buscas de endereço (Texto -> Places API | CEP -> ViaCEP + Geocode)
@@ -173,7 +268,8 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
     setAddress: (val: string) => void,
     setCoords: (coords: { lat: number; lng: number } | null) => void,
     setSuggestions: (s: GooglePlaceSuggestion[]) => void,
-    setIsSearching: (b: boolean) => void
+    setIsSearching: (b: boolean) => void,
+    skipAutocompleteDropdown = false
   ) => {
     setAddress(rawVal);
     setCoords(null);
@@ -191,7 +287,12 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
         if (res.ok) {
           const data = await res.json();
           if (!data.erro) {
-            const fullAddr = `${data.logradouro || ''}, ${data.bairro || ''} - ${data.localidade || ''}/${data.uf || ''}, CEP ${formattedCep}`;
+            const fullAddr = `${data.logradouro || ''}${
+              data.bairro ? `, ${data.bairro}` : ''
+            } - ${data.localidade || ''}/${data.uf || ''}, CEP ${formattedCep}`.replace(
+              /^,\s*/,
+              ''
+            );
             setAddress(fullAddr);
             const coords = await geocodeAddress(fullAddr);
             if (coords) setCoords(coords);
@@ -204,7 +305,16 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
       setIsSearching(false);
     }
 
-    // Se for busca textual (>= 3 letras)
+    if (skipAutocompleteDropdown) {
+      setIsSearching(true);
+      const coords = await geocodeAddress(rawVal);
+      if (coords) setCoords(coords);
+      setSuggestions([]);
+      setIsSearching(false);
+      return;
+    }
+
+    // Se for busca textual (>= 3 caracteres)
     if (rawVal.trim().length >= 3) {
       setIsSearching(true);
       try {
@@ -232,7 +342,8 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
       return;
     }
     if (!cleanDest) {
-      setErrorMessage('Informe o endereço de destino.');
+      setErrorMessage('Informe o CEP, endereço de destino ou toque em "Para Casa".');
+      destInputRef.current?.focus();
       return;
     }
 
@@ -249,25 +360,18 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
         resolvedOrigin = { lat: -23.5505, lng: -46.6333 };
       }
 
-      // 2. Resolve Coordenadas de Destino
+      // 2. Resolve Coordenadas de Destino com viés regional na origem
       let resolvedDest = destCoords;
       if (!resolvedDest) {
-        resolvedDest = await geocodeAddress(cleanDest);
+        resolvedDest = await geocodeAddress(cleanDest, resolvedOrigin);
       }
       if (!resolvedDest) {
-        if (
-          cleanDest.toLowerCase().includes('guarulhos') ||
-          cleanDest.toLowerCase().includes('aeroporto')
-        ) {
-          resolvedDest = { lat: -23.4356, lng: -46.4731 };
-        } else if (cleanDest.toLowerCase().includes('paulista')) {
-          resolvedDest = { lat: -23.5614, lng: -46.6559 };
-        } else {
-          resolvedDest = { lat: -23.5621, lng: -46.4795 };
-        }
+        setIsSubmitting(false);
+        setErrorMessage('Não foi possível localizar esse destino. Verifique o CEP ou endereço.');
+        return;
       }
 
-      const destTitle = cleanDest.split(',')[0].split('-')[0].trim() || 'Destino de Teste';
+      const destTitle = cleanDest.split(',')[0].split('-')[0].trim() || 'Destino';
 
       // 3. Cria agendamento de teste para disparar a tela de navegação
       const testAppointment: BookingAppointment = {
@@ -414,7 +518,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                     type="button"
                     onClick={handleUseCurrentLocation}
                     disabled={isLocatingOrigin}
-                    className="px-2.5 py-1.5 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] text-white font-bold text-[10.5px] flex items-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                    className="px-2.5 py-1.5 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] text-white font-bold text-[10.5px] flex items-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 whitespace-nowrap"
                     title="Detectar endereço via GPS do celular"
                   >
                     {isLocatingOrigin ? (
@@ -428,8 +532,8 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                   {/* Botão "De Casa" */}
                   <button
                     type="button"
-                    onClick={handleUseHomeAddress}
-                    className={`px-2.5 py-1.5 rounded-[4px] border font-bold text-[10.5px] flex items-center gap-1 transition cursor-pointer active:scale-95 ${
+                    onClick={() => applyHomeAddressToField('origin')}
+                    className={`px-2.5 py-1.5 rounded-[4px] border font-bold text-[10.5px] flex items-center gap-1 transition cursor-pointer active:scale-95 whitespace-nowrap ${
                       isDark
                         ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-[#2B82C9]'
                         : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#2B82C9] hover:text-[#1E293B]'
@@ -456,14 +560,31 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                     )
                   }
                   placeholder={isLocatingOrigin ? '' : 'Digite o endereço ou CEP de partida'}
-                  className="caixa-input pr-9 text-xs"
+                  className="caixa-input pr-14 text-xs"
                 />
-                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
-                  {isLocatingOrigin || isSearchingOrigin ? (
-                    <Loader2 className="w-4 h-4 text-[#2B82C9] animate-spin" />
-                  ) : (
-                    <Search className="w-3.5 h-3.5 text-[#64748B]" />
+                <div className="absolute inset-y-0 right-2.5 flex items-center gap-1">
+                  {originAddress && !isLocatingOrigin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setOriginAddress('');
+                        setOriginCoords(null);
+                        setOriginSuggestions([]);
+                      }}
+                      className="p-1 rounded-[4px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                      title="Limpar endereço de partida"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   )}
+                  <span className="pointer-events-none flex items-center">
+                    {isLocatingOrigin || isSearchingOrigin ? (
+                      <Loader2 className="w-4 h-4 text-[#2B82C9] animate-spin" />
+                    ) : (
+                      <Search className="w-3.5 h-3.5 text-[#64748B]" />
+                    )}
+                  </span>
                 </div>
 
                 {/* Sugestões de Endereço Inteligente (Places API) */}
@@ -509,15 +630,33 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
 
             <div className="border-t border-[#EDF2F7] dark:border-slate-800" />
 
-            {/* CAMPO 2: ENDEREÇO DE DESTINO (ENDEREÇO INTELIGENTE COM SUGESTÕES & CEP) */}
+            {/* CAMPO 2: PARA ONDE VOCÊ VAI? (EM BRANCO + BOTÃO "PARA CASA" + CEP/ENDEREÇO) */}
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-[#1E293B] dark:text-slate-200 flex items-center gap-1.5">
-                <Navigation className="w-3.5 h-3.5 text-[#2B82C9]" />
-                <span>Para onde você vai?</span>
-              </label>
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-[#1E293B] dark:text-slate-200 flex items-center gap-1.5">
+                  <Navigation className="w-3.5 h-3.5 text-[#2B82C9]" />
+                  <span>Para onde você vai?</span>
+                </label>
+
+                {/* Botão "Para Casa" */}
+                <button
+                  type="button"
+                  onClick={() => applyHomeAddressToField('dest')}
+                  className={`px-2.5 py-1.5 rounded-[4px] border font-bold text-[10.5px] flex items-center gap-1 transition cursor-pointer active:scale-95 whitespace-nowrap ${
+                    isDark
+                      ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-[#2B82C9]'
+                      : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#2B82C9] hover:text-[#1E293B]'
+                  }`}
+                  title="Ir para o endereço de casa salvo"
+                >
+                  <Home className="w-3 h-3 text-[#2B82C9]" />
+                  <span>Para Casa</span>
+                </button>
+              </div>
 
               <div className="relative">
                 <input
+                  ref={destInputRef}
                   type="text"
                   value={destAddress}
                   onChange={(e) =>
@@ -529,15 +668,33 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                       setIsSearchingDest
                     )
                   }
-                  placeholder="Ex: Rod. Hélio Smidt, Aeroporto de Guarulhos ou CEP"
-                  className="caixa-input pr-9 text-xs"
+                  placeholder="Digite o CEP ou endereço de destino"
+                  className="caixa-input pr-14 text-xs"
                 />
-                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
-                  {isSearchingDest ? (
-                    <Loader2 className="w-4 h-4 text-[#2B82C9] animate-spin" />
-                  ) : (
-                    <Search className="w-3.5 h-3.5 text-[#64748B]" />
+                <div className="absolute inset-y-0 right-2.5 flex items-center gap-1">
+                  {destAddress && !isSearchingDest && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        setDestAddress('');
+                        setDestCoords(null);
+                        setDestSuggestions([]);
+                        destInputRef.current?.focus();
+                      }}
+                      className="p-1 rounded-[4px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                      title="Limpar destino"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   )}
+                  <span className="pointer-events-none flex items-center">
+                    {isSearchingDest ? (
+                      <Loader2 className="w-4 h-4 text-[#2B82C9] animate-spin" />
+                    ) : (
+                      <Search className="w-3.5 h-3.5 text-[#64748B]" />
+                    )}
+                  </span>
                 </div>
 
                 {/* Sugestões de Endereço Inteligente para Destino (Places API) */}

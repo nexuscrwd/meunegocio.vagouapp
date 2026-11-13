@@ -2328,7 +2328,19 @@ export async function fetchUserProfileFromDb(identifier?: {
           resolvedName = bestClient.name || bestClient.username || resolvedName;
           resolvedEmail = bestClient.email || resolvedEmail;
           resolvedPhone = bestClient.phone || resolvedPhone;
-          resolvedAddress = bestClient.default_address || resolvedAddress;
+          const composedClientAddress = bestClient.street
+            ? `${bestClient.street}${bestClient.number ? `, ${bestClient.number}` : ''}${
+                bestClient.neighborhood ? ` - ${bestClient.neighborhood}` : ''
+              }${bestClient.city ? `, ${bestClient.city}` : ''}${
+                bestClient.uf ? ` - ${bestClient.uf}` : ''
+              }${bestClient.cep ? `, CEP ${bestClient.cep}` : ''}`
+            : '';
+          resolvedAddress =
+            bestClient.default_address ||
+            bestClient.address ||
+            composedClientAddress ||
+            bestClient.cep ||
+            resolvedAddress;
           if (isValidAvatarUrlString(bestClient.avatar_url)) {
             clientAvatar = bestClient.avatar_url.trim();
           }
@@ -2378,6 +2390,11 @@ export async function fetchUserProfileFromDb(identifier?: {
         resolvedName = resolvedName || metaName || authUser.email?.split('@')[0] || '';
         resolvedEmail = resolvedEmail || authUser.email || '';
         resolvedPhone = resolvedPhone || authUser.user_metadata?.phone || '';
+        resolvedAddress =
+          resolvedAddress ||
+          authUser.user_metadata?.address ||
+          authUser.user_metadata?.cep ||
+          '';
 
         const { data: prof } = await (client.from('profiles') as any)
           .select('*')
@@ -2387,6 +2404,7 @@ export async function fetchUserProfileFromDb(identifier?: {
         if (prof) {
           resolvedName = resolvedName || prof.full_name || prof.name || '';
           resolvedPhone = resolvedPhone || prof.phone_whatsapp || prof.phone || '';
+          resolvedAddress = resolvedAddress || prof.address || prof.default_address || '';
           if (isValidAvatarUrlString(prof.avatar_url)) {
             profileAvatar = prof.avatar_url.trim();
           }
