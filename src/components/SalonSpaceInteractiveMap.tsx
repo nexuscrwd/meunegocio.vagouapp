@@ -199,12 +199,10 @@ export const SalonSpaceInteractiveMap: React.FC<SalonSpaceInteractiveMapProps> =
 
     const tileProviders = [
       {
-        url: 'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       },
       {
-        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        subdomains: ['a', 'b', 'c'],
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
       },
     ];
 
@@ -220,8 +218,7 @@ export const SalonSpaceInteractiveMap: React.FC<SalonSpaceInteractiveMapProps> =
         } catch {}
       }
       const layer = L.tileLayer(provider.url, {
-        subdomains: provider.subdomains,
-        maxZoom: 20,
+        maxZoom: 19,
         keepBuffer: 4,
       });
       layer.on('tileerror', () => {

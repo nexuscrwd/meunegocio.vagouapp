@@ -1,11 +1,23 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import {
+  APILoadingStatus,
+  APIProvider,
+  AdvancedMarker,
+  ColorScheme,
+  Map as GoogleMapCanvas,
+  Polyline as GooglePolyline,
+  RenderingType,
+  useApiLoadingStatus,
+  useMap,
+} from '@vis.gl/react-google-maps';
 import { Navigation } from 'lucide-react';
 import {
   GoogleComputedRouteResult,
   GoogleRouteStep,
   computeGoogleDetailedRoute,
+  getGoogleMapsApiKey,
   snapAndReverseGeocodeGps,
   formatDistanceMeters,
 } from '../../services/googleMapsService';
@@ -647,6 +659,154 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
   return { container, rotor };
 }
 
+interface GoogleMapRuntimeSyncProps {
+  mapRef: React.MutableRefObject<google.maps.Map | null>;
+  onVectorModeChange: (isVector: boolean) => void;
+  onAuthFailure: () => void;
+  initialCenter: { lat: number; lng: number };
+  initialHeading: number;
+}
+
+const GoogleMapRuntimeSync: React.FC<GoogleMapRuntimeSyncProps> = ({
+  mapRef,
+  onVectorModeChange,
+  onAuthFailure,
+  initialCenter,
+  initialHeading,
+}) => {
+  const map = useMap();
+  const loadingStatus = useApiLoadingStatus();
+  const initializedRef = useRef(false);
+
+  useEffect(() => {
+    if (
+      loadingStatus === APILoadingStatus.AUTH_FAILURE ||
+      loadingStatus === APILoadingStatus.FAILED
+    ) {
+      onAuthFailure();
+    }
+  }, [loadingStatus, onAuthFailure]);
+
+  useEffect(() => {
+    mapRef.current = map;
+    if (!map) return;
+
+    const checkVectorSupport = () => {
+      try {
+        const rType = map.getRenderingType?.();
+        const isVec = rType === 'VECTOR';
+        onVectorModeChange(isVec);
+        if (isVec && !initializedRef.current) {
+          initializedRef.current = true;
+          map.moveCamera({
+            center: initialCenter,
+            zoom: 17,
+            heading: initialHeading,
+            tilt: 0,
+          });
+        }
+      } catch {}
+    };
+
+    checkVectorSupport();
+    const l1 = map.addListener('renderingtype_changed', checkVectorSupport);
+    const l2 = map.addListener('tilesloaded', checkVectorSupport);
+
+    return () => {
+      l1.remove();
+      l2.remove();
+      if (mapRef.current === map) {
+        mapRef.current = null;
+      }
+    };
+  }, [map, mapRef, onVectorModeChange, initialCenter, initialHeading]);
+
+  return null;
+};
+
+interface DirectionalUserPuckProps {
+  avatarUrl?: string;
+  coneAngleDeg: number;
+  counterRotateCssVar?: boolean;
+}
+
+const DirectionalUserPuck: React.FC<DirectionalUserPuckProps> = ({
+  avatarUrl,
+  coneAngleDeg,
+  counterRotateCssVar = true,
+}) => {
+  const [imgBroken, setImgBroken] = useState(false);
+  const showPhoto = Boolean(avatarUrl && isValidAvatarUrlString(avatarUrl) && !imgBroken);
+
+  useEffect(() => {
+    setImgBroken(false);
+  }, [avatarUrl]);
+
+  return (
+    <div className="relative w-14 h-14 flex items-center justify-center pointer-events-none select-none">
+      <div
+        className="relative w-14 h-14 flex items-center justify-center transition-transform duration-200 ease-out"
+        style={{ transform: `rotate(${coneAngleDeg.toFixed(1)}deg)` }}
+      >
+        <div
+          className="absolute -top-4 left-1/2 -translate-x-1/2 w-[42px] h-10 rounded-t-full"
+          style={{
+            background:
+              'linear-gradient(to top, rgba(16, 185, 129, 0.55) 0%, rgba(16, 185, 129, 0) 100%)',
+            clipPath: 'polygon(0% 0%, 100% 0%, 65% 100%, 35% 100%)',
+          }}
+        />
+        {showPhoto ? (
+          <div
+            className="absolute top-[1px] left-1/2 -translate-x-1/2 w-0 h-0"
+            style={{
+              borderLeft: '6px solid transparent',
+              borderRight: '6px solid transparent',
+              borderBottom: '10px solid #10b981',
+              filter: 'drop-shadow(0 -1px 2px rgba(255,255,255,0.95))',
+            }}
+          />
+        ) : (
+          <div
+            className="relative w-[26px] h-[26px] rounded-full bg-emerald-500 border-[3px] border-white flex items-center justify-center"
+            style={{
+              boxShadow: '0 3px 12px rgba(0, 0, 0, 0.45), 0 0 0 4px rgba(16, 185, 129, 0.35)',
+            }}
+          >
+            <div
+              className="w-0 h-0 -translate-y-[1px]"
+              style={{
+                borderLeft: '5px solid transparent',
+                borderRight: '5px solid transparent',
+                borderBottom: '9px solid #ffffff',
+              }}
+            />
+          </div>
+        )}
+      </div>
+
+      {showPhoto && avatarUrl && (
+        <div
+          className="absolute w-[34px] h-[34px] rounded-full border-[2.5px] border-emerald-500 bg-slate-900 overflow-hidden flex items-center justify-center z-10"
+          style={{
+            boxShadow:
+              '0 2px 10px rgba(0, 0, 0, 0.45), 0 0 0 2px #ffffff, 0 0 0 5px rgba(16, 185, 129, 0.3)',
+            transform: counterRotateCssVar ? 'rotate(var(--map-counter-rotate, 0deg))' : 'none',
+            transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
+          }}
+        >
+          <img
+            src={avatarUrl.trim()}
+            alt="Sua Posição"
+            className="w-full h-full object-cover block"
+            onError={() => setImgBroken(true)}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps> = ({
   originLat = -23.5505,
   originLng = -46.6333,
@@ -672,9 +832,79 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     [userAvatarUrl]
   );
 
+  const initialEnvKey = useMemo(
+    () => (((import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || '') as string).trim(),
+    []
+  );
+  const [googleApiKey, setGoogleApiKey] = useState<string>(initialEnvKey);
+  const [keyResolved, setKeyResolved] = useState<boolean>(Boolean(initialEnvKey));
+  const [googleMapsAuthFailed, setGoogleMapsAuthFailed] = useState<boolean>(false);
+  const [isGoogleVectorMap, setIsGoogleVectorMap] = useState<boolean>(false);
+
+  const useOfficialGoogleMap = Boolean(googleApiKey) && !googleMapsAuthFailed;
+  const useOfficialGoogleMapRef = useRef<boolean>(useOfficialGoogleMap);
+  useOfficialGoogleMapRef.current = useOfficialGoogleMap;
+
+  const useNativeVectorHeading = useOfficialGoogleMap && isGoogleVectorMap;
+  const useNativeVectorHeadingRef = useRef<boolean>(useNativeVectorHeading);
+  useNativeVectorHeadingRef.current = useNativeVectorHeading;
+
+  const shouldMountLeaflet = keyResolved && !useOfficialGoogleMap;
+
+  useEffect(() => {
+    let active = true;
+    if (!googleApiKey) {
+      getGoogleMapsApiKey().then((resolvedKey) => {
+        if (!active) return;
+        if (resolvedKey) {
+          setGoogleApiKey(resolvedKey);
+        }
+        setKeyResolved(true);
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [googleApiKey]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !useOfficialGoogleMap) return;
+
+    const prevAuthFailure = (window as any).gm_authFailure;
+    (window as any).gm_authFailure = () => {
+      if (typeof prevAuthFailure === 'function') {
+        try {
+          prevAuthFailure();
+        } catch {}
+      }
+      setGoogleMapsAuthFailed(true);
+    };
+
+    const origError = console.error;
+    console.error = (...args: unknown[]) => {
+      origError.apply(console, args);
+      const msg = args.map((a) => String(a)).join(' ');
+      if (
+        msg.includes('RefererNotAllowedMapError') ||
+        msg.includes('InvalidKeyMapError') ||
+        msg.includes('ApiNotActivatedMapError') ||
+        msg.includes('BillingNotEnabledMapError') ||
+        msg.includes('ExpiredKeyMapError')
+      ) {
+        setGoogleMapsAuthFailed(true);
+      }
+    };
+
+    return () => {
+      (window as any).gm_authFailure = prevAuthFailure;
+      console.error = origError;
+    };
+  }, [useOfficialGoogleMap]);
+
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
 
+  const googleMapRef = useRef<google.maps.Map | null>(null);
   const leafletMapRef = useRef<L.Map | null>(null);
   const leafletTileLayerRef = useRef<L.TileLayer | null>(null);
   const leafletOuterPolylineRef = useRef<L.Polyline | null>(null);
@@ -689,9 +919,31 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   const isCourseUpRef = useRef<boolean>(true);
   isCourseUpRef.current = isCourseUp;
 
-  const [mapBearingDeg, setMapBearingDeg] = useState<number>(0);
-  const mapBearingDegRef = useRef<number>(0);
+  const initialBearing = useMemo(
+    () => computeBearingDeg(originLat, originLng, destLat, destLng),
+    [originLat, originLng, destLat, destLng]
+  );
+
+  const [mapBearingDeg, setMapBearingDeg] = useState<number>(initialBearing);
+  const mapBearingDegRef = useRef<number>(initialBearing);
+  const [userHeadingDeg, setUserHeadingDeg] = useState<number>(initialBearing);
   const [isTouchInteracting, setIsTouchInteracting] = useState<boolean>(false);
+
+  const [activePolylinePath, setActivePolylinePath] = useState<Array<{ lat: number; lng: number }>>(
+    () => (routeData?.decodedPath && routeData.decodedPath.length > 2 ? routeData.decodedPath : [])
+  );
+  const [originMarkerPos, setOriginMarkerPos] = useState<{ lat: number; lng: number }>({
+    lat: originLat,
+    lng: originLng,
+  });
+  const [destMarkerPos, setDestMarkerPos] = useState<{ lat: number; lng: number }>({
+    lat: destLat,
+    lng: destLng,
+  });
+  const [userMarkerPos, setUserMarkerPos] = useState<{ lat: number; lng: number }>({
+    lat: originLat,
+    lng: originLng,
+  });
 
   const roadPathRef = useRef<Array<{ lat: number; lng: number }>>([]);
   const routeStepsRef = useRef<GoogleRouteStep[]>(routeData?.steps || []);
@@ -707,12 +959,8 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   const hasActiveGpsFollowRef = useRef<boolean>(true);
   const userManualPanUntilRef = useRef<number>(0);
 
-  const forwardHeadingRef = useRef<number>(
-    computeBearingDeg(originLat, originLng, destLat, destLng)
-  );
-  const routeLookAheadBearingRef = useRef<number>(
-    computeBearingDeg(originLat, originLng, destLat, destLng)
-  );
+  const forwardHeadingRef = useRef<number>(initialBearing);
+  const routeLookAheadBearingRef = useRef<number>(initialBearing);
   const liveUserPosRef = useRef<{ lat: number; lng: number }>({
     lat: originLat,
     lng: originLng,
@@ -747,6 +995,10 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     []
   );
 
+  const handleGoogleAuthFailure = useCallback(() => {
+    setGoogleMapsAuthFailed(true);
+  }, []);
+
   const baseDistanceKm = routeData?.distanceKm ?? initialDistanceKm ?? 6.0;
   const baseEtaMinutes = routeData?.etaMinutes ?? initialEtaMinutes ?? 12;
 
@@ -755,6 +1007,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
 
   useEffect(() => {
     effectiveDestRef.current = { lat: destLat, lng: destLng };
+    setDestMarkerPos({ lat: destLat, lng: destLng });
   }, [destLat, destLng]);
 
   useEffect(() => {
@@ -766,6 +1019,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       };
       if (routeData.resolvedDestination) {
         effectiveDestRef.current = routeData.resolvedDestination;
+        setDestMarkerPos(routeData.resolvedDestination);
       }
       setRemainingDistanceKm(routeData.distanceKm);
       setRemainingMinutes(routeData.etaMinutes);
@@ -788,9 +1042,8 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       forceInstant = false
     ) => {
       liveUserPosRef.current = { lat: userLat, lng: userLng };
-
-      const lmap = leafletMapRef.current;
-      if (!lmap) return;
+      setUserMarkerPos({ lat: userLat, lng: userLng });
+      setUserHeadingDeg(headingDeg);
 
       if (leafletUserMarkerRef.current) {
         leafletUserMarkerRef.current.setLatLng([userLat, userLng]);
@@ -802,6 +1055,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
 
       const isManualPan = Date.now() < userManualPanUntilRef.current;
       const roadCourse = routeLookAheadBearingRef.current;
+      let nextMapBearing = mapBearingDegRef.current;
 
       if (!isManualPan) {
         const targetMapBearing = isCourseUpRef.current ? roadCourse : 0;
@@ -809,13 +1063,40 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
           forceInstant ||
           angleDiffDeg(targetMapBearing, mapBearingDegRef.current) >= 1.2
         ) {
-          const nextMapBearing = forceInstant
+          nextMapBearing = forceInstant
             ? targetMapBearing
             : smoothAngleDeg(mapBearingDegRef.current, targetMapBearing, 0.45);
           mapBearingDegRef.current = nextMapBearing;
           setMapBearingDeg(nextMapBearing);
         }
       }
+
+      const gmap = googleMapRef.current;
+      if (gmap && useOfficialGoogleMapRef.current) {
+        if (shouldPanCamera && !isManualPan) {
+          const lookAheadCenter = projectPointAhead(userLat, userLng, roadCourse, 0.15);
+          try {
+            if (useNativeVectorHeadingRef.current) {
+              gmap.moveCamera({
+                center: lookAheadCenter,
+                heading: nextMapBearing,
+              });
+            } else if (forceInstant) {
+              gmap.setCenter(lookAheadCenter);
+            } else {
+              gmap.panTo(lookAheadCenter);
+            }
+          } catch {}
+        } else if (!isManualPan && useNativeVectorHeadingRef.current) {
+          try {
+            gmap.moveCamera({ heading: nextMapBearing });
+          } catch {}
+        }
+        return;
+      }
+
+      const lmap = leafletMapRef.current;
+      if (!lmap) return;
 
       if (shouldPanCamera && !isManualPan) {
         const lookAheadCenter = projectPointAhead(userLat, userLng, roadCourse, 0.15);
@@ -831,7 +1112,16 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     []
   );
 
+  // Fallback OpenStreetMap / Esri (somente quando não há chave Google Maps ativa ou em caso de restrição de domínio)
   useEffect(() => {
+    if (!shouldMountLeaflet) {
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove();
+        leafletMapRef.current = null;
+      }
+      return;
+    }
+
     const containerEl = mapContainerRef.current;
     if (!containerEl) return;
 
@@ -858,16 +1148,12 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
 
     const tileProviders = [
       {
-        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-        subdomains: ['a', 'b', 'c', 'd'],
-      },
-      {
         url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        subdomains: ['a', 'b', 'c'],
+        subdomains: [] as string[],
       },
       {
         url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-        subdomains: ['a'],
+        subdomains: [] as string[],
       },
     ];
 
@@ -882,8 +1168,8 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         } catch {}
       }
       const layer = L.tileLayer(provider.url, {
-        subdomains: provider.subdomains,
-        maxZoom: 20,
+        ...(provider.subdomains.length > 0 ? { subdomains: provider.subdomains } : {}),
+        maxZoom: 19,
         keepBuffer: 4,
         updateWhenIdle: false,
       });
@@ -936,7 +1222,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       iconSize: [60, 24],
       iconAnchor: [30, 12],
     });
-    leafletOriginMarkerRef.current = L.marker([originLat, originLng], {
+    leafletOriginMarkerRef.current = L.marker([originMarkerPos.lat, originMarkerPos.lng], {
       icon: originIcon,
     }).addTo(lmap);
 
@@ -946,12 +1232,13 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       iconSize: [120, 24],
       iconAnchor: [60, 12],
     });
-    leafletDestMarkerRef.current = L.marker([destLat, destLng], {
+    leafletDestMarkerRef.current = L.marker([effectiveDestRef.current.lat, effectiveDestRef.current.lng], {
       icon: destIcon,
     }).addTo(lmap);
 
     const { container, rotor } = createDirectionalUserMarkerElement(effectiveUserAvatar);
     userMarkerRotorRef.current = rotor;
+    rotor.style.transform = `rotate(${forwardHeadingRef.current.toFixed(1)}deg)`;
     const userDivIcon = L.divIcon({
       html: container,
       className: 'vagou-leaflet-user-puck',
@@ -994,7 +1281,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       leafletMapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDark]);
+  }, [shouldMountLeaflet, isDark]);
 
   useEffect(() => {
     const viewportEl = viewportRef.current;
@@ -1010,6 +1297,21 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     let lastTwoFingerDist = 0;
 
     const panMapInScreenSpace = (dxScreen: number, dyScreen: number) => {
+      const gmap = googleMapRef.current;
+      if (gmap && useOfficialGoogleMapRef.current) {
+        if (useNativeVectorHeadingRef.current) {
+          gmap.panBy(-dxScreen, -dyScreen);
+        } else {
+          const rad = (mapBearingDegRef.current * Math.PI) / 180;
+          const cosA = Math.cos(rad);
+          const sinA = Math.sin(rad);
+          const dxMap = dxScreen * cosA - dyScreen * sinA;
+          const dyMap = dxScreen * sinA + dyScreen * cosA;
+          gmap.panBy(-dxMap, -dyMap);
+        }
+        return;
+      }
+
       const lmap = leafletMapRef.current;
       if (!lmap) return;
       const rad = (mapBearingDegRef.current * Math.PI) / 180;
@@ -1018,6 +1320,19 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       const dxMap = dxScreen * cosA - dyScreen * sinA;
       const dyMap = dxScreen * sinA + dyScreen * cosA;
       lmap.panBy([-dxMap, -dyMap], { animate: false });
+    };
+
+    const adjustMapZoom = (delta: number) => {
+      const gmap = googleMapRef.current;
+      if (gmap && useOfficialGoogleMapRef.current) {
+        const curZoom = gmap.getZoom() ?? 17;
+        gmap.setZoom(Math.min(20, Math.max(12, curZoom + delta)));
+        return;
+      }
+      const lmap = leafletMapRef.current;
+      if (lmap) {
+        lmap.setZoom(Math.min(19, Math.max(12, lmap.getZoom() + delta)));
+      }
     };
 
     const handleTouchStart = (e: TouchEvent) => {
@@ -1075,11 +1390,20 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         mapBearingDegRef.current = nextBearing;
         setMapBearingDeg(nextBearing);
 
-        const lmap = leafletMapRef.current;
-        if (lmap && Math.abs(curDist - lastTwoFingerDist) > 42) {
+        if (
+          googleMapRef.current &&
+          useOfficialGoogleMapRef.current &&
+          useNativeVectorHeadingRef.current
+        ) {
+          try {
+            googleMapRef.current.moveCamera({ heading: nextBearing });
+          } catch {}
+        }
+
+        if (Math.abs(curDist - lastTwoFingerDist) > 42) {
           const zoomDelta = curDist > lastTwoFingerDist ? 1 : -1;
           lastTwoFingerDist = curDist;
-          lmap.setZoom(Math.min(19, Math.max(12, lmap.getZoom() + zoomDelta)));
+          adjustMapZoom(zoomDelta);
         }
       }
     };
@@ -1122,11 +1446,18 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       }
     };
 
+    const handleWheel = (e: WheelEvent) => {
+      if (!useOfficialGoogleMapRef.current) return;
+      e.preventDefault();
+      adjustMapZoom(e.deltaY < 0 ? 1 : -1);
+    };
+
     viewportEl.addEventListener('touchstart', handleTouchStart, { passive: true });
     viewportEl.addEventListener('touchmove', handleTouchMove, { passive: false });
     viewportEl.addEventListener('touchend', handleTouchEnd, { passive: true });
     viewportEl.addEventListener('touchcancel', handleTouchEnd, { passive: true });
     viewportEl.addEventListener('mousedown', handleMouseDown);
+    viewportEl.addEventListener('wheel', handleWheel, { passive: false });
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
 
@@ -1136,6 +1467,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       viewportEl.removeEventListener('touchend', handleTouchEnd);
       viewportEl.removeEventListener('touchcancel', handleTouchEnd);
       viewportEl.removeEventListener('mousedown', handleMouseDown);
+      viewportEl.removeEventListener('wheel', handleWheel);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
@@ -1187,6 +1519,9 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       const startPt = roadPath[0];
       const endPt = roadPath[roadPath.length - 1];
       effectiveDestRef.current = endPt;
+      setOriginMarkerPos(startPt);
+      setDestMarkerPos(endPt);
+
       const currentPos = liveUserPosRef.current;
 
       const { forwardBearingDeg, snappedLat, snappedLng, remainingPath, closestIndex } =
@@ -1199,6 +1534,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         );
 
       const polyToDraw = remainingPath.length > 2 ? remainingPath : roadPath;
+      setActivePolylinePath(polyToDraw);
 
       routeLookAheadBearingRef.current = forwardBearingDeg;
       forwardHeadingRef.current = forwardBearingDeg;
@@ -1323,8 +1659,10 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       if (now - lastCompassTs < 250) return;
 
       if (isCourseUpRef.current && hasActiveGpsFollowRef.current) {
+        const courseDeg = routeLookAheadBearingRef.current;
+        setUserHeadingDeg(courseDeg);
         if (userMarkerRotorRef.current) {
-          userMarkerRotorRef.current.style.transform = `rotate(${routeLookAheadBearingRef.current.toFixed(1)}deg)`;
+          userMarkerRotorRef.current.style.transform = `rotate(${courseDeg.toFixed(1)}deg)`;
         }
         return;
       }
@@ -1350,6 +1688,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       if (angleDiffDeg(nextHeading, forwardHeadingRef.current) < 4.5) return;
 
       forwardHeadingRef.current = nextHeading;
+      setUserHeadingDeg(nextHeading);
       if (userMarkerRotorRef.current) {
         userMarkerRotorRef.current.style.transform = `rotate(${nextHeading.toFixed(1)}deg)`;
       }
@@ -1421,6 +1760,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       forwardHeadingRef.current = forwardBearingDeg;
 
       if (remainingPath.length > 2) {
+        setActivePolylinePath(remainingPath);
         leafletOuterPolylineRef.current?.setLatLngs(
           remainingPath.map((p) => [p.lat, p.lng] as [number, number])
         );
@@ -1434,7 +1774,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         fetchRealRoadNetwork(rawLat, rawLng, targetDest.lat, targetDest.lng);
       }
 
-      // Atualiza e propaga seta de conversão + distância regressiva para o cabeçalho superior
       if (roadPathRef.current.length > 2) {
         const liveManeuver = resolveLiveManeuverFromGps(
           snappedLat,
@@ -1517,6 +1856,23 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     );
   };
 
+  const effectiveConeAngleDeg = useNativeVectorHeading
+    ? (userHeadingDeg - mapBearingDeg + 360) % 360
+    : userHeadingDeg;
+
+  const stageStyle: React.CSSProperties = useNativeVectorHeading
+    ? {
+        '--map-counter-rotate': '0deg',
+      }
+    : {
+        '--map-counter-rotate': `${mapBearingDeg.toFixed(1)}deg`,
+        transform: `rotate(${-mapBearingDeg.toFixed(1)}deg)`,
+        transition: isTouchInteracting
+          ? 'none'
+          : 'transform 360ms cubic-bezier(0.22, 1, 0.36, 1)',
+        willChange: 'transform',
+      };
+
   return (
     <div
       ref={viewportRef}
@@ -1524,23 +1880,123 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         isDark ? 'bg-slate-950' : 'bg-slate-100'
       }`}
     >
-      {/* ESTÁGIO ROTACIONÁVEL DO MAPA (164% OVERSIZED PARA COBRIR 100% DO FRAME EM QUALQUER ÂNGULO 0°-360°) */}
+      {/* PALCO CARTOGRÁFICO (VETORIAL NATIVO 100% COM GOOGLE MAPS OU ESTÁGIO 164% COURSE-UP) */}
       <div
-        className={`absolute inset-[-32%] w-[164%] h-[164%] z-0 ${
-          isDark ? 'vagou-map-dark' : ''
-        }`}
-        style={
-          {
-            '--map-counter-rotate': `${mapBearingDeg.toFixed(1)}deg`,
-            transform: `rotate(${-mapBearingDeg.toFixed(1)}deg)`,
-            transition: isTouchInteracting
-              ? 'none'
-              : 'transform 360ms cubic-bezier(0.22, 1, 0.36, 1)',
-            willChange: 'transform',
-          } as React.CSSProperties
-        }
+        className={`absolute z-0 ${
+          useNativeVectorHeading
+            ? 'inset-0 w-full h-full'
+            : 'inset-[-32%] w-[164%] h-[164%]'
+        } ${!useOfficialGoogleMap && isDark ? 'vagou-map-dark' : ''}`}
+        style={stageStyle}
       >
-        <div ref={mapContainerRef} className="w-full h-full" />
+        {useOfficialGoogleMap ? (
+          <APIProvider
+            apiKey={googleApiKey}
+            language="pt-BR"
+            region="BR"
+            solutionChannel="gmp_mcp_codeassist_v1_aistudio"
+            onError={handleGoogleAuthFailure}
+          >
+            <GoogleMapCanvas
+              defaultCenter={{ lat: originLat, lng: originLng }}
+              defaultZoom={17}
+              defaultHeading={initialBearing}
+              mapId="DEMO_MAP_ID"
+              renderingType={RenderingType.VECTOR}
+              colorScheme={isDark ? ColorScheme.DARK : ColorScheme.LIGHT}
+              disableDefaultUI={true}
+              clickableIcons={false}
+              gestureHandling="none"
+              internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
+              className="w-full h-full"
+              style={{ width: '100%', height: '100%' }}
+            >
+              <GoogleMapRuntimeSync
+                mapRef={googleMapRef}
+                onVectorModeChange={setIsGoogleVectorMap}
+                onAuthFailure={handleGoogleAuthFailure}
+                initialCenter={userMarkerPos}
+                initialHeading={mapBearingDeg}
+              />
+
+              {activePolylinePath.length > 1 && (
+                <>
+                  <GooglePolyline
+                    path={activePolylinePath}
+                    strokeColor="#064e3b"
+                    strokeOpacity={0.9}
+                    strokeWeight={9}
+                    zIndex={10}
+                    clickable={false}
+                  />
+                  <GooglePolyline
+                    path={activePolylinePath}
+                    strokeColor="#10b981"
+                    strokeOpacity={1.0}
+                    strokeWeight={5.5}
+                    zIndex={11}
+                    clickable={false}
+                  />
+                </>
+              )}
+
+              <AdvancedMarker
+                position={originMarkerPos}
+                anchorLeft="-50%"
+                anchorTop="-50%"
+                zIndex={20}
+              >
+                <div
+                  className={`px-2 py-0.5 rounded-[4px] text-[10px] font-extrabold whitespace-nowrap shadow-md border ${
+                    isDark
+                      ? 'bg-slate-900 text-white border-white/80'
+                      : 'bg-white text-slate-900 border-slate-200'
+                  }`}
+                  style={{
+                    transform: useNativeVectorHeading
+                      ? 'none'
+                      : 'rotate(var(--map-counter-rotate, 0deg))',
+                  }}
+                >
+                  Saída
+                </div>
+              </AdvancedMarker>
+
+              <AdvancedMarker
+                position={destMarkerPos}
+                anchorLeft="-50%"
+                anchorTop="-50%"
+                zIndex={25}
+              >
+                <div
+                  className="px-2 py-0.5 rounded-[4px] bg-emerald-500 text-white text-[10px] font-extrabold whitespace-nowrap shadow-md border border-white/90"
+                  style={{
+                    transform: useNativeVectorHeading
+                      ? 'none'
+                      : 'rotate(var(--map-counter-rotate, 0deg))',
+                  }}
+                >
+                  {destLabel.slice(0, 22)}
+                </div>
+              </AdvancedMarker>
+
+              <AdvancedMarker
+                position={userMarkerPos}
+                anchorLeft="-50%"
+                anchorTop="-50%"
+                zIndex={1000}
+              >
+                <DirectionalUserPuck
+                  avatarUrl={effectiveUserAvatar}
+                  coneAngleDeg={effectiveConeAngleDeg}
+                  counterRotateCssVar={!useNativeVectorHeading}
+                />
+              </AdvancedMarker>
+            </GoogleMapCanvas>
+          </APIProvider>
+        ) : (
+          <div ref={mapContainerRef} className="w-full h-full" />
+        )}
       </div>
 
       {/* BOTÃO FLUTUANTE RECENTRALIZAR NO GPS */}

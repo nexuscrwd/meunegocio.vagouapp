@@ -11,6 +11,18 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-13] — Restauração do Mapa Oficial com Chave Credenciada Google Maps (`@vis.gl/react-google-maps`) & Remoção de Tiles `cartocdn.com` (`bol-167`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / GIS / Google Maps Platform]`
+- **Motivo / Solicitação:** Eliminar a marca d'água `"API KEY REQUIRED — carto.com/basemaps/apikey"` exibida no fundo do mapa após a atualização `bol-166` (causada pelo servidor externo `basemaps.cartocdn.com` retornando imagens `200 OK` com marca d'água) e conectar diretamente a chave credenciada do usuário (`VITE_GOOGLE_MAPS_API_KEY` / `/api/maps/config`) via SDK oficial `@vis.gl/react-google-maps`.
+- **Arquivos Impactados:**
+  - `package.json` (`@vis.gl/react-google-maps`)
+  - `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
+  - `src/components/SalonSpaceInteractiveMap.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção Integral de `cartocdn.com`:** Excluído `basemaps.cartocdn.com` da cascata de tiles, eliminando definitivamente o aviso `"API KEY REQUIRED carto.com/basemaps/apikey"`.
+  2. **Renderização Oficial Google Maps (`@vis.gl/react-google-maps`):** Integração de `<APIProvider>`, `<Map>` (`mapId="DEMO_MAP_ID"`, `RenderingType.VECTOR`, `internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}`), `<Polyline>` dupla em esmeralda e `<AdvancedMarker>` para o avatar direcional Course-Up (`Frente p/ Cima`) usando a chave credenciada do Google Maps, com fallback automático transparente para `tile.openstreetmap.org` / Esri caso haja restrição de domínio na chave.
+
 ### [2026-11-13] — Correção Integral de Navegação GPS em Tempo Real: ETA Realista, Seta de Manobra Dinâmica, Geocodificação Regional e Itinerário Real (`bol-166`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Fix / GIS / RTLS / Google Maps Platform]`
 - **Motivo / Solicitação:** Corrigir três inconsistências na navegação GPS ao vivo: (1) tempo restante inflado (`01:21` para `18,6 km` a `62 km/h`), (2) seta de instrução de conversão travada sempre à esquerda (`TURN-LEFT` + `Curva Em rota`), e (3) lista de ruas do Itinerário presa em ruas mockadas legadas (`Av. Paulista`, `Rua da Consolação`, `Av. Rebouças`, `Rua Oscar Freire`).
