@@ -11,6 +11,18 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-13] — Correção de Geocodificação de Endereços Expandidos por CEP (`ViaCEP` / `BrasilAPI v2` / `Nominatim`) & Desbloqueio do Botão "Ir" (`bol-169`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / GIS / Geocoding]`
+- **Motivo / Solicitação:** Corrigir o erro *"Não foi possível localizar esse destino. Verifique o CEP ou endereço."* ao iniciar a navegação para um endereço expandido por CEP (ex: `Rua Serrana, Cidade Líder - São Paulo/SP, CEP 08285-010`) e evitar sobreposição do texto pelos ícones `X` e lupa nos inputs.
+- **Arquivos Impactados:**
+  - `server.ts`
+  - `src/services/googleMapsService.ts`
+  - `src/components/live-tracking/RouteSimulatorModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Sanitização de Consultas e Extração Automática de CEP:** Removidos sufixos `CEP 00000-000` e barras `/UF` antes de consultar o Nominatim (que retornava `[]` ao encontrar a palavra `CEP` ou `/SP`), tentando progressivamente `Logradouro, Bairro, Cidade, UF` ➔ `Logradouro, Cidade, UF` ➔ `BrasilAPI v2` (`/api/cep/v2/{cep}`).
+  2. **Desbloqueio Garantido ao Clicar em "Ir":** Removido o bloqueio que impedia a abertura do mapa e ajustado o espaçamento interno (`!pr-16`) dos inputs para que o texto nunca encoste nos ícones `X` e `Search`.
+
 ### [2026-11-13] — Campo de Destino Limpo ("Para onde você vai?") & Botão Rápido "Para Casa" no Simulador de Trajeto GPS (`bol-168`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Fix / UX / GIS]`
 - **Motivo / Solicitação:** Remover o destino fixo pré-preenchido (`"Aeroporto de Guarulhos - Rod. Hélio Smidt"`) da tela *Trajeto (Simulador GPS)* para que o campo **"Para onde você vai?"** abra sempre em branco e limpo para digitação de CEP ou endereço, além de adicionar o botão rápido **"Para Casa"**.

@@ -266,29 +266,78 @@ async function startServer() {
       } catch {}
     }
 
-    // Camada 2: Nominatim OpenStreetMap com viewbox bias regional
-    try {
-      const viewboxParam = hasBias
-        ? `&viewbox=${(options!.biasLng! - 0.3).toFixed(4)},${(options!.biasLat! + 0.3).toFixed(4)},${(options!.biasLng! + 0.3).toFixed(4)},${(options!.biasLat! - 0.3).toFixed(4)}&bounded=0`
-        : '';
-      const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br${viewboxParam}&q=${encodeURIComponent(cleanAddr)}`;
-      const nomRes = await fetch(nomUrl, {
-        headers: {
-          'User-Agent': 'VagouApp-GIS/1.0',
-          'Accept-Language': 'pt-BR',
-        },
-        signal: AbortSignal.timeout(3500),
-      });
-      if (nomRes.ok) {
-        const nomData = await nomRes.json();
-        if (Array.isArray(nomData) && nomData[0]?.lat && nomData[0]?.lon) {
-          return {
-            lat: Number(nomData[0].lat),
-            lng: Number(nomData[0].lon),
-          };
+    // Camada 2: Nominatim OpenStreetMap com viewbox bias regional e sanitização de CEP/barras
+    const strippedForNom = cleanAddr
+      .replace(/\b(?:cep\s*)?\d{5}-?\d{3}\b/gi, '')
+      .replace(/\s*\/\s*/g, ', ')
+      .replace(/\s+-\s+/g, ', ')
+      .replace(/,\s*,+/g, ', ')
+      .replace(/^,\s*|,\s*$/g, '')
+      .trim();
+
+    const nomParts = strippedForNom
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean);
+
+    const nomCandidates = Array.from(
+      new Set(
+        [
+          strippedForNom,
+          nomParts.length >= 3
+            ? `${nomParts[0]}, ${nomParts[nomParts.length - 2]}, ${nomParts[nomParts.length - 1]}`
+            : '',
+          nomParts[0] || '',
+        ].filter((q) => q.length >= 3)
+      )
+    );
+
+    const viewboxParam = hasBias
+      ? `&viewbox=${(options!.biasLng! - 0.3).toFixed(4)},${(options!.biasLat! + 0.3).toFixed(4)},${(options!.biasLng! + 0.3).toFixed(4)},${(options!.biasLat! - 0.3).toFixed(4)}&bounded=0`
+      : '';
+
+    for (const candidateQuery of nomCandidates) {
+      try {
+        const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br${viewboxParam}&q=${encodeURIComponent(
+          candidateQuery
+        )}`;
+        const nomRes = await fetch(nomUrl, {
+          headers: {
+            'User-Agent': 'VagouApp-GIS/1.0',
+            'Accept-Language': 'pt-BR',
+          },
+          signal: AbortSignal.timeout(3500),
+        });
+        if (nomRes.ok) {
+          const nomData = await nomRes.json();
+          if (Array.isArray(nomData) && nomData[0]?.lat && nomData[0]?.lon) {
+            return {
+              lat: Number(nomData[0].lat),
+              lng: Number(nomData[0].lon),
+            };
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    }
+
+    // Camada 3: BrasilAPI v2 se o endereço contiver CEP de 8 dígitos
+    const cepMatch = cleanAddr.match(/\b(\d{5})-?(\d{3})\b/);
+    if (cepMatch) {
+      try {
+        const cep8 = `${cepMatch[1]}${cepMatch[2]}`;
+        const brRes = await fetch(`https://brasilapi.com.br/api/cep/v2/${cep8}`, {
+          signal: AbortSignal.timeout(3500),
+        });
+        if (brRes.ok) {
+          const brData = await brRes.json();
+          const lat = Number(brData?.location?.coordinates?.latitude);
+          const lng = Number(brData?.location?.coordinates?.longitude);
+          if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
+            return { lat, lng };
+          }
+        }
+      } catch {}
+    }
 
     return { lat: numLat, lng: numLng };
   };
@@ -938,13 +987,19 @@ async function startServer() {
       biasLng,
     } = req.body || {};
 
-    const cleanCep = String(cep || '').replace(/\D/g, '');
+    const extractedCepMatch = String(address || '').match(/\b(\d{5})-?(\d{3})\b/);
+    const cleanCep =
+      String(cep || '').replace(/\D/g, '') ||
+      (extractedCepMatch ? `${extractedCepMatch[1]}${extractedCepMatch[2]}` : '');
+
     const queryParts = [
       address ? `${address}${streetNumber ? `, ${streetNumber}` : ''}` : '',
       neighborhood,
       city,
       state,
-      cleanCep ? `${cleanCep.slice(0, 5)}-${cleanCep.slice(5, 8)}` : '',
+      cleanCep && !String(address).includes(cleanCep.slice(0, 5))
+        ? `${cleanCep.slice(0, 5)}-${cleanCep.slice(5, 8)}`
+        : '',
       'Brasil',
     ]
       .map((p) => String(p || '').trim())
@@ -992,37 +1047,67 @@ async function startServer() {
       } catch {}
     }
 
-    // Camada 2: Nominatim OpenStreetMap
+    // Camada 2: Nominatim OpenStreetMap (com sanitização de CEP/barras e fallback rua + cidade)
     if (fullQuery) {
-      try {
-        const viewboxParam = hasBias
-          ? `&viewbox=${(biasLng - 0.3).toFixed(4)},${(biasLat + 0.3).toFixed(4)},${(biasLng + 0.3).toFixed(4)},${(biasLat - 0.3).toFixed(4)}&bounded=0`
-          : '';
-        const nomRes = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br${viewboxParam}&q=${encodeURIComponent(
-            fullQuery
-          )}`,
-          {
-            headers: {
-              'User-Agent': 'VagouAppTriade/1.0 (https://vagou.app)',
-              'Accept-Language': 'pt-BR',
-            },
+      const strippedNom = String(address || fullQuery)
+        .replace(/\b(?:cep\s*)?\d{5}-?\d{3}\b/gi, '')
+        .replace(/\bbrasil\b/gi, '')
+        .replace(/\s*\/\s*/g, ', ')
+        .replace(/\s+-\s+/g, ', ')
+        .replace(/,\s*,+/g, ', ')
+        .replace(/^,\s*|,\s*$/g, '')
+        .trim();
+
+      const nomParts = strippedNom
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean);
+
+      const nomCandidates = Array.from(
+        new Set(
+          [
+            strippedNom,
+            nomParts.length >= 3
+              ? `${nomParts[0]}, ${nomParts[nomParts.length - 2]}, ${nomParts[nomParts.length - 1]}`
+              : '',
+            city && nomParts[0] ? `${nomParts[0]}, ${city}, ${state || 'SP'}` : '',
+            nomParts[0] || '',
+          ].filter((q) => q.length >= 3)
+        )
+      );
+
+      const viewboxParam = hasBias
+        ? `&viewbox=${(biasLng - 0.3).toFixed(4)},${(biasLat + 0.3).toFixed(4)},${(biasLng + 0.3).toFixed(4)},${(biasLat - 0.3).toFixed(4)}&bounded=0`
+        : '';
+
+      for (const candidateQuery of nomCandidates) {
+        try {
+          const nomRes = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br${viewboxParam}&q=${encodeURIComponent(
+              candidateQuery
+            )}`,
+            {
+              headers: {
+                'User-Agent': 'VagouAppTriade/1.0 (https://vagou.app)',
+                'Accept-Language': 'pt-BR',
+              },
+            }
+          );
+          if (nomRes.ok) {
+            const nomData = await nomRes.json();
+            const firstNom = Array.isArray(nomData) ? nomData[0] : null;
+            if (firstNom && firstNom.lat && firstNom.lon) {
+              return res.json({
+                lat: Number(firstNom.lat),
+                lng: Number(firstNom.lon),
+                formattedAddress: firstNom.display_name || fullQuery,
+                googlePlaceId: '',
+                source: 'nominatim',
+              });
+            }
           }
-        );
-        if (nomRes.ok) {
-          const nomData = await nomRes.json();
-          const firstNom = Array.isArray(nomData) ? nomData[0] : null;
-          if (firstNom && firstNom.lat && firstNom.lon) {
-            return res.json({
-              lat: Number(firstNom.lat),
-              lng: Number(firstNom.lon),
-              formattedAddress: firstNom.display_name || fullQuery,
-              googlePlaceId: '',
-              source: 'nominatim',
-            });
-          }
-        }
-      } catch {}
+        } catch {}
+      }
     }
 
     // Camada 3: BrasilAPI v2 (CEP com coordenadas)

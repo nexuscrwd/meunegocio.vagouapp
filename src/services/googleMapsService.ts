@@ -373,30 +373,81 @@ async function geocodeAddressClientNominatim(
     .trim();
   if (clean.length < 3) return null;
 
-  try {
-    const hasBias =
-      typeof biasLat === 'number' &&
-      typeof biasLng === 'number' &&
-      !isPlaceholderCoordinates(biasLat, biasLng);
-    const viewboxParam = hasBias
-      ? `&viewbox=${(biasLng! - 0.3).toFixed(4)},${(biasLat! + 0.3).toFixed(4)},${(biasLng! + 0.3).toFixed(4)},${(biasLat! - 0.3).toFixed(4)}&bounded=0`
-      : '';
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&accept-language=pt-BR${viewboxParam}&q=${encodeURIComponent(
-        clean
-      )}`
-    );
-    if (!isJsonResponse(res)) return null;
-    const arr = await res.json();
-    const first = Array.isArray(arr) ? arr[0] : null;
-    if (first?.lat && first?.lon) {
-      return {
-        lat: Number(first.lat),
-        lng: Number(first.lon),
-        formattedAddress: String(first.display_name || clean),
-      };
-    }
-  } catch {}
+  const strippedNom = clean
+    .replace(/\b(?:cep\s*)?\d{5}-?\d{3}\b/gi, '')
+    .replace(/\bbrasil\b/gi, '')
+    .replace(/\s*\/\s*/g, ', ')
+    .replace(/\s+-\s+/g, ', ')
+    .replace(/,\s*,+/g, ', ')
+    .replace(/^,\s*|,\s*$/g, '')
+    .trim();
+
+  const parts = strippedNom
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  const candidates = Array.from(
+    new Set(
+      [
+        strippedNom,
+        parts.length >= 3 ? `${parts[0]}, ${parts[parts.length - 2]}, ${parts[parts.length - 1]}` : '',
+        parts.length >= 2 ? `${parts[0]}, ${parts[parts.length - 1]}` : '',
+        parts[0] || '',
+      ].filter((q) => q.length >= 3)
+    )
+  );
+
+  const hasBias =
+    typeof biasLat === 'number' &&
+    typeof biasLng === 'number' &&
+    !isPlaceholderCoordinates(biasLat, biasLng);
+  const viewboxParam = hasBias
+    ? `&viewbox=${(biasLng! - 0.3).toFixed(4)},${(biasLat! + 0.3).toFixed(4)},${(biasLng! + 0.3).toFixed(4)},${(biasLat! - 0.3).toFixed(4)}&bounded=0`
+    : '';
+
+  for (const candidate of candidates) {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&accept-language=pt-BR${viewboxParam}&q=${encodeURIComponent(
+          candidate
+        )}`
+      );
+      if (isJsonResponse(res)) {
+        const arr = await res.json();
+        const first = Array.isArray(arr) ? arr[0] : null;
+        if (first?.lat && first?.lon) {
+          return {
+            lat: Number(first.lat),
+            lng: Number(first.lon),
+            formattedAddress: String(first.display_name || clean),
+          };
+        }
+      }
+    } catch {}
+  }
+
+  // Fallback direto para BrasilAPI v2 caso haja CEP no texto
+  const cepMatch = clean.match(/\b(\d{5})-?(\d{3})\b/);
+  if (cepMatch) {
+    try {
+      const cep8 = `${cepMatch[1]}${cepMatch[2]}`;
+      const brRes = await fetch(`https://brasilapi.com.br/api/cep/v2/${cep8}`);
+      if (isJsonResponse(brRes)) {
+        const brData = await brRes.json();
+        const lat = Number(brData?.location?.coordinates?.latitude);
+        const lng = Number(brData?.location?.coordinates?.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
+          return {
+            lat,
+            lng,
+            formattedAddress: clean,
+          };
+        }
+      }
+    } catch {}
+  }
+
   return null;
 }
 
