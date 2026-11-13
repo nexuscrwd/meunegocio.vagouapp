@@ -548,9 +548,11 @@ export async function computeGoogleDetailedRoute(params: {
   originLat?: number;
   originLng?: number;
   originAddress?: string;
+  originPlaceId?: string;
   destLat?: number;
   destLng?: number;
   destAddress?: string;
+  destPlaceId?: string;
   mode?: BookingTransportMode | TrackingTransportMode;
 }): Promise<GoogleComputedRouteResult | null> {
   const safeOriginLat =
@@ -580,9 +582,11 @@ export async function computeGoogleDetailedRoute(params: {
         originLat: params.originLat,
         originLng: params.originLng,
         originAddress: params.originAddress,
+        originPlaceId: params.originPlaceId,
         destLat: params.destLat,
         destLng: params.destLng,
         destAddress: params.destAddress,
+        destPlaceId: params.destPlaceId,
         travelMode,
       }),
     });
@@ -596,12 +600,12 @@ export async function computeGoogleDetailedRoute(params: {
         const durSec =
           Number(String(route.duration || leg?.duration || '0s').replace('s', '')) || 0;
 
-        const distanceKm = Math.max(0.1, Number((distMeters / 1000).toFixed(1)));
-        const etaMinutes = Math.max(1, Math.round(durSec / 60));
+        const distanceKm = Math.max(0.05, Number((distMeters / 1000).toFixed(1)));
+        const etaMinutes = distMeters <= 130 ? 0 : Math.max(1, Math.round(durSec / 60));
         const encodedPolyline = route.polyline.encodedPolyline;
         const decodedPath = decodeGooglePolyline(encodedPolyline);
 
-        if (decodedPath.length > 2) {
+        if (decodedPath.length >= 2) {
           const rawSteps: any[] = Array.isArray(leg?.steps) ? leg.steps : [];
           const steps: GoogleRouteStep[] = rawSteps
             .map((s, idx) => {
@@ -610,7 +614,22 @@ export async function computeGoogleDetailedRoute(params: {
               )
                 .replace(/\n+/g, ' • ')
                 .trim();
-              const maneuver = String(s?.navigationInstruction?.maneuver || 'STRAIGHT');
+              const rawManeuver = String(
+                s?.navigationInstruction?.maneuver || 'STRAIGHT'
+              ).toUpperCase();
+              const lowerInstr = rawInstruction.toLowerCase();
+
+              let maneuver = rawManeuver;
+              if (rawManeuver === 'DEPART' || rawManeuver === 'NAME_CHANGE') {
+                maneuver = 'STRAIGHT';
+              } else if (
+                rawManeuver.includes('UTURN') &&
+                !lowerInstr.includes('retorno') &&
+                !lowerInstr.includes('retorne')
+              ) {
+                maneuver = lowerInstr.includes('esquerda') ? 'TURN_LEFT' : 'TURN_RIGHT';
+              }
+
               const stepMeters = Number(s?.distanceMeters || 0);
               const stepSec =
                 Number(String(s?.staticDuration || '0s').replace('s', '')) || 0;
@@ -704,7 +723,9 @@ export async function fetchGoogleModalRouteMatrix(params: {
  * Busca sugestões reais de endereços, ruas e estabelecimentos via Places API (New v1)
  */
 export async function searchGooglePlacesSuggestions(
-  query: string
+  query: string,
+  biasLat?: number,
+  biasLng?: number
 ): Promise<GooglePlaceSuggestion[]> {
   const clean = String(query || '').trim();
   if (clean.length < 3) return [];
@@ -713,7 +734,7 @@ export async function searchGooglePlacesSuggestions(
     const res = await fetch('/api/maps/places-search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: clean }),
+      body: JSON.stringify({ query: clean, biasLat, biasLng }),
     });
     if (isJsonResponse(res)) {
       const data = await res.json();

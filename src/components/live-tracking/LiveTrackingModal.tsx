@@ -691,11 +691,17 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
 
   const anyApt = appointment as any;
   const appointmentKey = appointment.id || appointment.protocolCode || 'apt';
+  const hasExplicitSimulatedOrigin =
+    Boolean(anyApt.isCustomSimulatedOrigin) &&
+    typeof anyApt.originLat === 'number' &&
+    typeof anyApt.originLng === 'number' &&
+    !isPlaceholderCoordinates(anyApt.originLat, anyApt.originLng);
 
-  // Reconhece imediatamente a georreferência real do dispositivo ao iniciar a navegação ("Ir"),
-  // sobrescrevendo qualquer endereço diferente que tenha sido informado no momento do agendamento
+  // Reconhece a georreferência real do dispositivo ao iniciar a navegação ("Ir"),
+  // respeitando a origem customizada quando o usuário estiver simulando partida de outro ponto
   useEffect(() => {
     if (!isOpen || typeof navigator === 'undefined' || !navigator.geolocation) return;
+    if (hasExplicitSimulatedOrigin) return;
     let active = true;
 
     navigator.geolocation.getCurrentPosition(
@@ -703,6 +709,27 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
         if (!active) return;
         const rawLat = pos.coords.latitude;
         const rawLng = pos.coords.longitude;
+
+        // Se o agendamento já trouxe coordenadas explícitas de partida (ex.: Simulador) distantes > 350m do GPS físico atual,
+        // mantém a partida escolhida pelo usuário para não sobrescrever com o destino onde ele já está
+        if (
+          typeof anyApt.originLat === 'number' &&
+          typeof anyApt.originLng === 'number' &&
+          !isPlaceholderCoordinates(anyApt.originLat, anyApt.originLng)
+        ) {
+          const dLat = ((rawLat - anyApt.originLat) * Math.PI) / 180;
+          const dLng = ((rawLng - anyApt.originLng) * Math.PI) / 180;
+          const a =
+            Math.sin(dLat / 2) ** 2 +
+            Math.cos((anyApt.originLat * Math.PI) / 180) *
+              Math.cos((rawLat * Math.PI) / 180) *
+              Math.sin(dLng / 2) ** 2;
+          const distKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          if (distKm > 0.35) {
+            return;
+          }
+        }
+
         setDeviceGpsOrigin((prev) => ({
           lat: rawLat,
           lng: rawLng,
@@ -744,7 +771,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     return () => {
       active = false;
     };
-  }, [isOpen, appointmentKey]);
+  }, [isOpen, appointmentKey, hasExplicitSimulatedOrigin]);
 
   const salonDestAddress = useMemo(() => {
     return appointment.address || appointment.salonName || 'Estabelecimento';
@@ -764,8 +791,8 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     let active = true;
     geocodeAddressThreeLayers({
       address: cleanAddr,
-      biasLat: deviceGpsOrigin?.lat ?? appointment.client_lat,
-      biasLng: deviceGpsOrigin?.lng ?? appointment.client_lng,
+      biasLat: deviceGpsOrigin?.lat ?? anyApt.originLat ?? appointment.client_lat,
+      biasLng: deviceGpsOrigin?.lng ?? anyApt.originLng ?? appointment.client_lng,
     }).then((geo) => {
       if (!active || !geo) return;
       setGeocodedDestCoords({ lat: geo.lat, lng: geo.lng });
@@ -776,18 +803,24 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     };
   }, [isOpen, appointmentKey, salonDestAddress, deviceGpsOrigin?.lat, deviceGpsOrigin?.lng]);
 
-  // Coordenadas efetivas: prioriza a georreferência real do dispositivo (deviceGpsOrigin) e o destino geocodificado
+  // Coordenadas efetivas: respeita a origem simulada quando ativa ou usa o GPS real do dispositivo
   const stableCoords = useMemo(() => {
     const oLat = Number(
-      deviceGpsOrigin?.lat ?? anyApt.originLat ?? appointment.client_lat ?? -23.5505
+      (hasExplicitSimulatedOrigin ? anyApt.originLat : deviceGpsOrigin?.lat) ??
+        anyApt.originLat ??
+        appointment.client_lat ??
+        -23.5505
     );
     const oLng = Number(
-      deviceGpsOrigin?.lng ?? anyApt.originLng ?? appointment.client_lng ?? -46.6333
+      (hasExplicitSimulatedOrigin ? anyApt.originLng : deviceGpsOrigin?.lng) ??
+        anyApt.originLng ??
+        appointment.client_lng ??
+        -46.6333
     );
 
     const routeDestPt =
       liveRouteData?.resolvedDestination ||
-      (liveRouteData?.decodedPath && liveRouteData.decodedPath.length > 2
+      (liveRouteData?.decodedPath && liveRouteData.decodedPath.length >= 2
         ? liveRouteData.decodedPath[liveRouteData.decodedPath.length - 1]
         : null);
 
@@ -812,6 +845,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
   }, [
     appointment,
     appointmentKey,
+    hasExplicitSimulatedOrigin,
     deviceGpsOrigin?.lat,
     deviceGpsOrigin?.lng,
     geocodedDestCoords?.lat,
@@ -844,21 +878,22 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
   }, [liveRouteData, fallbackMetrics]);
 
   const clientOriginAddress = useMemo(() => {
-    if (deviceGpsOrigin?.address) {
+    if (!hasExplicitSimulatedOrigin && deviceGpsOrigin?.address) {
       return deviceGpsOrigin.address;
     }
     return (
       anyApt.originFormattedAddress ||
       anyApt.origin_formatted_address ||
+      deviceGpsOrigin?.address ||
       (typeof window !== 'undefined'
         ? localStorage.getItem('vagou_user_address') ||
           localStorage.getItem('vagou_user_cep') ||
           'Local Atual (GPS)'
         : 'Local Atual (GPS)')
     );
-  }, [appointmentKey, deviceGpsOrigin?.address]);
+  }, [appointmentKey, hasExplicitSimulatedOrigin, deviceGpsOrigin?.address]);
 
-  // Busca Rota Real seguindo a malha viária a partir da localização atual do dispositivo
+  // Busca Rota Real seguindo a malha viária oficial do Google Maps Platform (Routes API v2)
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
@@ -866,10 +901,12 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     computeGoogleDetailedRoute({
       originLat: stableCoords.originLat,
       originLng: stableCoords.originLng,
-      originAddress: deviceGpsOrigin ? undefined : clientOriginAddress,
+      originAddress: clientOriginAddress,
+      originPlaceId: anyApt.originPlaceId,
       destLat: stableCoords.hasResolvedDest ? stableCoords.destLat : undefined,
       destLng: stableCoords.hasResolvedDest ? stableCoords.destLng : undefined,
       destAddress: salonDestAddress,
+      destPlaceId: anyApt.destPlaceId,
       mode: bookingTransportMode,
     }).then((res) => {
       if (!active || !res) return;

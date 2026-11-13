@@ -188,19 +188,26 @@ function resolveLiveManeuverFromGps(
   steps: GoogleRouteStep[],
   destLabel: string
 ): { instruction: string; distanceText: string; maneuver: string } {
-  // 1. Se houver steps estruturados com coordenadas (Google Routes API / OSRM steps=true)
-  if (steps.length > 0 && roadPath.length > 2) {
+  const endPt = roadPath.length > 0 ? roadPath[roadPath.length - 1] : null;
+  if (endPt && computeHaversineKm(userLat, userLng, endPt.lat, endPt.lng) <= 0.14) {
+    return {
+      instruction: `Você chegou em ${destLabel}`,
+      distanceText: '0 m',
+      maneuver: 'STRAIGHT',
+    };
+  }
+
+  // 1. Se houver steps estruturados com coordenadas (Google Routes API v2 / OSRM steps=true)
+  if (steps.length > 0 && roadPath.length >= 2) {
     let bestStepIdx = -1;
     let minStepStartDistKm = Infinity;
 
-    // Localiza qual step está imediatamente à frente do ponto atual na polilinha
     for (let i = 0; i < steps.length; i++) {
       const st = steps[i];
       const targetLat = st.startLat ?? st.endLat;
       const targetLng = st.startLng ?? st.endLng;
       if (typeof targetLat !== 'number' || typeof targetLng !== 'number') continue;
 
-      // Encontra o índice aproximado desse step na polilinha
       let stepPolyIdx = 0;
       let bestVertexDist = Infinity;
       for (let p = 0; p < roadPath.length; p++) {
@@ -226,7 +233,7 @@ function resolveLiveManeuverFromGps(
             sliceToTurn[k + 1].lng
           );
         }
-        if (distKm >= 0.015 && distKm < minStepStartDistKm) {
+        if (distKm >= 0.01 && distKm < minStepStartDistKm) {
           minStepStartDistKm = distKm;
           bestStepIdx = i;
           break;
@@ -261,7 +268,7 @@ function resolveLiveManeuverFromGps(
     }
   }
 
-  // 2. Detecção geométrica pura na polilinha (caso steps ainda estejam carregando)
+  // 2. Detecção geométrica pura na polilinha (sem falso positivo de retorno em alças de rodovia)
   if (roadPath.length > closestIndex + 2) {
     let accumMeters = 0;
     let prevLat = userLat;
@@ -284,23 +291,16 @@ function resolveLiveManeuverFromGps(
       const delta = signedAngleDeltaDeg(prevBearing, nextBearing);
 
       if (accumMeters >= 25 && accumMeters <= 1200) {
-        if (Math.abs(delta) >= 140) {
+        if (delta <= -35) {
           return {
-            instruction: 'Retorno à frente',
-            distanceText: formatDistanceMeters(accumMeters),
-            maneuver: 'UTURN_LEFT',
-          };
-        }
-        if (delta <= -32) {
-          return {
-            instruction: 'Curva à esquerda à frente',
+            instruction: 'Mantenha-se à esquerda à frente',
             distanceText: formatDistanceMeters(accumMeters),
             maneuver: 'TURN_LEFT',
           };
         }
-        if (delta >= 32) {
+        if (delta >= 35) {
           return {
-            instruction: 'Curva à direita à frente',
+            instruction: 'Mantenha-se à direita à frente',
             distanceText: formatDistanceMeters(accumMeters),
             maneuver: 'TURN_RIGHT',
           };
@@ -1617,27 +1617,20 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     let active = true;
 
     const initRoadGeometry = async () => {
-      if (routeData?.decodedPath && routeData.decodedPath.length > 2) {
+      if (routeData?.decodedPath && routeData.decodedPath.length >= 2) {
+        const firstPt = routeData.decodedPath[0];
+        liveUserPosRef.current = { lat: firstPt.lat, lng: firstPt.lng };
         applyRoadGeometry(routeData.decodedPath, routeData.steps, {
           totalDistanceKm: routeData.distanceKm,
           totalDurationMinutes: routeData.etaMinutes,
         });
-        const firstPt = routeData.decodedPath[0];
-        const distFromGpsKm = computeHaversineKm(
-          liveUserPosRef.current.lat,
-          liveUserPosRef.current.lng,
-          firstPt.lat,
-          firstPt.lng
-        );
-        if (distFromGpsKm <= 0.35) {
-          return;
-        }
+        return;
       }
 
       if (!active) return;
       await fetchRealRoadNetwork(
-        liveUserPosRef.current.lat,
-        liveUserPosRef.current.lng,
+        originLat,
+        originLng,
         effectiveDestRef.current.lat,
         effectiveDestRef.current.lng
       );
@@ -1648,7 +1641,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     return () => {
       active = false;
     };
-  }, [routeData, destLat, destLng, applyRoadGeometry, fetchRealRoadNetwork]);
+  }, [routeData, originLat, originLng, destLat, destLng, applyRoadGeometry, fetchRealRoadNetwork]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1710,6 +1703,53 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       const rawLat = pos.coords.latitude;
       const rawLng = pos.coords.longitude;
       const gpsSpeedMps = pos.coords.speed;
+      const targetDest = effectiveDestRef.current;
+
+      // 1. Se o usuário configurou um ponto de partida distante do seu GPS físico atual (ex.: está fisicamente
+      // no destino Rua Serrana testando a rota desde a Polícia Rodoviária - Base Guarulhos), preserva a rota simulada intacta!
+      const distGpsToConfiguredOriginKm = computeHaversineKm(
+        rawLat,
+        rawLng,
+        originLat,
+        originLng
+      );
+      const distConfiguredOriginToDestKm = computeHaversineKm(
+        originLat,
+        originLng,
+        targetDest.lat,
+        targetDest.lng
+      );
+      if (distGpsToConfiguredOriginKm > 0.38 && distConfiguredOriginToDestKm > 0.38) {
+        return;
+      }
+
+      // 2. Se o usuário já está fisicamente no destino (<= 150m), reconhece chegada imediata sem pedir para retornar
+      const distGpsToDestKm = computeHaversineKm(
+        rawLat,
+        rawLng,
+        targetDest.lat,
+        targetDest.lng
+      );
+      if (distGpsToDestKm <= 0.15) {
+        liveUserPosRef.current = { lat: rawLat, lng: rawLng };
+        setRemainingDistanceKm(0);
+        setRemainingMinutes(0);
+        onTelemetryUpdateRef.current?.(0, 0);
+        onDestinationReachedRef.current?.(true);
+        updateManeuver({
+          instruction: `Você chegou em ${destLabel}`,
+          distanceText: '0 m',
+          maneuver: 'STRAIGHT',
+        });
+        syncPositionAndOrientation(
+          rawLat,
+          rawLng,
+          routeLookAheadBearingRef.current,
+          isInitial,
+          isInitial
+        );
+        return;
+      }
 
       const prev = lastGpsFixRef.current;
       const now = Date.now();
@@ -1738,7 +1778,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       }
 
       lastGpsFixRef.current = { lat: rawLat, lng: rawLng, ts: now };
-      const targetDest = effectiveDestRef.current;
 
       const {
         forwardBearingDeg,
@@ -1839,7 +1878,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     return () => {
       navigator.geolocation.clearWatch(watchId);
     };
-  }, [destLabel, mode, syncPositionAndOrientation, fetchRealRoadNetwork, updateManeuver]);
+  }, [originLat, originLng, destLabel, mode, syncPositionAndOrientation, fetchRealRoadNetwork, updateManeuver]);
 
   const handleRecenterGps = () => {
     hapticLight();

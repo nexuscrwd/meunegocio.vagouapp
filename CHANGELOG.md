@@ -11,6 +11,22 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-13] — Calibração das APIs Google Maps Platform (Routes API v2, Roads API, Places API New, Geocoding API) & Proteção Anti-Retorno em Pistas Duplas e no Destino (`bol-170`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / GIS / Google Maps Platform]`
+- **Motivo / Solicitação:** Corrigir a geração de rotas pedindo para retornar (ex.: saindo da *Polícia Rodoviária - Base Guarulhos / Marginal Rodovia Ayrton Senna* até *Rua Serrana, Cidade Líder* ou quando o usuário já está fisicamente no destino habitual) e calibrar todas as chamadas às APIs do Google Maps.
+- **Arquivos Impactados:**
+  - `server.ts`
+  - `src/services/googleMapsService.ts`
+  - `src/components/live-tracking/RouteSimulatorModal.tsx`
+  - `src/components/live-tracking/LiveTrackingModal.tsx`
+  - `src/components/live-tracking/InteractiveGoogleRouteMap.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Calibração Anti-Canteiro Central no `nearestRoads` (`/api/maps/snap-and-reverse`):** Limitado o deslocamento de snap para `<= 11m` e priorizado o resultado `premise`/`establishment`/`street_address` da **Google Geocoding API**, impedindo que o GPS na Base Policial da Rod. Ayrton Senna pule o canteiro central para a pista sentido Marginal Tietê (Oeste) ou perca o ponto exato ao re-geocodificar `"Marginal Rodovia Ayrton Senna - Guarulhos"`.
+  2. **Calibração de Pista Dupla na Google Routes API v2 (`/api/geo/route`):** Ativado `computeAlternativeRoutes: true` e verificação automática de desvio de pista contrária (`> 1.62x` distância linear e `> 3.8 km` extras), selecionando automaticamente a pista correta (`13,0 km` / `27 min` via Saída 22 e Av. Jacu-Pêssego Sul até Rua Serrana em vez do loop de retorno de `22,6 km` / `32,4 km`).
+  3. **Trava de Origem Simulada & Detecção de Chegada no Destino (`<= 150m`):** Preservada a partida definida no *Simulador de Trajeto* mesmo quando o usuário já está fisicamente no destino habitual (`Rua Serrana`), e bloqueado o recálculo de micro-rotas de retorno quando `distGpsToDestKm <= 0.15`, exibindo chegada imediata.
+  4. **Eliminação de Falso Positivo de `UTURN_LEFT` em Alças Viárias:** Removido o gatilho geométrico que classificava alças curvas de saída de rodovia (270° à direita) como `"Retorno à frente"`.
+
 ### [2026-11-13] — Correção de Geocodificação de Endereços Expandidos por CEP (`ViaCEP` / `BrasilAPI v2` / `Nominatim`) & Desbloqueio do Botão "Ir" (`bol-169`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Fix / GIS / Geocoding]`
 - **Motivo / Solicitação:** Corrigir o erro *"Não foi possível localizar esse destino. Verifique o CEP ou endereço."* ao iniciar a navegação para um endereço expandido por CEP (ex: `Rua Serrana, Cidade Líder - São Paulo/SP, CEP 08285-010`) e evitar sobreposição do texto pelos ícones `X` e lupa nos inputs.

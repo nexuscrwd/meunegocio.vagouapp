@@ -85,12 +85,15 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
 
   const [originAddress, setOriginAddress] = useState<string>(defaultOriginAddress || '');
   const [originCoords, setOriginCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [originPlaceId, setOriginPlaceId] = useState<string>('');
+  const [isCustomOrigin, setIsCustomOrigin] = useState<boolean>(Boolean(defaultOriginAddress));
   const [originSuggestions, setOriginSuggestions] = useState<GooglePlaceSuggestion[]>([]);
   const [isSearchingOrigin, setIsSearchingOrigin] = useState<boolean>(false);
 
   // Destino inicia 100% em branco e limpo para receber CEP, endereço ou "Para Casa"
   const [destAddress, setDestAddress] = useState<string>(defaultDestAddress || '');
   const [destCoords, setDestCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [destPlaceId, setDestPlaceId] = useState<string>('');
   const [destSuggestions, setDestSuggestions] = useState<GooglePlaceSuggestion[]>([]);
   const [isSearchingDest, setIsSearchingDest] = useState<boolean>(false);
 
@@ -106,6 +109,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
 
     setDestAddress(defaultDestAddress || '');
     setDestCoords(null);
+    setDestPlaceId('');
     setDestSuggestions([]);
     setErrorMessage('');
 
@@ -129,6 +133,8 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
           setOriginCoords({ lat, lng });
+          setOriginPlaceId('');
+          setIsCustomOrigin(false);
 
           const snapped = await snapAndReverseGeocodeGps(lat, lng);
           if (!active) return;
@@ -144,7 +150,10 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
           setIsLocatingOrigin(false);
           if (!originAddress) {
             const saved = resolveSavedUserHomeAddress();
-            if (saved) setOriginAddress(saved);
+            if (saved) {
+              setOriginAddress(saved);
+              setIsCustomOrigin(true);
+            }
           }
         },
         { enableHighAccuracy: true, timeout: 6000 }
@@ -162,7 +171,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
   const geocodeAddress = async (
     query: string,
     biasCoords?: { lat: number; lng: number } | null
-  ): Promise<{ lat: number; lng: number } | null> => {
+  ): Promise<{ lat: number; lng: number; placeId?: string } | null> => {
     const cleanQuery = query.trim();
     if (!cleanQuery) return null;
 
@@ -176,7 +185,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
       biasLng: biasCoords?.lng ?? originCoords?.lng,
     });
     if (res && typeof res.lat === 'number' && typeof res.lng === 'number') {
-      return { lat: res.lat, lng: res.lng };
+      return { lat: res.lat, lng: res.lng, placeId: res.googlePlaceId || '' };
     }
     return null;
   };
@@ -190,6 +199,8 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
 
     setIsLocatingOrigin(true);
     setOriginAddress('');
+    setOriginPlaceId('');
+    setIsCustomOrigin(false);
     setOriginSuggestions([]);
     setErrorMessage('');
 
@@ -244,11 +255,13 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
     }
 
     if (target === 'origin') {
+      setIsCustomOrigin(true);
       setOriginSuggestions([]);
       await handleSmartInputChange(
         savedHome,
         setOriginAddress,
         setOriginCoords,
+        setOriginPlaceId,
         setOriginSuggestions,
         setIsSearchingOrigin,
         true
@@ -259,6 +272,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
         savedHome,
         setDestAddress,
         setDestCoords,
+        setDestPlaceId,
         setDestSuggestions,
         setIsSearchingDest,
         true
@@ -271,12 +285,14 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
     rawVal: string,
     setAddress: (val: string) => void,
     setCoords: (coords: { lat: number; lng: number } | null) => void,
+    setPlaceId: (id: string) => void,
     setSuggestions: (s: GooglePlaceSuggestion[]) => void,
     setIsSearching: (b: boolean) => void,
     skipAutocompleteDropdown = false
   ) => {
     setAddress(rawVal);
     setCoords(null);
+    setPlaceId('');
 
     const cleanDigits = rawVal.replace(/\D/g, '');
     const hasLetters = /[a-zA-ZÀ-ÿ]/.test(rawVal);
@@ -309,6 +325,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
             });
             if (structuredRes) {
               setCoords({ lat: structuredRes.lat, lng: structuredRes.lng });
+              setPlaceId(structuredRes.googlePlaceId || '');
             }
             setSuggestions([]);
             setIsSearching(false);
@@ -321,8 +338,11 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
 
     if (skipAutocompleteDropdown) {
       setIsSearching(true);
-      const coords = await geocodeAddress(rawVal);
-      if (coords) setCoords(coords);
+      const geo = await geocodeAddress(rawVal);
+      if (geo) {
+        setCoords({ lat: geo.lat, lng: geo.lng });
+        setPlaceId(geo.placeId || '');
+      }
       setSuggestions([]);
       setIsSearching(false);
       return;
@@ -332,7 +352,11 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
     if (rawVal.trim().length >= 3) {
       setIsSearching(true);
       try {
-        const list = await searchGooglePlacesSuggestions(rawVal.trim());
+        const list = await searchGooglePlacesSuggestions(
+          rawVal.trim(),
+          originCoords?.lat,
+          originCoords?.lng
+        );
         setSuggestions(list);
       } catch {
         setSuggestions([]);
@@ -365,25 +389,39 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      // 1. Resolve Coordenadas de Origem se ainda não obtidas via GPS
+      // 1. Resolve Coordenadas de Origem se ainda não obtidas via GPS ou Google Places
       let resolvedOrigin = originCoords;
+      let resolvedOriginPlaceId = originPlaceId;
       if (!resolvedOrigin) {
-        resolvedOrigin = await geocodeAddress(cleanOrigin);
+        const geoOrigin = await geocodeAddress(cleanOrigin);
+        if (geoOrigin) {
+          resolvedOrigin = { lat: geoOrigin.lat, lng: geoOrigin.lng };
+          resolvedOriginPlaceId = geoOrigin.placeId || '';
+        }
       }
       if (!resolvedOrigin) {
         resolvedOrigin = { lat: -23.5505, lng: -46.6333 };
       }
 
-      // 2. Resolve Coordenadas de Destino com viés regional na origem (sem bloquear abertura do mapa)
+      // 2. Resolve Coordenadas de Destino via Google Geocoding API / Places API com viés regional na origem
       let resolvedDest = destCoords;
+      let resolvedDestPlaceId = destPlaceId;
       if (!resolvedDest) {
-        resolvedDest = await geocodeAddress(cleanDest, resolvedOrigin);
+        const geoDest = await geocodeAddress(cleanDest, resolvedOrigin);
+        if (geoDest) {
+          resolvedDest = { lat: geoDest.lat, lng: geoDest.lng };
+          resolvedDestPlaceId = geoDest.placeId || '';
+        }
       }
       if (!resolvedDest) {
         const lowerDest = cleanDest.toLowerCase();
         if (lowerDest.includes('guarulhos') || lowerDest.includes('aeroporto')) {
           resolvedDest = { lat: -23.4356, lng: -46.4731 };
-        } else if (lowerDest.includes('serrana') || lowerDest.includes('cidade líder') || lowerDest.includes('cidade lider')) {
+        } else if (
+          lowerDest.includes('serrana') ||
+          lowerDest.includes('cidade líder') ||
+          lowerDest.includes('cidade lider')
+        ) {
           resolvedDest = { lat: -23.5505, lng: -46.4684 };
         } else {
           resolvedDest = { lat: -23.5621, lng: -46.4795 };
@@ -412,10 +450,13 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
           originLat: resolvedOrigin.lat,
           originLng: resolvedOrigin.lng,
           originFormattedAddress: cleanOrigin,
+          originPlaceId: resolvedOriginPlaceId,
+          isCustomSimulatedOrigin: isCustomOrigin,
           salonLat: resolvedDest.lat,
           salonLng: resolvedDest.lng,
           destinationLat: resolvedDest.lat,
           destinationLng: resolvedDest.lng,
+          destPlaceId: resolvedDestPlaceId,
         } as any),
       };
 
@@ -569,15 +610,17 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                 <input
                   type="text"
                   value={originAddress}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    setIsCustomOrigin(true);
                     handleSmartInputChange(
                       e.target.value,
                       setOriginAddress,
                       setOriginCoords,
+                      setOriginPlaceId,
                       setOriginSuggestions,
                       setIsSearchingOrigin
-                    )
-                  }
+                    );
+                  }}
                   placeholder={isLocatingOrigin ? '' : 'Digite o endereço ou CEP de partida'}
                   className="caixa-input !pr-16 text-xs"
                 />
@@ -589,6 +632,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                         hapticLight();
                         setOriginAddress('');
                         setOriginCoords(null);
+                        setOriginPlaceId('');
                         setOriginSuggestions([]);
                       }}
                       className="p-1 rounded-[4px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
@@ -621,8 +665,10 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                         type="button"
                         onClick={() => {
                           hapticLight();
+                          setIsCustomOrigin(true);
                           setOriginAddress(place.formattedAddress);
                           setOriginCoords({ lat: place.lat, lng: place.lng });
+                          setOriginPlaceId(place.id || '');
                           setOriginSuggestions([]);
                         }}
                         className={`w-full px-3 py-2 text-left text-xs flex items-start gap-2 transition cursor-pointer ${
@@ -683,6 +729,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                       e.target.value,
                       setDestAddress,
                       setDestCoords,
+                      setDestPlaceId,
                       setDestSuggestions,
                       setIsSearchingDest
                     )
@@ -698,6 +745,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                         hapticLight();
                         setDestAddress('');
                         setDestCoords(null);
+                        setDestPlaceId('');
                         setDestSuggestions([]);
                         destInputRef.current?.focus();
                       }}
@@ -733,6 +781,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                           hapticLight();
                           setDestAddress(place.formattedAddress);
                           setDestCoords({ lat: place.lat, lng: place.lng });
+                          setDestPlaceId(place.id || '');
                           setDestSuggestions([]);
                         }}
                         className={`w-full px-3 py-2 text-left text-xs flex items-start gap-2 transition cursor-pointer ${
