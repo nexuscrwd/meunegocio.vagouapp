@@ -50,6 +50,7 @@ import { PauseSlotsModal } from './professional/PauseSlotsModal';
 import { ProfileDrawer } from './ProfileDrawer';
 import { SalonClientAuthModal } from './SalonClientAuthModal';
 import { SalonSpaceInteractiveMap } from './SalonSpaceInteractiveMap';
+import { ProfileModeSwitchModal, TargetEnvironmentMode } from './modals/ProfileModeSwitchModal';
 import { hapticSuccess, hapticLight, hapticMedium } from '../utils/haptics';
 import { getSectionHeaderStyleData } from '../utils/sectionHeaderStyle';
 import { syncAllLocalUtilitiesToDatabase } from '../services/mnvSupabaseSync';
@@ -402,6 +403,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   });
 
   const [isPublicPreviewMode, setIsPublicPreviewMode] = useState<boolean>(true);
+  const [modeSwitchModalState, setModeSwitchModalState] = useState<{
+    isOpen: boolean;
+    targetMode: TargetEnvironmentMode | null;
+    nextTab?: 'home' | 'dados' | 'personalizar';
+  }>({ isOpen: false, targetMode: null });
 
   const activeRole: SalonRole = useMemo(() => {
     if (ownerAccess.isOwner) return 'owner';
@@ -1647,8 +1653,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       setIsClientAuthModalOpen(true);
       return;
     }
-    setIsPublicPreviewMode(false);
-    setActiveTab('dados');
+    setModeSwitchModalState({
+      isOpen: true,
+      targetMode: 'salon_mode',
+      nextTab: 'dados',
+    });
   }, [isSalonLoggedIn]);
 
   const [activeTab, setActiveTab] = useState<'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout' | 'pausar'>('home');
@@ -2360,22 +2369,31 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         onChangeRole={(role: HeaderUserRole) => {
           hapticLight();
           if (role === 'COLLABORATOR') {
-            setIsPublicPreviewMode(true);
-            setActiveTab('home');
+            setModeSwitchModalState({
+              isOpen: true,
+              targetMode: 'client_mode',
+              nextTab: 'home',
+            });
           } else if (role === 'MANAGER') {
             if (!isSalonLoggedIn) {
               setIsClientAuthModalOpen(true);
               return;
             }
-            setIsPublicPreviewMode(false);
-            setActiveTab('home');
+            setModeSwitchModalState({
+              isOpen: true,
+              targetMode: 'salon_mode',
+              nextTab: 'home',
+            });
           } else if (role === 'SUPER_ADMIN') {
             if (!isSalonLoggedIn) {
               setIsClientAuthModalOpen(true);
               return;
             }
-            setIsPublicPreviewMode(false);
-            setActiveTab('personalizar');
+            setModeSwitchModalState({
+              isOpen: true,
+              targetMode: 'salon_mode',
+              nextTab: 'personalizar',
+            });
           }
         }}
         onLogout={() => {
@@ -2389,8 +2407,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         onOpenUserSection={(section) => {
           hapticLight();
           if (section === 'ALTERNAR_MODO') {
-            setIsPublicPreviewMode(!isPublicPreviewMode);
-            setActiveTab('home');
+            setModeSwitchModalState({
+              isOpen: true,
+              targetMode: isPublicPreviewMode ? 'salon_mode' : 'client_mode',
+              nextTab: 'home',
+            });
           } else if (section === 'MENU_COMPLETO') {
             setProfileDrawerInitialTab('menu');
             setIsProfileDrawerOpen(true);
@@ -3815,10 +3836,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         isGerMode={isGerMode}
         onToggleMode={() => {
           hapticMedium();
-          setIsPublicPreviewMode(!isPublicPreviewMode);
-          if (isPublicPreviewMode) {
-            setActiveTab('home');
-          }
+          setModeSwitchModalState({
+            isOpen: true,
+            targetMode: isPublicPreviewMode ? 'salon_mode' : 'client_mode',
+            nextTab: 'home',
+          });
         }}
         onRequestManage={handleRequestManage}
         onOpenAdminPanel={() => {
@@ -3878,6 +3900,28 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           professionalsList.find((p) => p.id === activeProId)?.name ||
           'Profissional'
         }
+      />
+
+      {/* Modal Popup Informativo de Alternância de Perfil (Modo Cliente ⇄ Modo Salão) */}
+      <ProfileModeSwitchModal
+        isOpen={modeSwitchModalState.isOpen}
+        targetMode={modeSwitchModalState.targetMode}
+        salonName={salonInfo.name}
+        onCancel={() =>
+          setModeSwitchModalState({ isOpen: false, targetMode: null })
+        }
+        onConfirm={() => {
+          const target = modeSwitchModalState.targetMode;
+          const nextTab = modeSwitchModalState.nextTab || 'home';
+          setModeSwitchModalState({ isOpen: false, targetMode: null });
+          if (target === 'client_mode') {
+            setIsPublicPreviewMode(true);
+            setActiveTab('home');
+          } else if (target === 'salon_mode') {
+            setIsPublicPreviewMode(false);
+            setActiveTab(nextTab);
+          }
+        }}
       />
     </div>
   );

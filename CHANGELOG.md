@@ -11,6 +11,70 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-13] — Modal Popup Explicativo ao Alternar entre "Ambiente Modo Cliente" e "Ambiente Modo Salão" (`ProfileModeSwitchModal`) (`bol-175`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Feat / UX]`
+- **Motivo / Solicitação:** Exibir um modal popup sempre que o profissional/gestor alternar de perfil (entre Modo Salão e Modo Cliente), informando de maneira clara e didática em qual ambiente ele está entrando e para que serve cada ambiente.
+- **Arquivos Impactados:**
+  - `src/components/modals/ProfileModeSwitchModal.tsx` (novo)
+  - `src/components/SalonProfileView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`ProfileModeSwitchModal.tsx`:** Criado modal popup plano (zero box dentro de box, contraste branco obrigatório em botões sólidos e rodapé fixo) com duas visões:
+     - **Ambiente Modo Cliente (Visão Pública):** Explica que serve para ver a vitrine exatamente como o cliente vê (cores, fotos, preços, equipe), testar agendamentos/trajeto GPS e acessar sua conta pessoal (dados, agenda pessoal, dependentes e chat).
+     - **Ambiente Modo Salão (Gestão Interna):** Explica que serve para controlar o painel operacional e fila do dia (GPS ao vivo, agenda, pausa rápida), gerenciar Serviços/Equipe/Espaço e configurar Preferências (dados do negócio, visual/layout) e Utilidades (Caixa, PIX, financeiro, consumo e estoque).
+  2. **Integração Unificada (`SalonProfileView.tsx`):** Conectado o modal em todos os gatilhos de alternância de perfil (`MobileHeader`, `ProfileDrawer` e `handleRequestManage`).
+
+### [2026-11-13] — Reestruturação do Menu "Gestão do Estabelecimento" (`Gerenciar` Expansível + Remoção de "Meus Dados Pessoais" no Modo Salão) (`bol-174`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Refactor / UX]`
+- **Motivo / Solicitação:** Agrupar **Serviços**, **Equipe** e **Espaço** dentro do menu expansível **Gerenciar**, manter **Preferências** (e **Utilidades**) e remover **Meus Dados Pessoais** do menu do Modo Salão (`Gestão do Estabelecimento`).
+- **Arquivos Impactados:**
+  - `src/components/MobileHeader.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Agrupamento Expansível `Gerenciar` (`MobileHeader.tsx` & `ProfileDrawer.tsx`):** Criado o item pai expansível **Gerenciar** contendo os subitens na ordem **Serviços** ➔ **Equipe** ➔ **Espaço**, seguido por **Preferências** e **Utilidades**.
+  2. **Remoção de `Meus Dados Pessoais` no Modo Salão (`isGerMode`):** Removido o atalho redundante **Meus Dados Pessoais** da seção **Gestão do Estabelecimento** em `MobileHeader.tsx` (permanecendo exclusivamente no menu **Minha Conta** do Modo Cliente).
+
+### [2026-11-13] — Padronização da Ordem Oficial do Menu "Minha Conta" (`bol-173`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Refactor / UX]`
+- **Motivo / Solicitação:** Ajustar a ordem dos itens do menu **Minha Conta** para seguir exatamente a sequência: **Meus Dados Pessoais** ➔ **Minha Agenda** ➔ **Dependentes** ➔ **Chat** ➔ **Trajeto**.
+- **Arquivos Impactados:**
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/MobileHeader.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Reordenação Unificada no Painel de Perfil (`ProfileDrawer.tsx`) e Menu Superior (`MobileHeader.tsx`):** Alinhada a ordem dos 5 cards/atalhos da seção **Minha Conta** em ambos os pontos de entrada do cliente:
+     1. `Meus Dados Pessoais`
+     2. `Minha Agenda`
+     3. `Conta Família • Dependentes`
+     4. `Chat no App Vagou`
+     5. `Trajeto` (`TESTE`)
+
+### [2026-11-13] — Isolamento dos Campos de Partida e Destino no Simulador de Trajeto GPS contra Preenchimento Cruzado (`bol-172`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / UX / GIS]`
+- **Motivo / Solicitação:** Corrigir o comportamento em que digitar o CEP ou endereço no campo de destino (**"Para onde você vai?"**) preenchia/sobrescrevia automaticamente o campo de origem (**"De onde você vai sair?"**) acima dele.
+- **Arquivos Impactados:**
+  - `src/components/live-tracking/RouteSimulatorModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Separação Estrita de Handlers (`handleOriginInputChange` vs `handleDestInputChange`):** Criados manipuladores e contadores de requisição independentes (`originReqIdRef` e `destReqIdRef`) para que a busca de CEP (`ViaCEP`) ou endereço (`Places API`) no destino jamais toque nos estados de partida (`originAddress`, `originCoords`, `originPlaceId`).
+  2. **Bloqueio de Autofill Cruzado Mobile e Trava de Foco (`activeElement`):** Substituída a tag `<form>` por contêiner `<div>` com inputs `type="search"` isolados (`autoComplete="off"`, `data-lpignore="true"`, `data-form-type="other"`) e trava de foco que ignora qualquer evento `onChange` disparado no campo de partida enquanto o usuário está digitando no campo de destino.
+  3. **Remoção do Fallback Silencioso de Timeout GPS:** Removida a rotina que sobrescrevia `originAddress` com o endereço residencial salvo (`resolveSavedUserHomeAddress()`) caso o `getCurrentPosition` sofresse timeout de 6s enquanto o usuário preenchia o destino.
+
+### [2026-11-13] — Restauração dos Botões de Integração Externa ("Abrir no Maps", "Abrir no Waze" e Uber) com Origem, Destino e Rota Pré-Carregados (`bol-171`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / Deep Links / GIS]`
+- **Motivo / Solicitação:** Corrigir os botões **"Abrir no Maps"** (Google Maps) e **"Abrir no Waze"** no menu inferior do mapa (`MapGlassBottomSwipeMenu`), que estavam sem ação ao clicar, garantindo que abram o aplicativo com endereço de partida, destino e trajeto prontos para navegar (incluindo Uber e 99).
+- **Arquivos Impactados:**
+  - `src/components/live-tracking/LiveTrackingModal.tsx`
+  - `src/utils/bookingSlots.ts`
+  - `src/services/transportService.ts`
+  - `src/types/booking.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Correção das Propriedades `href` no `MapGlassBottomSwipeMenu`:** Corrigido o repasse de `googleMapsUrl={transportLinks.googleMapsUrl}` e `wazeUrl={transportLinks.wazeUrl}` (e adicionados aliases `googleMapsAppUrl` / `wazeAppUrl` em `buildTransportDeepLinks`), eliminando o `undefined` que deixava as tags `<a>` sem atributo `href`.
+  2. **Injeção de Coordenadas Resolvidas (`stableCoords.destLat` / `destLng`):** Atualizado `LiveRouteDepartureModal` para passar `salonLat: stableCoords.destLat` e `salonLng: stableCoords.destLng` ao gerador de Deep Links, garantindo coordenadas exatas mesmo em rotas dinâmicas ou simuladas.
+  3. **Sanitização de `"Local Atual (GPS)"` e Ativação de Navegação Direta (`dir_action=navigate`):** Filtrado o rótulo genérico `"Local Atual (GPS)"` para que Google Maps, Waze, Uber e 99 recebam as coordenadas GPS reais (`lat,lng`) e o endereço limpo (sem sufixo `, CEP ...`), iniciando a navegação imediatamente com `&dir_action=navigate` (Maps) e `&navigate=yes` (Waze).
+
 ### [2026-11-13] — Calibração das APIs Google Maps Platform (Routes API v2, Roads API, Places API New, Geocoding API) & Proteção Anti-Retorno em Pistas Duplas e no Destino (`bol-170`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Fix / GIS / Google Maps Platform]`
 - **Motivo / Solicitação:** Corrigir a geração de rotas pedindo para retornar (ex.: saindo da *Polícia Rodoviária - Base Guarulhos / Marginal Rodovia Ayrton Senna* até *Rua Serrana, Cidade Líder* ou quando o usuário já está fisicamente no destino habitual) e calibrar todas as chamadas às APIs do Google Maps.

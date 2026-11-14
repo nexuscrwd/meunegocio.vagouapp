@@ -958,18 +958,26 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
   }, [isOpen, step, isAlreadySharing, liveRouteData]);
 
   const transportLinks = useMemo(() => {
-    const anyApt = appointment as any;
     return buildTransportDeepLinks({
       originAddress: clientOriginAddress,
       originLat: stableCoords.originLat,
       originLng: stableCoords.originLng,
       salonName: appointment.salonName,
       salonAddress: salonDestAddress,
-      salonLat: anyApt.salonLat,
-      salonLng: anyApt.salonLng,
+      salonLat: stableCoords.destLat,
+      salonLng: stableCoords.destLng,
       transportMode: bookingTransportMode,
     });
-  }, [appointment, clientOriginAddress, salonDestAddress, bookingTransportMode, stableCoords.originLat, stableCoords.originLng]);
+  }, [
+    appointment.salonName,
+    clientOriginAddress,
+    salonDestAddress,
+    bookingTransportMode,
+    stableCoords.originLat,
+    stableCoords.originLng,
+    stableCoords.destLat,
+    stableCoords.destLng,
+  ]);
 
   if (!isOpen) return null;
 
@@ -1393,8 +1401,8 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                   setIsSharedFeedback(true);
                   setTimeout(() => setIsSharedFeedback(false), 3000);
                 }}
-                googleMapsUrl={transportLinks.googleMapsAppUrl}
-                wazeUrl={transportLinks.wazeAppUrl}
+                googleMapsUrl={transportLinks.googleMapsUrl}
+                wazeUrl={transportLinks.wazeUrl}
                 hasReachedDestination={hasReachedDestination}
                 onMarkArrived={handleMarkArrived}
                 salonName={appointment.salonName || 'Salão'}
@@ -2440,8 +2448,8 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                 setIsSharedFeedback(true);
                 setTimeout(() => setIsSharedFeedback(false), 3000);
               }}
-              googleMapsUrl={transportLinks.googleMapsAppUrl}
-              wazeUrl={transportLinks.wazeAppUrl}
+              googleMapsUrl={transportLinks.googleMapsUrl}
+              wazeUrl={transportLinks.wazeUrl}
               hasReachedDestination={hasReachedDestination}
               onMarkArrived={handleMarkArrived}
               salonName={appointment.salonName || 'Salão'}

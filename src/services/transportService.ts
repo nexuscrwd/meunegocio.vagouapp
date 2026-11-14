@@ -548,27 +548,37 @@ export function buildTransportDeepLinks(params: BuildDeepLinksParams): Transport
   const salonCoordStr = typeof params.salonLat === 'number' && typeof params.salonLng === 'number'
     ? `${params.salonLat},${params.salonLng}`
     : '';
-  
-  const originQuery = (params.originAddress || originCoordStr || '').trim();
+
+  const rawOriginAddr = String(params.originAddress || '').trim();
+  const isGenericOriginLabel =
+    !rawOriginAddr ||
+    /^local atual(\s*\(gps\))?$/i.test(rawOriginAddr) ||
+    /^meu local$/i.test(rawOriginAddr);
+  const cleanOriginAddress = isGenericOriginLabel ? '' : rawOriginAddr;
+
+  const originQuery = (cleanOriginAddress || originCoordStr || '').trim();
   const destLabel = [params.salonName, params.salonAddress].filter(Boolean).join(' - ').trim() || salonCoordStr;
-  const destAddressOnly = (params.salonAddress || params.salonName || salonCoordStr || 'Estabelecimento').trim();
-  
+  const destAddressOnly = (destLabel || params.salonAddress || params.salonName || salonCoordStr || 'Estabelecimento').trim();
+  const cleanDestQuery = (params.salonAddress || params.salonName || salonCoordStr || 'Estabelecimento')
+    .replace(/,?\s*CEP\s*\d{5}-?\d{3}/gi, '')
+    .trim();
+
   // Modo de viagem para Google Maps
   const googleTravelMode = params.transportMode === 'transit'
     ? 'transit'
     : params.transportMode === 'motorcycle'
     ? 'two-wheeler'
     : 'driving';
-  
+
   // Google Maps (modo específico + transit separado para baldeações)
-  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(originQuery || originCoordStr)}&destination=${encodeURIComponent(destAddressOnly || salonCoordStr)}&travelmode=${googleTravelMode}`;
-  const googleMapsTransitUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(originQuery || originCoordStr)}&destination=${encodeURIComponent(destAddressOnly || salonCoordStr)}&travelmode=transit`;
-  
+  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(originQuery || originCoordStr)}&destination=${encodeURIComponent(cleanDestQuery || salonCoordStr)}&travelmode=${googleTravelMode}&dir_action=navigate`;
+  const googleMapsTransitUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(originQuery || originCoordStr)}&destination=${encodeURIComponent(cleanDestQuery || salonCoordStr)}&travelmode=transit&dir_action=navigate`;
+
   // Waze
   const wazeUrl = salonCoordStr
-    ? `https://waze.com/ul?ll=${salonCoordStr}&q=${encodeURIComponent(destAddressOnly)}&navigate=yes`
-    : `https://waze.com/ul?q=${encodeURIComponent(destAddressOnly)}&navigate=yes`;
-  
+    ? `https://waze.com/ul?ll=${encodeURIComponent(salonCoordStr)}&q=${encodeURIComponent(cleanDestQuery)}&navigate=yes`
+    : `https://waze.com/ul?q=${encodeURIComponent(cleanDestQuery)}&navigate=yes`;
+
   // Uber Deep Link Universal
   const uberParams = new URLSearchParams({
     action: 'setPickup',
@@ -582,14 +592,14 @@ export function buildTransportDeepLinks(params: BuildDeepLinksParams): Transport
   if (typeof params.originLat === 'number' && typeof params.originLng === 'number') {
     uberParams.set('pickup[latitude]', String(params.originLat));
     uberParams.set('pickup[longitude]', String(params.originLng));
-    if (params.originAddress) {
-      uberParams.set('pickup[formatted_address]', params.originAddress);
+    if (cleanOriginAddress) {
+      uberParams.set('pickup[formatted_address]', cleanOriginAddress);
     }
   } else {
     uberParams.set('pickup', 'my_location');
   }
   const uberUrl = `https://m.uber.com/ul/?${uberParams.toString()}`;
-  
+
   // 99 App Deep Link
   const app99Params = new URLSearchParams({
     dropoff_title: destLabel,
@@ -601,16 +611,18 @@ export function buildTransportDeepLinks(params: BuildDeepLinksParams): Transport
   if (typeof params.originLat === 'number' && typeof params.originLng === 'number') {
     app99Params.set('pickup_latitude', String(params.originLat));
     app99Params.set('pickup_longitude', String(params.originLng));
-    if (params.originAddress) {
-      app99Params.set('pickup_title', params.originAddress);
+    if (cleanOriginAddress) {
+      app99Params.set('pickup_title', cleanOriginAddress);
     }
   }
   const app99Url = `https://99app.com/?${app99Params.toString()}`;
-  
+
   return {
     googleMapsUrl,
+    googleMapsAppUrl: googleMapsUrl,
     googleMapsTransitUrl,
     wazeUrl,
+    wazeAppUrl: wazeUrl,
     uberUrl,
     app99Url,
     destAddressOnly,

@@ -14,6 +14,7 @@ import {
   Moon,
   ChevronRight,
   LayoutDashboard,
+  LayoutGrid,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
@@ -66,6 +67,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
 }) => {
   const { isDark, toggleTheme, resolvedPalette } = useTheme();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isGerenciarExpanded, setIsGerenciarExpanded] = useState(false);
 
   const firstName = (currentUser.name || 'Usuário').trim().split(' ')[0].toUpperCase();
   const initials = (currentUser.name || 'Usuário')
@@ -264,77 +266,108 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                         </span>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsUserMenuOpen(false);
-                          onOpenUserSection?.('PRO_SERVICOS');
-                        }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
-                            <Scissors className="w-4 h-4" />
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setIsGerenciarExpanded((prev) => !prev)}
+                          className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
+                              <LayoutGrid className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-900 leading-tight">
+                                Gerenciar
+                              </p>
+                              <p className="text-[10px] text-slate-500 truncate">
+                                Serviços, equipe e espaço
+                              </p>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-900 leading-tight">
-                              Serviços
-                            </p>
-                            <p className="text-[10px] text-slate-500 truncate">
-                              Valores, durações e procedimentos
-                            </p>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      </button>
+                          <ChevronRight
+                            className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-150 ${
+                              isGerenciarExpanded ? 'rotate-90' : ''
+                            }`}
+                          />
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsUserMenuOpen(false);
-                          onOpenUserSection?.('PRO_ESPACO');
-                        }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
-                            <Store className="w-4 h-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-900 leading-tight">
-                              Espaço
-                            </p>
-                            <p className="text-[10px] text-slate-500 truncate">
-                              Estrutura, localização e contatos
-                            </p>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      </button>
+                        {isGerenciarExpanded && (
+                          <div className="bg-slate-50/70 divide-y divide-slate-100">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsUserMenuOpen(false);
+                                onOpenUserSection?.('PRO_SERVICOS');
+                              }}
+                              className="w-full pl-7 pr-3.5 py-2 text-left flex items-center justify-between gap-2 hover:bg-slate-100/80 transition-colors cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-6 h-6 rounded-[4px] bg-white text-slate-700 flex items-center justify-center shrink-0">
+                                  <Scissors className="w-3.5 h-3.5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-slate-900 leading-tight">
+                                    Serviços
+                                  </p>
+                                  <p className="text-[10px] text-slate-500 truncate">
+                                    Valores, durações e procedimentos
+                                  </p>
+                                </div>
+                              </div>
+                              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsUserMenuOpen(false);
-                          onOpenUserSection?.('PRO_EQUIPE');
-                        }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
-                            <Users className="w-4 h-4" />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsUserMenuOpen(false);
+                                onOpenUserSection?.('PRO_EQUIPE');
+                              }}
+                              className="w-full pl-7 pr-3.5 py-2 text-left flex items-center justify-between gap-2 hover:bg-slate-100/80 transition-colors cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-6 h-6 rounded-[4px] bg-white text-slate-700 flex items-center justify-center shrink-0">
+                                  <Users className="w-3.5 h-3.5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-slate-900 leading-tight">
+                                    Equipe
+                                  </p>
+                                  <p className="text-[10px] text-slate-500 truncate">
+                                    Colaboradores, permissões e comissões
+                                  </p>
+                                </div>
+                              </div>
+                              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsUserMenuOpen(false);
+                                onOpenUserSection?.('PRO_ESPACO');
+                              }}
+                              className="w-full pl-7 pr-3.5 py-2 text-left flex items-center justify-between gap-2 hover:bg-slate-100/80 transition-colors cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-6 h-6 rounded-[4px] bg-white text-slate-700 flex items-center justify-center shrink-0">
+                                  <Store className="w-3.5 h-3.5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-slate-900 leading-tight">
+                                    Espaço
+                                  </p>
+                                  <p className="text-[10px] text-slate-500 truncate">
+                                    Estrutura, localização e contatos
+                                  </p>
+                                </div>
+                              </div>
+                              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            </button>
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-900 leading-tight">
-                              Equipe
-                            </p>
-                            <p className="text-[10px] text-slate-500 truncate">
-                              Colaboradores, permissões e comissões
-                            </p>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      </button>
+                        )}
+                      </div>
 
                       {isProAdmin && (
                         <button
@@ -385,6 +418,14 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                         </div>
                         <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       </button>
+                    </div>
+                  ) : (
+                    <div className="py-1 divide-y divide-slate-100">
+                      <div className="px-3.5 py-1.5 bg-slate-50">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                          Minha Conta
+                        </span>
+                      </div>
 
                       <button
                         type="button"
@@ -403,20 +444,12 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                               Meus Dados Pessoais
                             </p>
                             <p className="text-[10px] text-slate-500 truncate">
-                              Nome, e-mail, telefone e foto
+                              Nome, e-mail, telefone e endereço
                             </p>
                           </div>
                         </div>
                         <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       </button>
-                    </div>
-                  ) : (
-                    <div className="py-1 divide-y divide-slate-100">
-                      <div className="px-3.5 py-1.5 bg-slate-50">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
-                          Minha Conta
-                        </span>
-                      </div>
 
                       <button
                         type="button"
@@ -436,35 +469,6 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                             </p>
                             <p className="text-[10px] text-slate-500 truncate">
                               Ver agendamentos e propostas de permuta
-                            </p>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsUserMenuOpen(false);
-                          onOpenUserSection?.('TRAJETO_GPS');
-                        }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
-                            <Navigation className="w-4 h-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <p className="text-xs font-bold text-slate-900 leading-tight">
-                                Trajeto
-                              </p>
-                              <span className="px-1.5 py-0.2 rounded-[3px] text-[8px] font-black uppercase bg-slate-100 text-slate-700 border border-slate-200">
-                                Teste
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-slate-500 truncate">
-                              Inserir partida e destino para testar GPS
                             </p>
                           </div>
                         </div>
@@ -499,30 +503,6 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                         type="button"
                         onClick={() => {
                           setIsUserMenuOpen(false);
-                          onOpenUserSection?.('DADOS_PESSOAIS');
-                        }}
-                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
-                            <User className="w-4 h-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-900 leading-tight">
-                              Meus Dados Pessoais
-                            </p>
-                            <p className="text-[10px] text-slate-500 truncate">
-                              Nome, e-mail, telefone e endereço
-                            </p>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsUserMenuOpen(false);
                           onOpenUserSection?.('CHAT_VAGOU');
                         }}
                         className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
@@ -537,6 +517,35 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                             </p>
                             <p className="text-[10px] text-slate-500 truncate">
                               Mensagens diretas com a equipe
+                            </p>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          onOpenUserSection?.('TRAJETO_GPS');
+                        }}
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-7 h-7 rounded-[4px] bg-slate-100 text-slate-800 flex items-center justify-center shrink-0">
+                            <Navigation className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-xs font-bold text-slate-900 leading-tight">
+                                Trajeto
+                              </p>
+                              <span className="px-1.5 py-0.2 rounded-[3px] text-[8px] font-black uppercase bg-slate-100 text-slate-700 border border-slate-200">
+                                Teste
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 truncate">
+                              Inserir partida e destino para testar GPS
                             </p>
                           </div>
                         </div>

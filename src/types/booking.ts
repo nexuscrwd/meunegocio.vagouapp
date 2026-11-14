@@ -120,8 +120,10 @@ export interface ResolvedRoute extends RouteResult {
 
 export interface TransportDeepLinks {
   googleMapsUrl: string;
+  googleMapsAppUrl?: string;
   googleMapsTransitUrl: string;
   wazeUrl: string;
+  wazeAppUrl?: string;
   uberUrl: string;
   app99Url: string;
   destAddressOnly: string;

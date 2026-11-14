@@ -995,18 +995,47 @@ export function buildTransportDeepLinks(params: {
   salonLng?: number;
   transportMode?: TransportMode;
 }) {
-  const originCoordStr =
-    typeof params.originLat === 'number' && typeof params.originLng === 'number'
-      ? `${params.originLat},${params.originLng}`
-      : '';
-  const salonCoordStr =
-    typeof params.salonLat === 'number' && typeof params.salonLng === 'number'
-      ? `${params.salonLat},${params.salonLng}`
-      : '';
+  const hasOriginCoords =
+    typeof params.originLat === 'number' &&
+    typeof params.originLng === 'number' &&
+    !Number.isNaN(params.originLat) &&
+    !Number.isNaN(params.originLng);
+  const hasSalonCoords =
+    typeof params.salonLat === 'number' &&
+    typeof params.salonLng === 'number' &&
+    !Number.isNaN(params.salonLat) &&
+    !Number.isNaN(params.salonLng);
 
-  const originQuery = (params.originAddress || originCoordStr || '').trim();
-  const destLabel = [params.salonName, params.salonAddress].filter(Boolean).join(' - ').trim() || salonCoordStr;
-  const destAddressOnly = (params.salonAddress || params.salonName || salonCoordStr || 'Estabelecimento').trim();
+  const originCoordStr = hasOriginCoords ? `${params.originLat},${params.originLng}` : '';
+  const salonCoordStr = hasSalonCoords ? `${params.salonLat},${params.salonLng}` : '';
+
+  const rawOriginAddr = String(params.originAddress || '').trim();
+  const isGenericOriginLabel =
+    !rawOriginAddr ||
+    /^local atual(\s*\(gps\))?$/i.test(rawOriginAddr) ||
+    /^meu local$/i.test(rawOriginAddr) ||
+    /^origem gps$/i.test(rawOriginAddr);
+
+  const cleanOriginAddress = isGenericOriginLabel ? '' : rawOriginAddr;
+  const originQuery = (cleanOriginAddress || originCoordStr || '').trim();
+
+  const rawSalonAddress = String(params.salonAddress || '')
+    .replace(/,?\s*CEP\s*\d{5}-?\d{3}/gi, '')
+    .trim();
+  const cleanSalonName = String(params.salonName || '').trim();
+
+  const destLabel =
+    [cleanSalonName, rawSalonAddress].filter(Boolean).join(' - ').trim() || salonCoordStr;
+  const destAddressOnly = (
+    rawSalonAddress ||
+    cleanSalonName ||
+    salonCoordStr ||
+    'Estabelecimento'
+  ).trim();
+
+  // Para o Google Maps, se tivermos endereço limpo usamos o endereço (ou coordenadas se for mais preciso)
+  const googleOriginParam = originCoordStr || originQuery;
+  const googleDestParam = rawSalonAddress || salonCoordStr || destAddressOnly;
 
   const googleTravelMode =
     params.transportMode === 'walking'
@@ -1020,12 +1049,14 @@ export function buildTransportDeepLinks(params: {
       : 'driving';
 
   const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
-    originQuery || originCoordStr
-  )}&destination=${encodeURIComponent(destAddressOnly || salonCoordStr)}&travelmode=${googleTravelMode}`;
+    googleOriginParam
+  )}&destination=${encodeURIComponent(
+    googleDestParam
+  )}&travelmode=${googleTravelMode}&dir_action=navigate`;
 
   const googleMapsTransitUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
-    originQuery || originCoordStr
-  )}&destination=${encodeURIComponent(destAddressOnly || salonCoordStr)}&travelmode=transit`;
+    googleOriginParam
+  )}&destination=${encodeURIComponent(googleDestParam)}&travelmode=transit&dir_action=navigate`;
 
   // URL de incorporação direta (iframe embed) do Google Maps com rota e modalidade selecionada
   // 0 = carro/moto, 1 = bicicleta, 2 = a pé, 3 = transporte público
@@ -1037,17 +1068,6 @@ export function buildTransportDeepLinks(params: {
       : params.transportMode === 'transit'
       ? 3
       : 0;
-
-  const hasOriginCoords =
-    typeof params.originLat === 'number' &&
-    typeof params.originLng === 'number' &&
-    !Number.isNaN(params.originLat) &&
-    !Number.isNaN(params.originLng);
-  const hasSalonCoords =
-    typeof params.salonLat === 'number' &&
-    typeof params.salonLng === 'number' &&
-    !Number.isNaN(params.salonLat) &&
-    !Number.isNaN(params.salonLng);
 
   const originPbBlock = hasOriginCoords
     ? `!4m3!3m2!1d${params.originLat}!2d${params.originLng}`
@@ -1064,24 +1084,26 @@ export function buildTransportDeepLinks(params: {
   const googleMapsEmbedUrl = `https://www.google.com/maps/embed?origin=mfe&pb=!1m${outerPbCount}!4m${innerPbCount}!3e${embedModeCode}${originPbBlock}${destPbBlock}!3m1!1spt-BR!5m1!1spt-BR`;
 
   const wazeUrl = salonCoordStr
-    ? `https://waze.com/ul?ll=${salonCoordStr}&q=${encodeURIComponent(destAddressOnly)}&navigate=yes`
+    ? `https://waze.com/ul?ll=${encodeURIComponent(salonCoordStr)}&q=${encodeURIComponent(
+        destAddressOnly
+      )}&navigate=yes`
     : `https://waze.com/ul?q=${encodeURIComponent(destAddressOnly)}&navigate=yes`;
 
   // Deep Link Oficial Universal Uber (pré-preenche origem e endereço/coordenadas exatas do salão)
   const uberParams = new URLSearchParams({
     action: 'setPickup',
     'dropoff[formatted_address]': destLabel,
-    'dropoff[nickname]': params.salonName || 'Salão',
+    'dropoff[nickname]': cleanSalonName || destAddressOnly || 'Destino',
   });
-  if (typeof params.salonLat === 'number' && typeof params.salonLng === 'number') {
+  if (hasSalonCoords) {
     uberParams.set('dropoff[latitude]', String(params.salonLat));
     uberParams.set('dropoff[longitude]', String(params.salonLng));
   }
-  if (typeof params.originLat === 'number' && typeof params.originLng === 'number') {
+  if (hasOriginCoords) {
     uberParams.set('pickup[latitude]', String(params.originLat));
     uberParams.set('pickup[longitude]', String(params.originLng));
-    if (params.originAddress) {
-      uberParams.set('pickup[formatted_address]', params.originAddress);
+    if (cleanOriginAddress) {
+      uberParams.set('pickup[formatted_address]', cleanOriginAddress);
     }
   } else {
     uberParams.set('pickup', 'my_location');
@@ -1092,15 +1114,15 @@ export function buildTransportDeepLinks(params: {
   const app99Params = new URLSearchParams({
     dropoff_title: destLabel,
   });
-  if (typeof params.salonLat === 'number' && typeof params.salonLng === 'number') {
+  if (hasSalonCoords) {
     app99Params.set('dropoff_latitude', String(params.salonLat));
     app99Params.set('dropoff_longitude', String(params.salonLng));
   }
-  if (typeof params.originLat === 'number' && typeof params.originLng === 'number') {
+  if (hasOriginCoords) {
     app99Params.set('pickup_latitude', String(params.originLat));
     app99Params.set('pickup_longitude', String(params.originLng));
-    if (params.originAddress) {
-      app99Params.set('pickup_title', params.originAddress);
+    if (cleanOriginAddress) {
+      app99Params.set('pickup_title', cleanOriginAddress);
     }
   }
   const app99Url = `https://99app.com/?${app99Params.toString()}`;
@@ -1112,9 +1134,11 @@ export function buildTransportDeepLinks(params: {
 
   return {
     googleMapsUrl,
+    googleMapsAppUrl: googleMapsUrl,
     googleMapsTransitUrl,
     googleMapsEmbedUrl,
     wazeUrl,
+    wazeAppUrl: wazeUrl,
     uberUrl,
     app99Url,
     nativeGeoIntentUrl,

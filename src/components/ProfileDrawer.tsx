@@ -165,6 +165,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     initialTab: 'timeline' | 'map';
   } | null>(null);
   const [isRouteSimulatorOpen, setIsRouteSimulatorOpen] = useState<boolean>(false);
+  const [isGerenciarSubmenuOpen, setIsGerenciarSubmenuOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen && initialSubTab) {
@@ -1356,14 +1357,13 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       </span>
                     </div>
 
-                    {/* 1. Serviços (Renomeado de Catálogo de Serviços) */}
+                    {/* 1. Gerenciar (Serviços, Equipe e Espaço) */}
                     <button
                       type="button"
-                      id="menu-option-servicos"
+                      id="menu-option-gerenciar"
                       onClick={() => {
                         hapticLight();
-                        onClose();
-                        onNavigateTab?.('servicos');
+                        setIsGerenciarSubmenuOpen((prev) => !prev);
                       }}
                       className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
                         isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
@@ -1371,71 +1371,106 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     >
                       <div className="flex items-center gap-3">
                         <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
-                          <Scissors className="w-4 h-4 text-[#2B82C9]" />
+                          <LayoutGrid className="w-4 h-4 text-[#2B82C9]" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold text-[#1E293B] dark:text-white">Serviços</div>
+                          <div className="text-xs font-bold text-[#1E293B] dark:text-white">Gerenciar</div>
                           <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
-                            Valores, durações e procedimentos
+                            Serviços, equipe e espaço
                           </div>
                         </div>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
+                      <ChevronRight
+                        className={`w-4 h-4 text-[#94A3B8] transition-transform duration-150 ${
+                          isGerenciarSubmenuOpen ? 'rotate-90' : ''
+                        }`}
+                      />
                     </button>
 
-                    {/* 1B. Espaço (Estrutura, Localização e Contatos) */}
-                    <button
-                      type="button"
-                      id="menu-option-espaco"
-                      onClick={() => {
-                        hapticLight();
-                        onClose();
-                        onNavigateTab?.('espaco');
-                      }}
-                      className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
-                          <Store className="w-4 h-4 text-[#2B82C9]" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-[#1E293B] dark:text-white">Espaço</div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
-                            Estrutura, localização e contatos
+                    {isGerenciarSubmenuOpen && (
+                      <div className="pl-4 space-y-2">
+                        {/* 1A. Serviços */}
+                        <button
+                          type="button"
+                          id="menu-option-servicos"
+                          onClick={() => {
+                            hapticLight();
+                            onClose();
+                            onNavigateTab?.('servicos');
+                          }}
+                          className={`caixa-card w-full p-3 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                            isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="caixa-icon-halo w-8 h-8 rounded-full shrink-0">
+                              <Scissors className="w-3.5 h-3.5 text-[#2B82C9]" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-[#1E293B] dark:text-white">Serviços</div>
+                              <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
+                                Valores, durações e procedimentos
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
-                    </button>
+                          <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
+                        </button>
 
-                    {/* 2. Equipe */}
-                    <button
-                      type="button"
-                      id="menu-option-equipe"
-                      onClick={() => {
-                        hapticLight();
-                        onClose();
-                        onNavigateTab?.('equipe');
-                      }}
-                      className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
-                          <Users className="w-4 h-4 text-[#2B82C9]" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-[#1E293B] dark:text-white">Equipe</div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
-                            Colaboradores, permissões e comissões
+                        {/* 1B. Equipe */}
+                        <button
+                          type="button"
+                          id="menu-option-equipe"
+                          onClick={() => {
+                            hapticLight();
+                            onClose();
+                            onNavigateTab?.('equipe');
+                          }}
+                          className={`caixa-card w-full p-3 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                            isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="caixa-icon-halo w-8 h-8 rounded-full shrink-0">
+                              <Users className="w-3.5 h-3.5 text-[#2B82C9]" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-[#1E293B] dark:text-white">Equipe</div>
+                              <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
+                                Colaboradores, permissões e comissões
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                          <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
+                        </button>
+
+                        {/* 1C. Espaço */}
+                        <button
+                          type="button"
+                          id="menu-option-espaco"
+                          onClick={() => {
+                            hapticLight();
+                            onClose();
+                            onNavigateTab?.('espaco');
+                          }}
+                          className={`caixa-card w-full p-3 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                            isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="caixa-icon-halo w-8 h-8 rounded-full shrink-0">
+                              <Store className="w-3.5 h-3.5 text-[#2B82C9]" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-[#1E293B] dark:text-white">Espaço</div>
+                              <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
+                                Estrutura, localização e contatos
+                              </div>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
+                        </button>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
-                    </button>
+                    )}
 
                     {/* 3. Preferências */}
                     {isProAdmin && (
@@ -1530,6 +1565,38 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       </span>
                     </div>
 
+                    {/* Meus Dados Pessoais */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        if (onNavigateToUserDashboard) {
+                          onClose();
+                          onNavigateToUserDashboard();
+                        } else {
+                          setActiveSubTab('dados');
+                        }
+                      }}
+                      className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark 
+                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
+                          : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
+                          <User className="w-4 h-4 text-[#2B82C9]" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-[#1E293B] dark:text-white">Meus Dados Pessoais</div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
+                            Nome, e-mail, telefone e endereço
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
+                    </button>
+
                     {/* Minha Agenda */}
                     <button
                       type="button"
@@ -1557,39 +1624,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           <div className="text-xs font-bold text-[#1E293B] dark:text-white">Minha Agenda</div>
                           <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
                             Ver agendamentos e propostas de permuta
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
-                    </button>
-
-                    {/* Trajeto (Simulador GPS / Teste Provisório) */}
-                    <button
-                      type="button"
-                      id="menu-option-trajeto-simulador"
-                      onClick={() => {
-                        hapticLight();
-                        setIsRouteSimulatorOpen(true);
-                      }}
-                      className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark 
-                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
-                          : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
-                          <Navigation className="w-4 h-4 text-[#2B82C9]" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-[#1E293B] dark:text-white flex items-center gap-1.5">
-                            <span>Trajeto</span>
-                            <span className="px-1.5 py-0.2 rounded-[4px] text-[9px] font-black uppercase bg-amber-50 text-amber-700 border border-amber-200">
-                              Teste
-                            </span>
-                          </div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
-                            Inserir partida e destino para testar navegação GPS
                           </div>
                         </div>
                       </div>
@@ -1628,38 +1662,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                     </button>
 
-                    {/* Meus Dados Pessoais */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        hapticLight();
-                        if (onNavigateToUserDashboard) {
-                          onClose();
-                          onNavigateToUserDashboard();
-                        } else {
-                          setActiveSubTab('dados');
-                        }
-                      }}
-                      className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark 
-                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
-                          : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
-                          <User className="w-4 h-4 text-[#2B82C9]" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-[#1E293B] dark:text-white">Meus Dados Pessoais</div>
-                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
-                            Nome, e-mail, telefone e endereço
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
-                    </button>
-
                     {/* Chat no App com o Estabelecimento */}
                     <button
                       type="button"
@@ -1681,6 +1683,39 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           <div className="text-xs font-bold text-[#1E293B] dark:text-white">Chat no App Vagou</div>
                           <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
                             Mensagens diretas com a equipe
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
+                    </button>
+
+                    {/* Trajeto (Simulador GPS / Teste Provisório) */}
+                    <button
+                      type="button"
+                      id="menu-option-trajeto-simulador"
+                      onClick={() => {
+                        hapticLight();
+                        setIsRouteSimulatorOpen(true);
+                      }}
+                      className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
+                        isDark 
+                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
+                          : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
+                          <Navigation className="w-4 h-4 text-[#2B82C9]" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-[#1E293B] dark:text-white flex items-center gap-1.5">
+                            <span>Trajeto</span>
+                            <span className="px-1.5 py-0.2 rounded-[4px] text-[9px] font-black uppercase bg-amber-50 text-amber-700 border border-amber-200">
+                              Teste
+                            </span>
+                          </div>
+                          <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
+                            Inserir partida e destino para testar navegação GPS
                           </div>
                         </div>
                       </div>
