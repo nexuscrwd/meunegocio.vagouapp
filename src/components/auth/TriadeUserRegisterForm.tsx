@@ -26,7 +26,6 @@ import firebaseConfig from '../../../firebase-applet-config.json';
 import { supabase, isSupabaseConfigured, generateUuidV4 } from '../../lib/supabase';
 import { SalonAuthHeader } from './SalonAuthHeader';
 import { OFFICIAL_SECURITY_QUESTIONS } from './TriadeUserRecoveryModal';
-import { useTheme } from '../../context/ThemeContext';
 
 const BRAZIL_UF_LIST = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
@@ -87,6 +86,8 @@ export interface TriadeUserRegisterFormProps {
   origin?: 'portal' | 'establishment';
   salonId?: string;
   salonName?: string;
+  salonSlug?: string;
+  salonSlogan?: string;
   salonLogoUrl?: string;
   salonAccentColor?: string;
 }
@@ -129,9 +130,11 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   showHeader = true,
   variant = 'card',
   salonName,
+  salonSlug,
+  salonSlogan,
   salonLogoUrl,
 }) => {
-  const { isDark } = useTheme();
+  const isDark = true;
   const initialDraft = React.useMemo(() => {
     try {
       const raw = sessionStorage.getItem('vagou_register_wizard_draft');
@@ -828,25 +831,25 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
 
   return (
     <div
-      className={`w-full max-w-md mx-auto ${
+      className={`w-full max-w-md mx-auto text-white ${
         variant === 'card'
-          ? isDark
-            ? 'bg-slate-900 border border-slate-800 rounded-[4px] shadow-2xl overflow-hidden text-white'
-            : 'bg-white border border-slate-200 rounded-[4px] shadow-2xl overflow-hidden text-slate-900'
+          ? 'bg-slate-950/75 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.85)] overflow-hidden'
           : ''
       }`}
     >
-      {/* Cabeçalho Obrigatório com Logotipo/Logomarca do Salão */}
+      {/* Topo White-Label Limpo direto sobre o vidro jateado */}
       {showHeader && (
         <SalonAuthHeader
           salonName={salonName}
+          salonSlug={salonSlug}
+          salonSlogan={salonSlogan}
           salonLogoUrl={salonLogoUrl}
-          subtitle={`CADASTRO • ${currentMeta.label}`}
+          subtitle={`CRIAR CONTA • ${currentMeta.label}`}
           onClose={step === 'welcome' ? onClose : (onSwitchToLogin || onClose)}
         />
       )}
 
-      <div className="p-4">
+      <div className="px-6 pb-6 pt-2">
         {/* Indicador de Fases do Cadastro */}
       {step !== 'welcome' && (
         <div className="mb-4">

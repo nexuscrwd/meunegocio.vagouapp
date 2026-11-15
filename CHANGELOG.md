@@ -11,6 +11,49 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-15] — Sincronia da Tríade BOL-167: Entrada Cinematográfica Nativa em Vidro Jateado + Slideshow Editorial de 2 Níveis e Roteamento Pós-Login (`bol-177`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Feat / UI-UX / Auth / Sync]`
+- **Motivo / Solicitação:** Atender ao Comunicado Técnico Oficial da Tríade `bol-167` substituindo o modal claro antigo (`ACESSAR`) pela **Entrada Cinematográfica Nativa em Vidro Jateado + Slideshow de Fundo** nos subdomínios `*.vagouapp.com`, sincronizada 100% com o `admvapp` e o `vagouapp.com`.
+- **Arquivos Impactados:**
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/components/PartnerAuthView.tsx`
+  - `src/components/auth/SalonAuthHeader.tsx`
+  - `src/components/auth/TriadeUserLoginForm.tsx`
+  - `src/components/auth/TriadeUserAuthCard.tsx`
+  - `src/components/auth/TriadeUserRegisterForm.tsx`
+  - `src/components/auth/TriadeUserRecoveryModal.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/App.tsx`
+  - `src/assets/images/editorial_modern_salon_backdrop_1794765449149.jpg` (novo)
+  - `src/assets/images/editorial_contemporary_barbershop_backdrop_1794765450557.jpg` (novo)
+  - `src/assets/images/editorial_aesthetics_clinic_backdrop_1794765451443.jpg` (novo)
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Atmosfera Escura Cinematográfica Sempre Ativa no Pré-Login (`App.tsx`, `PartnerAuthView.tsx`, `SalonClientAuthModal.tsx`):** Independentemente de `vagou_theme_mode_v3` estar `light`, a tela de Entrada/Login renderiza sempre em `bg-slate-950` com vidro jateado escuro (`bg-slate-950/75 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.85)]`).
+  2. **Slideshow Editorial Inteligente em 2 Níveis (`SalonClientAuthModal.tsx`):**
+     - **Nível 1 (Fotos Reais do Salão):** Busca `id, trade_name, name, logo_url, slogan, cover_image_url` em `public.salons` e até 5 fotos (`type = 'image'`) em `public.salon_media_items`.
+     - **Nível 2 (Fallback Editorial Curado):** 3 imagens locais `16:9` geradas via IA (salão moderno, barbearia contemporânea e clínica de estética) alternando em crossfade suave (`transition-opacity duration-1000`, `5500ms`) com `grayscale contrast-110 opacity-45` e película `bg-gradient-to-b from-slate-950/65 via-slate-950/55 to-slate-950/85`.
+  3. **Topo White-Label Limpo, Campos Translúcidos e Botão Verde Oficial `#20C933` (`SalonAuthHeader.tsx` & `TriadeUserLoginForm.tsx`):**
+     - Logo do salão vazada direto sobre o vidro ou logo escura oficial `/logo.svg` seguida por `trade_name` e `slogan` (`{slug}.vagouapp.com`), zero fundo/caixa branca.
+     - Campos `Usuário, Celular ou E-mail` e `Senha` com superfície `bg-white/[0.07] focus-within:ring-1 focus-within:ring-[#20C933] rounded-xl min-h-[46px]` sem bordas aninhadas.
+     - Botão primário **`Entrar`** (`bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold` + `ArrowRight`), botão **`Conta Google`** OAuth e rodapé **`Esqueci a senha`** / **`Criar conta`**.
+  4. **Roteamento Inteligente Pós-Login (`SalonClientAuthModal.tsx` & `SalonProfileView.tsx`):** Proprietários (`salons.email` / `owner_id`) e Profissionais (`professionals`) abrem direto o **Painel Meu Negócio**; Clientes abrem direto a **Vitrine de Agendamento**.
+
+### [2026-11-15] — Sincronia da Tríade BOL-164: Persistência 1-Round-Trip em `public.salons` (`safeSupabaseWrite`) e Redirecionamento Automático Pós-Criação (`https://{slug}.vagouapp.com`) (`bol-176`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / Sync / Architecture]`
+- **Motivo / Solicitação:** Atender ao Comunicado Técnico Oficial da Tríade `BOL-164` emitido pelo `admvapp` (`adm.vagouapp.com`), garantindo: (1) gravação em 1 único round-trip em `public.salons` sem aliases não-físicos no topo do payload (`safeSupabaseWrite`, `syncSalonDataToSupabase`, `updateSalonSettingsInDb`, `updateSalonSpaceSettingsInDb` e `syncSalonThemeAndBranding`), mantendo propriedades estendidas dentro de `branding` JSONB; (2) redirecionamento imediato do navegador (`window.location.assign(targetUrl)`) ao receber `VAGOU_REDIRECT`, `SALON_MASTER_SUCCESS` ou `VAGOU_REGISTRATION_SUCCESS` via `postMessage` ou `onSuccess`; e (3) atributo `sandbox` completo (`ADM_VAGOU_IFRAME_SANDBOX`) para iframes de cadastro.
+- **Arquivos Impactados:**
+  - `src/services/mnvSupabaseSync.ts`
+  - `src/lib/supabase.ts`
+  - `src/App.tsx`
+  - `src/components/PartnerAuthView.tsx`
+  - `src/components/SalonClientAuthModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Sanitização Preventiva de `public.salons` (`mnvSupabaseSync.ts` & `supabase.ts`):** Removidos aliases não-físicos do topo dos payloads de `public.salons` (preservados integralmente na coluna JSONB `branding` e espelhados em `public.salon_ui_settings`), eliminando o loop de retentativas `PGRST204` em `safeSupabaseWrite`.
+  2. **Redirecionamento Automático Pós-Criação (`App.tsx`, `PartnerAuthView.tsx`, `SalonClientAuthModal.tsx`):** Adicionado listener de `window.addEventListener('message', ...)` e tratamento no callback `onSuccess` para capturar `VAGOU_REDIRECT`, `SALON_MASTER_SUCCESS` e `VAGOU_REGISTRATION_SUCCESS`, persistir `vagou_salon_slug` / `vagou_salon_name` / `vagou_salon_db_id` e executar imediatamente `window.location.assign(targetUrl)` rumo a `https://{slug}.vagouapp.com`.
+  3. **Sandbox de Iframe (`ADM_VAGOU_IFRAME_SANDBOX`):** Padronizada a diretiva `allow-top-navigation allow-top-navigation-by-user-activation allow-popups allow-forms allow-scripts allow-same-origin` em `PartnerAuthView.tsx`.
+
 ### [2026-11-13] — Modal Popup Explicativo ao Alternar entre "Ambiente Modo Cliente" e "Ambiente Modo Salão" (`ProfileModeSwitchModal`) (`bol-175`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Feat / UX]`
 - **Motivo / Solicitação:** Exibir um modal popup sempre que o profissional/gestor alternar de perfil (entre Modo Salão e Modo Cliente), informando de maneira clara e didática em qual ambiente ele está entrando e para que serve cada ambiente.

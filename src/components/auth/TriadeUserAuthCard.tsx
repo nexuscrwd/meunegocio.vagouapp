@@ -17,17 +17,17 @@ export interface TriadeUserAuthCardProps {
   origin?: 'portal' | 'establishment';
   salonId?: string;
   salonName?: string;
+  salonSlug?: string;
+  salonSlogan?: string;
   salonLogoUrl?: string;
   salonAccentColor?: string;
   variant?: 'card' | 'flat';
 }
 
 /**
- * 🏛️ Orquestrador de Modais Independentes de Autenticação da Tríade VagouApp
- * Renderiza separadamente cada modal independente com o cabeçalho do logotipo/logomarca do salão:
- * 1. Modal "ACESSAR" (TriadeUserLoginForm)
- * 2. Modal "CADASTRO" (TriadeUserRegisterForm)
- * 3. Modal "ESQUECI USUÁRIO/SENHA" (TriadeUserRecoveryModal: opções [Usuário] e [Senha])
+ * 🏛️ Orquestrador de Entrada Cinematográfica em Vidro Jateado da Tríade VagouApp (BOL-167)
+ * Alterna suavemente as etapas de Login ("Entrar"), Recuperação ("Esqueci a senha") e
+ * Cadastro ("Criar conta") dentro do mesmo card de vidro jateado escuro, mantendo o slideshow vivo ao fundo.
  */
 export const TriadeUserAuthCard: React.FC<TriadeUserAuthCardProps> = ({
   initialMode = 'login',
@@ -37,6 +37,8 @@ export const TriadeUserAuthCard: React.FC<TriadeUserAuthCardProps> = ({
   origin = 'establishment',
   salonId,
   salonName,
+  salonSlug,
+  salonSlogan,
   salonLogoUrl,
   salonAccentColor = '#20C933',
   variant = 'card',
@@ -65,6 +67,8 @@ export const TriadeUserAuthCard: React.FC<TriadeUserAuthCardProps> = ({
       <TriadeUserRecoveryModal
         variant={variant}
         salonName={salonName}
+        salonSlug={salonSlug}
+        salonSlogan={salonSlogan}
         salonLogoUrl={salonLogoUrl}
         onClose={requireAuth ? () => setMode('login') : onClose}
         onBackToLogin={(recoveredId) => {
@@ -87,6 +91,8 @@ export const TriadeUserAuthCard: React.FC<TriadeUserAuthCardProps> = ({
         origin={origin}
         salonId={salonId}
         salonName={salonName}
+        salonSlug={salonSlug}
+        salonSlogan={salonSlogan}
         salonLogoUrl={salonLogoUrl}
         salonAccentColor={salonAccentColor}
         onSuccess={(data, opts) =>
@@ -107,6 +113,8 @@ export const TriadeUserAuthCard: React.FC<TriadeUserAuthCardProps> = ({
       showHeader={true}
       showSwitchToRegister={true}
       salonName={salonName}
+      salonSlug={salonSlug}
+      salonSlogan={salonSlogan}
       salonLogoUrl={salonLogoUrl}
       initialIdentifier={recoveredIdentifier}
       onOpenRecovery={() => setMode('recovery')}

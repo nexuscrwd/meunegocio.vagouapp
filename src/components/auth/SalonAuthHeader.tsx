@@ -1,92 +1,105 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { useTheme } from '../../context/ThemeContext';
 
 export interface SalonAuthHeaderProps {
   salonName?: string;
+  salonSlug?: string;
+  salonSlogan?: string;
   salonLogoUrl?: string;
-  subtitle: string;
+  subtitle?: string;
   onClose?: () => void;
 }
 
 /**
- * 🏛️ Cabeçalho Obrigatório com Logotipo/Logomarca do Salão para todos os Modais de Autenticação
- * - Altura dobrada (min-h-[116px])
- * - Logotipo centralizado no topo e nome do estabelecimento logo abaixo
- * - Se não houver logotipo, exibe apenas o nome do estabelecimento centralizado (sem ícone genérico)
+ * 🏛️ Topo White-Label Limpo em Vidro Jateado (BOL-167)
+ * - PROIBIDO fundo ou caixa branca atrás da logo (Zero Box dentro de Box)
+ * - Se o salão possuir logo_url, renderiza vazada direto sobre o vidro
+ * - Se não possuir logo_url, renderiza a logo oficial escura do VagouApp (/logo.svg)
+ *   seguida pelo Nome Fantasia (trade_name) e slogan (ou {slug}.vagouapp.com)
  */
 export const SalonAuthHeader: React.FC<SalonAuthHeaderProps> = ({
   salonName,
+  salonSlug,
+  salonSlogan,
   salonLogoUrl,
   subtitle,
   onClose,
 }) => {
-  const { isDark } = useTheme();
   const [logoError, setLogoError] = useState(false);
 
-  const resolvedLogo =
+  const resolvedLogo = (
     salonLogoUrl ||
     (typeof window !== 'undefined'
-      ? (isDark
-          ? localStorage.getItem('vagou_salon_logo_dark') ||
-            localStorage.getItem('vagou_salon_logo_light')
-          : localStorage.getItem('vagou_salon_logo_light') ||
-            localStorage.getItem('vagou_salon_logo_dark')) ||
+      ? localStorage.getItem('vagou_salon_logo_dark') ||
+        localStorage.getItem('vagou_salon_logo_light') ||
         localStorage.getItem('vagou_salon_icon') ||
         ''
-      : '');
+      : '')
+  ).trim();
 
-  const resolvedSalonName =
+  const resolvedSlug = (
+    salonSlug ||
+    (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') || '' : '')
+  ).trim();
+
+  const resolvedSalonName = (
     salonName ||
     (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_name') || '' : '') ||
-    'Meu Estabelecimento';
+    resolvedSlug ||
+    'Meu Estabelecimento'
+  ).trim();
 
-  const hasValidLogo = Boolean(resolvedLogo && !logoError);
+  const resolvedSlogan = (
+    salonSlogan ||
+    (resolvedSlug ? `${resolvedSlug}.vagouapp.com` : 'Agendamento & Gestão em Tempo Real')
+  ).trim();
+
+  const hasValidCustomLogo = Boolean(resolvedLogo && !logoError);
 
   return (
-    <div
-      className={`relative min-h-[116px] px-8 py-5 border-b flex flex-col items-center justify-center text-center gap-2 ${
-        isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
-      }`}
-    >
+    <div className="relative px-6 pt-6 pb-4 flex flex-col items-center justify-center text-center gap-2.5">
       {onClose && (
         <button
           type="button"
           onClick={onClose}
-          className={`absolute top-3 right-3 p-1.5 rounded-[4px] transition cursor-pointer ${
-            isDark
-              ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
-          }`}
-          title="Fechar modal"
-          aria-label="Fechar modal"
+          className="absolute top-3.5 right-3.5 min-h-[36px] min-w-[36px] flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+          title="Fechar"
+          aria-label="Fechar"
         >
           <X className="w-4 h-4" />
         </button>
       )}
 
-      {hasValidLogo && (
+      {hasValidCustomLogo ? (
         <img
           src={resolvedLogo}
           alt={resolvedSalonName}
+          referrerPolicy="no-referrer"
           onError={() => setLogoError(true)}
-          className="h-12 max-w-[180px] w-auto object-contain rounded-[4px] mx-auto"
+          className="h-12 sm:h-14 w-auto max-w-[200px] object-contain mx-auto select-none"
+        />
+      ) : (
+        <img
+          src="/logo.svg"
+          alt="VagouApp"
+          referrerPolicy="no-referrer"
+          className="h-11 sm:h-12 w-auto object-contain mx-auto select-none"
         />
       )}
 
-      <div className="flex flex-col items-center justify-center max-w-full">
-        <h2
-          className={`text-sm sm:text-base font-extrabold tracking-tight text-center break-words ${
-            isDark ? 'text-white' : 'text-slate-900'
-          }`}
-        >
+      <div className="flex flex-col items-center justify-center max-w-full space-y-0.5">
+        <h2 className="text-white font-bold text-lg sm:text-xl tracking-tight text-center break-words leading-snug">
           {resolvedSalonName}
         </h2>
-        <p className="text-[10px] font-bold uppercase tracking-wider text-accent text-center mt-0.5">
-          {subtitle}
+        <p className="text-xs text-slate-400 font-medium text-center">
+          {resolvedSlogan}
         </p>
+        {subtitle && subtitle !== 'ACESSAR' && subtitle !== 'ENTRAR' && (
+          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 text-center pt-1">
+            {subtitle}
+          </p>
+        )}
       </div>
     </div>
   );
 };
-

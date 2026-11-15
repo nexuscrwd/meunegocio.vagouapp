@@ -837,9 +837,6 @@ export async function syncSalonDataToSupabase(salonData: {
       legal_name: resolvedLegalName,
       document_type: isCnpj14 ? 'CNPJ' : '',
       document_number: resolvedDocumentNumber,
-      owner_cpf: resolvedOwnerCpf || undefined,
-      pix_key: resolvedPixKey || undefined,
-      pix_keys: resolvedPixKeys.length > 0 ? resolvedPixKeys : undefined,
       phone_whatsapp: salonData.phoneWhatsapp,
       email: salonData.email,
       address: salonData.address,
@@ -852,9 +849,6 @@ export async function syncSalonDataToSupabase(salonData: {
       operating_model: salonData.operatingModel,
       logo_light_url: salonData.logoLightUrl || null,
       logo_dark_url: salonData.logoDarkUrl || null,
-      favicon_url: resolvedIcon,
-      slogan: salonData.slogan ?? undefined,
-      brand_font: salonData.brandFont || 'Poppins',
       bio: salonData.bio ?? undefined,
       primary_color: salonData.primaryColor || '#334155',
       secondary_color: '#1E293B',
@@ -872,12 +866,12 @@ export async function syncSalonDataToSupabase(salonData: {
         ownerCpf: resolvedOwnerCpf,
         pixKey: resolvedPixKey,
         pixKeys: resolvedPixKeys,
+        homeDeliveryEnabled: salonData.homeDeliverySettings?.enabled ?? false,
+        homeDeliveryArea: salonData.homeDeliverySettings?.areaDescription || null,
+        homeDeliveryTravelFee: salonData.homeDeliverySettings?.travelFee || 0,
         ...(salonData.instagramUrl ? { instagramUrl: salonData.instagramUrl } : {}),
         ...(salonData.bio ? { bio: salonData.bio } : {}),
       },
-      home_delivery_enabled: salonData.homeDeliverySettings?.enabled ?? false,
-      home_delivery_area: salonData.homeDeliverySettings?.areaDescription || null,
-      home_delivery_travel_fee: salonData.homeDeliverySettings?.travelFee || 0,
       is_verified: true,
       is_active: true,
     };
@@ -2990,16 +2984,7 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       payload.logo_url = settings.salonLogo || settings.logoUrl || settings.salonLogoDark || settings.salonLogoLight || null;
     }
 
-    // Colunas sincronizadas pelo Boletim bol-017 (favicon_url, slogan, brand_font)
-    if (settings.salonIcon !== undefined || settings.faviconUrl !== undefined) {
-      payload.favicon_url = settings.salonIcon || settings.faviconUrl || settings.salonLogo || null;
-    }
-    if (settings.slogan !== undefined) {
-      payload.slogan = settings.slogan ?? undefined;
-    }
-    if (settings.brandFont !== undefined) {
-      payload.brand_font = settings.brandFont || 'Poppins';
-    }
+    // Tema Camaleão e Fotos do Espaço mantidos em branding JSONB (BOL-164: sem aliases não-físicos no topo de public.salons)
     if (settings.accentColor || settings.primaryColor) {
       payload.primary_color = settings.accentColor || settings.primaryColor;
     }
@@ -3007,7 +2992,6 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       payload.secondary_color = settings.secondaryColor;
     }
 
-    // Tema Camaleão (theme_preset_id) e Fotos do Espaço (facade_photo_url / interior_photo_url)
     const effectiveHex = (
       settings.accentColor ||
       settings.primaryColor ||
@@ -3021,53 +3005,20 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
         : settings.defaultTheme === 'dark' || Boolean(existingBranding.themeExplicitlyCustomized);
     const resolvedThemePreset =
       settings.themePresetId || resolveThemePresetId(effectiveHex, nextIsCustomized);
-    payload.theme_preset_id = resolvedThemePreset;
 
     const firstSpacePhoto = Array.isArray(settings.spacePhotos) && settings.spacePhotos.length > 0 ? settings.spacePhotos[0]?.url : undefined;
     const secondSpacePhoto = Array.isArray(settings.spacePhotos) && settings.spacePhotos.length > 1 ? settings.spacePhotos[1]?.url : undefined;
-    if (settings.facadePhotoUrl !== undefined || firstSpacePhoto !== undefined) {
-      payload.facade_photo_url = settings.facadePhotoUrl ?? firstSpacePhoto ?? null;
-    }
-    if (settings.interiorPhotoUrl !== undefined || secondSpacePhoto !== undefined) {
-      payload.interior_photo_url = settings.interiorPhotoUrl ?? secondSpacePhoto ?? null;
-    }
+    const resolvedFacadePhotoUrl =
+      settings.facadePhotoUrl !== undefined || firstSpacePhoto !== undefined
+        ? (settings.facadePhotoUrl ?? firstSpacePhoto ?? null)
+        : existingBranding.facadePhotoUrl;
+    const resolvedInteriorPhotoUrl =
+      settings.interiorPhotoUrl !== undefined || secondSpacePhoto !== undefined
+        ? (settings.interiorPhotoUrl ?? secondSpacePhoto ?? null)
+        : existingBranding.interiorPhotoUrl;
 
     if (settings.bio !== undefined) payload.bio = settings.bio;
-
-    // Colunas de Layout, Cores de Seção e Barra de Navegação Inferior (string vazia -> null para limpar overrides)
     if (settings.defaultTheme !== undefined) payload.default_theme = settings.defaultTheme;
-    if (settings.pwaName !== undefined) payload.pwa_name = settings.pwaName;
-    if (settings.showSlogan !== undefined) payload.show_slogan = settings.showSlogan;
-    if (settings.logoTextFallback !== undefined) payload.logo_text_fallback = settings.logoTextFallback || null;
-    if (settings.logoTextColor !== undefined) payload.logo_text_color = settings.logoTextColor || null;
-    if (settings.showHeroSlides !== undefined) payload.show_hero_slides = settings.showHeroSlides;
-    if (settings.welcomeStyle !== undefined) payload.welcome_style = settings.welcomeStyle;
-
-    if (settings.sectionHeaderBgColor !== undefined) payload.section_header_bg_color = settings.sectionHeaderBgColor || null;
-    if (settings.sectionHeaderTextColor !== undefined) payload.section_header_text_color = settings.sectionHeaderTextColor || null;
-    if (settings.sectionHeaderIconColor !== undefined) payload.section_header_icon_color = settings.sectionHeaderIconColor || null;
-    if (settings.sectionHeaderBgStyle !== undefined) payload.section_header_bg_style = settings.sectionHeaderBgStyle;
-    if (settings.sectionHeaderBorder !== undefined) payload.section_header_border = settings.sectionHeaderBorder;
-    if (settings.sectionHeaderBtnBgColor !== undefined) payload.section_header_btn_bg_color = settings.sectionHeaderBtnBgColor || null;
-    if (settings.sectionHeaderBtnActiveBgColor !== undefined) payload.section_header_btn_active_bg_color = settings.sectionHeaderBtnActiveBgColor || null;
-    if (settings.sectionHeaderBtnBorder !== undefined) payload.section_header_btn_border = settings.sectionHeaderBtnBorder;
-    if (settings.sectionHeaderBtnShadow !== undefined) payload.section_header_btn_shadow = settings.sectionHeaderBtnShadow;
-    if (settings.sectionHeaderBtnBlur !== undefined) payload.section_header_btn_blur = settings.sectionHeaderBtnBlur;
-    if (settings.sectionHeaderBtnFont !== undefined) payload.section_header_btn_font = settings.sectionHeaderBtnFont || null;
-
-    if (settings.navStyle !== undefined) payload.nav_style = settings.navStyle;
-    if (settings.navShape !== undefined) payload.nav_shape = settings.navShape;
-    if (settings.navBorder !== undefined) payload.nav_border = settings.navBorder;
-    if (settings.navIconBorder !== undefined) payload.nav_icon_border = settings.navIconBorder;
-    if (settings.navBgStyle !== undefined) payload.nav_bg_style = settings.navBgStyle;
-    if (settings.navBgColor !== undefined) payload.nav_bg_color = settings.navBgColor || null;
-    if (settings.navBtnBgColor !== undefined) payload.nav_btn_bg_color = settings.navBtnBgColor || null;
-    if (settings.navBtnActiveBgColor !== undefined) payload.nav_btn_active_bg_color = settings.navBtnActiveBgColor || null;
-    if (settings.navActiveColor !== undefined) payload.nav_active_color = settings.navActiveColor || null;
-    if (settings.navTextColor !== undefined) payload.nav_text_color = settings.navTextColor || null;
-    if (settings.navBtnShadow !== undefined) payload.nav_btn_shadow = settings.navBtnShadow;
-    if (settings.navBtnBlur !== undefined) payload.nav_btn_blur = settings.navBtnBlur;
-    if (settings.navBtnFont !== undefined) payload.nav_btn_font = settings.navBtnFont || null;
 
     const resolvedIcon =
       settings.salonIcon !== undefined
@@ -3086,8 +3037,8 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       themePresetId: resolvedThemePreset,
       primaryColor: settings.accentColor || settings.primaryColor || existingBranding.primaryColor || existingRow?.primary_color || DEFAULT_NEUTRAL_HEX,
       ...(settings.secondaryColor !== undefined ? { secondaryColor: settings.secondaryColor } : {}),
-      ...(payload.facade_photo_url !== undefined ? { facadePhotoUrl: payload.facade_photo_url } : {}),
-      ...(payload.interior_photo_url !== undefined ? { interiorPhotoUrl: payload.interior_photo_url } : {}),
+      ...(resolvedFacadePhotoUrl !== undefined ? { facadePhotoUrl: resolvedFacadePhotoUrl } : {}),
+      ...(resolvedInteriorPhotoUrl !== undefined ? { interiorPhotoUrl: resolvedInteriorPhotoUrl } : {}),
       pwaName: settings.pwaName || settings.salonName || existingBranding.pwaName || existingRow?.trade_name,
       defaultTheme: resolvedDefaultTheme,
       themeMode: resolvedDefaultTheme,
@@ -3687,25 +3638,11 @@ export async function updateSalonSpaceConfigInDb(
     const payload: Record<string, any> = {
       branding: nextBranding,
       updated_at: new Date().toISOString(),
-      ...(spaceConfig.operatingHours !== undefined ? { operating_hours: spaceConfig.operatingHours } : {}),
-      ...(firstSpacePhoto !== undefined ? { facade_photo_url: firstSpacePhoto } : {}),
-      ...(secondSpacePhoto !== undefined ? { interior_photo_url: secondSpacePhoto } : {}),
     };
 
-    let { error } = await (client.from('salons') as any)
+    const { error } = await (client.from('salons') as any)
       .update(payload)
       .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug });
-
-    if (error && (error.message?.includes('column') || error.code === '42703' || error.code === 'PGRST204')) {
-      const fallbackPayload = { ...payload };
-      delete fallbackPayload.operating_hours;
-      delete fallbackPayload.facade_photo_url;
-      delete fallbackPayload.interior_photo_url;
-      const retry = await (client.from('salons') as any)
-        .update(fallbackPayload)
-        .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug });
-      error = retry.error;
-    }
 
     // Sincronizar fotos do espaço em public.salon_media_items
     const resolvedSalonUuid = currentSalon?.id || (isUuid ? salonIdOrSlug : null);

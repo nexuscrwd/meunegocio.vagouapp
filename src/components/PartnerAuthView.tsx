@@ -1,10 +1,17 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { SalonClientAuthModal } from './SalonClientAuthModal';
-import { useTheme } from '../context/ThemeContext';
+
+/**
+ * Atributo sandbox obrigatório para qualquer <iframe> apontando para adm.vagouapp.com (BOL-164)
+ */
+export const ADM_VAGOU_IFRAME_SANDBOX =
+  'allow-top-navigation allow-top-navigation-by-user-activation allow-popups allow-forms allow-scripts allow-same-origin';
 
 export interface PartnerAuthSuccessData {
   salonName: string;
   slug: string;
+  redirectUrl?: string;
+  salonUrl?: string;
   phoneWhatsapp?: string;
   cep?: string;
   logradouro?: string;
@@ -39,10 +46,50 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
   salonLogo = '',
   primaryColor,
 }) => {
-  const { isDark } = useTheme();
+
+  useEffect(() => {
+    const handlePostMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+
+      const isRedirectEvent =
+        data.type === 'VAGOU_REDIRECT' ||
+        data.action === 'SALON_MASTER_SUCCESS' ||
+        (data.type === 'VAGOU_REGISTRATION_SUCCESS' &&
+          (data.slug || data.redirectUrl || data.salonUrl || data.accountType === 'owner'));
+
+      if (!isRedirectEvent) return;
+
+      const rawSlug = String(data.slug || data.salon?.slug || data.payload?.slug || '').trim();
+      const rawName = String(
+        data.salon?.trade_name || data.salon?.name || data.payload?.tradeName || data.payload?.salonName || ''
+      ).trim();
+      const rawSalonId = String(data.salon?.id || data.payload?.id || '').trim();
+
+      try {
+        if (rawSlug) localStorage.setItem('vagou_salon_slug', rawSlug);
+        if (rawName) localStorage.setItem('vagou_salon_name', rawName);
+        if (rawSalonId) localStorage.setItem('vagou_salon_db_id', rawSalonId);
+      } catch {}
+
+      const targetUrl =
+        data.redirectUrl ||
+        data.salonUrl ||
+        data.url ||
+        (rawSlug ? `https://${rawSlug}.vagouapp.com` : '');
+
+      if (targetUrl) {
+        window.location.assign(targetUrl);
+        return;
+      }
+    };
+
+    window.addEventListener('message', handlePostMessage);
+    return () => window.removeEventListener('message', handlePostMessage);
+  }, []);
 
   return (
-    <div className={`w-full h-full flex items-center justify-center font-['Poppins'] ${isDark ? 'bg-slate-950' : 'bg-slate-50'}`}>
+    <div className="w-full h-full flex items-center justify-center font-['Poppins'] bg-slate-950">
       <SalonClientAuthModal
         isOpen={true}
         requireAuth={!onBack}
@@ -53,7 +100,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
         salonSlug={salonSlug}
         salonLogo={salonLogo}
         primaryColor={primaryColor}
-        themeMode={isDark ? 'dark' : 'light'}
+        themeMode="dark"
         onAuthenticated={(_user, role) => {
           onSuccess(undefined, role);
         }}

@@ -827,11 +827,55 @@ export const App: React.FC = () => {
     });
   };
 
-  // ⏳ Enquanto valida o subdomínio no Supabase, exibe tela limpa no padrão institucional
+  useEffect(() => {
+    const handleSalonRedirectMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+
+      const isSalonCreationRedirect =
+        data.type === 'VAGOU_REDIRECT' ||
+        data.action === 'SALON_MASTER_SUCCESS' ||
+        (data.type === 'VAGOU_REGISTRATION_SUCCESS' &&
+          (data.slug || data.redirectUrl || data.salonUrl || data.accountType === 'owner'));
+
+      if (!isSalonCreationRedirect) return;
+
+      const rawSlug = String(data.slug || data.salon?.slug || data.payload?.slug || '').trim();
+      const rawName = String(
+        data.salon?.trade_name || data.salon?.name || data.payload?.tradeName || data.payload?.salonName || ''
+      ).trim();
+      const rawSalonId = String(data.salon?.id || data.payload?.id || '').trim();
+
+      try {
+        if (rawSlug) localStorage.setItem('vagou_salon_slug', rawSlug);
+        if (rawName) {
+          localStorage.setItem('vagou_salon_name', rawName);
+          setSalonName(rawName);
+        }
+        if (rawSalonId) localStorage.setItem('vagou_salon_db_id', rawSalonId);
+      } catch {}
+
+      const targetUrl =
+        data.redirectUrl ||
+        data.salonUrl ||
+        data.url ||
+        (rawSlug ? `https://${rawSlug}.vagouapp.com` : '');
+
+      if (targetUrl) {
+        window.location.assign(targetUrl);
+        return;
+      }
+    };
+
+    window.addEventListener('message', handleSalonRedirectMessage);
+    return () => window.removeEventListener('message', handleSalonRedirectMessage);
+  }, []);
+
+  // ⏳ Enquanto valida o subdomínio no Supabase, exibe tela limpa na atmosfera escura cinematográfica
   if (isValidatingSubdomain) {
     return (
-      <div className="min-h-screen w-full bg-[var(--neutral-outer-bg)] flex items-center justify-center font-sans">
-        <Loader2 className="w-7 h-7 animate-spin brand-icon" />
+      <div className="min-h-screen w-full bg-slate-950 flex items-center justify-center font-sans">
+        <Loader2 className="w-7 h-7 animate-spin text-[#20C933]" />
       </div>
     );
   }
@@ -841,15 +885,21 @@ export const App: React.FC = () => {
     return <SalonNotFoundScreen subdomain={currentSubdomain} />;
   }
 
+  const isAuthScreenActive = !isAuthenticated || viewMode === 'auth';
+
   return (
     <div className={`min-h-screen h-dvh w-full flex justify-center overflow-hidden font-sans ${
-      isDark ? 'bg-slate-950 text-slate-100' : 'bg-[var(--neutral-outer-bg)] text-[#0F172A]'
+      isAuthScreenActive || isDark ? 'bg-slate-950 text-slate-100' : 'bg-[var(--neutral-outer-bg)] text-[#0F172A]'
     }`}>
       {/* Camada 2: Shell Mobile Principal (max-w-[430px] neutro e independente) */}
       <section 
         aria-label="Aplicativo Vagou"
         className={`w-full max-w-[430px] min-h-screen h-dvh flex flex-col relative overflow-hidden shadow-lg sm:border-x ${
-          isDark ? 'bg-[#151A1E] sm:border-slate-800/80' : 'bg-[var(--brand-canvas-bg)] sm:border-[var(--neutral-shell-border)]'
+          isAuthScreenActive
+            ? 'bg-slate-950 sm:border-white/10'
+            : isDark
+              ? 'bg-[#151A1E] sm:border-slate-800/80'
+              : 'bg-[var(--brand-canvas-bg)] sm:border-[var(--neutral-shell-border)]'
         }`}
       >
         {/* Toast Notificação de Status */}
@@ -895,14 +945,31 @@ export const App: React.FC = () => {
               salonName={initialSalonData?.trade_name || salonName}
               salonSlug={initialSalonData?.slug || currentSubdomain || ''}
               salonLogo={
-                isDark
-                  ? initialSalonData?.logo_dark_url || initialSalonData?.logo_url || ''
-                  : initialSalonData?.logo_light_url || initialSalonData?.logo_url || ''
+                initialSalonData?.logo_dark_url ||
+                initialSalonData?.logo_url ||
+                initialSalonData?.logo_light_url ||
+                ''
               }
               primaryColor={initialSalonData?.primary_color || initialSalonData?.branding?.primaryColor || DEFAULT_NEUTRAL_HEX}
               onSuccess={(partnerData?: PartnerAuthSuccessData) => {
                 if (partnerData?.salonName) {
                   setSalonName(partnerData.salonName);
+                  try {
+                    localStorage.setItem('vagou_salon_name', partnerData.salonName);
+                  } catch {}
+                }
+                if (partnerData?.slug) {
+                  try {
+                    localStorage.setItem('vagou_salon_slug', partnerData.slug);
+                  } catch {}
+                }
+                const targetUrl =
+                  partnerData?.redirectUrl ||
+                  partnerData?.salonUrl ||
+                  (partnerData?.slug ? `https://${partnerData.slug}.vagouapp.com` : '');
+                if (targetUrl) {
+                  window.location.assign(targetUrl);
+                  return;
                 }
                 const currentName = localStorage.getItem('vagou_user_name');
                 if (currentName) {

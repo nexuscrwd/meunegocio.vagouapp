@@ -1,14 +1,20 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   supabase,
+  isSupabaseConfigured,
   checkUserSalonMembership,
   ensureClientRow,
 } from '../lib/supabase';
-import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess } from '../utils/haptics';
 import { TriadeUserAuthCard, UserAuthMode } from './auth/TriadeUserAuthCard';
 import { TriadeUserLoginPayload } from './auth/TriadeUserLoginForm';
 import { TriadeUserData } from './auth/TriadeUserRegisterForm';
+
+const CURATED_EDITORIAL_FALLBACK_SLIDES = [
+  '/src/assets/images/editorial_modern_salon_backdrop_1794765449149.jpg',
+  '/src/assets/images/editorial_contemporary_barbershop_backdrop_1794765450557.jpg',
+  '/src/assets/images/editorial_aesthetics_clinic_backdrop_1794765451443.jpg',
+] as const;
 
 export interface SalonClientAuthUser {
   id?: string;
@@ -22,6 +28,7 @@ interface SalonClientAuthModalProps {
   onClose: () => void;
   salonName: string;
   salonSlug?: string;
+  salonSlogan?: string;
   salonLogo?: string;
   salonLogoLight?: string;
   salonLogoDark?: string;
@@ -37,27 +44,206 @@ function isValidEmailAddress(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+function isValidPhotoUrl(url: unknown): url is string {
+  if (typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed || trimmed === 'null' || trimmed === 'undefined') return false;
+  if (trimmed.includes('unsplash.com') || trimmed.includes('picsum.photos')) return false;
+  return (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('data:image/') ||
+    trimmed.startsWith('/')
+  );
+}
+
 export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
   isOpen,
   onClose,
   salonName,
   salonSlug,
+  salonSlogan,
   salonLogo,
   salonLogoLight,
   salonLogoDark,
   primaryColor,
-  themeMode,
   initialMode = 'login',
   requireAuth = false,
   onAuthenticated,
 }) => {
-  const { theme } = useTheme();
-  const resolvedTheme: 'light' | 'dark' = themeMode || theme || 'dark';
-  const isDark = resolvedTheme === 'dark';
   const pendingAuthCallbackRef = React.useRef<{
     user: SalonClientAuthUser;
     role: 'pro' | 'cliente';
   } | null>(null);
+
+  const currentSlug = (
+    salonSlug ||
+    (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') || '' : '')
+  ).trim();
+
+  // Estado dinâmico para metadados e fotos reais do salão (Nível 1) vs Fallback Editorial (Nível 2)
+  const [fetchedSalonMeta, setFetchedSalonMeta] = useState<{
+    tradeName?: string;
+    logoUrl?: string;
+    slogan?: string;
+  }>({});
+  const [salonSlides, setSalonSlides] = useState<string[]>([]);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+
+  // Busca Nível 1: public.salons + public.salon_media_items (até 5 fotos type = 'image')
+  useEffect(() => {
+    if (!isOpen || !isSupabaseConfigured || !supabase) return;
+    let isMounted = true;
+
+    async function loadSalonBrandingAndPhotos() {
+      try {
+        let salonRow: any = null;
+        const cachedDbId =
+          typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_db_id') || '' : '';
+
+        if (currentSlug) {
+          const { data } = await (supabase.from('salons') as any)
+            .select('*')
+            .eq('slug', currentSlug)
+            .maybeSingle();
+          if (data) salonRow = data;
+        }
+
+        if (!salonRow && cachedDbId) {
+          const { data } = await (supabase.from('salons') as any)
+            .select('*')
+            .eq('id', cachedDbId)
+            .maybeSingle();
+          if (data) salonRow = data;
+        }
+
+        if (!isMounted || !salonRow) return;
+
+        const resolvedTradeName = String(
+          salonRow.trade_name || salonRow.name || ''
+        ).trim();
+        const resolvedLogoUrl = String(
+          salonRow.logo_dark_url ||
+            salonRow.logo_url ||
+            salonRow.logo_light_url ||
+            salonRow.branding?.salonIcon ||
+            salonRow.branding?.faviconUrl ||
+            ''
+        ).trim();
+        const resolvedSlogan = String(
+          salonRow.slogan || salonRow.branding?.slogan || ''
+        ).trim();
+
+        setFetchedSalonMeta({
+          tradeName: resolvedTradeName || undefined,
+          logoUrl: isValidPhotoUrl(resolvedLogoUrl) ? resolvedLogoUrl : undefined,
+          slogan: resolvedSlogan || undefined,
+        });
+
+        const collectedPhotos: string[] = [];
+        const addCandidatePhoto = (candidate: unknown) => {
+          if (
+            isValidPhotoUrl(candidate) &&
+            !collectedPhotos.includes(candidate.trim()) &&
+            collectedPhotos.length < 5
+          ) {
+            collectedPhotos.push(candidate.trim());
+          }
+        };
+
+        addCandidatePhoto(salonRow.cover_image_url);
+        addCandidatePhoto(salonRow.branding?.coverImageUrl);
+        addCandidatePhoto(salonRow.branding?.facadePhotoUrl);
+        addCandidatePhoto(salonRow.branding?.interiorPhotoUrl);
+
+        if (Array.isArray(salonRow.branding?.spacePhotos)) {
+          for (const sp of salonRow.branding.spacePhotos) {
+            addCandidatePhoto(sp?.url || sp);
+          }
+        }
+
+        if (salonRow.id && collectedPhotos.length < 5) {
+          const { data: mediaRows } = await (supabase.from('salon_media_items' as any) as any)
+            .select('url, media_url, file_url, type')
+            .eq('salon_id', salonRow.id)
+            .eq('type', 'image')
+            .limit(5);
+
+          if (Array.isArray(mediaRows)) {
+            for (const m of mediaRows) {
+              addCandidatePhoto(m?.url || m?.media_url || m?.file_url);
+            }
+          }
+        }
+
+        if (isMounted && collectedPhotos.length > 0) {
+          setSalonSlides(collectedPhotos.slice(0, 5));
+          setActiveSlideIndex(0);
+        }
+      } catch {}
+    }
+
+    loadSalonBrandingAndPhotos();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, currentSlug]);
+
+  const effectiveSlides =
+    salonSlides.length > 0
+      ? salonSlides
+      : (CURATED_EDITORIAL_FALLBACK_SLIDES as unknown as string[]);
+
+  // Troca suave de slide a cada 5500ms (transition-opacity duration-1000)
+  useEffect(() => {
+    if (!isOpen || effectiveSlides.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setActiveSlideIndex((prev) => (prev + 1) % effectiveSlides.length);
+    }, 5500);
+    return () => window.clearInterval(timer);
+  }, [isOpen, effectiveSlides.length]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handlePostMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+
+      const isRedirectEvent =
+        data.type === 'VAGOU_REDIRECT' ||
+        data.action === 'SALON_MASTER_SUCCESS' ||
+        (data.type === 'VAGOU_REGISTRATION_SUCCESS' &&
+          (data.slug || data.redirectUrl || data.salonUrl || data.accountType === 'owner'));
+
+      if (!isRedirectEvent) return;
+
+      const rawSlug = String(data.slug || data.salon?.slug || data.payload?.slug || '').trim();
+      const rawName = String(
+        data.salon?.trade_name || data.salon?.name || data.payload?.tradeName || data.payload?.salonName || ''
+      ).trim();
+      const rawSalonId = String(data.salon?.id || data.payload?.id || '').trim();
+
+      try {
+        if (rawSlug) localStorage.setItem('vagou_salon_slug', rawSlug);
+        if (rawName) localStorage.setItem('vagou_salon_name', rawName);
+        if (rawSalonId) localStorage.setItem('vagou_salon_db_id', rawSalonId);
+      } catch {}
+
+      const targetUrl =
+        data.redirectUrl ||
+        data.salonUrl ||
+        data.url ||
+        (rawSlug ? `https://${rawSlug}.vagouapp.com` : '');
+
+      if (targetUrl) {
+        window.location.assign(targetUrl);
+        return;
+      }
+    };
+
+    window.addEventListener('message', handlePostMessage);
+    return () => window.removeEventListener('message', handlePostMessage);
+  }, [isOpen]);
 
   const handleCloseModal = () => {
     hapticLight();
@@ -84,14 +270,13 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
     '#20C933';
 
   const rawLogo = (
-    salonLogo ||
-    (isDark ? salonLogoDark : salonLogoLight) ||
+    fetchedSalonMeta.logoUrl ||
     salonLogoDark ||
+    salonLogo ||
     salonLogoLight ||
     (typeof window !== 'undefined'
-      ? (isDark
-          ? localStorage.getItem('vagou_salon_logo_dark') || localStorage.getItem('vagou_salon_logo_light')
-          : localStorage.getItem('vagou_salon_logo_light') || localStorage.getItem('vagou_salon_logo_dark')) ||
+      ? localStorage.getItem('vagou_salon_logo_dark') ||
+        localStorage.getItem('vagou_salon_logo_light') ||
         localStorage.getItem('vagou_salon_icon') ||
         ''
       : '') ||
@@ -99,13 +284,16 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
   ).trim();
 
   const resolvedSalonName =
+    fetchedSalonMeta.tradeName ||
     salonName ||
     (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_name') || '' : '') ||
+    currentSlug ||
     'Meu Estabelecimento';
 
-  const currentSlug =
-    salonSlug ||
-    (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') || '' : '');
+  const resolvedSalonSlogan =
+    fetchedSalonMeta.slogan ||
+    salonSlogan ||
+    (currentSlug ? `${currentSlug}.vagouapp.com` : undefined);
 
   if (!isOpen) return null;
 
@@ -232,7 +420,18 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
     const finalIsSuperadmin =
       isSuperadmin || (membership.role === 'owner' && existingAccountRow?.sourceTable === 'system_admins');
 
+    const mappedRole: 'pro' | 'cliente' =
+      finalIsSuperadmin || membership.isMember ? 'pro' : 'cliente';
+
+    // Roteamento Inteligente Pós-Login (BOL-167):
+    // Proprietário (salons.email / owner_id) ou Profissional (professionals) -> abre direto o Painel Meu Negócio
+    // Cliente -> abre direto a Vitrine de Agendamento do salão
     try {
+      if (mappedRole === 'pro') {
+        sessionStorage.removeItem('vagou_explicit_public_preview');
+      } else {
+        sessionStorage.setItem('vagou_explicit_public_preview', '1');
+      }
       if (effectiveUserId) localStorage.setItem('vagou_auth_user_id', effectiveUserId);
       if (effectiveClientId) localStorage.setItem('vagou_client_id', effectiveClientId);
       if (resolvedName) localStorage.setItem('vagou_user_name', resolvedName);
@@ -268,9 +467,6 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
       );
     } catch {}
 
-    const mappedRole: 'pro' | 'cliente' =
-      finalIsSuperadmin || membership.isMember ? 'pro' : 'cliente';
-
     window.dispatchEvent(
       new CustomEvent('vagou:auth-updated', {
         detail: {
@@ -279,6 +475,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
           cpf: cleanCpf,
           name: resolvedName,
           accountType: finalIsSuperadmin ? 'owner' : membership.role,
+          mappedRole,
           isSuperadmin: finalIsSuperadmin,
         },
       })
@@ -336,14 +533,41 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
       payload.matchedAccount,
       Boolean(result.keepModalOpen)
     );
+
+    const targetUrl =
+      payload.redirectUrl ||
+      payload.salonUrl ||
+      (payload.accountType === 'owner' && payload.slug ? `https://${payload.slug}.vagouapp.com` : '');
+
+    if (targetUrl) {
+      window.location.assign(targetUrl);
+      return;
+    }
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200 font-['Poppins']"
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950 overflow-y-auto animate-in fade-in duration-300 font-['Poppins']">
+      {/* Camada de Fundo: Slideshow Editorial Inteligente em 2 Níveis (Tela Cheia fixed inset-0) */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden bg-slate-950">
+        {effectiveSlides.map((slideUrl, index) => (
+          <img
+            key={`${slideUrl}-${index}`}
+            src={slideUrl}
+            alt=""
+            aria-hidden="true"
+            referrerPolicy="no-referrer"
+            className={`absolute inset-0 w-full h-full object-cover grayscale contrast-110 transition-opacity duration-1000 select-none ${
+              index === activeSlideIndex ? 'opacity-45' : 'opacity-0'
+            }`}
+          />
+        ))}
+        {/* Película cinematográfica oficial */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/65 via-slate-950/55 to-slate-950/85" />
+      </div>
+
+      {/* Card Central Flutuante em Vidro Jateado (Glassmorphism Dark — Zero Box dentro de Box) */}
       <div
-        className="w-full max-w-md my-auto animate-in zoom-in-95 duration-200"
+        className="relative z-10 w-full max-w-md my-auto animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         <TriadeUserAuthCard
@@ -351,6 +575,8 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
           requireAuth={requireAuth}
           origin="establishment"
           salonName={resolvedSalonName}
+          salonSlug={currentSlug}
+          salonSlogan={resolvedSalonSlogan}
           salonLogoUrl={rawLogo || undefined}
           salonAccentColor={resolvedPrimaryColor}
           onClose={handleCloseModal}

@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowRight,
-  ShieldCheck,
   Loader2,
   Chrome,
 } from 'lucide-react';
@@ -16,7 +15,6 @@ import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import firebaseConfig from '../../../firebase-applet-config.json';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { SalonAuthHeader } from './SalonAuthHeader';
-import { useTheme } from '../../context/ThemeContext';
 
 export interface TriadeUserLoginPayload {
   identifier: string;
@@ -52,6 +50,8 @@ export interface TriadeUserLoginFormProps {
   onPhaseChange?: (phase: UserLoginPhase) => void;
   showSwitchToRegister?: boolean;
   salonName?: string;
+  salonSlug?: string;
+  salonSlogan?: string;
   salonLogoUrl?: string;
   initialIdentifier?: string;
 }
@@ -173,9 +173,10 @@ export async function findMatchingTriadeAccounts(rawInput: string): Promise<any[
 }
 
 /**
- * 🏛️ Formulário Independente "ACESSAR" (Login Unificado VagouApp)
- * - Cabeçalho obrigatório com logotipo/logomarca do estabelecimento e botão "X"
- * - Ao pé do formulário contém a opção "Esqueci Usuário/Senha" e botão para abrir o modal "CADASTRO"
+ * 🏛️ Entrada Cinematográfica em Vidro Jateado — Login Unificado VagouApp (BOL-167)
+ * - Sempre renderiza em atmosfera escura cinematográfica (Glassmorphism Dark)
+ * - Campos translúcidos sem bordas aninhadas
+ * - Botão primário "Entrar" em verde oficial #20C933 com texto e ícone brancos
  */
 export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
   onSuccess,
@@ -184,14 +185,15 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
   onClose,
   showHeader = true,
   variant = 'card',
-  subtitle = 'ACESSAR',
-  submitButtonText = 'ACESSAR',
+  subtitle,
+  submitButtonText = 'Entrar',
   showSwitchToRegister = true,
   salonName,
+  salonSlug,
+  salonSlogan,
   salonLogoUrl,
   initialIdentifier = '',
 }) => {
-  const { isDark } = useTheme();
   const [identifier, setIdentifier] = useState(initialIdentifier);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -243,6 +245,13 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         );
 
         if (matchedByHash) {
+          const resolvedAccountType: 'owner' | 'professional' | 'client' =
+            matchedByHash.isSuperadmin || matchedByHash.sourceTable === 'salon_users'
+              ? 'owner'
+              : matchedByHash.sourceTable === 'professionals'
+                ? 'professional'
+                : 'client';
+
           const resolvedPayload: TriadeUserLoginPayload = {
             identifier: rawId,
             id: String(matchedByHash.user_id || matchedByHash.id),
@@ -254,7 +263,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
             avatarUrl: matchedByHash.avatar_url || '',
             passwordHash: cleanPass,
             matchedAccount: matchedByHash,
-            accountType: matchedByHash.isSuperadmin ? 'owner' : 'client',
+            accountType: resolvedAccountType,
           };
           setFeedback({ type: 'success', message: 'Acesso validado com sucesso!' });
           setIsLoading(false);
@@ -342,6 +351,13 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         } catch {}
       }
 
+      const resolvedAccountType: 'owner' | 'professional' | 'client' =
+        matchedClient?.isSuperadmin || matchedClient?.sourceTable === 'salon_users'
+          ? 'owner'
+          : matchedClient?.sourceTable === 'professionals'
+            ? 'professional'
+            : 'client';
+
       const resolvedPayload: TriadeUserLoginPayload = {
         identifier: rawId,
         id: authUserId,
@@ -353,7 +369,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         avatarUrl: matchedClient?.avatar_url || '',
         passwordHash: cleanPass,
         matchedAccount: matchedClient,
-        accountType: 'client',
+        accountType: resolvedAccountType,
         session: authSession,
       };
 
@@ -369,11 +385,24 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
     }
   };
 
-  // Login Direto com Conta Google (Sem expor URL do Supabase)
+  // Login com Conta Google (OAuth nativo do Supabase ou Popup em ambiente iframe)
   const handleGoogleAccountLogin = async () => {
     setFeedback(null);
     setIsGoogleLoading(true);
     try {
+      const isInIframe = typeof window !== 'undefined' && window.self !== window.top;
+      if (supabase && !isInIframe) {
+        const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin,
+          },
+        });
+        if (!oauthErr) {
+          return;
+        }
+      }
+
       const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
       const auth = getAuth(app);
       const provider = new GoogleAuthProvider();
@@ -389,6 +418,13 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
       const matchedList = email ? await findMatchingTriadeAccounts(email) : [];
       const matchedAccount = matchedList[0] || undefined;
 
+      const resolvedAccountType: 'owner' | 'professional' | 'client' =
+        matchedAccount?.isSuperadmin || matchedAccount?.sourceTable === 'salon_users'
+          ? 'owner'
+          : matchedAccount?.sourceTable === 'professionals'
+            ? 'professional'
+            : 'client';
+
       const resolvedPayload: TriadeUserLoginPayload = {
         identifier: email || gUser.uid,
         id: matchedAccount?.user_id || matchedAccount?.id || gUser.uid,
@@ -400,7 +436,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         cpf: matchedAccount?.cpf || '',
         avatarUrl: matchedAccount?.avatar_url || photoUrl,
         matchedAccount,
-        accountType: matchedAccount?.isSuperadmin ? 'owner' : 'client',
+        accountType: resolvedAccountType,
       };
 
       setFeedback({ type: 'success', message: 'Conectado com Conta Google!' });
@@ -419,38 +455,37 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
   return (
     <div
-      className={`w-full max-w-md mx-auto ${
+      className={`w-full max-w-md mx-auto text-white ${
         variant === 'card'
-          ? isDark
-            ? 'bg-slate-900 border border-slate-800 rounded-[4px] shadow-2xl overflow-hidden text-white'
-            : 'bg-white border border-slate-200 rounded-[4px] shadow-2xl overflow-hidden text-slate-900'
+          ? 'bg-slate-950/75 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.85)] overflow-hidden'
           : ''
       }`}
     >
-      {/* Cabeçalho Obrigatório com Logotipo/Logomarca do Salão */}
+      {/* Topo White-Label Limpo direto sobre o vidro jateado */}
       {showHeader && (
         <SalonAuthHeader
           salonName={salonName}
+          salonSlug={salonSlug}
+          salonSlogan={salonSlogan}
           salonLogoUrl={salonLogoUrl}
           subtitle={subtitle}
           onClose={onClose}
         />
       )}
 
-      <div className="p-4">
-        {/* Feedback Alert */}
+      <div className="px-6 pb-6 pt-2">
         {feedback && (
           <div
-            className={`p-3 rounded-[4px] mb-4 text-xs font-semibold flex items-center gap-2 border ${
+            className={`p-3 rounded-xl mb-4 text-xs font-semibold flex items-center gap-2 ${
               feedback.type === 'success'
-                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
-                : 'bg-rose-500/10 text-rose-500 border-rose-500/30'
+                ? 'bg-emerald-500/15 text-emerald-400'
+                : 'bg-rose-500/15 text-rose-400'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
             ) : (
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
             )}
             <span>{feedback.message}</span>
           </div>
@@ -458,62 +493,41 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label
-              className={`block text-xs font-semibold mb-1.5 ${
-                isDark ? 'text-slate-300' : 'text-slate-700'
-              }`}
-            >
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
               Usuário, Celular ou E-mail
             </label>
-            <div
-              className={`flex items-center border rounded-[4px] px-3 py-2.5 focus-within:border-emerald-500 transition ${
-                isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'
-              }`}
-            >
-              <User className="w-4 h-4 text-accent mr-2 shrink-0" />
+            <div className="flex items-center bg-white/[0.07] hover:bg-white/[0.10] focus-within:bg-white/[0.12] focus-within:ring-1 focus-within:ring-[#20C933] rounded-xl px-3.5 py-3 min-h-[46px] text-white transition">
+              <User className="w-4 h-4 text-emerald-400 mr-2.5 shrink-0" />
               <input
                 type="text"
                 required
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 placeholder="@usuario, (11) 99999-9999 ou e-mail"
-                className={`bg-transparent text-sm outline-none w-full ${
-                  isDark ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400'
-                }`}
+                className="bg-transparent text-sm text-white placeholder:text-slate-500 outline-none w-full"
               />
             </div>
           </div>
 
           <div>
-            <label
-              className={`block text-xs font-semibold mb-1.5 ${
-                isDark ? 'text-slate-300' : 'text-slate-700'
-              }`}
-            >
-              Senha de Acesso
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              Senha
             </label>
-            <div
-              className={`flex items-center border rounded-[4px] px-3 py-2.5 focus-within:border-emerald-500 transition ${
-                isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'
-              }`}
-            >
-              <Lock className="w-4 h-4 text-accent mr-2 shrink-0" />
+            <div className="flex items-center bg-white/[0.07] hover:bg-white/[0.10] focus-within:bg-white/[0.12] focus-within:ring-1 focus-within:ring-[#20C933] rounded-xl px-3.5 py-3 min-h-[46px] text-white transition">
+              <Lock className="w-4 h-4 text-emerald-400 mr-2.5 shrink-0" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Sua senha secreta"
-                className={`bg-transparent text-sm outline-none w-full ${
-                  isDark ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400'
-                }`}
+                placeholder="Digite sua senha"
+                className="bg-transparent text-sm text-white placeholder:text-slate-500 outline-none w-full"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className={`transition ml-2 cursor-pointer ${
-                  isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
-                }`}
+                className="text-slate-400 hover:text-white transition ml-2 cursor-pointer"
+                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
               >
                 {showPassword ? (
                   <EyeOff className="w-4 h-4" />
@@ -527,59 +541,50 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
           <button
             type="submit"
             disabled={isLoading || isGoogleLoading}
-            className="w-full py-3 px-4 rounded-[4px] bg-accent hover:opacity-95 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg active:scale-95 transition cursor-pointer whitespace-nowrap"
+            className="w-full min-h-[46px] py-3 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg active:scale-[0.99] transition cursor-pointer whitespace-nowrap"
           >
             {isLoading ? (
               <Loader2 className="w-4 h-4 animate-spin text-white" />
             ) : (
               <>
-                <ShieldCheck className="w-4 h-4 text-white" />
-                <span className="text-white uppercase tracking-wide">{submitButtonText}</span>
+                <span className="text-white font-bold">
+                  {submitButtonText === 'ACESSAR' ? 'Entrar' : submitButtonText}
+                </span>
                 <ArrowRight className="w-4 h-4 text-white" />
               </>
             )}
           </button>
 
-          {/* Divisor + Botão Conta Google */}
+          {/* Separador sutil "ou" */}
           <div className="flex items-center gap-3 py-0.5">
-            <div className={`flex-1 h-px ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
-            <span className="text-[10px] uppercase font-bold text-slate-500">ou</span>
-            <div className={`flex-1 h-px ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
+            <div className="flex-1 h-px bg-white/10" />
+            <span className="text-[11px] font-semibold text-slate-400">ou</span>
+            <div className="flex-1 h-px bg-white/10" />
           </div>
 
           <button
             type="button"
             onClick={handleGoogleAccountLogin}
             disabled={isLoading || isGoogleLoading}
-            className={`w-full py-2.5 px-4 rounded-[4px] border font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer whitespace-nowrap ${
-              isDark
-                ? 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-white'
-                : 'bg-slate-50 hover:bg-slate-100 border-slate-300 text-slate-900'
-            }`}
+            className="w-full min-h-[46px] py-3 px-4 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] text-white font-bold text-xs flex items-center justify-center gap-2 transition active:scale-[0.99] cursor-pointer whitespace-nowrap"
           >
             {isGoogleLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin text-accent" />
+              <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
             ) : (
-              <Chrome className="w-4 h-4 text-accent" />
+              <Chrome className="w-4 h-4 text-emerald-400" />
             )}
-            <span>Conta Google</span>
+            <span className="text-white font-bold">Conta Google</span>
           </button>
 
-          {/* Rodapé Discreto do Formulário ACESSAR: "Esqueci Usuário/Senha" + "CADASTRO" */}
-          <div
-            className={`pt-3 border-t flex items-center justify-between gap-4 px-1 ${
-              isDark ? 'border-slate-800/60' : 'border-slate-200'
-            }`}
-          >
+          {/* Rodapé interno separado por border-t border-white/10 */}
+          <div className="pt-4 mt-2 border-t border-white/10 flex items-center justify-between gap-4">
             {onOpenRecovery && (
               <button
                 type="button"
                 onClick={onOpenRecovery}
-                className={`bg-transparent border-0 p-0 font-medium text-xs tracking-wide underline-offset-4 hover:underline transition cursor-pointer whitespace-nowrap ${
-                  isDark ? 'text-slate-400 hover:text-emerald-400' : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className="bg-transparent border-0 p-0 text-slate-400 hover:text-white font-medium text-xs transition cursor-pointer whitespace-nowrap"
               >
-                Esqueci Usuário/Senha
+                Esqueci a senha
               </button>
             )}
 
@@ -587,11 +592,9 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
               <button
                 type="button"
                 onClick={onSwitchToRegister}
-                className={`bg-transparent border-0 p-0 font-bold text-xs tracking-wide underline-offset-4 hover:underline transition cursor-pointer whitespace-nowrap ml-auto ${
-                  isDark ? 'text-slate-400 hover:text-emerald-400' : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className="bg-transparent border-0 p-0 text-emerald-400 hover:text-emerald-300 font-bold text-xs transition cursor-pointer whitespace-nowrap ml-auto"
               >
-                CADASTRO
+                Criar conta
               </button>
             )}
           </div>

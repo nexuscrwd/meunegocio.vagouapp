@@ -18,7 +18,6 @@ import {
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { SalonAuthHeader } from './SalonAuthHeader';
 import { findMatchingTriadeAccounts } from './TriadeUserLoginForm';
-import { useTheme } from '../../context/ThemeContext';
 
 export interface SecurityQuestionItem {
   id: string;
@@ -59,6 +58,8 @@ function normalizeAnswer(value: string): string {
 
 export interface TriadeUserRecoveryModalProps {
   salonName?: string;
+  salonSlug?: string;
+  salonSlogan?: string;
   salonLogoUrl?: string;
   onClose?: () => void;
   onBackToLogin: (recoveredIdentifier?: string) => void;
@@ -68,20 +69,18 @@ export interface TriadeUserRecoveryModalProps {
 export type RecoveryModalView = 'choose' | 'user' | 'password';
 
 /**
- * 🏛️ Modal Independente de Recuperação ("Esqueci Usuário/Senha")
- * - Possui cabeçalho obrigatório com logotipo/logomarca do salão e botão "X"
- * - Oferece 2 botões principais: [Usuário] e [Senha]
- * - Quando selecionado [Usuário], sorteia pergunta secreta aleatória do sistema e consulta a resposta
- * - Quando selecionado [Senha], permite redefinir a senha com validação e confirmação
+ * 🏛️ Modal Independente de Recuperação ("Esqueci a senha / Usuário") em Vidro Jateado (BOL-167)
  */
 export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = ({
   salonName,
+  salonSlug,
+  salonSlogan,
   salonLogoUrl,
   onClose,
   onBackToLogin,
   variant = 'card',
 }) => {
-  const { isDark } = useTheme();
+  const isDark = true;
   const [view, setView] = useState<RecoveryModalView>('choose');
   const [questions] = useState<SecurityQuestionItem[]>(OFFICIAL_SECURITY_QUESTIONS);
   const [selectedQuestion, setSelectedQuestion] = useState<SecurityQuestionItem>(() => {
@@ -388,42 +387,42 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
   };
 
   const subtitleByView: Record<RecoveryModalView, string> = {
-    choose: 'ESQUECI USUÁRIO / SENHA',
+    choose: 'RECUPERAÇÃO DE ACESSO',
     user: 'RECUPERAR USUÁRIO',
     password: 'RECUPERAR SENHA',
   };
 
   return (
     <div
-      className={`w-full max-w-md mx-auto ${
+      className={`w-full max-w-md mx-auto text-white ${
         variant === 'card'
-          ? isDark
-            ? 'bg-slate-900 border border-slate-800 rounded-[4px] shadow-2xl overflow-hidden text-white'
-            : 'bg-white border border-slate-200 rounded-[4px] shadow-2xl overflow-hidden text-slate-900'
+          ? 'bg-slate-950/75 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.85)] overflow-hidden'
           : ''
       }`}
     >
-      {/* Cabeçalho Obrigatório com Logotipo/Logomarca do Salão */}
+      {/* Topo White-Label Limpo direto sobre o vidro */}
       <SalonAuthHeader
         salonName={salonName}
+        salonSlug={salonSlug}
+        salonSlogan={salonSlogan}
         salonLogoUrl={salonLogoUrl}
         subtitle={subtitleByView[view]}
         onClose={onClose}
       />
 
-      <div className="p-4 space-y-4">
+      <div className="px-6 pb-6 pt-2 space-y-4">
         {feedback && (
           <div
-            className={`p-3 rounded-[4px] text-xs font-semibold flex items-center gap-2 border ${
+            className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
               feedback.type === 'success'
-                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
-                : 'bg-rose-500/10 text-rose-500 border-rose-500/30'
+                ? 'bg-emerald-500/15 text-emerald-400'
+                : 'bg-rose-500/15 text-rose-400'
             }`}
           >
             {feedback.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
             ) : (
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
             )}
             <span>{feedback.message}</span>
           </div>
@@ -432,11 +431,7 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
         {/* TELA 1: ESCOLHA ENTRE [USUÁRIO] E [SENHA] */}
         {view === 'choose' && (
           <div className="space-y-4">
-            <p
-              className={`text-xs text-center font-medium ${
-                isDark ? 'text-slate-300' : 'text-slate-600'
-              }`}
-            >
+            <p className="text-xs text-center font-medium text-slate-300">
               Selecione qual informação deseja recuperar:
             </p>
 
@@ -448,7 +443,7 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
                   pickRandomQuestion();
                   setView('user');
                 }}
-                className="py-4 px-3 rounded-[4px] bg-accent hover:opacity-95 text-white font-bold text-xs flex flex-col items-center justify-center gap-2 shadow-lg transition active:scale-95 cursor-pointer"
+                className="py-4 px-3 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs flex flex-col items-center justify-center gap-2 shadow-lg transition active:scale-95 cursor-pointer"
               >
                 <User className="w-5 h-5 text-white" />
                 <span className="text-white uppercase tracking-wide">Usuário</span>
@@ -461,29 +456,21 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
                   setPasswordStep('identify');
                   setView('password');
                 }}
-                className="py-4 px-3 rounded-[4px] bg-accent hover:opacity-95 text-white font-bold text-xs flex flex-col items-center justify-center gap-2 shadow-lg transition active:scale-95 cursor-pointer"
+                className="py-4 px-3 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs flex flex-col items-center justify-center gap-2 shadow-lg transition active:scale-95 cursor-pointer"
               >
                 <KeyRound className="w-5 h-5 text-white" />
                 <span className="text-white uppercase tracking-wide">Senha</span>
               </button>
             </div>
 
-            <div
-              className={`sticky bottom-0 z-20 pt-2 ${
-                isDark ? 'bg-slate-900' : 'bg-white'
-              }`}
-            >
+            <div className="sticky bottom-0 z-20 pt-2">
               <button
                 type="button"
                 onClick={() => onBackToLogin()}
-                className={`w-full py-2.5 px-4 rounded-[4px] border font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
-                  isDark
-                    ? 'bg-slate-950 hover:bg-slate-800 border-slate-800 text-slate-200'
-                    : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
-                }`}
+                className="w-full min-h-[46px] py-2.5 px-4 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
               >
-                <ArrowLeft className="w-4 h-4 text-accent" />
-                <span>Voltar para ACESSAR</span>
+                <ArrowLeft className="w-4 h-4 text-emerald-400" />
+                <span className="text-white">Voltar para Entrar</span>
               </button>
             </div>
           </div>

@@ -227,28 +227,14 @@ export async function syncSalonThemeAndBranding(
     ...(themeData.interiorPhotoUrl !== undefined ? { interiorPhotoUrl: themeData.interiorPhotoUrl } : {}),
   };
 
-  const fullPayload: Record<string, any> = {
-    theme_preset_id: themeData.themePresetId,
+  const safePayload: Record<string, any> = {
     ...(themeData.primaryColor ? { primary_color: themeData.primaryColor } : {}),
     ...(themeData.secondaryColor ? { secondary_color: themeData.secondaryColor } : {}),
-    ...(themeData.facadePhotoUrl !== undefined ? { facade_photo_url: themeData.facadePhotoUrl } : {}),
-    ...(themeData.interiorPhotoUrl !== undefined ? { interior_photo_url: themeData.interiorPhotoUrl } : {}),
     branding: updatedBranding,
     updated_at: new Date().toISOString(),
   };
 
-  let res = await (client.from('salons') as any).update(fullPayload).match(matchFilter);
-
-  if (res.error && (res.error.code === 'PGRST204' || res.error.code === '42703' || res.error.message?.includes('column'))) {
-    const safePayload: Record<string, any> = {
-      ...(themeData.primaryColor ? { primary_color: themeData.primaryColor } : {}),
-      ...(themeData.secondaryColor ? { secondary_color: themeData.secondaryColor } : {}),
-      branding: updatedBranding,
-      updated_at: new Date().toISOString(),
-    };
-    res = await (client.from('salons') as any).update(safePayload).match(matchFilter);
-  }
-
+  const res = await (client.from('salons') as any).update(safePayload).match(matchFilter);
   return res;
 }
 
@@ -670,6 +656,51 @@ export async function fetchSalonUtilitiesFromDatabase(salonId: string): Promise<
  * Intercepta automaticamente falhas PGRST204 / 42703 do PostgREST (caso alguma coluna
  * ainda não exista no cache de schema), remove apenas a coluna ausente e reexecuta a gravação.
  */
+const SALONS_NON_PHYSICAL_TOP_LEVEL_ALIASES = [
+  'pwa_name',
+  'show_slogan',
+  'logo_text_fallback',
+  'logo_text_color',
+  'show_hero_slides',
+  'welcome_style',
+  'section_header_bg_color',
+  'section_header_text_color',
+  'section_header_icon_color',
+  'section_header_bg_style',
+  'section_header_border',
+  'section_header_btn_bg_color',
+  'section_header_btn_active_bg_color',
+  'section_header_btn_border',
+  'section_header_btn_shadow',
+  'section_header_btn_blur',
+  'section_header_btn_font',
+  'nav_style',
+  'nav_shape',
+  'nav_border',
+  'nav_icon_border',
+  'nav_bg_style',
+  'nav_bg_color',
+  'nav_btn_bg_color',
+  'nav_btn_active_bg_color',
+  'nav_active_color',
+  'nav_text_color',
+  'nav_btn_shadow',
+  'nav_btn_blur',
+  'nav_btn_font',
+  'favicon_url',
+  'slogan',
+  'brand_font',
+  'owner_cpf',
+  'pix_key',
+  'pix_keys',
+  'theme_preset_id',
+  'facade_photo_url',
+  'interior_photo_url',
+  'home_delivery_enabled',
+  'home_delivery_area',
+  'home_delivery_travel_fee',
+] as const;
+
 export async function safeSupabaseWrite(
   tableName: string,
   operation: 'insert' | 'update' | 'upsert',
@@ -692,7 +723,28 @@ export async function safeSupabaseWrite(
   const workingPayload: Record<string, any> = { ...payload };
   const strippedColumns: string[] = [];
 
-  for (let attempt = 0; attempt < 10; attempt++) {
+  if (tableName === 'salons') {
+    const existingBranding =
+      workingPayload.branding && typeof workingPayload.branding === 'object'
+        ? { ...workingPayload.branding }
+        : {};
+    let touchedBranding = false;
+    for (const aliasKey of SALONS_NON_PHYSICAL_TOP_LEVEL_ALIASES) {
+      if (aliasKey in workingPayload) {
+        if (workingPayload[aliasKey] !== undefined && !(aliasKey in existingBranding)) {
+          existingBranding[aliasKey] = workingPayload[aliasKey];
+          touchedBranding = true;
+        }
+        delete workingPayload[aliasKey];
+        strippedColumns.push(aliasKey);
+      }
+    }
+    if (touchedBranding || workingPayload.branding) {
+      workingPayload.branding = existingBranding;
+    }
+  }
+
+  for (let attempt = 0; attempt < 20; attempt++) {
     try {
       let query: any = (client.from(tableName as any) as any);
       if (operation === 'insert') {

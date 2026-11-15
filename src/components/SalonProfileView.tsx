@@ -402,7 +402,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     initialSalonData,
   });
 
-  const [isPublicPreviewMode, setIsPublicPreviewMode] = useState<boolean>(true);
+  const [isPublicPreviewMode, setIsPublicPreviewMode] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('vagou_explicit_public_preview') === '1';
+    } catch {
+      return false;
+    }
+  });
   const [modeSwitchModalState, setModeSwitchModalState] = useState<{
     isOpen: boolean;
     targetMode: TargetEnvironmentMode | null;
@@ -423,6 +429,21 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const isGerMode = isSalonLoggedIn && !isPublicPreviewMode;
   const isUserProRole = isSalonLoggedIn;
   const isActiveProAdmin = isOwnerOrManager;
+
+  // Roteamento Inteligente Pós-Login (BOL-167):
+  // Se o usuário autenticado for Proprietário ou Profissional daquele salão e não tiver ativado manualmente a visão de cliente, abre direto o Painel Meu Negócio
+  useEffect(() => {
+    if (isSalonLoggedIn) {
+      try {
+        const explicitPreview = sessionStorage.getItem('vagou_explicit_public_preview') === '1';
+        if (!explicitPreview) {
+          setIsPublicPreviewMode(false);
+        }
+      } catch {
+        setIsPublicPreviewMode(false);
+      }
+    }
+  }, [isSalonLoggedIn]);
 
   // Verificação estrita de sessão ativa do usuário/cliente (sem considerar nomes soltos sem sessão)
   const checkHasActiveSession = useCallback((): boolean => {
@@ -461,8 +482,14 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const [isUserLoggedInState, setIsUserLoggedInState] = useState<boolean>(() => checkHasActiveSession());
 
   useEffect(() => {
-    const checkLoginState = () => {
+    const checkLoginState = (e?: Event) => {
       setIsUserLoggedInState(checkHasActiveSession());
+      const customEvt = e as CustomEvent<{ mappedRole?: 'pro' | 'cliente'; accountType?: string }> | undefined;
+      if (customEvt?.detail?.mappedRole === 'pro') {
+        setIsPublicPreviewMode(false);
+      } else if (customEvt?.detail?.mappedRole === 'cliente') {
+        setIsPublicPreviewMode(true);
+      }
     };
 
     checkLoginState();
@@ -3871,12 +3898,24 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           primaryColor={adminSettings.accentColor || '#20C933'}
           secondaryColor={adminSettings.secondaryColor || ''}
           themeMode={isDark ? 'dark' : 'light'}
-          onAuthenticated={(user, _role) => {
+          onAuthenticated={(user, role) => {
             setIsUserLoggedInState(true);
             if (user?.name) {
               setCurrentUserName(user.name);
             }
             setIsClientAuthModalOpen(false);
+            if (role === 'pro') {
+              try {
+                sessionStorage.removeItem('vagou_explicit_public_preview');
+              } catch {}
+              setIsPublicPreviewMode(false);
+              setActiveTab('home');
+              return;
+            }
+            try {
+              sessionStorage.setItem('vagou_explicit_public_preview', '1');
+            } catch {}
+            setIsPublicPreviewMode(true);
             if (pendingBookingAuthRef.current || bookingService || resumeDraftTarget) {
               pendingBookingAuthRef.current = false;
               if (bookingService) {
@@ -3915,9 +3954,15 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           const nextTab = modeSwitchModalState.nextTab || 'home';
           setModeSwitchModalState({ isOpen: false, targetMode: null });
           if (target === 'client_mode') {
+            try {
+              sessionStorage.setItem('vagou_explicit_public_preview', '1');
+            } catch {}
             setIsPublicPreviewMode(true);
             setActiveTab('home');
           } else if (target === 'salon_mode') {
+            try {
+              sessionStorage.removeItem('vagou_explicit_public_preview');
+            } catch {}
             setIsPublicPreviewMode(false);
             setActiveTab(nextTab);
           }
