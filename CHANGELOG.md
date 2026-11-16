@@ -11,6 +11,16 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-16] — Ajuste de Caminho dos Backdrops Editoriais para o Diretório Public (`bol-179`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / Build / Assets]`
+- **Motivo / Solicitação:** As imagens de fundo do slideshow editorial (geradas via IA) estavam apontando para `/src/assets/images/...`, o que impedia o carregamento estático em runtime de produção e pré-visualização.
+- **Arquivos Impactados:**
+  - `src/components/SalonClientAuthModal.tsx`
+  - `/public/assets/images/...` (gerenciados)
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Movimentação dos Assets para o diretório `/public/assets/images/`:** As imagens de backdrop editorial (salão moderno, barbearia contemporânea e clínica de estética) foram movidas para `/public/assets/images/`, tornando-as acessíveis via URLs estáticas otimizadas (`/assets/images/...`) em qualquer subdomínio ou ambiente de produção.
+
 ### [2026-11-16] — Garantia de Rotação Multi-Slide Editorial & Filtragem Rigorosa de Logos na Tela de Entrada (`bol-178`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Fix / UI / UX]`
 - **Motivo / Solicitação:** Corrigir o comportamento em recém-criados clientes/salões onde a tela de entrada exibia apenas 1 slide estático ou ficava sem rotação de fundo.
