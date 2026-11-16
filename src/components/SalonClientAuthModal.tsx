@@ -9,12 +9,7 @@ import { hapticLight, hapticSuccess } from '../utils/haptics';
 import { TriadeUserAuthCard, UserAuthMode } from './auth/TriadeUserAuthCard';
 import { TriadeUserLoginPayload } from './auth/TriadeUserLoginForm';
 import { TriadeUserData } from './auth/TriadeUserRegisterForm';
-
-const CURATED_EDITORIAL_FALLBACK_SLIDES = [
-  '/assets/images/editorial_modern_salon_backdrop_1794765449149.jpg',
-  '/assets/images/editorial_contemporary_barbershop_backdrop_1794765450557.jpg',
-  '/assets/images/editorial_aesthetics_clinic_backdrop_1794765451443.jpg',
-] as const;
+import { CURATED_EDITORIAL_FALLBACK_SLIDES } from '../assets/editorialAuthSlides';
 
 export interface SalonClientAuthUser {
   id?: string;
@@ -88,6 +83,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
     slogan?: string;
   }>({});
   const [salonSlides, setSalonSlides] = useState<string[]>([]);
+  const [failedSlides, setFailedSlides] = useState<Record<string, boolean>>({});
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
 
   // Busca Nível 1: public.salons + public.salon_media_items (até 5 fotos type = 'image')
@@ -200,14 +196,20 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
   }, [isOpen, currentSlug]);
 
   const effectiveSlides = React.useMemo(() => {
-    const list: string[] = [...salonSlides];
+    const list: string[] = salonSlides.filter((url) => !failedSlides[url]);
     for (const fallback of CURATED_EDITORIAL_FALLBACK_SLIDES) {
-      if (!list.includes(fallback) && list.length < 5) {
+      if (!failedSlides[fallback] && !list.includes(fallback) && list.length < 5) {
         list.push(fallback);
       }
     }
-    return list.length > 0 ? list : (CURATED_EDITORIAL_FALLBACK_SLIDES as unknown as string[]);
-  }, [salonSlides]);
+    return list.length > 0 ? list : [...CURATED_EDITORIAL_FALLBACK_SLIDES];
+  }, [salonSlides, failedSlides]);
+
+  useEffect(() => {
+    if (activeSlideIndex >= effectiveSlides.length) {
+      setActiveSlideIndex(0);
+    }
+  }, [activeSlideIndex, effectiveSlides.length]);
 
   // Troca suave de slide a cada 5500ms (transition-opacity duration-1000)
   useEffect(() => {
@@ -561,16 +563,27 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950 overflow-y-auto animate-in fade-in duration-300 font-['Poppins']">
+    <div
+      className="vagou-cinematic-auth vagou-dark-media dark fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950 overflow-y-auto animate-in fade-in duration-300 font-['Poppins']"
+      style={{ backgroundColor: '#020617' }}
+    >
       {/* Camada de Fundo: Slideshow Editorial Inteligente em 2 Níveis (Tela Cheia fixed inset-0) */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden bg-slate-950">
+      <div
+        className="vagou-dark-media fixed inset-0 pointer-events-none overflow-hidden bg-slate-950"
+        style={{ backgroundColor: '#020617' }}
+      >
         {effectiveSlides.map((slideUrl, index) => (
           <img
-            key={`${slideUrl}-${index}`}
+            key={`${slideUrl.slice(0, 48)}-${index}`}
             src={slideUrl}
             alt=""
             aria-hidden="true"
             referrerPolicy="no-referrer"
+            onError={() => {
+              setFailedSlides((prev) =>
+                prev[slideUrl] ? prev : { ...prev, [slideUrl]: true }
+              );
+            }}
             className={`absolute inset-0 w-full h-full object-cover grayscale contrast-110 transition-opacity duration-1000 select-none ${
               index === activeSlideIndex ? 'opacity-45' : 'opacity-0'
             }`}

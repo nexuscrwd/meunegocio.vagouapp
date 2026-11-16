@@ -11,6 +11,21 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-16] — Blindagem Definitiva do Slideshow Editorial no Bundle TS, Isolamento Dark contra `html:not(.dark)` e Correção de Autofill nos Subdomínios Publicados (`bol-180`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / Build / CSS / Auth]`
+- **Motivo / Solicitação:** Após o commit para produção (`bone.vagouapp.com`), o slideshow não aparecia (exibindo ícone de imagem quebrada no canto superior esquerdo), o fundo ficava acinzentado claro devido às regras globais de `html:not(.dark)` em `src/index.css`, e o preenchimento automático do Chrome pintava uma faixa branca sólida nos inputs escuros.
+- **Arquivos Impactados:**
+  - `src/assets/editorialAuthSlides.ts` (novo)
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/index.css`
+  - `public/assets/images/*.jpg` (otimizados em `1280x720`)
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Incorporação Direta dos 3 Slides Editoriais no Bundle TypeScript (`src/assets/editorialAuthSlides.ts`):** Como caminhos `/src/assets/...` não existem no `dist/` de produção do Vite e arquivos binários podem não ser sincronizados em commits somente-texto, as 3 fotografias editoriais (`1280x720`) foram otimizadas e embutidas como `data:image/jpeg;base64,...` diretamente em `src/assets/editorialAuthSlides.ts`. Isso garante carregamento instantâneo (`0ms`), zero erro `404` e presença 100% garantida em qualquer deploy/commit do GitHub.
+  2. **Tratamento Resiliente de `onError` nas Imagens do Slideshow (`SalonClientAuthModal.tsx`):** Adicionado estado `failedSlides` e callback `onError` nas tags `<img />` do slideshow para descartar imediatamente qualquer URL quebrada vinda do banco e jamais exibir o ícone de imagem quebrada no topo esquerdo da tela.
+  3. **Isolamento Escuro `.vagou-cinematic-auth` contra `html:not(.dark)` (`src/index.css`):** Em subdomínios recém-criados onde `html:not(.dark)` é o padrão, a regra global `html:not(.dark) .bg-slate-950` sobrescrevia o fundo do login para `#F8FAFC` (cinza claro) e escurecia os rótulos `.text-slate-300`. O escopo `.vagou-cinematic-auth` agora blinda o fundo `#020617`, o vidro jateado `rgba(2, 6, 23, 0.75)`, os arredondamentos `rounded-2xl` (`16px`) / `rounded-xl` (`12px`) e o botão verde oficial `#20C933`.
+  4. **Eliminação do Retângulo Branco de Autofill do Chrome (`src/index.css`):** Adicionada regra `.vagou-cinematic-auth input:-webkit-autofill` com `-webkit-box-shadow: 0 0 0 1000px #121827 inset !important` e `-webkit-text-fill-color: #FFFFFF !important`.
+
 ### [2026-11-16] — Ajuste de Caminho dos Backdrops Editoriais para o Diretório Public (`bol-179`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Fix / Build / Assets]`
 - **Motivo / Solicitação:** As imagens de fundo do slideshow editorial (geradas via IA) estavam apontando para `/src/assets/images/...`, o que impedia o carregamento estático em runtime de produção e pré-visualização.

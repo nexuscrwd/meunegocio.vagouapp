@@ -239,13 +239,23 @@ html:not(.dark) .bg-\[\#E6EEF6\] {
   box-shadow: 0 -2px 8px rgba(15, 23, 42, 0.06);
 }
 
-/* Regra de Ouro 1: Arredondamento Universal Estrito de 4px (exceto avatares e halos rounded-full) */
+/* Regra de Ouro 1: Arredondamento Universal Estrito de 4px (exceto avatares rounded-full e Entrada Cinematográfica BOL-167 .vagou-cinematic-auth) */
 .rounded-md:not(.rounded-full),
 .rounded-lg:not(.rounded-full),
 .rounded-xl:not(.rounded-full),
 .rounded-2xl:not(.rounded-full),
 .rounded-3xl:not(.rounded-full) {
   border-radius: 4px !important;
+}
+
+.vagou-cinematic-auth .rounded-2xl:not(.rounded-full),
+.vagou-cinematic-auth.rounded-2xl:not(.rounded-full) {
+  border-radius: 16px !important;
+}
+
+.vagou-cinematic-auth .rounded-xl:not(.rounded-full),
+.vagou-cinematic-auth.rounded-xl:not(.rounded-full) {
+  border-radius: 12px !important;
 }
 
 @layer utilities {
@@ -520,3 +530,64 @@ html:not(.dark) .leaflet-container {
   -webkit-backface-visibility: hidden;
   image-rendering: -webkit-optimize-contrast;
 }
+
+/* 🏛️ Blindagem da Entrada Cinematográfica em Vidro Jateado (BOL-167):
+   Garante atmosfera 100% escura mesmo quando html:not(.dark) estiver ativo no navegador,
+   preserva o verde oficial #20C933 e elimina o retângulo branco de autofill do Chrome */
+html:not(.dark) .vagou-cinematic-auth,
+html:not(.dark) .vagou-cinematic-auth .bg-slate-950 {
+  background-color: #020617 !important;
+  color: #FFFFFF !important;
+}
+
+html:not(.dark) .vagou-cinematic-auth .bg-slate-950\/75 {
+  background-color: rgba(2, 6, 23, 0.75) !important;
+  color: #FFFFFF !important;
+}
+
+html:not(.dark) .vagou-cinematic-auth .bg-slate-900 {
+  background-color: #0F172A !important;
+  color: #FFFFFF !important;
+}
+
+html:not(.dark) .vagou-cinematic-auth .text-slate-100 {
+  color: #F1F5F9 !important;
+}
+
+html:not(.dark) .vagou-cinematic-auth .text-slate-200 {
+  color: #E2E8F0 !important;
+}
+
+html:not(.dark) .vagou-cinematic-auth .text-slate-300 {
+  color: #CBD5E1 !important;
+}
+
+html:not(.dark) .vagou-cinematic-auth .text-slate-400 {
+  color: #94A3B8 !important;
+}
+
+html:not(.dark) .vagou-cinematic-auth .text-slate-500 {
+  color: #64748B !important;
+}
+
+.vagou-cinematic-auth .bg-\[\#20C933\] {
+  background-color: #20C933 !important;
+  color: #FFFFFF !important;
+}
+
+.vagou-cinematic-auth .hover\:bg-\[\#1bb32d\]:hover {
+  background-color: #1bb32d !important;
+  color: #FFFFFF !important;
+}
+
+.vagou-cinematic-auth input:-webkit-autofill,
+.vagou-cinematic-auth input:-webkit-autofill:hover,
+.vagou-cinematic-auth input:-webkit-autofill:focus,
+.vagou-cinematic-auth input:-webkit-autofill:active {
+  -webkit-text-fill-color: #FFFFFF !important;
+  caret-color: #FFFFFF !important;
+  -webkit-box-shadow: 0 0 0 1000px #121827 inset !important;
+  box-shadow: 0 0 0 1000px #121827 inset !important;
+  transition: background-color 99999s ease-in-out 0s !important;
+}
+
