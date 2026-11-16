@@ -140,14 +140,24 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
           slogan: resolvedSlogan || undefined,
         });
 
+        const isLogoUrl = (url: string) => {
+          const lower = url.toLowerCase();
+          return (
+            lower.includes('logo') ||
+            lower.includes('favicon') ||
+            lower.includes('icon')
+          );
+        };
+
         const collectedPhotos: string[] = [];
         const addCandidatePhoto = (candidate: unknown) => {
           if (
             isValidPhotoUrl(candidate) &&
-            !collectedPhotos.includes(candidate.trim()) &&
+            !isLogoUrl(String(candidate)) &&
+            !collectedPhotos.includes(String(candidate).trim()) &&
             collectedPhotos.length < 5
           ) {
-            collectedPhotos.push(candidate.trim());
+            collectedPhotos.push(String(candidate).trim());
           }
         };
 
@@ -189,10 +199,15 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
     };
   }, [isOpen, currentSlug]);
 
-  const effectiveSlides =
-    salonSlides.length > 0
-      ? salonSlides
-      : (CURATED_EDITORIAL_FALLBACK_SLIDES as unknown as string[]);
+  const effectiveSlides = React.useMemo(() => {
+    const list: string[] = [...salonSlides];
+    for (const fallback of CURATED_EDITORIAL_FALLBACK_SLIDES) {
+      if (!list.includes(fallback) && list.length < 5) {
+        list.push(fallback);
+      }
+    }
+    return list.length > 0 ? list : (CURATED_EDITORIAL_FALLBACK_SLIDES as unknown as string[]);
+  }, [salonSlides]);
 
   // Troca suave de slide a cada 5500ms (transition-opacity duration-1000)
   useEffect(() => {

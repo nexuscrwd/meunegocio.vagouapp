@@ -11,6 +11,16 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-16] — Garantia de Rotação Multi-Slide Editorial & Filtragem Rigorosa de Logos na Tela de Entrada (`bol-178`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / UI / UX]`
+- **Motivo / Solicitação:** Corrigir o comportamento em recém-criados clientes/salões onde a tela de entrada exibia apenas 1 slide estático ou ficava sem rotação de fundo.
+- **Arquivos Impactados:**
+  - `src/components/SalonClientAuthModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Filtragem Estrita de URLs de Logo (`isLogoUrl`):** Impedido que logomarcas (`logo_url`, `logo_dark_url`, `favicon`) sejam incorretamente adicionadas como fotos de fundo (backdrops) do slideshow.
+  2. **Garantia de Padding Multi-Slide Editorial (`React.useMemo`):** Caso o salão recém-criado possua 0 ou apenas 1 foto de espaço cadastrada, o sistema complementa automaticamente com a biblioteca de backdrops editoriais curados (`CURATED_EDITORIAL_FALLBACK_SLIDES`), garantindo sempre no mínimo 3 slides em rotação contínua (crossfade a cada 5.5s) em todos os estabelecimentos.
+
 ### [2026-11-15] — Sincronia da Tríade BOL-167: Entrada Cinematográfica Nativa em Vidro Jateado + Slideshow Editorial de 2 Níveis e Roteamento Pós-Login (`bol-177`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Feat / UI-UX / Auth / Sync]`
 - **Motivo / Solicitação:** Atender ao Comunicado Técnico Oficial da Tríade `bol-167` substituindo o modal claro antigo (`ACESSAR`) pela **Entrada Cinematográfica Nativa em Vidro Jateado + Slideshow de Fundo** nos subdomínios `*.vagouapp.com`, sincronizada 100% com o `admvapp` e o `vagouapp.com`.
