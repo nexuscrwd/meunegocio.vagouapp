@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Building2, UserCheck, 
   Save, Check, Search, Loader2, Sparkles, 
@@ -104,6 +104,27 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
   const [legalManagerEmail, setLegalManagerEmail] = useState(adminSettings.legalManagerEmail || adminSettings.email || '');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (adminSettings.salonName !== undefined) setSalonName(adminSettings.salonName || '');
+    if (adminSettings.category !== undefined) setCategory(adminSettings.category || 'Barbearia');
+    const cnpjDigits = (adminSettings.cnpj || '').replace(/\D/g, '');
+    setHasCnpj(cnpjDigits.length === 14);
+    setRazaoSocial(cnpjDigits.length === 14 ? (adminSettings.razaoSocial || '') : '');
+    setCnpj(cnpjDigits.length === 14 ? (adminSettings.cnpj || '') : '');
+    if (adminSettings.legalManagerName !== undefined) setLegalManagerName(adminSettings.legalManagerName || '');
+    if (adminSettings.legalManagerCpf !== undefined || adminSettings.ownerCpf !== undefined) {
+      setLegalManagerCpf(adminSettings.legalManagerCpf || adminSettings.ownerCpf || '');
+    }
+    if (adminSettings.legalManagerPhone !== undefined || adminSettings.salonPhone !== undefined) {
+      setLegalManagerPhone(adminSettings.legalManagerPhone || adminSettings.salonPhone || '');
+    }
+    if (adminSettings.legalManagerEmail !== undefined || adminSettings.email !== undefined) {
+      setLegalManagerEmail(adminSettings.legalManagerEmail || adminSettings.email || '');
+    }
+  }, [adminSettings]);
 
   // Formatação em tempo real de CNPJ (XX.XXX.XXX/XXXX-XX)
   const handleCnpjChange = (value: string) => {
@@ -233,8 +254,9 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
   };
 
   // Salvar Dados do Negócio (Identificação Comercial e Fiscal)
-  const handleSave = (e?: React.FormEvent) => {
+  const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isSaving) return;
 
     const rawCpfDigits = legalManagerCpf.replace(/\D/g, '');
     if (rawCpfDigits.length > 0 && !isValidCPF(rawCpfDigits)) {
@@ -250,15 +272,15 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
       return;
     }
 
-    hapticSuccess();
-
     const isValidCnpj = hasCnpj && rawCnpjDigits.length === 14;
     const finalCnpj = isValidCnpj ? cnpj.trim() : '';
     const finalRazaoSocial = isValidCnpj ? razaoSocial.trim() : '';
     const resolvedEmail = (legalManagerEmail.trim() || adminSettings.email || '').toLowerCase();
     const resolvedWhatsapp = legalManagerPhone.trim() || adminSettings.salonPhone || '';
 
-    onUpdateSettings({
+    setIsSaving(true);
+    setSaveError(null);
+    const dbRes = await onUpdateSettings({
       salonName: salonName.trim() || 'Meu Estabelecimento',
       category: category.trim() || 'Barbearia',
       razaoSocial: finalRazaoSocial,
@@ -269,7 +291,15 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
       legalManagerPhone: resolvedWhatsapp,
       legalManagerEmail: resolvedEmail,
     });
+    setIsSaving(false);
 
+    if (dbRes && dbRes.success === false) {
+      setSaveError(dbRes.error || 'Erro ao gravar dados do negócio no banco.');
+      hapticMedium();
+      return;
+    }
+
+    hapticSuccess();
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);
   };
@@ -605,30 +635,44 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
       </form>
 
       {/* RODAPÉ FIXO DE AÇÃO */}
-      <div className={`p-3 border-t shrink-0 sticky bottom-0 z-20 flex items-center justify-between gap-3 ${
+      <div className={`p-3 border-t shrink-0 sticky bottom-0 z-20 space-y-2 ${
         isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
       }`}>
-        <button
-          type="button"
-          onClick={() => {
-            hapticLight();
-            onBack();
-          }}
-          className={`px-4 py-2.5 rounded-[4px] border text-xs font-bold transition cursor-pointer ${
-            isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-900' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          Cancelar
-        </button>
+        {saveError && (
+          <div className="p-2 rounded-[4px] bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[11px] font-semibold flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+            <span>{saveError}</span>
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            disabled={isSaving}
+            onClick={() => {
+              hapticLight();
+              onBack();
+            }}
+            className={`px-4 py-2.5 rounded-[4px] border text-xs font-bold transition cursor-pointer disabled:opacity-50 ${
+              isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-900' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            Cancelar
+          </button>
 
-        <button
-          type="button"
-          onClick={() => handleSave()}
-          className="flex-1 py-2.5 px-4 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98"
-        >
-          <Save className="w-4 h-4 text-white" />
-          <span className="text-white">Salvar Dados do Negócio</span>
-        </button>
+          <button
+            type="button"
+            disabled={isSaving}
+            onClick={() => handleSave()}
+            className="flex-1 py-2.5 px-4 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98 disabled:opacity-60"
+          >
+            {isSaving ? (
+              <Loader2 className="w-4 h-4 text-white animate-spin" />
+            ) : (
+              <Save className="w-4 h-4 text-white" />
+            )}
+            <span className="text-white">{isSaving ? 'Salvando...' : 'Salvar Dados do Negócio'}</span>
+          </button>
+        </div>
       </div>
     </div>
   );

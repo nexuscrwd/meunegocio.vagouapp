@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Store, Phone, MapPin, Save, Check,
   Sparkles, Search, Loader2, Plus, X,
@@ -7,7 +7,7 @@ import {
   Wifi, Wind, Coffee, Car, Accessibility,
   Baby, Tv, Plug, Wine, PawPrint, ArrowLeft,
   Armchair, Gamepad2, Music, Flame, ShieldCheck,
-  Gift, Heart, Star, Award
+  Gift, Heart, Star, Award, AlertCircle
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { SalonAdminSettings, SalonProfessionalItem } from '../../types';
@@ -134,6 +134,8 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
   const { isDark } = useTheme();
   const [activeTab, setActiveTab] = useState<SpaceManagementTabId>(initialTab);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // ==============================================================
   // 1. ABA ESTRUTURA (Lista Pré-definida + Inserir Mais Itens + Descrição)
@@ -239,6 +241,31 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
   const [isStorefrontQrModalOpen, setIsStorefrontQrModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
+  // Sincronização em tempo real caso adminSettings seja atualizado pelo Supabase Realtime
+  useEffect(() => {
+    if (adminSettings.spaceDescription !== undefined) {
+      setSpaceDescription(adminSettings.spaceDescription || adminSettings.bio || '');
+    }
+    if (Array.isArray(adminSettings.amenities) && adminSettings.amenities.length > 0) {
+      setSelectedAmenities(adminSettings.amenities);
+    }
+    if (adminSettings.cep !== undefined) setCep(adminSettings.cep || '');
+    if (adminSettings.logradouro !== undefined || adminSettings.salonAddress !== undefined) {
+      setLogradouro(adminSettings.logradouro || adminSettings.salonAddress || '');
+    }
+    if (adminSettings.numero !== undefined) setNumero(adminSettings.numero || '');
+    if (adminSettings.complemento !== undefined) setComplemento(adminSettings.complemento || '');
+    if (adminSettings.bairro !== undefined) setBairro(adminSettings.bairro || '');
+    if (adminSettings.cidade !== undefined) setCidade(adminSettings.cidade || '');
+    if (adminSettings.uf !== undefined) setUf(adminSettings.uf || '');
+    if (adminSettings.salonPhone !== undefined) setSalonPhone(adminSettings.salonPhone || '');
+    if (adminSettings.phoneLandline !== undefined) setPhoneLandline(adminSettings.phoneLandline || '');
+    if (adminSettings.email !== undefined) setCommercialEmail(adminSettings.email || '');
+    if (adminSettings.websiteUrl !== undefined) setWebsiteUrl(adminSettings.websiteUrl || '');
+    if (adminSettings.instagramUrl !== undefined) setInstagramUrl(adminSettings.instagramUrl || '');
+    if (adminSettings.facebookUrl !== undefined) setFacebookUrl(adminSettings.facebookUrl || '');
+  }, [adminSettings]);
+
   // Máscaras de formatação
   const formatCep = (v: string) => {
     const raw = v.replace(/\D/g, '').slice(0, 8);
@@ -328,9 +355,9 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
   };
 
   // Salvar configurações da seção Espaço
-  const handleSaveSettings = (e?: React.FormEvent) => {
+  const handleSaveSettings = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    hapticSuccess();
+    if (isSaving) return;
 
     const fullAddress = [
       logradouro,
@@ -362,8 +389,18 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
       facebookUrl: facebookUrl.trim(),
     };
 
-    onUpdateSettings(updatedSettings);
+    setIsSaving(true);
+    setSaveError(null);
+    const dbRes = await onUpdateSettings(updatedSettings);
+    setIsSaving(false);
 
+    if (dbRes && dbRes.success === false) {
+      setSaveError(dbRes.error || 'Não foi possível salvar as configurações do espaço no banco.');
+      hapticMedium();
+      return;
+    }
+
+    hapticSuccess();
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);
   };
@@ -1064,31 +1101,45 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
       )}
 
       {/* RODAPÉ FIXO DE AÇÃO (STICKY BOTTOM-0 Z-20) */}
-      <div className={`sticky bottom-0 z-20 p-3 border-t backdrop-blur-md flex items-center justify-between gap-3 ${
+      <div className={`sticky bottom-0 z-20 p-3 border-t backdrop-blur-md space-y-2 ${
         isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
       }`}>
-        {onBack && (
+        {saveError && (
+          <div className="p-2 rounded-[4px] bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[11px] font-semibold flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+            <span>{saveError}</span>
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-3">
+          {onBack && (
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={() => {
+                hapticLight();
+                onBack();
+              }}
+              className={`px-4 py-2.5 rounded-[4px] border text-xs font-bold transition cursor-pointer disabled:opacity-50 ${
+                isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-900' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              Cancelar
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => {
-              hapticLight();
-              onBack();
-            }}
-            className={`px-4 py-2.5 rounded-[4px] border text-xs font-bold transition cursor-pointer ${
-              isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-900' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
-            }`}
+            disabled={isSaving}
+            onClick={() => handleSaveSettings()}
+            className="flex-1 py-2.5 px-4 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98 disabled:opacity-60"
           >
-            Cancelar
+            {isSaving ? (
+              <Loader2 className="w-4 h-4 text-white animate-spin" />
+            ) : (
+              <Save className="w-4 h-4 text-white" />
+            )}
+            <span className="text-white">{isSaving ? 'Salvando...' : 'Salvar Espaço'}</span>
           </button>
-        )}
-        <button
-          type="button"
-          onClick={() => handleSaveSettings()}
-          className="flex-1 py-2.5 px-4 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98"
-        >
-          <Save className="w-4 h-4 text-white" />
-          <span className="text-white">Salvar Espaço</span>
-        </button>
+        </div>
       </div>
     </div>
   );

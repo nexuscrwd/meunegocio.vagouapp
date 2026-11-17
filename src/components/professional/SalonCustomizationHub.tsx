@@ -33,9 +33,9 @@ export interface SalonCustomizationHubProps {
   adminSettings: SalonAdminSettings;
   onUpdateSettings: (settings: Partial<SalonAdminSettings>) => Promise<any> | void;
   services: CatalogServiceItem[];
-  onUpdateServices: (services: CatalogServiceItem[]) => void;
+  onUpdateServices: (services: CatalogServiceItem[]) => Promise<any> | void;
   professionals: SalonProfessionalItem[];
-  onUpdateProfessionals: (professionals: SalonProfessionalItem[]) => void;
+  onUpdateProfessionals: (professionals: SalonProfessionalItem[]) => Promise<any> | void;
   appointments?: BookingAppointment[];
   onUpdateAppointments?: (appointments: BookingAppointment[]) => void;
   onBack?: () => void;
@@ -248,6 +248,8 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
           <ProfessionalServicesManager
             services={services}
             onUpdateServices={onUpdateServices}
+            adminSettings={adminSettings}
+            onUpdateSettings={onUpdateSettings}
           />
         </div>
       </div>
@@ -297,6 +299,8 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
             salonProfessionals={professionals}
             onUpdateSalonProfessionals={onUpdateProfessionals}
             services={services}
+            adminSettings={adminSettings}
+            onUpdateSettings={onUpdateSettings}
           />
         </div>
       </div>

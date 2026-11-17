@@ -38,26 +38,42 @@
             meta.setAttribute('content', effectiveTheme === 'dark' ? '#0F172A' : '#FFFFFF');
           }
 
-          var s = JSON.parse(localStorage.getItem('vagou_salon_admin_settings') || '{}');
-          var icon = localStorage.getItem('vagou_salon_icon') || s.salonIcon || s.salonLogoLight || s.salonLogoDark;
-          var name = s.pwaName || s.salonName;
-          var slogan = s.slogan || '';
-          if (name) {
-            document.title = slogan ? name + ' — ' + slogan : name;
-            var metaTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
-            if (metaTitle) metaTitle.setAttribute('content', name.slice(0, 14));
-            var descEl = document.querySelector('meta[name="description"]');
-            if (descEl) descEl.setAttribute('content', slogan || name);
-            var ogT = document.querySelector('meta[property="og:title"]');
-            if (ogT) ogT.setAttribute('content', name);
-            var ogD = document.querySelector('meta[property="og:description"]');
-            if (ogD) ogD.setAttribute('content', slogan || name);
-          }
-          if (icon) {
+          var host = window.location.hostname.toLowerCase();
+          var parts = host.split('.');
+          var reserved = { www: 1, app: 1, portal: 1, adm: 1, admin: 1, meunegocio: 1, api: 1, vagouapp: 1, dev: 1, staging: 1 };
+          var isPreview = host === 'localhost' || host === '127.0.0.1' || host.indexOf('.run.app') !== -1 || host.indexOf('ais-') === 0;
+          var urlParams = new URLSearchParams(window.location.search);
+          var querySlug = (urlParams.get('salon') || urlParams.get('slug') || '').trim().toLowerCase();
+          var hostSub = (!isPreview && parts.length >= 3 && !reserved[parts[0]]) ? parts[0] : '';
+          var activeSlug = (querySlug && !reserved[querySlug]) ? querySlug : hostSub;
+
+          if (activeSlug) {
+            var s = JSON.parse(localStorage.getItem('vagou_salon_admin_settings') || '{}');
+            var name = s.pwaName || s.salonName;
+            var slogan = s.slogan || '';
+            if (name) {
+              document.title = slogan ? name + ' — ' + slogan : name;
+              var metaTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+              if (metaTitle) metaTitle.setAttribute('content', name.slice(0, 12));
+              var descEl = document.querySelector('meta[name="description"]');
+              if (descEl) descEl.setAttribute('content', slogan || name);
+              var ogT = document.querySelector('meta[property="og:title"]');
+              if (ogT) ogT.setAttribute('content', name);
+              var ogD = document.querySelector('meta[property="og:description"]');
+              if (ogD) ogD.setAttribute('content', slogan || name);
+            }
+            var manifestEl = document.querySelector('link[rel="manifest"]');
+            if (manifestEl) {
+              manifestEl.setAttribute('href', '/manifest.json?salon=' + encodeURIComponent(activeSlug));
+            }
+            var pwa192 = '/api/pwa/icon?salon=' + encodeURIComponent(activeSlug) + '&size=192&purpose=any';
+            var pwa512 = '/api/pwa/icon?salon=' + encodeURIComponent(activeSlug) + '&size=512&purpose=any';
             var appleTouchIcons = document.querySelectorAll('link[rel="apple-touch-icon"]');
-            appleTouchIcons.forEach(function(el) { el.setAttribute('href', icon); });
+            appleTouchIcons.forEach(function(el) { el.setAttribute('href', pwa192); });
             var favicons = document.querySelectorAll('link[rel="icon"]');
-            favicons.forEach(function(el) { el.setAttribute('href', icon); });
+            favicons.forEach(function(el) {
+              el.setAttribute('href', el.getAttribute('sizes') === '512x512' ? pwa512 : pwa192);
+            });
           }
         } catch(e) {}
       })();
@@ -77,10 +93,10 @@
     <link rel="apple-touch-icon" href="/icon-512.png" />
     
     <!-- Open Graph -->
-    <meta property="og:title" content="Meu Negócio — Vagou" />
-    <meta property="og:description" content="Meu Negócio — Plataforma de Gestão e Vitrine Oficial Vagou" />
+    <meta property="og:title" content="Vagou Pro — Gestão & Vagas Imediatas" />
+    <meta property="og:description" content="Plataforma de gestão e vagas imediatas para profissionais e estabelecimentos de beleza e bem-estar." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/icon.svg" />
+    <meta property="og:image" content="/icon-512.png" />
   </head>
   <body class="bg-[#EEF2F6] dark:bg-slate-950 text-[#0F172A] dark:text-slate-100 antialiased selection:bg-slate-700 selection:text-white">
     <div id="root"></div>

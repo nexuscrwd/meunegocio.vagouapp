@@ -23,10 +23,8 @@ import {
   formatMaxDepartureTime,
 } from '../utils/bookingSlots';
 import { ProfessionalDashboardView } from './professional/ProfessionalDashboardView';
-import { ProfessionalServicesManager } from './professional/ProfessionalServicesManager';
 import { ProfessionalAgendaView } from './professional/ProfessionalAgendaView';
 import { ProfessionalSpaceManager, DEFAULT_SPACE_AMENITIES, resolveSpaceAmenityIcon } from './professional/ProfessionalSpaceManager';
-import { TeamManager } from './professional/TeamManager';
 import { FinancialManagerView } from './professional/FinancialManagerView';
 import { CaixaManagerView } from './professional/CaixaManagerView';
 import { SalonCustomizationHub } from './professional/SalonCustomizationHub';
@@ -54,10 +52,10 @@ import { ProfileModeSwitchModal, TargetEnvironmentMode } from './modals/ProfileM
 import { hapticSuccess, hapticLight, hapticMedium } from '../utils/haptics';
 import { getSectionHeaderStyleData } from '../utils/sectionHeaderStyle';
 import { syncAllLocalUtilitiesToDatabase } from '../services/mnvSupabaseSync';
-import { 
-  supabase, 
-  isSupabaseConfigured, 
-  fetchSalonServices, 
+import {
+  supabase,
+  isSupabaseConfigured,
+  fetchSalonServices,
   fetchSalonProfessionals,
   fetchSalonAppointments,
   upsertSalonService,
@@ -75,8 +73,10 @@ import {
   upsertAppointmentInDb,
   removeBlockedSlotInDb,
   subscribeToAppointments,
+  subscribeToSalonRealtime,
   ensureSalonRow
 } from '../lib/supabase';
+import { formatDurationFromMinutes, parseDurationToMinutes } from '../utils/duration';
 
 export interface SalonProfileViewProps {
   salonName: string;
@@ -616,8 +616,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         initialSalonData.favicon_url ||
         initialSalonData.branding?.salonIcon ||
         initialSalonData.branding?.faviconUrl ||
-        initialSalonData.logo_url ||
-        localSaved.salonIcon ||
+        (!hasActiveSubdomain ? localSaved.salonIcon : '') ||
         '';
       const resolvedLogoDark =
         initialSalonData.logo_dark_url ||
@@ -687,6 +686,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         spacePhotos: initialSalonData.space_photos || initialSalonData.branding?.spacePhotos || localSaved.spacePhotos,
         spaceDescription: initialSalonData.space_description || initialSalonData.branding?.spaceDescription || localSaved.spaceDescription,
         amenities: initialSalonData.amenities || initialSalonData.branding?.amenities || localSaved.amenities,
+        serviceCategories: Array.isArray(initialSalonData.branding?.serviceCategories)
+          ? initialSalonData.branding.serviceCategories
+          : localSaved.serviceCategories,
         isOpenNow: true,
         accentColor: resolvedColor,
         primaryColor: resolvedColor,
@@ -968,19 +970,413 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     return initialSalonData?.id || localStorage.getItem('vagou_salon_db_id') || '';
   });
 
-  // Carregar dados reais do Supabase (Identidade Visual, Configurações, Serviços e Equipe)
+  const applySalonRecordSettings = useCallback((salonRecord: any) => {
+    if (!salonRecord || !salonRecord.id) return;
+    setCurrentSalonDbId(salonRecord.id);
+    try {
+      localStorage.setItem('vagou_salon_db_id', salonRecord.id);
+      if (salonRecord.slug) localStorage.setItem('vagou_salon_slug', salonRecord.slug);
+    } catch {}
+
+    const updatedSettings: Partial<SalonAdminSettings> = {};
+    if (salonRecord.slug) updatedSettings.salonSlug = salonRecord.slug;
+    if (salonRecord.trade_name) updatedSettings.salonName = salonRecord.trade_name;
+
+    const rawRecordDoc = (salonRecord.document_number || '').replace(/\D/g, '');
+    const isRecordCnpj14 = rawRecordDoc.length === 14;
+    updatedSettings.cnpj = isRecordCnpj14 ? (salonRecord.document_number || '') : '';
+    updatedSettings.razaoSocial = isRecordCnpj14 ? (salonRecord.legal_name || '') : '';
+
+    const resolvedOwnerCpf =
+      salonRecord.owner_cpf ||
+      salonRecord.branding?.ownerCpf ||
+      (rawRecordDoc.length === 11 ? salonRecord.document_number : '');
+    if (resolvedOwnerCpf) {
+      updatedSettings.ownerCpf = resolvedOwnerCpf;
+      updatedSettings.legalManagerCpf = resolvedOwnerCpf;
+    }
+
+    const resolvedPixKeys = Array.isArray(salonRecord.pix_keys)
+      ? salonRecord.pix_keys
+      : (Array.isArray(salonRecord.branding?.pixKeys) ? salonRecord.branding.pixKeys : undefined);
+    if (resolvedPixKeys !== undefined) {
+      updatedSettings.pixKeys = resolvedPixKeys;
+    }
+    const resolvedPixKey =
+      salonRecord.pix_key ||
+      salonRecord.branding?.pixKey ||
+      (Array.isArray(resolvedPixKeys) ? (resolvedPixKeys.find((k: any) => k?.isPrimary)?.key || resolvedPixKeys[0]?.key) : '');
+    if (resolvedPixKey) {
+      updatedSettings.pixKey = resolvedPixKey;
+    }
+
+    if (salonRecord.phone_whatsapp) updatedSettings.salonPhone = salonRecord.phone_whatsapp;
+    if (salonRecord.category || salonRecord.branding?.category) {
+      updatedSettings.category = salonRecord.category || salonRecord.branding?.category;
+    }
+    if (salonRecord.email || salonRecord.branding?.email) {
+      updatedSettings.email = salonRecord.email || salonRecord.branding?.email;
+    }
+    if (salonRecord.phone_landline || salonRecord.branding?.phoneLandline) {
+      updatedSettings.phoneLandline = salonRecord.phone_landline || salonRecord.branding?.phoneLandline;
+    }
+    if (salonRecord.opening_hours_text || salonRecord.branding?.openingHours) {
+      updatedSettings.openingHours = salonRecord.opening_hours_text || salonRecord.branding?.openingHours;
+    }
+    if (salonRecord.operating_hours || salonRecord.branding?.operatingHours) {
+      updatedSettings.operatingHoursJson = salonRecord.operating_hours || salonRecord.branding?.operatingHours;
+    }
+    if (salonRecord.space_photos || salonRecord.branding?.spacePhotos) {
+      updatedSettings.spacePhotos = salonRecord.space_photos || salonRecord.branding?.spacePhotos;
+    }
+    if (salonRecord.space_description || salonRecord.branding?.spaceDescription) {
+      updatedSettings.spaceDescription = salonRecord.space_description || salonRecord.branding?.spaceDescription;
+    }
+    if (salonRecord.amenities || salonRecord.branding?.amenities) {
+      updatedSettings.amenities = salonRecord.amenities || salonRecord.branding?.amenities;
+    }
+    if (salonRecord.address || salonRecord.branding?.salonAddress) {
+      updatedSettings.salonAddress = salonRecord.address || salonRecord.branding?.salonAddress;
+    }
+    if (salonRecord.street_number || salonRecord.branding?.numero || salonRecord.branding?.streetNumber) {
+      updatedSettings.numero = salonRecord.street_number || salonRecord.branding?.numero || salonRecord.branding?.streetNumber;
+    }
+    if (salonRecord.complement || salonRecord.branding?.complemento || salonRecord.branding?.complement) {
+      updatedSettings.complemento = salonRecord.complement || salonRecord.branding?.complemento || salonRecord.branding?.complement;
+    }
+    if (salonRecord.neighborhood || salonRecord.branding?.bairro || salonRecord.branding?.neighborhood) {
+      updatedSettings.bairro = salonRecord.neighborhood || salonRecord.branding?.bairro || salonRecord.branding?.neighborhood;
+    }
+    if (salonRecord.city || salonRecord.branding?.cidade || salonRecord.branding?.city) {
+      updatedSettings.cidade = salonRecord.city || salonRecord.branding?.cidade || salonRecord.branding?.city;
+    }
+    if (salonRecord.state || salonRecord.branding?.uf || salonRecord.branding?.state) {
+      updatedSettings.uf = salonRecord.state || salonRecord.branding?.uf || salonRecord.branding?.state;
+    }
+    if (salonRecord.cep || salonRecord.branding?.cep) {
+      updatedSettings.cep = salonRecord.cep || salonRecord.branding?.cep;
+    }
+    if (Array.isArray(salonRecord.branding?.serviceCategories)) {
+      updatedSettings.serviceCategories = salonRecord.branding.serviceCategories;
+      try {
+        localStorage.setItem('vagou_custom_service_categories', JSON.stringify(salonRecord.branding.serviceCategories));
+      } catch {}
+    }
+
+    const resolvedLogoLight = salonRecord.logo_light_url || salonRecord.branding?.logoLightUrl || '';
+    const resolvedLogoDark = salonRecord.logo_dark_url || salonRecord.branding?.logoDarkUrl || '';
+    const resolvedMainLogo = salonRecord.logo_url || salonRecord.branding?.logoUrl || resolvedLogoDark || resolvedLogoLight || '';
+
+    updatedSettings.salonLogoLight = resolvedLogoLight;
+    updatedSettings.salonLogoDark = resolvedLogoDark;
+    updatedSettings.salonLogo = resolvedMainLogo;
+
+    try {
+      if (resolvedLogoLight) {
+        localStorage.setItem('vagou_salon_logo_light', resolvedLogoLight);
+      } else {
+        localStorage.removeItem('vagou_salon_logo_light');
+      }
+      if (resolvedLogoDark) {
+        localStorage.setItem('vagou_salon_logo_dark', resolvedLogoDark);
+      } else {
+        localStorage.removeItem('vagou_salon_logo_dark');
+      }
+    } catch {}
+
+    // Ícone quadrado dedicado do salão (sem herdar logo larga horizontal para não distorcer ícone PWA)
+    const resolvedSalonIcon =
+      salonRecord.favicon_url ||
+      salonRecord.branding?.salonIcon ||
+      salonRecord.branding?.faviconUrl ||
+      '';
+    if (resolvedSalonIcon) {
+      updatedSettings.salonIcon = resolvedSalonIcon;
+      try {
+        localStorage.setItem('vagou_salon_icon', resolvedSalonIcon);
+      } catch {}
+    } else if (hasActiveSubdomain) {
+      updatedSettings.salonIcon = '';
+      try {
+        localStorage.removeItem('vagou_salon_icon');
+      } catch {}
+    }
+
+    updatedSettings.slogan = salonRecord.slogan || salonRecord.branding?.slogan || '';
+    updatedSettings.brandFont = salonRecord.brand_font || salonRecord.branding?.brandFont || 'Poppins';
+
+    const isExplicitlyCustomizedTheme = Boolean(
+      salonRecord.branding?.themeExplicitlyCustomized || salonRecord.default_theme === 'dark'
+    );
+    const remoteTheme: 'dark' | 'light' = isExplicitlyCustomizedTheme
+      ? ((salonRecord.default_theme || salonRecord.branding?.defaultTheme || 'light') as 'dark' | 'light')
+      : 'light';
+    updatedSettings.defaultTheme = remoteTheme;
+    updatedSettings.themeExplicitlyCustomized = isExplicitlyCustomizedTheme;
+    updatedSettings.themePresetId = salonRecord.branding?.themePresetId;
+
+    const explicitUserChoice = localStorage.getItem(EXPLICIT_THEME_STORAGE_KEY);
+    if (!explicitUserChoice) {
+      setTheme(isExplicitlyCustomizedTheme ? remoteTheme : 'light', { isExplicitUserChoice: false });
+      initialThemeSyncDoneRef.current = true;
+    }
+    if (salonRecord.show_slogan !== undefined || salonRecord.branding?.showSlogan !== undefined) {
+      updatedSettings.showSlogan = salonRecord.show_slogan !== undefined ? salonRecord.show_slogan : salonRecord.branding?.showSlogan;
+    }
+    if (salonRecord.logo_text_fallback !== undefined || salonRecord.branding?.logoTextFallback !== undefined) {
+      updatedSettings.logoTextFallback = salonRecord.logo_text_fallback || salonRecord.branding?.logoTextFallback || '';
+    }
+    if (salonRecord.logo_text_color || salonRecord.branding?.logoTextColor) {
+      updatedSettings.logoTextColor = salonRecord.logo_text_color || salonRecord.branding?.logoTextColor;
+    }
+    if (salonRecord.show_hero_slides !== undefined || salonRecord.branding?.showHeroSlides !== undefined) {
+      updatedSettings.showHeroSlides = salonRecord.show_hero_slides !== undefined ? salonRecord.show_hero_slides : salonRecord.branding?.showHeroSlides;
+    }
+
+    updatedSettings.sectionHeaderBgColor = salonRecord.section_header_bg_color || salonRecord.branding?.sectionHeaderBgColor || undefined;
+    updatedSettings.sectionHeaderTextColor = salonRecord.section_header_text_color || salonRecord.branding?.sectionHeaderTextColor || undefined;
+    updatedSettings.sectionHeaderIconColor = salonRecord.section_header_icon_color || salonRecord.branding?.sectionHeaderIconColor || undefined;
+    updatedSettings.sectionHeaderBgStyle = salonRecord.section_header_bg_style || salonRecord.branding?.sectionHeaderBgStyle || 'solid';
+    updatedSettings.sectionHeaderBorder = salonRecord.section_header_border || salonRecord.branding?.sectionHeaderBorder || 'bordered';
+    updatedSettings.sectionHeaderBtnBgColor = salonRecord.section_header_btn_bg_color || salonRecord.branding?.sectionHeaderBtnBgColor || undefined;
+    updatedSettings.sectionHeaderBtnActiveBgColor = salonRecord.section_header_btn_active_bg_color || salonRecord.branding?.sectionHeaderBtnActiveBgColor || undefined;
+    updatedSettings.sectionHeaderBtnBorder = salonRecord.section_header_btn_border || salonRecord.branding?.sectionHeaderBtnBorder || undefined;
+    updatedSettings.sectionHeaderBtnShadow = salonRecord.section_header_btn_shadow || salonRecord.branding?.sectionHeaderBtnShadow || undefined;
+    updatedSettings.sectionHeaderBtnBlur = salonRecord.section_header_btn_blur || salonRecord.branding?.sectionHeaderBtnBlur || undefined;
+    updatedSettings.sectionHeaderBtnFont = salonRecord.section_header_btn_font || salonRecord.branding?.sectionHeaderBtnFont || undefined;
+
+    updatedSettings.navStyle = salonRecord.nav_style || salonRecord.branding?.navStyle || 'minimal';
+    updatedSettings.navShape = salonRecord.nav_shape || salonRecord.branding?.navShape || 'square';
+    updatedSettings.navBorder = salonRecord.nav_border || salonRecord.branding?.navBorder || 'bordered';
+    updatedSettings.navIconBorder = salonRecord.nav_icon_border || salonRecord.branding?.navIconBorder || 'none';
+    updatedSettings.navBgStyle = salonRecord.nav_bg_style || salonRecord.branding?.navBgStyle || 'solid';
+    const remoteNavBg = (salonRecord.nav_bg_color || salonRecord.branding?.navBgColor || '').trim();
+    updatedSettings.navBgColor = isLegacyOrSystemDefaultColor(remoteNavBg) ? undefined : remoteNavBg;
+    updatedSettings.navBtnBgColor = salonRecord.nav_btn_bg_color || salonRecord.branding?.navBtnBgColor || undefined;
+    updatedSettings.navBtnActiveBgColor = salonRecord.nav_btn_active_bg_color || salonRecord.branding?.navBtnActiveBgColor || undefined;
+    const remoteNavActive = (salonRecord.nav_active_color || salonRecord.branding?.navActiveColor || '').trim();
+    updatedSettings.navActiveColor = isLegacyOrSystemDefaultColor(remoteNavActive) ? undefined : remoteNavActive;
+    updatedSettings.navTextColor = salonRecord.nav_text_color || salonRecord.branding?.navTextColor || undefined;
+    updatedSettings.navBtnShadow = salonRecord.nav_btn_shadow || salonRecord.branding?.navBtnShadow || undefined;
+    updatedSettings.navBtnBlur = salonRecord.nav_btn_blur || salonRecord.branding?.navBtnBlur || undefined;
+    updatedSettings.navBtnFont = salonRecord.nav_btn_font || salonRecord.branding?.navBtnFont || undefined;
+    updatedSettings.welcomeStyle = salonRecord.welcome_style || salonRecord.branding?.welcomeStyle || 'atmospheric';
+
+    if (salonRecord.bio || salonRecord.branding?.bio) {
+      updatedSettings.bio = salonRecord.bio || salonRecord.branding?.bio;
+    }
+    if (salonRecord.branding?.websiteUrl !== undefined) {
+      updatedSettings.websiteUrl = salonRecord.branding.websiteUrl;
+    }
+    if (salonRecord.branding?.instagramUrl !== undefined) {
+      updatedSettings.instagramUrl = salonRecord.branding.instagramUrl;
+    }
+    if (salonRecord.branding?.facebookUrl !== undefined) {
+      updatedSettings.facebookUrl = salonRecord.branding.facebookUrl;
+    }
+    if (salonRecord.branding?.mapsUrl !== undefined) {
+      updatedSettings.mapsUrl = salonRecord.branding.mapsUrl;
+    }
+    if (salonRecord.operating_hours?.days || salonRecord.branding?.operatingSchedule?.days || salonRecord.branding?.operatingSchedule?.professionalSchedules) {
+      updatedSettings.operatingSchedule = salonRecord.operating_hours?.days
+        ? salonRecord.operating_hours
+        : salonRecord.branding?.operatingSchedule;
+    }
+    if (salonRecord.branding?.pwaName) {
+      updatedSettings.pwaName = salonRecord.branding.pwaName;
+    }
+
+    const resolvedDbColor = salonRecord.primary_color || salonRecord.branding?.primaryColor;
+    const localAccentColor = localStorage.getItem('vagou_accent_color');
+    const localTimestamp = Number(localStorage.getItem('vagou_accent_color_timestamp') || 0);
+    const dbTimestamp = salonRecord.updated_at ? new Date(salonRecord.updated_at).getTime() : 0;
+    const hasLocalOverride = Boolean(localAccentColor && localTimestamp > dbTimestamp);
+
+    if (!isExplicitlyCustomizedTheme && !hasLocalOverride) {
+      localStorage.removeItem('vagou_accent_color');
+      localStorage.removeItem(CUSTOMIZED_THEME_STORAGE_KEY);
+      updatedSettings.accentColor = DEFAULT_NEUTRAL_HEX;
+      updatedSettings.primaryColor = DEFAULT_NEUTRAL_HEX;
+      resetToDefaultPalette();
+    } else {
+      const rawAccentColor = hasLocalOverride
+        ? localAccentColor
+        : (resolvedDbColor || localAccentColor || DEFAULT_NEUTRAL_HEX);
+      const finalAccentColor = sanitizeAccentColor(rawAccentColor);
+      const isActiveCustom = isExplicitlyCustomizedTheme || hasLocalOverride;
+
+      updatedSettings.accentColor = finalAccentColor;
+      updatedSettings.primaryColor = finalAccentColor;
+      if (isActiveCustom) {
+        localStorage.setItem(CUSTOMIZED_THEME_STORAGE_KEY, '1');
+        localStorage.setItem('vagou_accent_color', finalAccentColor);
+      } else {
+        localStorage.removeItem(CUSTOMIZED_THEME_STORAGE_KEY);
+      }
+      setAccentColorContext(finalAccentColor, { isExplicitUserChoice: isActiveCustom });
+    }
+
+    setAdminSettings((prev) => {
+      const next = { ...prev, ...updatedSettings };
+      try {
+        localStorage.setItem('vagou_salon_admin_settings', JSON.stringify(next));
+      } catch {}
+      updateDynamicPwaAssets(
+        next.pwaName || next.salonName,
+        next.salonIcon || next.salonLogoDark || next.salonLogoLight || next.salonLogo,
+        next.accentColor,
+        next.slogan,
+        (next.defaultTheme || remoteTheme) === 'dark',
+        activeSubdomain || next.salonSlug || salonRecord.slug
+      );
+      return next;
+    });
+  }, [activeSubdomain, hasActiveSubdomain, resetToDefaultPalette, setAccentColorContext, setTheme]);
+
+  const applyServicesList = useCallback((servicesFromDb: any[], brandingCatalogMeta: any[] = [], resolvedSlugKey = '') => {
+    if (!Array.isArray(servicesFromDb)) return;
+    const mappedServices: CatalogServiceItem[] = servicesFromDb.map((s: any) => {
+      const metaMatch = brandingCatalogMeta.find(
+        (m: any) => (m.id && m.id === s.id) || ((m.title || m.name) && (m.title || m.name) === (s.title || s.name))
+      );
+      const resolvedPhotos: string[] = Array.isArray(s.photos) && s.photos.length > 0
+        ? s.photos
+        : Array.isArray(s.slides) && s.slides.length > 0
+        ? s.slides
+        : Array.isArray(metaMatch?.photos) && metaMatch.photos.length > 0
+        ? metaMatch.photos
+        : s.image_url
+        ? [s.image_url]
+        : [];
+
+      const resolvedVideoUrl: string =
+        s.video_url ||
+        (Array.isArray(s.videos) && s.videos.length > 0 ? s.videos[0]?.url : '') ||
+        metaMatch?.videoUrl ||
+        '';
+
+      const durationMinutes = parseDurationToMinutes(
+        s.duration_minutes ?? s.durationMinutes ?? s.duration ?? metaMatch?.duration,
+        40
+      );
+
+      return {
+        id: s.id,
+        title: s.title || s.name || 'Serviço',
+        description: s.description || metaMatch?.description || '',
+        price: Number(s.price) || 0,
+        duration: formatDurationFromMinutes(durationMinutes),
+        category: s.category || 'Geral',
+        image: s.image_url || resolvedPhotos[0] || metaMatch?.image || '',
+        photos: resolvedPhotos,
+        videoUrl: resolvedVideoUrl || undefined,
+        displayMode: metaMatch?.displayMode || (resolvedVideoUrl ? 'video' : resolvedPhotos.length > 1 ? 'slideshow' : 'static'),
+        mediaType: metaMatch?.mediaType || (resolvedVideoUrl ? 'video' : 'image'),
+      };
+    });
+    setCatalogServicesList(mappedServices);
+    try {
+      if (resolvedSlugKey) {
+        localStorage.setItem(`vagou_services_${resolvedSlugKey}`, JSON.stringify(mappedServices));
+      }
+      localStorage.setItem('vagou_custom_catalog_services', JSON.stringify(mappedServices));
+    } catch {}
+  }, []);
+
+  const applyProfessionalsList = useCallback((prosFromDb: any[], salonRecord: any, resolvedSlugKey = '') => {
+    if (!Array.isArray(prosFromDb)) return;
+    if (prosFromDb.length > 0) {
+      const brandingTeamMeta: any[] = Array.isArray(salonRecord?.branding?.teamMembers)
+        ? salonRecord.branding.teamMembers
+        : [];
+
+      const mappedPros: SalonProfessionalItem[] = prosFromDb.map((p: any) => {
+        const metaMatch = brandingTeamMeta.find(
+          (m: any) => (m.id && m.id === p.id) || (m.name && m.name === p.name)
+        );
+        const rawSpecs = Array.isArray(p.specialties)
+          ? p.specialties
+          : Array.isArray(metaMatch?.specialties)
+          ? metaMatch.specialties
+          : p.specialty
+          ? String(p.specialty).split(',').map((s: string) => s.trim()).filter(Boolean)
+          : ['Geral'];
+
+        const accessType =
+          metaMatch?.accessType ||
+          p.access_level ||
+          (p.role === 'admin' ? 'admin' : p.role === 'superadmin' ? 'superadmin' : 'professional');
+
+        return {
+          id: p.id,
+          name: p.name,
+          role:
+            metaMatch?.role ||
+            (p.role === 'admin'
+              ? 'Dono / Gerente'
+              : p.role === 'receptionist'
+              ? 'Recepcionista'
+              : p.specialty || p.role || 'Profissional'),
+          systemRole: accessType === 'superadmin' ? 'superadmin' : accessType === 'admin' ? 'admin' : 'member',
+          accessType,
+          jobFunctionType: metaMatch?.jobFunctionType,
+          customJobFunction: metaMatch?.customJobFunction,
+          categories: Array.isArray(metaMatch?.categories) ? metaMatch.categories : rawSpecs,
+          serviceIds: Array.isArray(metaMatch?.serviceIds) ? metaMatch.serviceIds : [],
+          serviceNames: Array.isArray(metaMatch?.serviceNames) ? metaMatch.serviceNames : [],
+          avatar: p.avatar_url || '',
+          avatarUrl: p.avatar_url || '',
+          phone: p.phone || p.phone_whatsapp || metaMatch?.phone || '',
+          email: p.email || metaMatch?.email || '',
+          commissionRate:
+            p.commission_rate !== undefined && p.commission_rate !== null
+              ? Number(p.commission_rate)
+              : metaMatch?.commissionRate ?? (p.role === 'admin' ? 100 : 50),
+          specialties: rawSpecs,
+          workSchedule: p.work_schedule || p.schedule_config || metaMatch?.workSchedule || undefined,
+          isActive: p.is_active !== false && metaMatch?.isActive !== false,
+          rating: 5.0,
+        };
+      });
+      setProfessionalsList(mappedPros);
+      try {
+        if (resolvedSlugKey) {
+          localStorage.setItem(`vagou_pros_${resolvedSlugKey}`, JSON.stringify(mappedPros));
+        }
+        localStorage.setItem('vagou_custom_professionals', JSON.stringify(mappedPros));
+      } catch {}
+    } else if (salonRecord) {
+      const fallbackOwnerPro: SalonProfessionalItem[] = [
+        {
+          id: salonRecord.id,
+          name: salonRecord.trade_name || salonName || 'Profissional',
+          role: 'Dono / Gerente',
+          systemRole: 'admin',
+          avatar: salonRecord.favicon_url || salonRecord.logo_url || '',
+          avatarUrl: salonRecord.favicon_url || salonRecord.logo_url || '',
+          rating: 5.0,
+        },
+      ];
+      setProfessionalsList(fallbackOwnerPro);
+    }
+  }, [salonName]);
+
+  // Carregar dados reais do Supabase (Identidade Visual, Configurações, Serviços e Equipe) + Assinatura Realtime
   useEffect(() => {
     let isMounted = true;
+    let unsubscribeSalonApts = () => {};
+    let unsubscribeSalonRealtime = () => {};
+    let loadedSalonRecord: any = null;
+
     async function loadDataFromSupabase() {
       if (!isSupabaseConfigured || !supabase) {
         if (isMounted) setIsLoadingSalon(false);
-        return;
+        return null;
       }
       try {
         const activeSlug = activeSubdomain || localStorage.getItem('vagou_salon_slug') || adminSettings.salonSlug || salonName.toLowerCase().replace(/\s+/g, '-');
         const activeEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
-        
-        // 1. Reaproveitar initialSalonData vindo do App.tsx (evita duas queries seguidas em public.salons) ou buscar do banco
+
         const salonRecord = (initialSalonData && initialSalonData.id)
           ? initialSalonData
           : await fetchCompleteSalonData({
@@ -989,377 +1385,30 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               email: activeEmail
             });
 
-        if (!salonRecord || !salonRecord.id) return;
+        if (!salonRecord || !salonRecord.id) return null;
+        loadedSalonRecord = salonRecord;
+
         if (isMounted) {
-          setCurrentSalonDbId(salonRecord.id);
-          localStorage.setItem('vagou_salon_db_id', salonRecord.id);
-          if (salonRecord.slug) localStorage.setItem('vagou_salon_slug', salonRecord.slug);
-
-          // Sincronizar dados visuais e administrativos vindos do Supabase
-          const updatedSettings: Partial<SalonAdminSettings> = {};
-          if (salonRecord.trade_name) updatedSettings.salonName = salonRecord.trade_name;
-
-          const rawRecordDoc = (salonRecord.document_number || '').replace(/\D/g, '');
-          const isRecordCnpj14 = rawRecordDoc.length === 14;
-          updatedSettings.cnpj = isRecordCnpj14 ? (salonRecord.document_number || '') : '';
-          updatedSettings.razaoSocial = isRecordCnpj14 ? (salonRecord.legal_name || '') : '';
-
-          const resolvedOwnerCpf =
-            salonRecord.owner_cpf ||
-            salonRecord.branding?.ownerCpf ||
-            (rawRecordDoc.length === 11 ? salonRecord.document_number : '');
-          if (resolvedOwnerCpf) {
-            updatedSettings.ownerCpf = resolvedOwnerCpf;
-            updatedSettings.legalManagerCpf = resolvedOwnerCpf;
-          }
-
-          const resolvedPixKeys = Array.isArray(salonRecord.pix_keys)
-            ? salonRecord.pix_keys
-            : (Array.isArray(salonRecord.branding?.pixKeys) ? salonRecord.branding.pixKeys : undefined);
-          if (resolvedPixKeys !== undefined) {
-            updatedSettings.pixKeys = resolvedPixKeys;
-          }
-          const resolvedPixKey =
-            salonRecord.pix_key ||
-            salonRecord.branding?.pixKey ||
-            (Array.isArray(resolvedPixKeys) ? (resolvedPixKeys.find((k: any) => k?.isPrimary)?.key || resolvedPixKeys[0]?.key) : '');
-          if (resolvedPixKey) {
-            updatedSettings.pixKey = resolvedPixKey;
-          }
-
-          if (salonRecord.phone_whatsapp) updatedSettings.salonPhone = salonRecord.phone_whatsapp;
-          if (salonRecord.category || salonRecord.branding?.category) {
-            updatedSettings.category = salonRecord.category || salonRecord.branding?.category;
-          }
-          if (salonRecord.email || salonRecord.branding?.email) {
-            updatedSettings.email = salonRecord.email || salonRecord.branding?.email;
-          }
-          if (salonRecord.phone_landline || salonRecord.branding?.phoneLandline) {
-            updatedSettings.phoneLandline = salonRecord.phone_landline || salonRecord.branding?.phoneLandline;
-          }
-          if (salonRecord.opening_hours_text || salonRecord.branding?.openingHours) {
-            updatedSettings.openingHours = salonRecord.opening_hours_text || salonRecord.branding?.openingHours;
-          }
-          if (salonRecord.operating_hours || salonRecord.branding?.operatingHours) {
-            updatedSettings.operatingHoursJson = salonRecord.operating_hours || salonRecord.branding?.operatingHours;
-          }
-          if (salonRecord.space_photos || salonRecord.branding?.spacePhotos) {
-            updatedSettings.spacePhotos = salonRecord.space_photos || salonRecord.branding?.spacePhotos;
-          }
-          if (salonRecord.space_description || salonRecord.branding?.spaceDescription) {
-            updatedSettings.spaceDescription = salonRecord.space_description || salonRecord.branding?.spaceDescription;
-          }
-          if (salonRecord.amenities || salonRecord.branding?.amenities) {
-            updatedSettings.amenities = salonRecord.amenities || salonRecord.branding?.amenities;
-          }
-          if (salonRecord.address || salonRecord.branding?.salonAddress) {
-            updatedSettings.salonAddress = salonRecord.address || salonRecord.branding?.salonAddress;
-          }
-          if (salonRecord.street_number || salonRecord.branding?.numero || salonRecord.branding?.streetNumber) {
-            updatedSettings.numero = salonRecord.street_number || salonRecord.branding?.numero || salonRecord.branding?.streetNumber;
-          }
-          if (salonRecord.complement || salonRecord.branding?.complemento || salonRecord.branding?.complement) {
-            updatedSettings.complemento = salonRecord.complement || salonRecord.branding?.complemento || salonRecord.branding?.complement;
-          }
-          if (salonRecord.neighborhood || salonRecord.branding?.bairro || salonRecord.branding?.neighborhood) {
-            updatedSettings.bairro = salonRecord.neighborhood || salonRecord.branding?.bairro || salonRecord.branding?.neighborhood;
-          }
-          if (salonRecord.city || salonRecord.branding?.cidade || salonRecord.branding?.city) {
-            updatedSettings.cidade = salonRecord.city || salonRecord.branding?.cidade || salonRecord.branding?.city;
-          }
-          if (salonRecord.state || salonRecord.branding?.uf || salonRecord.branding?.state) {
-            updatedSettings.uf = salonRecord.state || salonRecord.branding?.uf || salonRecord.branding?.state;
-          }
-          if (salonRecord.cep || salonRecord.branding?.cep) {
-            updatedSettings.cep = salonRecord.cep || salonRecord.branding?.cep;
-          }
-          const resolvedLogoLight = salonRecord.logo_light_url || salonRecord.branding?.logoLightUrl || '';
-          const resolvedLogoDark = salonRecord.logo_dark_url || salonRecord.branding?.logoDarkUrl || '';
-          const resolvedMainLogo = salonRecord.logo_url || salonRecord.branding?.logoUrl || resolvedLogoDark || resolvedLogoLight || '';
-
-          updatedSettings.salonLogoLight = resolvedLogoLight;
-          updatedSettings.salonLogoDark = resolvedLogoDark;
-          updatedSettings.salonLogo = resolvedMainLogo;
-
-          if (resolvedLogoLight) {
-            localStorage.setItem('vagou_salon_logo_light', resolvedLogoLight);
-          } else {
-            localStorage.removeItem('vagou_salon_logo_light');
-          }
-          if (resolvedLogoDark) {
-            localStorage.setItem('vagou_salon_logo_dark', resolvedLogoDark);
-          } else {
-            localStorage.removeItem('vagou_salon_logo_dark');
-          }
-
-          // Hidratação canônica Boletim bol-017 (favicon_url / salonIcon, slogan, brand_font, bio, instagramUrl)
-          const resolvedSalonIcon =
-            salonRecord.favicon_url ||
-            salonRecord.branding?.salonIcon ||
-            salonRecord.branding?.faviconUrl ||
-            salonRecord.logo_url ||
-            '';
-          if (resolvedSalonIcon) {
-            updatedSettings.salonIcon = resolvedSalonIcon;
-            localStorage.setItem('vagou_salon_icon', resolvedSalonIcon);
-          }
-
-          const resolvedSlogan = salonRecord.slogan || salonRecord.branding?.slogan || '';
-          updatedSettings.slogan = resolvedSlogan;
-
-          const resolvedBrandFont = salonRecord.brand_font || salonRecord.branding?.brandFont || 'Poppins';
-          updatedSettings.brandFont = resolvedBrandFont;
-
-          const isExplicitlyCustomizedTheme = Boolean(
-            salonRecord.branding?.themeExplicitlyCustomized || salonRecord.default_theme === 'dark'
-          );
-          const remoteTheme: 'dark' | 'light' = isExplicitlyCustomizedTheme
-            ? ((salonRecord.default_theme || salonRecord.branding?.defaultTheme || 'light') as 'dark' | 'light')
-            : 'light';
-          updatedSettings.defaultTheme = remoteTheme;
-          updatedSettings.themeExplicitlyCustomized = isExplicitlyCustomizedTheme;
-          updatedSettings.themePresetId = salonRecord.branding?.themePresetId;
-
-          const explicitUserChoice = localStorage.getItem(EXPLICIT_THEME_STORAGE_KEY);
-          if (!explicitUserChoice) {
-            if (isExplicitlyCustomizedTheme) {
-              setTheme(remoteTheme, { isExplicitUserChoice: false });
-            } else {
-              setTheme('light', { isExplicitUserChoice: false });
-            }
-            initialThemeSyncDoneRef.current = true;
-          }
-          if (salonRecord.show_slogan !== undefined || salonRecord.branding?.showSlogan !== undefined) {
-            updatedSettings.showSlogan = salonRecord.show_slogan !== undefined ? salonRecord.show_slogan : salonRecord.branding?.showSlogan;
-          }
-          if (salonRecord.logo_text_fallback !== undefined || salonRecord.branding?.logoTextFallback !== undefined) {
-            updatedSettings.logoTextFallback = salonRecord.logo_text_fallback || salonRecord.branding?.logoTextFallback || '';
-          }
-          if (salonRecord.logo_text_color || salonRecord.branding?.logoTextColor) {
-            updatedSettings.logoTextColor = salonRecord.logo_text_color || salonRecord.branding?.logoTextColor;
-          }
-          if (salonRecord.show_hero_slides !== undefined || salonRecord.branding?.showHeroSlides !== undefined) {
-            updatedSettings.showHeroSlides = salonRecord.show_hero_slides !== undefined ? salonRecord.show_hero_slides : salonRecord.branding?.showHeroSlides;
-          }
-
-          // Barra de Títulos das Seções (Section Header — limpa overrides quando nulos no banco)
-          updatedSettings.sectionHeaderBgColor = salonRecord.section_header_bg_color || salonRecord.branding?.sectionHeaderBgColor || undefined;
-          updatedSettings.sectionHeaderTextColor = salonRecord.section_header_text_color || salonRecord.branding?.sectionHeaderTextColor || undefined;
-          updatedSettings.sectionHeaderIconColor = salonRecord.section_header_icon_color || salonRecord.branding?.sectionHeaderIconColor || undefined;
-          updatedSettings.sectionHeaderBgStyle = salonRecord.section_header_bg_style || salonRecord.branding?.sectionHeaderBgStyle || 'solid';
-          updatedSettings.sectionHeaderBorder = salonRecord.section_header_border || salonRecord.branding?.sectionHeaderBorder || 'bordered';
-          updatedSettings.sectionHeaderBtnBgColor = salonRecord.section_header_btn_bg_color || salonRecord.branding?.sectionHeaderBtnBgColor || undefined;
-          updatedSettings.sectionHeaderBtnActiveBgColor = salonRecord.section_header_btn_active_bg_color || salonRecord.branding?.sectionHeaderBtnActiveBgColor || undefined;
-          updatedSettings.sectionHeaderBtnBorder = salonRecord.section_header_btn_border || salonRecord.branding?.sectionHeaderBtnBorder || undefined;
-          updatedSettings.sectionHeaderBtnShadow = salonRecord.section_header_btn_shadow || salonRecord.branding?.sectionHeaderBtnShadow || undefined;
-          updatedSettings.sectionHeaderBtnBlur = salonRecord.section_header_btn_blur || salonRecord.branding?.sectionHeaderBtnBlur || undefined;
-          updatedSettings.sectionHeaderBtnFont = salonRecord.section_header_btn_font || salonRecord.branding?.sectionHeaderBtnFont || undefined;
-
-          // Barra de Navegação Inferior (BottomNav — limpa overrides quando nulos no banco)
-          updatedSettings.navStyle = salonRecord.nav_style || salonRecord.branding?.navStyle || 'minimal';
-          updatedSettings.navShape = salonRecord.nav_shape || salonRecord.branding?.navShape || 'square';
-          updatedSettings.navBorder = salonRecord.nav_border || salonRecord.branding?.navBorder || 'bordered';
-          updatedSettings.navIconBorder = salonRecord.nav_icon_border || salonRecord.branding?.navIconBorder || 'none';
-          updatedSettings.navBgStyle = salonRecord.nav_bg_style || salonRecord.branding?.navBgStyle || 'solid';
-          const remoteNavBg = (salonRecord.nav_bg_color || salonRecord.branding?.navBgColor || '').trim();
-          updatedSettings.navBgColor = isLegacyOrSystemDefaultColor(remoteNavBg) ? undefined : remoteNavBg;
-          updatedSettings.navBtnBgColor = salonRecord.nav_btn_bg_color || salonRecord.branding?.navBtnBgColor || undefined;
-          updatedSettings.navBtnActiveBgColor = salonRecord.nav_btn_active_bg_color || salonRecord.branding?.navBtnActiveBgColor || undefined;
-          const remoteNavActive = (salonRecord.nav_active_color || salonRecord.branding?.navActiveColor || '').trim();
-          updatedSettings.navActiveColor = isLegacyOrSystemDefaultColor(remoteNavActive) ? undefined : remoteNavActive;
-          updatedSettings.navTextColor = salonRecord.nav_text_color || salonRecord.branding?.navTextColor || undefined;
-          updatedSettings.navBtnShadow = salonRecord.nav_btn_shadow || salonRecord.branding?.navBtnShadow || undefined;
-          updatedSettings.navBtnBlur = salonRecord.nav_btn_blur || salonRecord.branding?.navBtnBlur || undefined;
-          updatedSettings.navBtnFont = salonRecord.nav_btn_font || salonRecord.branding?.navBtnFont || undefined;
-          updatedSettings.welcomeStyle = salonRecord.welcome_style || salonRecord.branding?.welcomeStyle || 'atmospheric';
-
-          if (salonRecord.bio || salonRecord.branding?.bio) {
-            updatedSettings.bio = salonRecord.bio || salonRecord.branding?.bio;
-          }
-          if (salonRecord.branding?.websiteUrl !== undefined) {
-            updatedSettings.websiteUrl = salonRecord.branding.websiteUrl;
-          }
-          if (salonRecord.branding?.instagramUrl !== undefined) {
-            updatedSettings.instagramUrl = salonRecord.branding.instagramUrl;
-          }
-          if (salonRecord.branding?.facebookUrl !== undefined) {
-            updatedSettings.facebookUrl = salonRecord.branding.facebookUrl;
-          }
-          if (salonRecord.branding?.mapsUrl !== undefined) {
-            updatedSettings.mapsUrl = salonRecord.branding.mapsUrl;
-          }
-          if (salonRecord.operating_hours?.days || salonRecord.branding?.operatingSchedule?.days) {
-            updatedSettings.operatingSchedule = salonRecord.operating_hours?.days
-              ? salonRecord.operating_hours
-              : salonRecord.branding?.operatingSchedule;
-          }
-          if (salonRecord.branding?.pwaName) {
-            updatedSettings.pwaName = salonRecord.branding.pwaName;
-          }
-
-          const resolvedDbColor = salonRecord.primary_color || salonRecord.branding?.primaryColor;
-          const localAccentColor = localStorage.getItem('vagou_accent_color');
-          const localTimestamp = Number(localStorage.getItem('vagou_accent_color_timestamp') || 0);
-          const dbTimestamp = salonRecord.updated_at ? new Date(salonRecord.updated_at).getTime() : 0;
-          const hasLocalOverride = Boolean(localAccentColor && localTimestamp > dbTimestamp);
-
-          if (!isExplicitlyCustomizedTheme && !hasLocalOverride) {
-            localStorage.removeItem('vagou_accent_color');
-            localStorage.removeItem(CUSTOMIZED_THEME_STORAGE_KEY);
-            updatedSettings.accentColor = DEFAULT_NEUTRAL_HEX;
-            updatedSettings.primaryColor = DEFAULT_NEUTRAL_HEX;
-            resetToDefaultPalette();
-          } else {
-            const rawAccentColor = hasLocalOverride
-              ? localAccentColor
-              : (resolvedDbColor || localAccentColor || DEFAULT_NEUTRAL_HEX);
-            const finalAccentColor = sanitizeAccentColor(rawAccentColor);
-            const isActiveCustom = isExplicitlyCustomizedTheme || hasLocalOverride;
-
-            updatedSettings.accentColor = finalAccentColor;
-            updatedSettings.primaryColor = finalAccentColor;
-            if (isActiveCustom) {
-              localStorage.setItem(CUSTOMIZED_THEME_STORAGE_KEY, '1');
-              localStorage.setItem('vagou_accent_color', finalAccentColor);
-            } else {
-              localStorage.removeItem(CUSTOMIZED_THEME_STORAGE_KEY);
-            }
-            setAccentColorContext(finalAccentColor, { isExplicitUserChoice: isActiveCustom });
-          }
-
-          setAdminSettings((prev) => {
-            const next = { ...prev, ...updatedSettings };
-            try {
-              localStorage.setItem('vagou_salon_admin_settings', JSON.stringify(next));
-            } catch {}
-            updateDynamicPwaAssets(next.pwaName || next.salonName, next.salonIcon, next.accentColor, next.slogan);
-            return next;
-          });
+          applySalonRecordSettings(salonRecord);
         }
 
         const resolvedSlugKey = (salonRecord.slug || activeSlug || '').trim().toLowerCase();
 
-        // 2. Buscar serviços reais do banco (respeitando lista vazia em salões reais sem injetar serviços demo)
         const servicesFromDb = await fetchSalonServices(salonRecord.id);
         if (isMounted && Array.isArray(servicesFromDb)) {
           const brandingCatalogMeta: any[] = Array.isArray(salonRecord.branding?.catalogServices)
             ? salonRecord.branding.catalogServices
             : [];
-
-          const mappedServices: CatalogServiceItem[] = servicesFromDb.map((s: any) => {
-            const metaMatch = brandingCatalogMeta.find(
-              (m: any) => (m.id && m.id === s.id) || ((m.title || m.name) && (m.title || m.name) === (s.title || s.name))
-            );
-            const resolvedPhotos: string[] = Array.isArray(s.photos) && s.photos.length > 0
-              ? s.photos
-              : Array.isArray(s.slides) && s.slides.length > 0
-              ? s.slides
-              : Array.isArray(metaMatch?.photos) && metaMatch.photos.length > 0
-              ? metaMatch.photos
-              : s.image_url
-              ? [s.image_url]
-              : [];
-
-            const resolvedVideoUrl: string =
-              s.video_url ||
-              (Array.isArray(s.videos) && s.videos.length > 0 ? s.videos[0]?.url : '') ||
-              metaMatch?.videoUrl ||
-              '';
-
-            return {
-              id: s.id,
-              title: s.title || s.name || 'Serviço',
-              description: s.description || metaMatch?.description || '',
-              price: Number(s.price) || 0,
-              duration: `${s.duration_minutes || 40} min`,
-              category: s.category || 'Geral',
-              image: s.image_url || resolvedPhotos[0] || metaMatch?.image || '',
-              photos: resolvedPhotos,
-              videoUrl: resolvedVideoUrl || undefined,
-              displayMode: metaMatch?.displayMode || (resolvedVideoUrl ? 'video' : resolvedPhotos.length > 1 ? 'slideshow' : 'static'),
-              mediaType: metaMatch?.mediaType || (resolvedVideoUrl ? 'video' : 'image'),
-            };
-          });
-          setCatalogServicesList(mappedServices);
-          try {
-            if (resolvedSlugKey) {
-              localStorage.setItem(`vagou_services_${resolvedSlugKey}`, JSON.stringify(mappedServices));
-            }
-            localStorage.setItem('vagou_custom_catalog_services', JSON.stringify(mappedServices));
-          } catch {}
+          applyServicesList(servicesFromDb, brandingCatalogMeta, resolvedSlugKey);
         }
 
-        // Sincronizar utilidades operacionais em segundo plano (salon_utilities_records)
         syncAllLocalUtilitiesToDatabase(salonRecord.id);
 
-        // 3. Buscar profissionais reais do banco (com suporte a campos completos e metadados de escala/comissão)
         const prosFromDb = await fetchSalonProfessionals(salonRecord.id);
         if (isMounted && Array.isArray(prosFromDb)) {
-          if (prosFromDb.length > 0) {
-            const brandingTeamMeta: any[] = Array.isArray(salonRecord.branding?.teamMembers)
-              ? salonRecord.branding.teamMembers
-              : [];
-
-            const mappedPros: SalonProfessionalItem[] = prosFromDb.map((p: any) => {
-              const metaMatch = brandingTeamMeta.find(
-                (m: any) => (m.id && m.id === p.id) || (m.name && m.name === p.name)
-              );
-              const rawSpecs = Array.isArray(p.specialties)
-                ? p.specialties
-                : Array.isArray(metaMatch?.specialties)
-                ? metaMatch.specialties
-                : p.specialty
-                ? String(p.specialty).split(',').map((s: string) => s.trim()).filter(Boolean)
-                : ['Geral'];
-
-              return {
-                id: p.id,
-                name: p.name,
-                role:
-                  p.role === 'admin'
-                    ? 'Dono / Gerente'
-                    : p.role === 'receptionist'
-                    ? 'Recepcionista'
-                    : p.specialty || 'Profissional',
-                systemRole: p.role === 'admin' ? 'admin' : 'member',
-                avatar: p.avatar_url || '',
-                avatarUrl: p.avatar_url || '',
-                phone: p.phone || metaMatch?.phone || '',
-                email: p.email || metaMatch?.email || '',
-                commissionRate:
-                  p.commission_rate !== undefined && p.commission_rate !== null
-                    ? Number(p.commission_rate)
-                    : metaMatch?.commissionRate ?? (p.role === 'admin' ? 100 : 50),
-                specialties: rawSpecs,
-                workSchedule: p.work_schedule || p.schedule_config || metaMatch?.workSchedule || undefined,
-                isActive: p.is_active !== false && metaMatch?.isActive !== false,
-                rating: 5.0,
-              };
-            });
-            setProfessionalsList(mappedPros);
-            try {
-              if (resolvedSlugKey) {
-                localStorage.setItem(`vagou_pros_${resolvedSlugKey}`, JSON.stringify(mappedPros));
-              }
-              localStorage.setItem('vagou_custom_professionals', JSON.stringify(mappedPros));
-            } catch {}
-          } else {
-            const fallbackOwnerPro: SalonProfessionalItem[] = [
-              {
-                id: salonRecord.id,
-                name: salonRecord.trade_name || salonName || 'Profissional',
-                role: 'Dono / Gerente',
-                systemRole: 'admin',
-                avatar: salonRecord.favicon_url || salonRecord.logo_url || '',
-                avatarUrl: salonRecord.favicon_url || salonRecord.logo_url || '',
-                rating: 5.0,
-              },
-            ];
-            setProfessionalsList(fallbackOwnerPro);
-          }
+          applyProfessionalsList(prosFromDb, salonRecord, resolvedSlugKey);
         }
 
-        // 4. Buscar agendamentos reais do salão no banco
         const aptsFromDb = await fetchSalonAppointments(salonRecord.id);
         if (isMounted && Array.isArray(aptsFromDb) && aptsFromDb.length > 0) {
           const mappedApts = aptsFromDb.map((a) => mapDbAppointmentToBookingAppointment(a, salonRecord.trade_name));
@@ -1368,8 +1417,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             localStorage.setItem('vagou_user_appointments', JSON.stringify(mappedApts));
           } catch {}
         }
+
+        return salonRecord;
       } catch (err) {
         console.warn('Consulta Supabase em segundo plano:', err);
+        return null;
       } finally {
         if (isMounted) {
           setIsLoadingSalon(false);
@@ -1377,9 +1429,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       }
     }
 
-    let unsubscribeSalonApts = () => {};
-    loadDataFromSupabase().then(() => {
-      const activeSalonId = currentSalonDbId || localStorage.getItem('vagou_salon_db_id');
+    loadDataFromSupabase().then((salonRecord) => {
+      if (!isMounted) return;
+      const activeSalonId = salonRecord?.id || currentSalonDbId || localStorage.getItem('vagou_salon_db_id');
+      const resolvedSlugKey = (salonRecord?.slug || effectiveSalonCacheSlug || '').trim().toLowerCase();
+
       if (isSupabaseConfigured && activeSalonId) {
         unsubscribeSalonApts = subscribeToAppointments({ salonId: activeSalonId }, ({ eventType, newRow }) => {
           if (newRow && (eventType === 'INSERT' || eventType === 'UPDATE')) {
@@ -1400,14 +1454,63 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             });
           }
         });
+
+        unsubscribeSalonRealtime = subscribeToSalonRealtime(activeSalonId, {
+          onSalonChange: async (updatedRow) => {
+            if (!isMounted || !updatedRow) return;
+            loadedSalonRecord = { ...(loadedSalonRecord || {}), ...updatedRow };
+            applySalonRecordSettings(loadedSalonRecord);
+            const freshServices = await fetchSalonServices(activeSalonId);
+            if (isMounted && Array.isArray(freshServices)) {
+              applyServicesList(
+                freshServices,
+                Array.isArray(loadedSalonRecord?.branding?.catalogServices) ? loadedSalonRecord.branding.catalogServices : [],
+                resolvedSlugKey
+              );
+            }
+            const freshPros = await fetchSalonProfessionals(activeSalonId);
+            if (isMounted && Array.isArray(freshPros)) {
+              applyProfessionalsList(freshPros, loadedSalonRecord, resolvedSlugKey);
+            }
+          },
+          onUiSettingsChange: async () => {
+            if (!isMounted) return;
+            const refreshed = await fetchCompleteSalonData({ slug: resolvedSlugKey || undefined, name: salonName });
+            if (isMounted && refreshed?.id) {
+              loadedSalonRecord = refreshed;
+              applySalonRecordSettings(refreshed);
+            }
+          },
+          onServicesChange: async () => {
+            if (!isMounted) return;
+            const freshServices = await fetchSalonServices(activeSalonId);
+            if (isMounted && Array.isArray(freshServices)) {
+              applyServicesList(
+                freshServices,
+                Array.isArray(loadedSalonRecord?.branding?.catalogServices) ? loadedSalonRecord.branding.catalogServices : [],
+                resolvedSlugKey
+              );
+            }
+          },
+          onProfessionalsChange: async () => {
+            if (!isMounted) return;
+            const refreshed = await fetchCompleteSalonData({ slug: resolvedSlugKey || undefined, name: salonName });
+            if (refreshed?.id) loadedSalonRecord = refreshed;
+            const freshPros = await fetchSalonProfessionals(activeSalonId);
+            if (isMounted && Array.isArray(freshPros)) {
+              applyProfessionalsList(freshPros, loadedSalonRecord, resolvedSlugKey);
+            }
+          },
+        });
       }
     });
 
-    return () => { 
-      isMounted = false; 
+    return () => {
+      isMounted = false;
       unsubscribeSalonApts();
+      unsubscribeSalonRealtime();
     };
-  }, [salonName, activeSubdomain, initialSalonData?.id]);
+  }, [salonName, activeSubdomain, initialSalonData?.id, applySalonRecordSettings, applyServicesList, applyProfessionalsList]);
 
   // Escuta de eventos para atualização instantânea do catálogo de serviços no CRUD
   useEffect(() => {
@@ -1421,7 +1524,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   }, []);
 
   // Handlers para persistência e sincronização em tempo real no Supabase
-  const handleUpdateServices = async (newServices: CatalogServiceItem[]) => {
+  const handleUpdateServices = async (
+    newServices: CatalogServiceItem[],
+    categoriesOverride?: string[]
+  ): Promise<{ success: boolean; error?: string; count?: number }> => {
     setCatalogServicesList(newServices);
     try {
       if (effectiveSalonCacheSlug) {
@@ -1434,13 +1540,17 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
     window.dispatchEvent(new CustomEvent('vagou:catalog-updated', { detail: newServices }));
 
-    const salonId = currentSalonDbId || localStorage.getItem('vagou_salon_db_id');
-    if (salonId) {
-      await syncAllServicesToDb(salonId, newServices);
+    const salonId = currentSalonDbId || localStorage.getItem('vagou_salon_db_id') || activeSubdomain || adminSettings.salonSlug || '';
+    if (!salonId) {
+      return { success: false, error: 'Estabelecimento não identificado para salvar no banco.' };
     }
+    return await syncAllServicesToDb(salonId, newServices, categoriesOverride ?? adminSettings.serviceCategories);
   };
 
-  const handleUpdateProfessionals = async (newPros: SalonProfessionalItem[]) => {
+  const handleUpdateProfessionals = async (
+    newPros: SalonProfessionalItem[],
+    professionalSchedules?: Record<string, any>
+  ): Promise<{ success: boolean; error?: string }> => {
     setProfessionalsList(newPros);
     try {
       if (effectiveSalonCacheSlug) {
@@ -1451,10 +1561,15 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       // ignore
     }
 
-    const salonId = currentSalonDbId || localStorage.getItem('vagou_salon_db_id');
-    if (salonId) {
-      await syncAllProfessionalsToDb(salonId, newPros);
+    const salonId = currentSalonDbId || localStorage.getItem('vagou_salon_db_id') || activeSubdomain || adminSettings.salonSlug || '';
+    if (!salonId) {
+      return { success: false, error: 'Estabelecimento não identificado para salvar equipe.' };
     }
+    return await syncAllProfessionalsToDb(
+      salonId,
+      newPros,
+      professionalSchedules ?? adminSettings.operatingSchedule?.professionalSchedules
+    );
   };
 
   const handleUpdateSettings = async (newSettings: Partial<SalonAdminSettings>) => {
@@ -1531,11 +1646,12 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         const effectiveName = merged.pwaName || merged.salonName || salonName;
         const effectiveIsDark = (merged.defaultTheme || (isDefaultReset ? 'light' : theme)) === 'dark';
         updateDynamicPwaAssets(
-          effectiveName, 
-          merged.salonIcon || merged.salonLogoLight || merged.salonLogoDark || merged.salonLogo,
+          effectiveName,
+          merged.salonIcon || merged.salonLogoDark || merged.salonLogoLight || merged.salonLogo,
           merged.accentColor || DEFAULT_NEUTRAL_HEX,
           merged.slogan,
-          effectiveIsDark
+          effectiveIsDark,
+          activeSubdomain || merged.salonSlug
         );
       } catch {
         // ignore
@@ -1554,11 +1670,14 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   useEffect(() => {
     const effectiveName = adminSettings.pwaName || adminSettings.salonName || salonName;
     updateDynamicPwaAssets(
-      effectiveName, 
-      adminSettings.salonIcon || adminSettings.salonLogoDark || adminSettings.salonLogo,
-      adminSettings.accentColor
+      effectiveName,
+      adminSettings.salonIcon || adminSettings.salonLogoDark || adminSettings.salonLogoLight || adminSettings.salonLogo,
+      adminSettings.accentColor,
+      adminSettings.slogan,
+      theme === 'dark',
+      activeSubdomain || adminSettings.salonSlug
     );
-  }, [adminSettings.pwaName, adminSettings.salonName, adminSettings.salonIcon, adminSettings.salonLogoDark, adminSettings.salonLogo, adminSettings.accentColor, salonName]);
+  }, [adminSettings.pwaName, adminSettings.salonName, adminSettings.salonIcon, adminSettings.salonLogoDark, adminSettings.salonLogoLight, adminSettings.salonLogo, adminSettings.accentColor, adminSettings.slogan, adminSettings.salonSlug, activeSubdomain, theme, salonName]);
 
   const handleUpdateAppointments = async (newApts: BookingAppointment[]) => {
     // 1. Identificar agendamentos ou bloqueios removidos (ex: slots despausados)

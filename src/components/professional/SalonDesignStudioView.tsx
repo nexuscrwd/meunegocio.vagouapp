@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   ArrowLeft,
   Palette,
@@ -24,6 +24,7 @@ import {
   Circle,
   Sparkles,
   Layers,
+  AlertCircle,
 } from 'lucide-react';
 import { useTheme, EXPLICIT_THEME_STORAGE_KEY } from '../../context/ThemeContext';
 import { SalonAdminSettings } from '../../types';
@@ -131,6 +132,54 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
 
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isSaving) return;
+    if (adminSettings.pwaName !== undefined || adminSettings.salonName !== undefined) {
+      setPwaName(adminSettings.pwaName || adminSettings.salonName || '');
+    }
+    if (adminSettings.slogan !== undefined) setSlogan(adminSettings.slogan || '');
+    if (adminSettings.brandFont !== undefined) setBrandFont(adminSettings.brandFont || 'Plus Jakarta Sans');
+    if (adminSettings.salonLogoLight !== undefined || adminSettings.salonLogo !== undefined) {
+      setSalonLogoLight(adminSettings.salonLogoLight || adminSettings.salonLogo || '');
+    }
+    if (adminSettings.salonLogoDark !== undefined || adminSettings.salonLogo !== undefined) {
+      setSalonLogoDark(adminSettings.salonLogoDark || adminSettings.salonLogo || '');
+    }
+    if (adminSettings.salonIcon !== undefined) setSalonIcon(adminSettings.salonIcon || '');
+    if (adminSettings.logoTextFallback !== undefined) setLogoTextFallback(adminSettings.logoTextFallback || '');
+    if (adminSettings.logoTextColor !== undefined) setLogoTextColor(adminSettings.logoTextColor || DEFAULT_NEUTRAL_HEX);
+    if (adminSettings.defaultTheme !== undefined) {
+      setDefaultTheme(adminSettings.defaultTheme === 'dark' ? 'dark' : 'light');
+    }
+    if (adminSettings.accentColor !== undefined) {
+      const normalized = normalizeHex(adminSettings.accentColor) || DEFAULT_NEUTRAL_HEX;
+      setAccentColor(normalized);
+      setHexDraft(normalized);
+    }
+    if (adminSettings.themeExplicitlyCustomized !== undefined) {
+      setIsCustomized(Boolean(adminSettings.themeExplicitlyCustomized));
+    }
+    if (adminSettings.showSlogan !== undefined) setShowSlogan(adminSettings.showSlogan !== false);
+    if (adminSettings.showHeroSlides !== undefined) setShowHeroSlides(adminSettings.showHeroSlides !== false);
+    if (adminSettings.welcomeStyle !== undefined) setWelcomeStyle(adminSettings.welcomeStyle || 'atmospheric');
+    if (adminSettings.sectionHeaderBgStyle !== undefined) setSectionHeaderBgStyle(adminSettings.sectionHeaderBgStyle || 'solid');
+    if (adminSettings.sectionHeaderBorder !== undefined) setSectionHeaderBorder(adminSettings.sectionHeaderBorder || 'bordered');
+    if (adminSettings.sectionHeaderBgColor !== undefined) setSectionHeaderBgColor(adminSettings.sectionHeaderBgColor || '');
+    if (adminSettings.sectionHeaderTextColor !== undefined) setSectionHeaderTextColor(adminSettings.sectionHeaderTextColor || '');
+    if (adminSettings.sectionHeaderIconColor !== undefined) setSectionHeaderIconColor(adminSettings.sectionHeaderIconColor || '');
+    if (adminSettings.navStyle !== undefined) setNavStyle(adminSettings.navStyle || 'minimal');
+    if (adminSettings.navShape !== undefined) setNavShape(adminSettings.navShape || 'square');
+    if (adminSettings.navBorder !== undefined) setNavBorder(adminSettings.navBorder || 'bordered');
+    if (adminSettings.navIconBorder !== undefined) setNavIconBorder(adminSettings.navIconBorder || 'none');
+    if (adminSettings.navBgStyle !== undefined) setNavBgStyle(adminSettings.navBgStyle || 'solid');
+    if (adminSettings.navBgColor !== undefined) setNavBgColor(adminSettings.navBgColor || '');
+    if (adminSettings.navBtnBgColor !== undefined) setNavBtnBgColor(adminSettings.navBtnBgColor || '');
+    if (adminSettings.navBtnActiveBgColor !== undefined) setNavBtnActiveBgColor(adminSettings.navBtnActiveBgColor || '');
+    if (adminSettings.navActiveColor !== undefined) setNavActiveColor(adminSettings.navActiveColor || '');
+    if (adminSettings.navTextColor !== undefined) setNavTextColor(adminSettings.navTextColor || '');
+  }, [adminSettings, isSaving]);
 
   const logoLightInputRef = useRef<HTMLInputElement>(null);
   const logoDarkInputRef = useRef<HTMLInputElement>(null);
@@ -197,7 +246,8 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
 
     setAccentColorContext(cleanHex, { isExplicitUserChoice: true });
 
-    await onUpdateSettings({
+    setSaveError(null);
+    const dbRes = await onUpdateSettings({
       accentColor: cleanHex,
       primaryColor: cleanHex,
       themePresetId: presetId,
@@ -217,6 +267,11 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
       navActiveColor: '',
       navTextColor: '',
     });
+
+    if (dbRes && dbRes.success === false) {
+      setSaveError(dbRes.error || 'Erro ao aplicar tema no banco.');
+      return;
+    }
 
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2000);
@@ -275,7 +330,8 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
       } catch {}
     }
 
-    await onUpdateSettings({
+    setSaveError(null);
+    const dbRes = await onUpdateSettings({
       defaultTheme: 'light',
       accentColor: DEFAULT_NEUTRAL_HEX,
       primaryColor: DEFAULT_NEUTRAL_HEX,
@@ -311,6 +367,11 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
       ...logoUpdates,
     });
 
+    if (dbRes && dbRes.success === false) {
+      setSaveError(dbRes.error || 'Erro ao restaurar padrão no banco.');
+      return;
+    }
+
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2200);
   };
@@ -322,10 +383,13 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
     try {
       localStorage.setItem(EXPLICIT_THEME_STORAGE_KEY, mode);
     } catch {}
-    await onUpdateSettings({
+    const dbRes = await onUpdateSettings({
       defaultTheme: mode,
       themeExplicitlyCustomized: isCustomized || mode === 'dark',
     });
+    if (dbRes && dbRes.success === false) {
+      setSaveError(dbRes.error || 'Erro ao salvar modo de tema no banco.');
+    }
   };
 
   const handleImageUpload = async (
@@ -359,8 +423,9 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
 
   const handleSaveAll = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    hapticSuccess();
+    if (isSaving) return;
     setIsSaving(true);
+    setSaveError(null);
 
     const finalLogo = isDark ? (salonLogoDark || salonLogoLight) : (salonLogoLight || salonLogoDark);
     const resolvedAccent = normalizeHex(accentColor) || DEFAULT_NEUTRAL_HEX;
@@ -377,9 +442,16 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
     if (isCustomized) {
       setAccentColorContext(resolvedAccent, { isExplicitUserChoice: true });
     }
-    updateDynamicPwaAssets(pwaName.trim() || salonName, salonIcon || finalLogo, resolvedAccent, slogan, defaultTheme === 'dark');
+    updateDynamicPwaAssets(
+      pwaName.trim() || salonName,
+      salonIcon || finalLogo,
+      resolvedAccent,
+      slogan,
+      defaultTheme === 'dark',
+      adminSettings.salonSlug
+    );
 
-    await onUpdateSettings({
+    const dbRes = await onUpdateSettings({
       salonLogo: finalLogo,
       salonLogoLight,
       salonLogoDark,
@@ -415,13 +487,24 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
     });
 
     setIsSaving(false);
+    if (dbRes && dbRes.success === false) {
+      setSaveError(dbRes.error || 'Erro ao salvar identidade visual no banco.');
+      return;
+    }
+
+    hapticSuccess();
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2400);
   };
 
-  const syncPartial = (updates: Partial<SalonAdminSettings>) => {
+  const syncPartial = async (updates: Partial<SalonAdminSettings>) => {
     try {
-      onUpdateSettings(updates);
+      const res = await onUpdateSettings(updates);
+      if (res && res.success === false) {
+        setSaveError(res.error || 'Erro ao sincronizar ajuste visual no banco.');
+      } else {
+        setSaveError(null);
+      }
     } catch {}
   };
 
@@ -1463,35 +1546,44 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
 
       {/* Rodapé Fixo de Ação */}
       <div
-        className={`p-3 border-t shrink-0 sticky bottom-0 z-20 flex items-center gap-2 ${
+        className={`p-3 border-t shrink-0 sticky bottom-0 z-20 space-y-2 ${
           isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
         }`}
       >
-        <button
-          type="button"
-          onClick={() => {
-            hapticLight();
-            setIsDefaultModalOpen(true);
-          }}
-          className={`px-3 py-2.5 rounded-[4px] border text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0 ${
-            isDark
-              ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
-              : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
-          }`}
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span>Default</span>
-        </button>
+        {saveError && (
+          <div className="p-2 rounded-[4px] bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[11px] font-semibold flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+            <span>{saveError}</span>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={isSaving}
+            onClick={() => {
+              hapticLight();
+              setIsDefaultModalOpen(true);
+            }}
+            className={`px-3 py-2.5 rounded-[4px] border text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0 disabled:opacity-50 ${
+              isDark
+                ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
+                : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+            }`}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Default</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => handleSaveAll()}
-          disabled={isSaving}
-          className="flex-1 py-2.5 px-4 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs disabled:opacity-60"
-        >
-          {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-          <span>{isSaving ? 'Salvando...' : 'Salvar Alterações'}</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => handleSaveAll()}
+            disabled={isSaving}
+            className="flex-1 py-2.5 px-4 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs disabled:opacity-60"
+          >
+            {isSaving ? <RefreshCw className="w-3.5 h-3.5 text-white animate-spin" /> : <Save className="w-3.5 h-3.5 text-white" />}
+            <span className="text-white">{isSaving ? 'Salvando...' : 'Salvar Alterações'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Modal In-App de Confirmação Default */}

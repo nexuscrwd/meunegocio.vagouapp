@@ -1,6 +1,7 @@
 /**
  * Gerenciador de Ativos PWA Dinâmicos (White-label & Multi-estabelecimento)
- * Injeta dinamicamente o Web App Manifest e Favicons com base no logo/ícone do salão
+ * Aponta para endpoints HTTP reais (/manifest.json e /api/pwa/icon) para compatibilidade
+ * total com Android WebAPK e iOS Adicionar à Tela de Início.
  */
 
 export interface PwaCustomAssets {
@@ -12,41 +13,97 @@ export interface PwaCustomAssets {
   slogan?: string;
 }
 
-let activeBlobManifestUrl: string | null = null;
+const RESERVED_SUBDOMAINS = new Set([
+  'www', 'app', 'portal', 'adm', 'admin', 'meunegocio', 'api', 'vagouapp', 'dev', 'staging'
+]);
+
+function detectClientSalonSlug(explicitSlug?: string): string | null {
+  if (explicitSlug && explicitSlug.trim()) {
+    return explicitSlug.trim().toLowerCase();
+  }
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const paramSlug = (params.get('salon') || params.get('slug') || '').trim().toLowerCase();
+    if (paramSlug && !RESERVED_SUBDOMAINS.has(paramSlug)) {
+      return paramSlug;
+    }
+
+    const host = window.location.hostname.toLowerCase();
+    const parts = host.split('.');
+    const isPreviewHost =
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host.includes('.run.app') ||
+      host.startsWith('ais-');
+
+    if (!isPreviewHost && parts.length >= 3) {
+      const sub = parts[0];
+      if (sub && !RESERVED_SUBDOMAINS.has(sub)) {
+        return sub;
+      }
+    }
+
+    if (isPreviewHost) {
+      const envSlug = (import.meta.env.VITE_DEV_SALON_SLUG || '').trim().toLowerCase();
+      if (envSlug && !RESERVED_SUBDOMAINS.has(envSlug)) {
+        return envSlug;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+export function buildShortPwaName(name?: string, isMainDomain: boolean = false): string {
+  const raw = (name || (isMainDomain ? 'Vagou Pro' : 'Meu Espaço')).trim();
+  if (raw.length <= 12) return raw;
+  return raw.slice(0, 12).trim();
+}
 
 export function updateDynamicPwaAssets(
   name?: string,
   iconUrl?: string,
   themeColor?: string,
   slogan?: string,
-  isDarkTheme?: boolean
+  isDarkTheme?: boolean,
+  salonSlug?: string
 ) {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
   try {
-    const finalName = name || 'Meu Estabelecimento';
-    const finalShortName = finalName.length > 14 ? finalName.slice(0, 14).trim() : finalName;
-    const finalIcon = iconUrl || '';
-    const finalSlogan = (slogan || '').trim();
+    const activeSlug = detectClientSalonSlug(salonSlug);
+    const isMainDomain = !activeSlug;
+
+    const finalName = isMainDomain
+      ? 'Vagou Pro'
+      : (name && name.trim()) || 'Meu Estabelecimento';
+    const finalShortName = buildShortPwaName(finalName, isMainDomain);
+    const finalSlogan = isMainDomain
+      ? 'Gestão & Vagas Imediatas'
+      : (slogan || '').trim();
 
     const effectiveIsDark = isDarkTheme !== undefined
       ? isDarkTheme
-      : (typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') : false);
+      : document.documentElement.classList.contains('dark');
 
-    const resolvedBgColor = effectiveIsDark ? '#0F172A' : '#FFFFFF';
     const isLegacyAccent =
       !themeColor ||
       themeColor === '#20C933' ||
       themeColor === '#10B981' ||
       themeColor === '#005CA9' ||
       themeColor === '#2B82C9';
-    const effectiveThemeColor = isLegacyAccent
-      ? (effectiveIsDark ? '#0F172A' : '#FFFFFF')
-      : themeColor;
+    const effectiveThemeColor = isMainDomain
+      ? '#20C933'
+      : isLegacyAccent
+        ? (effectiveIsDark ? '#0F172A' : '#FFFFFF')
+        : themeColor;
 
-    // 1. Atualizar Título da Página (Apenas Nome e Slogan)
+    // 1. Título e metas da página
     document.title = finalSlogan ? `${finalName} — ${finalSlogan}` : finalName;
-    
+
     const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
     if (appleTitleMeta) {
       appleTitleMeta.setAttribute('content', finalShortName);
@@ -62,7 +119,6 @@ export function updateDynamicPwaAssets(
       appleStatusMeta.setAttribute('content', effectiveIsDark ? 'black-translucent' : 'default');
     }
 
-    // Atualizar Meta Description e OpenGraph (apenas Nome do App e Slogan)
     const shareDesc = finalSlogan || finalName;
     const descMeta = document.querySelector('meta[name="description"]');
     if (descMeta) {
@@ -79,62 +135,43 @@ export function updateDynamicPwaAssets(
       ogDesc.setAttribute('content', shareDesc);
     }
 
-    // 2. Atualizar Favicons e Apple Touch Icons Dinamicamente
-    if (finalIcon) {
-      const appleTouchIcons = document.querySelectorAll('link[rel="apple-touch-icon"]');
-      appleTouchIcons.forEach((el) => el.setAttribute('href', finalIcon));
+    // 2. Favicons & Apple Touch Icons HTTP reais (nunca URL blob: ou vazia)
+    const icon192 = activeSlug
+      ? `/api/pwa/icon?salon=${encodeURIComponent(activeSlug)}&size=192&purpose=any`
+      : '/icon-192.png';
+    const icon512 = activeSlug
+      ? `/api/pwa/icon?salon=${encodeURIComponent(activeSlug)}&size=512&purpose=any`
+      : '/icon-512.png';
+    const icon180 = activeSlug
+      ? `/api/pwa/icon?salon=${encodeURIComponent(activeSlug)}&size=180&purpose=any`
+      : '/icon-192.png';
+    const svgOrPngFavicon = activeSlug
+      ? (iconUrl && !iconUrl.startsWith('blob:') ? iconUrl : icon192)
+      : '/icon.svg';
 
-      const standardIcons = document.querySelectorAll('link[rel="icon"]');
-      standardIcons.forEach((el) => el.setAttribute('href', finalIcon));
-    }
-
-    // 3. Gerar e Injetar Web App Manifest Dinâmico (Blob URL)
-    const isSvg = finalIcon.includes('image/svg+xml') || finalIcon.endsWith('.svg');
-    const dynamicManifest = {
-      id: '/',
-      name: finalSlogan ? `${finalName} — ${finalSlogan}` : finalName,
-      short_name: finalShortName,
-      description: shareDesc,
-      start_url: '/?source=pwa',
-      scope: '/',
-      display: 'standalone',
-      display_override: ['standalone', 'minimal-ui', 'window-controls-overlay'],
-      orientation: 'portrait-primary',
-      background_color: resolvedBgColor,
-      theme_color: effectiveThemeColor,
-      prefer_related_applications: false,
-      categories: ['lifestyle', 'beauty', 'shopping', 'utilities'],
-      icons: [
-        {
-          src: finalIcon,
-          sizes: 'any',
-          type: isSvg ? 'image/svg+xml' : 'image/png',
-          purpose: 'any maskable'
-        },
-        {
-          src: finalIcon,
-          sizes: '192x192',
-          type: isSvg ? 'image/svg+xml' : 'image/png',
-          purpose: 'any maskable'
-        },
-        {
-          src: finalIcon,
-          sizes: '512x512',
-          type: isSvg ? 'image/svg+xml' : 'image/png',
-          purpose: 'any maskable'
-        }
-      ]
-    };
-
-    const manifestBlob = new Blob([JSON.stringify(dynamicManifest, null, 2)], {
-      type: 'application/manifest+json'
+    const appleTouchIcons = document.querySelectorAll('link[rel="apple-touch-icon"]');
+    appleTouchIcons.forEach((el) => {
+      const sizes = el.getAttribute('sizes');
+      el.setAttribute('href', sizes === '192x192' ? icon192 : icon180);
     });
 
-    if (activeBlobManifestUrl) {
-      URL.revokeObjectURL(activeBlobManifestUrl);
-    }
+    const standardIcons = document.querySelectorAll('link[rel="icon"]');
+    standardIcons.forEach((el) => {
+      const typeAttr = el.getAttribute('type') || '';
+      const sizes = el.getAttribute('sizes') || '';
+      if (typeAttr.includes('svg')) {
+        el.setAttribute('href', svgOrPngFavicon);
+      } else if (sizes === '512x512') {
+        el.setAttribute('href', icon512);
+      } else {
+        el.setAttribute('href', icon192);
+      }
+    });
 
-    activeBlobManifestUrl = URL.createObjectURL(manifestBlob);
+    // 3. Manifest HTTP real (WebAPK e Safari exigem endpoint HTTP válido, nunca blob:)
+    const manifestUrl = activeSlug
+      ? `/manifest.json?salon=${encodeURIComponent(activeSlug)}`
+      : '/manifest.json';
 
     let manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null;
     if (!manifestLink) {
@@ -142,10 +179,11 @@ export function updateDynamicPwaAssets(
       manifestLink.rel = 'manifest';
       document.head.appendChild(manifestLink);
     }
-    manifestLink.href = activeBlobManifestUrl;
-
+    if (manifestLink.getAttribute('href') !== manifestUrl) {
+      manifestLink.setAttribute('href', manifestUrl);
+    }
   } catch (error) {
-    console.warn('Erro ao atualizar manifesto PWA dinâmico:', error);
+    console.warn('Erro ao atualizar ativos PWA dinâmicos:', error);
   }
 }
 
@@ -153,15 +191,25 @@ export function initializeStoredPwaAssets() {
   if (typeof window === 'undefined') return;
 
   try {
+    const activeSlug = detectClientSalonSlug();
+    const isDarkTheme = localStorage.getItem('vagou_theme_mode_v3') === 'dark';
+
+    if (!activeSlug) {
+      updateDynamicPwaAssets('Vagou Pro', '/icon-512.png', '#20C933', 'Gestão & Vagas Imediatas', isDarkTheme);
+      return;
+    }
+
     const savedSettings = localStorage.getItem('vagou_salon_admin_settings');
-    const storedIcon = localStorage.getItem('vagou_salon_icon') || localStorage.getItem('vagou_salon_logo_light') || localStorage.getItem('vagou_salon_logo_dark');
+    const storedIcon =
+      localStorage.getItem('vagou_salon_icon') ||
+      localStorage.getItem('vagou_salon_logo_light') ||
+      localStorage.getItem('vagou_salon_logo_dark');
     const storedColor = localStorage.getItem('vagou_accent_color') || '#FFFFFF';
 
-    let name = 'Meu Estabelecimento';
+    let name = activeSlug.toUpperCase();
     let icon = storedIcon || '';
     let color = storedColor;
     let slogan = '';
-    const isDarkTheme = localStorage.getItem('vagou_theme_mode_v3') === 'dark';
 
     if (savedSettings) {
       try {
@@ -172,12 +220,13 @@ export function initializeStoredPwaAssets() {
         }
         if (parsed.accentColor) color = parsed.accentColor;
         if (parsed.slogan) slogan = parsed.slogan;
-      } catch {}
+      } catch {
+        // ignore JSON parse error
+      }
     }
 
-    updateDynamicPwaAssets(name, icon, color, slogan, isDarkTheme);
+    updateDynamicPwaAssets(name, icon, color, slogan, isDarkTheme, activeSlug);
   } catch {
     // ignore
   }
 }
-

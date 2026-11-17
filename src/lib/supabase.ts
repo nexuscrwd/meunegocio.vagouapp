@@ -2,6 +2,7 @@ import { createClient, User } from '@supabase/supabase-js';
 import type { Database, AppointmentStatus, OfferStatus } from '../types/database.types';
 import type { BookingAppointment } from '../types';
 import { DEFAULT_NEUTRAL_HEX, resolveThemePresetId } from '../utils/themePalette';
+import { formatDurationFromMinutes, parseDurationToMinutes } from '../utils/duration';
 
 const DEFAULT_SUPABASE_URL = 'https://xemenxdhuoekytyhmgyt.supabase.co';
 const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlbWVueGRodW9la3l0eWhtZ3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMDE2MzAsImV4cCI6MjEwNTc3NzYzMH0.P-q6bQspwuQNhub08hjWmsjLrugr3CVA1NIdznWJxuo';
@@ -1187,7 +1188,7 @@ export async function fetchSalonServices(salonId: string) {
         title: s.title || s.name || 'Serviço',
         category: s.category || 'Geral',
         price: Number(s.price) || 0,
-        duration_minutes: typeof s.duration === 'string' ? parseInt(s.duration.replace(/\D/g, '')) || 40 : (s.duration_minutes || s.durationMinutes || 40),
+        duration_minutes: parseDurationToMinutes(s.duration_minutes ?? s.durationMinutes ?? s.duration, 40),
         commission_rate: Number(s.commissionRate ?? s.commission_rate ?? 50),
         description: s.description || null,
         image_url: s.image || s.image_url || (s.photos && s.photos.length > 0 ? s.photos[0] : null),
@@ -1236,8 +1237,8 @@ export async function upsertSalonService(service: {
       category: service.category,
       price: service.price,
       promotional_price: service.promotionalPrice ?? null,
-      duration_minutes: service.durationMinutes,
-      duration_estimated: service.durationEstimated || `${service.durationMinutes} min`,
+      duration_minutes: parseDurationToMinutes(service.durationMinutes ?? service.durationEstimated, 40),
+      duration_estimated: service.durationEstimated || formatDurationFromMinutes(service.durationMinutes),
       commission_rate: service.commissionRate ?? 50,
       description: service.description || null,
       image_url: service.imageUrl || null,
@@ -2127,6 +2128,102 @@ export function subscribeToAppointments(
       }
     )
     .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
+/**
+ * Escuta em tempo real (Postgres Changes) todas as tabelas operacionais e visuais de um estabelecimento:
+ * salons, services, salon_services, professionals, salon_ui_settings e salon_media_items
+ */
+export function subscribeToSalonRealtime(
+  salonId: string,
+  callbacks: {
+    onSalonChange?: (row: any) => void;
+    onServicesChange?: (payload: { eventType: string; newRow: any; oldRow: any }) => void;
+    onProfessionalsChange?: (payload: { eventType: string; newRow: any; oldRow: any }) => void;
+    onUiSettingsChange?: (row: any) => void;
+    onMediaChange?: (payload: { eventType: string; newRow: any; oldRow: any }) => void;
+  }
+) {
+  if (!supabase || !isSupabaseConfigured || !salonId) return () => {};
+
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonId);
+  const salonFilter = isUuid ? `id=eq.${salonId}` : `slug=eq.${salonId}`;
+  const childFilter = isUuid ? `salon_id=eq.${salonId}` : undefined;
+
+  const channel = supabase.channel(`rt-salon-${salonId}-${Date.now()}`);
+
+  channel.on(
+    'postgres_changes',
+    { event: '*', schema: 'public', table: 'salons', filter: salonFilter },
+    (payload) => {
+      if (payload.new && callbacks.onSalonChange) {
+        callbacks.onSalonChange(payload.new);
+      }
+    }
+  );
+
+  if (childFilter) {
+    channel
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'services', filter: childFilter },
+        (payload) => {
+          callbacks.onServicesChange?.({
+            eventType: payload.eventType,
+            newRow: payload.new,
+            oldRow: payload.old,
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'salon_services', filter: childFilter },
+        (payload) => {
+          callbacks.onServicesChange?.({
+            eventType: payload.eventType,
+            newRow: payload.new,
+            oldRow: payload.old,
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'professionals', filter: childFilter },
+        (payload) => {
+          callbacks.onProfessionalsChange?.({
+            eventType: payload.eventType,
+            newRow: payload.new,
+            oldRow: payload.old,
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'salon_ui_settings', filter: childFilter },
+        (payload) => {
+          if (payload.new && callbacks.onUiSettingsChange) {
+            callbacks.onUiSettingsChange(payload.new);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'salon_media_items', filter: childFilter },
+        (payload) => {
+          callbacks.onMediaChange?.({
+            eventType: payload.eventType,
+            newRow: payload.new,
+            oldRow: payload.old,
+          });
+        }
+      );
+  }
+
+  channel.subscribe();
 
   return () => {
     supabase.removeChannel(channel);
@@ -3124,12 +3221,32 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
     }
     if (settings.operatingHoursJson !== undefined) {
       payload.operating_hours = settings.operatingHoursJson;
+    } else if (settings.operatingSchedule !== undefined) {
+      payload.operating_hours = settings.operatingSchedule;
+    }
+    if (settings.openingHours !== undefined) {
+      payload.opening_hours_text = settings.openingHours;
+    }
+    if (settings.spaceDescription !== undefined) {
+      payload.space_description = settings.spaceDescription;
+    }
+    if (settings.amenities !== undefined) {
+      payload.amenities = settings.amenities;
     }
     if (settings.salonLogoLight !== undefined) payload.logo_light_url = settings.salonLogoLight || null;
     if (settings.salonLogoDark !== undefined) payload.logo_dark_url = settings.salonLogoDark || null;
     if (settings.salonLogo !== undefined || settings.logoUrl !== undefined) {
       payload.logo_url = settings.salonLogo || settings.logoUrl || settings.salonLogoDark || settings.salonLogoLight || null;
     }
+    if (settings.slogan !== undefined) payload.slogan = settings.slogan || '';
+    if (settings.isOpenNow !== undefined) payload.is_open_now = settings.isOpenNow;
+    if (settings.websiteUrl !== undefined) payload.website_url = settings.websiteUrl || '';
+    if (settings.instagramUrl !== undefined) payload.instagram_url = settings.instagramUrl || '';
+    if (settings.facebookUrl !== undefined) payload.facebook_url = settings.facebookUrl || '';
+    if (settings.mapsUrl !== undefined) payload.maps_url = settings.mapsUrl || '';
+    if (settings.holidays !== undefined) payload.holidays = settings.holidays;
+    if (settings.cancellationPolicy !== undefined) payload.cancellation_policy = settings.cancellationPolicy;
+    if (settings.spacePhotos !== undefined) payload.space_photos = settings.spacePhotos;
 
     // Tema Camaleão e Fotos do Espaço mantidos em branding JSONB (BOL-164: sem aliases não-físicos no topo de public.salons)
     if (settings.accentColor || settings.primaryColor) {
@@ -3169,10 +3286,13 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
 
     const resolvedIcon =
       settings.salonIcon !== undefined
-        ? (settings.salonIcon || settings.salonLogo || '')
+        ? (settings.salonIcon || '')
         : (settings.faviconUrl !== undefined
             ? settings.faviconUrl
-            : (existingBranding.salonIcon || existingBranding.faviconUrl || existingRow?.logo_url || ''));
+            : (existingBranding.salonIcon || existingBranding.faviconUrl || ''));
+    if (settings.salonIcon !== undefined || settings.faviconUrl !== undefined) {
+      payload.favicon_url = resolvedIcon || null;
+    }
 
     const resolvedDefaultTheme =
       settings.defaultTheme ||
@@ -3196,6 +3316,9 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       showHeroSlides: settings.showHeroSlides !== undefined ? settings.showHeroSlides : (existingBranding.showHeroSlides !== false),
       faviconUrl: resolvedIcon,
       salonIcon: resolvedIcon,
+      ...(settings.salonLogoLight !== undefined ? { salonLogoLight: settings.salonLogoLight } : {}),
+      ...(settings.salonLogoDark !== undefined ? { salonLogoDark: settings.salonLogoDark } : {}),
+      ...(settings.salonLogo !== undefined ? { salonLogo: settings.salonLogo } : {}),
       slogan: settings.slogan !== undefined ? (settings.slogan || '') : (existingBranding.slogan || ''),
       brandFont: settings.brandFont || existingBranding.brandFont || 'Plus Jakarta Sans',
       welcomeStyle: settings.welcomeStyle || existingBranding.welcomeStyle || 'atmospheric',
@@ -3245,6 +3368,11 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       ...(settings.holidays !== undefined ? { holidays: settings.holidays } : {}),
       ...(settings.cancellationPolicy !== undefined ? { cancellationPolicy: settings.cancellationPolicy } : {}),
       ...(settings.spacePhotos !== undefined ? { spacePhotos: settings.spacePhotos } : {}),
+      ...(settings.spaceDescription !== undefined ? { spaceDescription: settings.spaceDescription } : {}),
+      ...(settings.amenities !== undefined ? { amenities: settings.amenities } : {}),
+      ...(settings.serviceCategories !== undefined ? { serviceCategories: settings.serviceCategories } : {}),
+      ...(settings.pinCode !== undefined ? { pinCode: settings.pinCode } : {}),
+      ...(settings.isOpenNow !== undefined ? { isOpenNow: settings.isOpenNow } : {}),
       ...(settings.websiteUrl !== undefined ? { websiteUrl: settings.websiteUrl || '' } : {}),
       ...(settings.instagramUrl !== undefined ? { instagramUrl: settings.instagramUrl || '' } : {}),
       ...(settings.facebookUrl !== undefined ? { facebookUrl: settings.facebookUrl || '' } : {}),
@@ -3252,40 +3380,34 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       ...(settings.bio !== undefined ? { bio: settings.bio || '' } : {}),
     };
 
-    let { data, error } = await (supabaseAdmin.from('salons') as any)
-      .update(payload)
-      .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug })
-      .select()
-      .maybeSingle();
+    const workingSalonsPayload: Record<string, any> = { ...payload };
+    let data: any = null;
+    let error: any = null;
 
-    // Fallback resiliente caso alguma coluna física ainda não exista no banco remoto (preserva branding)
-    if (error && (error.message?.includes('column') || error.code === '42703' || error.code === 'PGRST204')) {
-      const fallbackPayload: Record<string, any> = {
-        trade_name: payload.trade_name,
-        legal_name: payload.legal_name,
-        phone_whatsapp: payload.phone_whatsapp,
-        address: payload.address,
-        neighborhood: payload.neighborhood,
-        city: payload.city,
-        state: payload.state,
-        primary_color: payload.primary_color,
-        secondary_color: payload.secondary_color,
-        logo_url: payload.logo_url,
-        logo_light_url: payload.logo_light_url,
-        logo_dark_url: payload.logo_dark_url,
-        branding: payload.branding,
-        updated_at: new Date().toISOString(),
-      };
-      const retry = await (supabaseAdmin.from('salons') as any)
-        .update(fallbackPayload)
+    for (let attempt = 0; attempt < 25; attempt++) {
+      const res = await (supabaseAdmin.from('salons') as any)
+        .update(workingSalonsPayload)
         .match(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug })
         .select()
         .maybeSingle();
-      data = retry.data;
-      error = retry.error;
+      data = res.data;
+      error = res.error;
+      if (!error) break;
+
+      const errMsg = String(error.message || error.details || '');
+      const colMatch =
+        errMsg.match(/Could not find the '([^']+)' column/i) ||
+        errMsg.match(/column "([^"]+)" of relation/i) ||
+        errMsg.match(/column (?:[a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+) does not exist/i);
+      const isColError = error.code === 'PGRST204' || error.code === '42703' || Boolean(colMatch);
+      if (isColError && colMatch?.[1] && colMatch[1] in workingSalonsPayload) {
+        delete workingSalonsPayload[colMatch[1]];
+        continue;
+      }
+      break;
     }
 
-    const resolvedSalonUuid = data?.id || (isUuid ? salonIdOrSlug : null);
+    const resolvedSalonUuid = data?.id || existingRow?.id || (isUuid ? salonIdOrSlug : null);
 
     // Espelhar na tabela dedicada public.salon_ui_settings para persistência estruturada (usando payload.branding mesclado)
     if (resolvedSalonUuid) {
@@ -3382,21 +3504,27 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       } catch {}
     }
 
-    // Auto-healing se nenhuma linha foi afetada devido ao RLS
-    if (!data) {
-      try {
-        const { data: upsertData, error: upsertErr } = await (supabaseAdmin.from('salons') as any)
-          .upsert({
-            ...(isUuid ? { id: salonIdOrSlug } : { slug: salonIdOrSlug }),
-            ...payload
-          }, { onConflict: isUuid ? 'id' : 'slug' })
-          .select()
-          .maybeSingle();
-
-        if (!upsertErr && upsertData) {
-          return { success: true, data: upsertData };
-        }
-      } catch {}
+    // Fallback via Backend Proxy Privilegiado (/api/salon/sync) quando o navegador é bloqueado por RLS
+    if (!data || error) {
+      if (resolvedSalonUuid && typeof fetch !== 'undefined') {
+        try {
+          const proxyRes = await fetch('/api/salon/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'settings',
+              salonId: resolvedSalonUuid,
+              payload: settings,
+            }),
+          });
+          if (proxyRes.ok) {
+            const proxyJson = await proxyRes.json();
+            if (proxyJson?.success) {
+              return { success: true, data: data || { id: resolvedSalonUuid } };
+            }
+          }
+        } catch {}
+      }
 
       if (error) {
         return { success: false, error: error.message };
@@ -3404,7 +3532,7 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
 
       return {
         success: false,
-        error: 'O banco recusou a gravação por permissão (RLS). Apenas o proprietário do estabelecimento pode salvar estas alterações.',
+        error: 'O banco recusou a gravação por permissão (RLS). Verifique suas credenciais de proprietário.',
       };
     }
 
@@ -3483,7 +3611,11 @@ export async function uploadSalonMediaToStorage(
 /**
  * Sincroniza a lista completa de serviços do Salão com o Supabase (CRUD Total: salon_services + services + salons.branding.catalogServices)
  */
-export async function syncAllServicesToDb(salonId: string, services: any[]): Promise<{ success: boolean; count?: number; error?: string }> {
+export async function syncAllServicesToDb(
+  salonId: string,
+  services: any[],
+  categories?: string[]
+): Promise<{ success: boolean; count?: number; error?: string }> {
   if (!supabase || !isSupabaseConfigured || !salonId) return { success: false, error: 'Identificador do salão não fornecido' };
   const client = getDbClient() || supabase;
   try {
@@ -3505,7 +3637,6 @@ export async function syncAllServicesToDb(salonId: string, services: any[]): Pro
     }
 
     if (!resolvedSalonUuid || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedSalonUuid)) {
-      console.warn('Aviso: Não foi possível resolver salon_id para UUID válido em syncAllServicesToDb:', salonId);
       return { success: false, error: 'Salão não possui UUID válido' };
     }
 
@@ -3515,16 +3646,16 @@ export async function syncAllServicesToDb(salonId: string, services: any[]): Pro
       .eq('salon_id', resolvedSalonUuid);
 
     const activeServiceIds: string[] = [];
+    let lastServiceError: string | null = null;
 
     // 2. Para cada serviço fornecido, garante UUID v4 e realiza upsert em salon_services e services
     for (const s of services) {
-      const durationMinutes = typeof s.duration === 'string'
-        ? parseInt(s.duration.replace(/\D/g, '')) || 40
-        : (s.duration_minutes || s.durationMinutes || 40);
+      const durationMinutes = parseDurationToMinutes(s.duration_minutes ?? s.durationMinutes ?? s.duration, 40);
 
       const isUuid = s.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s.id));
       const serviceUuid = isUuid ? String(s.id) : generateUuidV4();
       s.id = serviceUuid;
+      s.duration = formatDurationFromMinutes(durationMinutes);
       activeServiceIds.push(serviceUuid);
 
       const serviceName = s.title || s.name || 'Serviço';
@@ -3544,33 +3675,40 @@ export async function syncAllServicesToDb(salonId: string, services: any[]): Pro
         photos: Array.isArray(s.photos) ? s.photos : (firstPhoto ? [firstPhoto] : []),
         videos: Array.isArray(s.videos) ? s.videos : (s.videoUrl ? [{ id: `vid_${serviceUuid}`, url: s.videoUrl, title: serviceName, duration_seconds: 5 }] : []),
         slides: Array.isArray(s.slides) ? s.slides : (Array.isArray(s.photos) ? s.photos : []),
+        media_type: s.mediaType || 'image',
+        video_url: s.videoUrl || null,
+        video_duration_seconds: s.videoDurationSeconds || 0,
+        display_mode: s.displayMode || 'static',
+        aspect_ratio: s.aspectRatio || '1:1',
         is_active: s.isActive !== false && s.is_active !== false,
         updated_at: new Date().toISOString(),
       };
 
-      // 2A. Upsert em public.salon_services
+      // 2A. Upsert em public.salon_services (não bloqueante)
       try {
         await (client.from('salon_services' as any) as any).upsert(fullPayload, { onConflict: 'id' });
       } catch {}
 
-      // 2B. Upsert em public.services (com fallback seguro se colunas extras não existirem)
-      const { error: srvErr } = await (client.from('services') as any).upsert(fullPayload, { onConflict: 'id' });
-      if (srvErr && (srvErr.code === 'PGRST204' || srvErr.code === '42703' || srvErr.message?.includes('column'))) {
-        await (client.from('services') as any).upsert(
-          {
-            id: serviceUuid,
-            salon_id: resolvedSalonUuid,
-            title: serviceName,
-            category: s.category || 'Geral',
-            price: Number(s.price) || 0,
-            duration_minutes: durationMinutes,
-            description: s.description || null,
-            image_url: firstPhoto,
-            is_active: true,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'id' }
-        );
+      // 2B. Upsert em public.services removendo dinamicamente apenas colunas inexistentes
+      const workingServicePayload: Record<string, any> = { ...fullPayload };
+      let srvErr: any = null;
+      for (let attempt = 0; attempt < 15; attempt++) {
+        const res = await (client.from('services') as any).upsert(workingServicePayload, { onConflict: 'id' });
+        srvErr = res.error;
+        if (!srvErr) break;
+        const msg = String(srvErr.message || '');
+        const colMatch =
+          msg.match(/Could not find the '([^']+)' column/i) ||
+          msg.match(/column "([^"]+)" of relation/i) ||
+          msg.match(/column (?:[a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+) does not exist/i);
+        if ((srvErr.code === 'PGRST204' || srvErr.code === '42703' || colMatch) && colMatch?.[1] && colMatch[1] in workingServicePayload) {
+          delete workingServicePayload[colMatch[1]];
+          continue;
+        }
+        break;
+      }
+      if (srvErr) {
+        lastServiceError = srvErr.message || 'Erro ao gravar serviço no banco.';
       }
     }
 
@@ -3594,15 +3732,18 @@ export async function syncAllServicesToDb(salonId: string, services: any[]): Pro
         .in('id', removedIds);
 
       if (delError) {
-        // Fallback seguro (soft-delete) caso o serviço já tenha agendamentos históricos vinculados por FK
-        await (client.from('services') as any)
+        const { error: softDelErr } = await (client.from('services') as any)
           .update({ is_active: false, updated_at: new Date().toISOString() })
           .eq('salon_id', resolvedSalonUuid)
           .in('id', removedIds);
+        if (softDelErr && !lastServiceError) {
+          lastServiceError = softDelErr.message;
+        }
       }
     }
 
     // 4. Espelhamento de Resiliência no JSONB do Salão (Double Single Source of Truth)
+    let brandingWriteError: string | null = null;
     try {
       const { data: currentSalon } = await (client.from('salons') as any)
         .select('branding')
@@ -3610,36 +3751,92 @@ export async function syncAllServicesToDb(salonId: string, services: any[]): Pro
         .maybeSingle();
 
       const existingBranding = (currentSalon?.branding && typeof currentSalon.branding === 'object') ? currentSalon.branding : {};
-      await (client.from('salons') as any)
+      const { data: updatedSalon, error: brErr } = await (client.from('salons') as any)
         .update({
           branding: {
             ...existingBranding,
             catalogServices: services,
+            ...(Array.isArray(categories) ? { serviceCategories: categories } : {}),
+            updatedAt: new Date().toISOString(),
           },
           updated_at: new Date().toISOString(),
         })
-        .eq('id', resolvedSalonUuid);
-    } catch {}
+        .eq('id', resolvedSalonUuid)
+        .select('id')
+        .maybeSingle();
+
+      if (brErr || !updatedSalon) {
+        brandingWriteError = brErr?.message || 'Sem permissão para atualizar catálogo do estabelecimento (RLS).';
+      }
+    } catch (e: any) {
+      brandingWriteError = e?.message || 'Falha ao espelhar catálogo em branding.';
+    }
+
+    // 5. Fallback via Backend Proxy (/api/salon/sync) se houve erro direto no navegador (ex: RLS)
+    if (lastServiceError || brandingWriteError) {
+      if (typeof fetch !== 'undefined') {
+        try {
+          const proxyRes = await fetch('/api/salon/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'services',
+              salonId: resolvedSalonUuid,
+              payload: { services, categories },
+            }),
+          });
+          if (proxyRes.ok) {
+            const proxyJson = await proxyRes.json();
+            if (proxyJson?.success) {
+              return { success: true, count: services.length };
+            }
+          }
+        } catch {}
+      }
+      return { success: false, error: lastServiceError || brandingWriteError || 'Erro ao gravar catálogo no banco.' };
+    }
 
     return { success: true, count: services.length };
   } catch (err: any) {
     console.error('Falha ao sincronizar catálogo de serviços no Supabase:', err);
-    return { success: false, error: err?.message };
+    return { success: false, error: err?.message || 'Erro inesperado ao salvar serviços.' };
   }
 }
 
 /**
  * Sincroniza a lista de profissionais da equipe no Supabase (public.professionals + espelho em salons.branding.teamMembers)
  */
-export async function syncAllProfessionalsToDb(salonId: string, professionals: any[]) {
-  if (!supabase || !isSupabaseConfigured || !salonId) return { success: false };
-  const client = getDbClient();
+export async function syncAllProfessionalsToDb(
+  salonId: string,
+  professionals: any[],
+  professionalSchedules?: Record<string, any>
+): Promise<{ success: boolean; error?: string }> {
+  if (!supabase || !isSupabaseConfigured || !salonId) return { success: false, error: 'Identificador do salão não fornecido' };
+  const client = getDbClient() || supabase;
   try {
+    let resolvedSalonUuid = salonId;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonId)) {
+      const { data: sRow } = await (client.from('salons') as any).select('id').eq('slug', salonId).maybeSingle();
+      if (sRow?.id) {
+        resolvedSalonUuid = sRow.id;
+      } else {
+        const cachedDbId = typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_db_id') : null;
+        if (cachedDbId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cachedDbId)) {
+          resolvedSalonUuid = cachedDbId;
+        }
+      }
+    }
+
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedSalonUuid)) {
+      return { success: false, error: 'Salão não possui UUID válido' };
+    }
+
     const { data: existingPros } = await (client.from('professionals') as any)
       .select('id')
-      .eq('salon_id', salonId);
+      .eq('salon_id', resolvedSalonUuid);
 
     const activeProIds: string[] = [];
+    let lastProError: string | null = null;
 
     for (const p of professionals) {
       const isUuid = p.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(p.id));
@@ -3648,6 +3845,7 @@ export async function syncAllProfessionalsToDb(salonId: string, professionals: a
       activeProIds.push(proUuid);
 
       const accessLevel =
+        p.accessType ||
         p.accessLevel ||
         (p.systemRole === 'admin' || p.role === 'admin'
           ? 'admin'
@@ -3655,9 +3853,9 @@ export async function syncAllProfessionalsToDb(salonId: string, professionals: a
           ? 'receptionist'
           : 'professional');
 
-      const payload: any = {
+      const workingPayload: Record<string, any> = {
         id: proUuid,
-        salon_id: salonId,
+        salon_id: resolvedSalonUuid,
         name: p.name || 'Profissional',
         full_name: p.name || 'Profissional',
         role: p.role || 'Profissional',
@@ -3675,25 +3873,25 @@ export async function syncAllProfessionalsToDb(salonId: string, professionals: a
         updated_at: new Date().toISOString(),
       };
 
-      const { error: upsertErr } = await (client.from('professionals') as any).upsert(payload, { onConflict: 'id' });
+      let upsertErr: any = null;
+      for (let attempt = 0; attempt < 15; attempt++) {
+        const res = await (client.from('professionals') as any).upsert(workingPayload, { onConflict: 'id' });
+        upsertErr = res.error;
+        if (!upsertErr) break;
+        const msg = String(upsertErr.message || '');
+        const colMatch =
+          msg.match(/Could not find the '([^']+)' column/i) ||
+          msg.match(/column "([^"]+)" of relation/i) ||
+          msg.match(/column (?:[a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+) does not exist/i);
+        if ((upsertErr.code === 'PGRST204' || upsertErr.code === '42703' || colMatch) && colMatch?.[1] && colMatch[1] in workingPayload) {
+          delete workingPayload[colMatch[1]];
+          continue;
+        }
+        break;
+      }
+
       if (upsertErr) {
-        // Fallback resiliente caso alguma coluna opcional não exista na tabela professionals
-        await (client.from('professionals') as any).upsert(
-          {
-            id: proUuid,
-            salon_id: salonId,
-            name: p.name || 'Profissional',
-            role: p.role || 'Profissional',
-            avatar_url: p.avatarUrl || p.avatar || null,
-            phone: p.phone || null,
-            email: p.email || null,
-            specialties: Array.isArray(p.specialties) ? p.specialties : ['Geral'],
-            schedule_config: p.workSchedule || p.schedule_config || null,
-            is_active: p.isActive !== false,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'id' }
-        );
+        lastProError = upsertErr.message || 'Erro ao salvar profissional no banco.';
       }
     }
 
@@ -3705,40 +3903,83 @@ export async function syncAllProfessionalsToDb(salonId: string, professionals: a
     if (removedProIds.length > 0) {
       const { error: delErr } = await (client.from('professionals') as any)
         .delete()
-        .eq('salon_id', salonId)
+        .eq('salon_id', resolvedSalonUuid)
         .in('id', removedProIds);
       if (delErr) {
-        await (client.from('professionals') as any)
+        const { error: softDelErr } = await (client.from('professionals') as any)
           .update({ is_active: false, updated_at: new Date().toISOString() })
-          .eq('salon_id', salonId)
+          .eq('salon_id', resolvedSalonUuid)
           .in('id', removedProIds);
+        if (softDelErr && !lastProError) {
+          lastProError = softDelErr.message;
+        }
       }
     }
 
-    // Espelhar metadados completos da equipe (comissões, turnos, especialidades) em salons.branding.teamMembers
+    // Espelhar metadados completos da equipe (acesso, função, categorias, serviços, escalas) em salons.branding.teamMembers
+    let brandingWriteError: string | null = null;
     try {
-      const isSalonUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salonId);
       const { data: currentSalon } = await (client.from('salons') as any)
         .select('branding')
-        .match(isSalonUuid ? { id: salonId } : { slug: salonId })
+        .eq('id', resolvedSalonUuid)
         .maybeSingle();
 
       const existingBranding = (currentSalon?.branding && typeof currentSalon.branding === 'object') ? currentSalon.branding : {};
-      await (client.from('salons') as any)
+      const nextBranding: Record<string, any> = {
+        ...existingBranding,
+        teamMembers: professionals,
+        updatedAt: new Date().toISOString(),
+      };
+      if (professionalSchedules) {
+        nextBranding.operatingSchedule = {
+          ...(existingBranding.operatingSchedule || {}),
+          professionalSchedules,
+        };
+      }
+
+      const { data: updatedSalon, error: brErr } = await (client.from('salons') as any)
         .update({
-          branding: {
-            ...existingBranding,
-            teamMembers: professionals,
-          },
+          branding: nextBranding,
           updated_at: new Date().toISOString(),
         })
-        .match(isSalonUuid ? { id: salonId } : { slug: salonId });
-    } catch {}
+        .eq('id', resolvedSalonUuid)
+        .select('id')
+        .maybeSingle();
+
+      if (brErr || !updatedSalon) {
+        brandingWriteError = brErr?.message || 'Sem permissão para atualizar equipe do estabelecimento (RLS).';
+      }
+    } catch (e: any) {
+      brandingWriteError = e?.message || 'Falha ao espelhar equipe em branding.';
+    }
+
+    if (lastProError || brandingWriteError) {
+      if (typeof fetch !== 'undefined') {
+        try {
+          const proxyRes = await fetch('/api/salon/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'professionals',
+              salonId: resolvedSalonUuid,
+              payload: { professionals, professionalSchedules },
+            }),
+          });
+          if (proxyRes.ok) {
+            const proxyJson = await proxyRes.json();
+            if (proxyJson?.success) {
+              return { success: true };
+            }
+          }
+        } catch {}
+      }
+      return { success: false, error: lastProError || brandingWriteError || 'Erro ao gravar equipe no banco.' };
+    }
 
     return { success: true };
   } catch (err: any) {
     console.error('Falha ao sincronizar profissionais no Supabase:', err);
-    return { success: false, error: err?.message };
+    return { success: false, error: err?.message || 'Erro inesperado ao salvar equipe.' };
   }
 }
 

@@ -359,6 +359,7 @@ export interface SalonAdminSettings {
   spacePhotos?: Array<{ id: string; url: string; caption: string }>;
   spaceDescription?: string;
   amenities?: string[];
+  serviceCategories?: string[];
   workingDays?: string[];
   openTime?: string;
   closeTime?: string;

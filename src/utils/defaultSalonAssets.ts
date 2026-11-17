@@ -31,10 +31,10 @@ export function generateSalonIconSvg(salonName: string = 'Vagou', isDark: boolea
 `)}`;
 }
 
-// Fallbacks genéricos limpos (sem referências a marcas fixas ou salões de demonstração)
+// Fallbacks padrão: ícone oficial Vagou no domínio principal; logos em branco para white-label de salões
 export const DEFAULT_ROTA99_LOGO_DARK = '';
 export const DEFAULT_ROTA99_LOGO_LIGHT = '';
-export const DEFAULT_ROTA99_ICON = '';
+export const DEFAULT_ROTA99_ICON = '/icon-512.png';
 
 /**
  * Avatar Clipart neutralizado em favor do ícone padrão User (lucide-react)

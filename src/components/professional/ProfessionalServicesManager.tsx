@@ -7,15 +7,21 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
-import { CatalogServiceItem } from '../../types';
+import { CatalogServiceItem, SalonAdminSettings } from '../../types';
 import { ServicePublicAdPreview } from './ServicePublicAdPreview';
-import { generateUuidV4, syncAllServicesToDb, uploadSalonMediaToStorage } from '../../lib/supabase';
-import { syncSalonMediaToDatabase, fetchSalonMediaFromDatabase, syncSalonServiceToDatabase } from '../../services/mnvSupabaseSync';
+import { generateUuidV4, uploadSalonMediaToStorage } from '../../lib/supabase';
+import { syncSalonMediaToDatabase, fetchSalonMediaFromDatabase } from '../../services/mnvSupabaseSync';
 import { SERVICE_GALLERY_PRESETS, getGalleryPresetsForCategory } from '../../utils/serviceGalleryPresets';
+import { parseDurationToMinutes, formatDurationFromMinutes } from '../../utils/duration';
 
 interface ProfessionalServicesManagerProps {
   services: CatalogServiceItem[];
-  onUpdateServices: (services: CatalogServiceItem[]) => void;
+  onUpdateServices: (
+    services: CatalogServiceItem[],
+    categories?: string[]
+  ) => Promise<{ success?: boolean; error?: string } | any> | void;
+  adminSettings?: SalonAdminSettings;
+  onUpdateSettings?: (settings: Partial<SalonAdminSettings>) => Promise<{ success?: boolean; error?: string } | any> | void;
   isAddingNewFromQuickAction?: boolean;
   onCloseQuickAction?: () => void;
 }
@@ -64,25 +70,7 @@ function maskCurrencyBRLInput(rawValue: string): string {
 
 // Funções utilitárias para duração estruturada em HH e MM
 function parseDurationToHoursMinutes(durationStr?: string): { hours: string; minutes: string } {
-  if (!durationStr) return { hours: '00', minutes: '40' };
-  
-  const str = durationStr.toLowerCase().trim();
-  let totalMinutes = 0;
-
-  if (str.includes('h')) {
-    const parts = str.split('h');
-    const hNum = parseInt(parts[0].replace(/\D/g, '')) || 0;
-    let mNum = 0;
-    if (parts[1]) {
-      mNum = parseInt(parts[1].replace(/\D/g, '')) || 0;
-    }
-    totalMinutes = hNum * 60 + mNum;
-  } else {
-    totalMinutes = parseInt(str.replace(/\D/g, '')) || 0;
-  }
-
-  if (totalMinutes <= 0) totalMinutes = 40;
-
+  const totalMinutes = parseDurationToMinutes(durationStr, 40);
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
 
@@ -93,47 +81,46 @@ function parseDurationToHoursMinutes(durationStr?: string): { hours: string; min
 }
 
 function formatHoursMinutesToDuration(hoursStr: string, minutesStr: string): string {
-  const h = Math.max(0, Math.min(23, parseInt(hoursStr) || 0));
-  const m = Math.max(0, Math.min(59, parseInt(minutesStr) || 0));
-  
+  const h = Math.max(0, Math.min(23, parseInt(hoursStr, 10) || 0));
+  const m = Math.max(0, Math.min(59, parseInt(minutesStr, 10) || 0));
   const totalMin = h * 60 + m;
-  if (totalMin === 0) return '15 min';
-
-  if (h > 0 && m > 0) {
-    return `${h}h ${m}min`;
-  } else if (h > 0) {
-    return `${h}h`;
-  } else {
-    return `${m} min`;
-  }
+  return formatDurationFromMinutes(totalMin > 0 ? totalMin : 15);
 }
 
 export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerProps> = ({
   services,
   onUpdateServices,
+  adminSettings,
+  onUpdateSettings,
   isAddingNewFromQuickAction = false,
   onCloseQuickAction,
 }) => {
   const { isDark } = useTheme();
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
 
-  // Categorias cadastradas com sincronização em LocalStorage
+  // Categorias cadastradas com sincronização em Banco (adminSettings.serviceCategories) + LocalStorage
   const [categoryList, setCategoryList] = useState<string[]>(() => {
+    const fromSettings = Array.isArray(adminSettings?.serviceCategories) ? adminSettings.serviceCategories : [];
+    let fromStorage: string[] = [];
     try {
       const saved = localStorage.getItem('vagou_custom_service_categories');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const fromServices = services.map((s) => s.category?.trim()).filter(Boolean);
-          return Array.from(new Set([...DEFAULT_CATEGORIES, ...parsed, ...fromServices]));
-        }
+        if (Array.isArray(parsed)) fromStorage = parsed;
       }
     } catch {
       // ignore
     }
     const fromServices = services.map((s) => s.category?.trim()).filter(Boolean);
-    return Array.from(new Set([...DEFAULT_CATEGORIES, ...fromServices]));
+    return Array.from(new Set([...DEFAULT_CATEGORIES, ...fromSettings, ...fromStorage, ...fromServices]));
   });
+
+  useEffect(() => {
+    const fromSettings = Array.isArray(adminSettings?.serviceCategories) ? adminSettings.serviceCategories : [];
+    const fromServices = services.map((s) => s.category?.trim()).filter(Boolean);
+    if (fromSettings.length === 0 && fromServices.length === 0) return;
+    setCategoryList((prev) => Array.from(new Set([...prev, ...fromSettings, ...fromServices])));
+  }, [adminSettings?.serviceCategories, services]);
 
   // Modal de Adicionar / Editar Serviço (Passo a Passo)
   const [isModalOpen, setIsModalOpen] = useState<boolean>(isAddingNewFromQuickAction);
@@ -277,16 +264,36 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
   const [isNewCategoryModalOpen, setIsNewCategoryModalOpen] = useState<boolean>(false);
   const [newCategoryModalName, setNewCategoryModalName] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastIsError, setToastIsError] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, isError = false) => {
+    setToastIsError(isError);
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2800);
+    setTimeout(() => setToastMessage(null), 3200);
   };
 
-  const handleDeleteCategory = (catName: string) => {
+  // Salvar categorias no LocalStorage e Supabase
+  const persistCategories = async (newCats: string[]) => {
+    setCategoryList(newCats);
+    try {
+      localStorage.setItem('vagou_custom_service_categories', JSON.stringify(newCats));
+    } catch {
+      // ignore
+    }
+    if (onUpdateSettings) {
+      return await onUpdateSettings({ serviceCategories: newCats });
+    }
+    return { success: true };
+  };
+
+  const handleDeleteCategory = async (catName: string) => {
     hapticMedium();
+    setIsSaving(true);
+    setSaveError(null);
     const updatedCats = categoryList.filter((c) => c.toLowerCase() !== catName.toLowerCase());
-    persistCategories(updatedCats);
+    const catRes = await persistCategories(updatedCats);
 
     const updatedServices = services.map((s) => {
       if (s.category?.toLowerCase() === catName.toLowerCase()) {
@@ -294,50 +301,57 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
       }
       return s;
     });
-    onUpdateServices(updatedServices);
+    const srvRes = await onUpdateServices(updatedServices, updatedCats);
+    setIsSaving(false);
+
+    if (catRes?.success === false || srvRes?.success === false) {
+      const errMsg = srvRes?.error || catRes?.error || 'Falha ao salvar alteração no banco.';
+      setSaveError(errMsg);
+      showToast(errMsg, true);
+      return;
+    }
 
     if (selectedCategory.toLowerCase() === catName.toLowerCase()) {
       setSelectedCategory('Todos');
     }
 
     setDeleteConfirmCategory(null);
-    showToast(`Categoria "${catName}" excluída.`);
+    showToast(`Categoria "${catName}" removida.`);
   };
 
-  const handleCreateCategoryFromModal = () => {
+  const handleCreateCategoryFromModal = async () => {
     const target = newCategoryModalName.trim();
     if (!target) return;
 
     if (categoryList.some((c) => c.toLowerCase() === target.toLowerCase())) {
-      showToast(`Categoria "${target}" já existe!`);
+      showToast(`Categoria "${target}" já existe!`, true);
       return;
     }
 
+    setIsSaving(true);
+    setSaveError(null);
     const updated = [...categoryList, target];
-    persistCategories(updated);
+    const res = await persistCategories(updated);
+    setIsSaving(false);
+
+    if (res?.success === false) {
+      showToast(res.error || 'Erro ao gravar categoria no banco.', true);
+      return;
+    }
+
     setNewCategoryModalName('');
     setIsNewCategoryModalOpen(false);
     hapticSuccess();
-    showToast(`Categoria "${target}" criada com sucesso!`);
-  };
-
-  // Salvar categorias no LocalStorage
-  const persistCategories = (newCats: string[]) => {
-    setCategoryList(newCats);
-    try {
-      localStorage.setItem('vagou_custom_service_categories', JSON.stringify(newCats));
-    } catch {
-      // ignore
-    }
+    showToast(`Categoria "${target}" salva!`);
   };
 
   // Criar nova categoria dentro do fluxo de cadastro
-  const handleCreateCategory = (nameToCreate?: string) => {
+  const handleCreateCategory = async (nameToCreate?: string) => {
     const target = (nameToCreate || newCategoryName).trim();
     if (!target) return;
 
     if (categoryList.some((c) => c.toLowerCase() === target.toLowerCase())) {
-      showToast(`Categoria "${target}" já existe!`);
+      showToast(`Categoria "${target}" já existe!`, true);
       setFormCategory(target);
       setIsCreatingCategoryInline(false);
       setNewCategoryName('');
@@ -345,12 +359,12 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     }
 
     const updated = [...categoryList, target];
-    persistCategories(updated);
+    await persistCategories(updated);
     setFormCategory(target);
     setNewCategoryName('');
     setIsCreatingCategoryInline(false);
     hapticSuccess();
-    showToast(`Categoria "${target}" criada com sucesso!`);
+    showToast(`Categoria "${target}" criada!`);
   };
 
   // Abrir modal para novo serviço (fluxo passo a passo)
@@ -358,6 +372,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     hapticLight();
     const initialCat = defaultCat && defaultCat !== 'Todos' ? defaultCat : (categoryList[0] || 'Cabelo');
     setEditingServiceId(null);
+    setSaveError(null);
     setFormCategory(initialCat);
     setFormDeviceTargetCat(initialCat);
     setFormGalleryFilterCat('Todas');
@@ -378,6 +393,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     hapticLight();
     const initialCat = srv.category || categoryList[0] || 'Cabelo';
     setEditingServiceId(srv.id);
+    setSaveError(null);
     setFormCategory(initialCat);
     setFormDeviceTargetCat(initialCat);
     setFormGalleryFilterCat('Todas');
@@ -394,19 +410,18 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     setIsModalOpen(true);
   };
 
-  // Salvar serviço (novo ou existente com dados básicos)
-  const handleSaveService = (e: React.FormEvent) => {
+  // Salvar serviço (novo ou existente com validação confirmada do banco)
+  const handleSaveService = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formTitle.trim()) return;
+    if (!formTitle.trim() || isSaving) return;
 
     const parsedPrice = parseCurrencyBRL(formPrice);
     const calculatedDuration = formatHoursMinutesToDuration(formHours, formMinutes);
+    const activeCats = categoryList.includes(formCategory) ? categoryList : [...categoryList, formCategory];
 
-    const salonId = localStorage.getItem('vagou_salon_db_id') || localStorage.getItem('vagou_salon_slug') || '';
-
+    let updated: CatalogServiceItem[];
     if (editingServiceId) {
-      // Editar serviço existente preservando mídias já cadastradas ou atualizando capa
-      const updated = services.map((s) => {
+      updated = services.map((s) => {
         if (s.id === editingServiceId) {
           const existingPhotos = Array.isArray(s.photos) && s.photos.length > 0 ? s.photos : [];
           let finalPhotos = existingPhotos;
@@ -430,29 +445,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         }
         return s;
       });
-      onUpdateServices(updated);
-      window.dispatchEvent(new CustomEvent('vagou:catalog-updated', { detail: updated }));
-
-      const targetService = updated.find((s) => s.id === editingServiceId);
-      if (targetService && salonId) {
-        syncSalonServiceToDatabase(salonId, {
-          id: targetService.id,
-          name: targetService.title,
-          category: targetService.category,
-          price: targetService.price,
-          durationMinutes: parseInt(targetService.duration?.replace(/\D/g, '') || '40') || 40,
-          description: targetService.description,
-          photos: targetService.photos,
-          slides: targetService.photos,
-          isActive: true,
-        }).catch((err) => console.warn('Aviso: Sincronização individual do serviço:', err));
-        syncAllServicesToDb(salonId, updated).catch((err) => console.warn('Aviso: Sincronização global do catálogo:', err));
-      }
-
-      hapticSuccess();
-      showToast('Serviço atualizado com sucesso no banco!');
     } else {
-      // Criar novo serviço com UUID v4 nativo (compatível 100% com public.services do Supabase)
       const newService: CatalogServiceItem = {
         id: generateUuidV4(),
         title: formTitle.trim(),
@@ -465,29 +458,24 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         displayMode: 'static',
         aspectRatio: 'aspect-square',
       };
-      const updated = [newService, ...services];
-      onUpdateServices(updated);
-      window.dispatchEvent(new CustomEvent('vagou:catalog-updated', { detail: updated }));
-
-      if (salonId) {
-        syncSalonServiceToDatabase(salonId, {
-          id: newService.id,
-          name: newService.title,
-          category: newService.category,
-          price: newService.price,
-          durationMinutes: parseInt(newService.duration?.replace(/\D/g, '') || '40') || 40,
-          description: newService.description,
-          photos: newService.photos,
-          slides: newService.photos,
-          isActive: true,
-        }).catch((err) => console.warn('Aviso: Sincronização individual do novo serviço:', err));
-        syncAllServicesToDb(salonId, updated).catch((err) => console.warn('Aviso: Sincronização global do catálogo:', err));
-      }
-
-      hapticSuccess();
-      showToast('Serviço criado e persistido no banco de dados!');
+      updated = [newService, ...services];
     }
 
+    setIsSaving(true);
+    setSaveError(null);
+    const dbRes = await onUpdateServices(updated, activeCats);
+    setIsSaving(false);
+
+    if (dbRes && dbRes.success === false) {
+      const errMsg = dbRes.error || 'Não foi possível salvar no banco de dados.';
+      setSaveError(errMsg);
+      hapticMedium();
+      showToast(errMsg, true);
+      return;
+    }
+
+    hapticSuccess();
+    showToast(editingServiceId ? 'Serviço atualizado no banco!' : 'Serviço salvo no banco!');
     setIsModalOpen(false);
     onCloseQuickAction?.();
   };
@@ -495,13 +483,12 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
   // Abrir gerenciador de mídia dedicado para um serviço específico
   const handleOpenMediaManager = (srv: CatalogServiceItem) => {
     hapticLight();
+    setSaveError(null);
     setMediaModalService(srv);
-    
-    // Configurar modo de exibição
+
     const currentMode = srv.displayMode || (srv.mediaType === 'video' || srv.videoUrl ? 'video' : 'static');
     setMediaDisplayMode(currentMode);
-    
-    // Fotos
+
     if (srv.photos && Array.isArray(srv.photos) && srv.photos.length > 0) {
       setMediaPhotos([...srv.photos.slice(0, 5)]);
     } else if (srv.image) {
@@ -510,7 +497,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
       setMediaPhotos([]);
     }
 
-    // Vídeo
     if (srv.videoUrl) {
       setMediaVideoUrl(srv.videoUrl);
       setMediaVideoDuration(srv.videoDurationSeconds || 5);
@@ -523,8 +509,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
   };
 
   // Salvar mídia no serviço selecionado
-  const handleSaveMediaToService = () => {
-    if (!mediaModalService) return;
+  const handleSaveMediaToService = async () => {
+    if (!mediaModalService || isSaving) return;
 
     const primaryPhoto = mediaPhotos[0] || (mediaDisplayMode === 'video' ? undefined : INITIAL_SAVED_IMAGES[0].url);
     const finalPhotos = mediaPhotos.length > 0 ? mediaPhotos : (primaryPhoto ? [primaryPhoto] : []);
@@ -545,30 +531,21 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
       return s;
     });
 
-    onUpdateServices(updated);
+    setIsSaving(true);
+    setSaveError(null);
+    const dbRes = await onUpdateServices(updated, categoryList);
+    setIsSaving(false);
 
-    const salonId = localStorage.getItem('vagou_salon_db_id') || localStorage.getItem('vagou_salon_slug') || '';
-    if (salonId) {
-      const srvItem = updated.find((s) => s.id === mediaModalService.id);
-      if (srvItem) {
-        syncSalonServiceToDatabase(salonId, {
-          id: srvItem.id,
-          name: srvItem.title,
-          category: srvItem.category,
-          price: srvItem.price,
-          durationMinutes: parseInt(srvItem.duration?.replace(/\D/g, '') || '40') || 40,
-          description: srvItem.description,
-          photos: srvItem.photos,
-          slides: srvItem.photos,
-          videos: srvItem.videoUrl ? [{ id: `vid_${srvItem.id}`, url: srvItem.videoUrl, title: srvItem.title, duration_seconds: srvItem.videoDurationSeconds || 5 }] : [],
-          isActive: true,
-        }).catch(() => {});
-      }
-      syncAllServicesToDb(salonId, updated).catch(() => {});
+    if (dbRes && dbRes.success === false) {
+      const errMsg = dbRes.error || 'Erro ao gravar mídia no banco.';
+      setSaveError(errMsg);
+      hapticMedium();
+      showToast(errMsg, true);
+      return;
     }
 
     hapticSuccess();
-    showToast('Mídia do serviço atualizada no banco com sucesso!');
+    showToast('Mídia salva no banco!');
     setMediaModalService(null);
   };
 
@@ -790,19 +767,25 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     hapticLight();
   };
 
-  // Excluir serviço (confirmado via modal)
-  const handleDeleteService = (id: string) => {
+  // Excluir serviço (confirmado via modal com validação de banco)
+  const handleDeleteService = async (id: string) => {
+    if (isSaving) return;
     hapticMedium();
     const updated = services.filter((s) => s.id !== id);
-    onUpdateServices(updated);
-    window.dispatchEvent(new CustomEvent('vagou:catalog-updated', { detail: updated }));
-    setDeleteConfirmService(null);
-    showToast('Serviço removido do catálogo.');
+    setIsSaving(true);
+    setSaveError(null);
+    const dbRes = await onUpdateServices(updated, categoryList);
+    setIsSaving(false);
 
-    const salonId = localStorage.getItem('vagou_salon_db_id') || localStorage.getItem('vagou_salon_slug') || '';
-    if (salonId) {
-      syncAllServicesToDb(salonId, updated).catch(() => {});
+    if (dbRes && dbRes.success === false) {
+      const errMsg = dbRes.error || 'Falha ao remover serviço do banco.';
+      setSaveError(errMsg);
+      showToast(errMsg, true);
+      return;
     }
+
+    setDeleteConfirmService(null);
+    showToast('Serviço removido do banco.');
   };
 
   // Filtragem de serviços por categoria
@@ -915,9 +898,17 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
 
       {/* Toast Feedback */}
       {toastMessage && (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 px-3.5 py-2 rounded-[4px] brand-btn font-bold text-xs shadow-lg animate-in fade-in flex items-center gap-1.5 whitespace-nowrap">
-          <Check className="w-4 h-4 text-white stroke-[2.5]" />
-          <span>{toastMessage}</span>
+        <div
+          className={`absolute top-2 left-1/2 -translate-x-1/2 z-50 px-3.5 py-2 rounded-[4px] font-bold text-xs shadow-lg animate-in fade-in flex items-center gap-1.5 whitespace-nowrap text-white ${
+            toastIsError ? 'bg-rose-600' : 'brand-btn'
+          }`}
+        >
+          {toastIsError ? (
+            <AlertCircle className="w-4 h-4 text-white shrink-0" />
+          ) : (
+            <Check className="w-4 h-4 text-white stroke-[2.5] shrink-0" />
+          )}
+          <span className="text-white">{toastMessage}</span>
         </div>
       )}
 
@@ -1765,6 +1756,13 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 )}
               </div>
 
+              {saveError && (
+                <div className="p-2.5 rounded-[4px] bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[11px] font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>{saveError}</span>
+                </div>
+              )}
+
               {/* Botões de Ação Fixos no Rodapé */}
               <div className={`pt-2 sticky bottom-0 z-20 flex items-center gap-2 ${
                 isDark ? 'bg-slate-950/95' : 'bg-white/95'
@@ -1772,6 +1770,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 {editingServiceId && (
                   <button
                     type="button"
+                    disabled={isSaving}
                     onClick={() => {
                       const currentSrv = services.find((s) => s.id === editingServiceId);
                       if (currentSrv) {
@@ -1779,7 +1778,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                         setDeleteConfirmService(currentSrv);
                       }
                     }}
-                    className={`px-3 py-2.5 rounded-[4px] border transition cursor-pointer font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 ${
+                    className={`px-3 py-2.5 rounded-[4px] border transition cursor-pointer font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50 ${
                       isDark 
                         ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20' 
                         : 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100'
@@ -1793,10 +1792,13 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
 
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-[4px] brand-btn active:scale-98 font-bold text-xs uppercase tracking-wider transition shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+                  disabled={isSaving}
+                  className="flex-1 py-2.5 rounded-[4px] brand-btn active:scale-98 disabled:opacity-60 font-bold text-xs uppercase tracking-wider transition shadow-md cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <Check className="w-4 h-4 text-white stroke-[2.5]" />
-                  <span>{editingServiceId ? 'SALVAR ALTERAÇÕES' : 'CADASTRAR SERVIÇO'}</span>
+                  <span className="text-white">
+                    {isSaving ? 'SALVANDO...' : editingServiceId ? 'SALVAR ALTERAÇÕES' : 'CADASTRAR SERVIÇO'}
+                  </span>
                 </button>
               </div>
             </form>
@@ -2159,15 +2161,23 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 </div>
               )}
 
+              {saveError && (
+                <div className="p-2.5 rounded-[4px] bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[11px] font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>{saveError}</span>
+                </div>
+              )}
+
               {/* Botão de Salvar Mídia no Serviço */}
               <div className="pt-2 sticky bottom-0 z-20">
                 <button
                   type="button"
+                  disabled={isSaving}
                   onClick={handleSaveMediaToService}
-                  className="w-full py-2.5 rounded bg-[#20C933] hover:bg-[#1bb32d] active:scale-98 text-white font-bold text-xs uppercase tracking-wider transition shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+                  className="w-full py-2.5 rounded bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-60 active:scale-98 text-white font-bold text-xs uppercase tracking-wider transition shadow-md cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <Check className="w-4 h-4 text-white stroke-[2.5]" />
-                  <span>SALVAR MÍDIA DO SERVIÇO</span>
+                  <span className="text-white">{isSaving ? 'SALVANDO...' : 'SALVAR MÍDIA DO SERVIÇO'}</span>
                 </button>
               </div>
             </div>
@@ -2580,8 +2590,9 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800/60">
               <button
                 type="button"
+                disabled={isSaving}
                 onClick={() => setDeleteConfirmService(null)}
-                className={`px-3.5 py-2 rounded-[4px] text-xs font-bold transition cursor-pointer border ${
+                className={`px-3.5 py-2 rounded-[4px] text-xs font-bold transition cursor-pointer border disabled:opacity-50 ${
                   isDark 
                     ? 'border-slate-800 text-slate-300 hover:bg-slate-900' 
                     : 'border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -2591,11 +2602,12 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               </button>
               <button
                 type="button"
+                disabled={isSaving}
                 onClick={() => handleDeleteService(deleteConfirmService.id)}
-                className="px-4 py-2 rounded-[4px] bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-sm cursor-pointer flex items-center gap-1.5 active:scale-98"
+                className="px-4 py-2 rounded-[4px] bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-xs font-bold transition shadow-sm cursor-pointer flex items-center gap-1.5 active:scale-98"
               >
                 <Trash2 className="w-3.5 h-3.5 text-white" />
-                <span>Excluir Serviço</span>
+                <span className="text-white">{isSaving ? 'Excluindo...' : 'Excluir Serviço'}</span>
               </button>
             </div>
           </div>

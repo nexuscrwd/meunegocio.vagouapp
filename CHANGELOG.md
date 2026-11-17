@@ -11,6 +11,23 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-17] — Persistência Verificada no Banco, Realtime Unificado, Correção de Duração e PWA White-Label com Ícones Dinâmicos (`bol-183`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / Feat / Database / Realtime / PWA]`
+- **Motivo / Solicitação:** Alterações no painel profissional não persistiam/sincronizavam em tempo real de forma confiável; serviços salvos em horas exibiam durações erradas (`1 min`, `2 min`); o domínio principal não mantinha o ícone oficial Vagou; e a instalação PWA em subdomínios de salões (`*.vagouapp.com`) não usava o nome nem ícone quadrado centralizado automático quando a marca possuía apenas logotipo horizontal.
+- **Arquivos Impactados:**
+  - `src/utils/duration.ts` (novo)
+  - `src/hooks/usePWAInstall.ts` (novo)
+  - `src/components/PWAInstallButton.tsx` (novo)
+  - `src/types.ts`, `src/utils/defaultSalonAssets.ts`, `src/utils/pwaAssets.ts`, `src/lib/supabase.ts`
+  - `src/components/SalonProfileView.tsx`, `src/components/ProfileDrawer.tsx`, `src/components/UserAppointmentsView.tsx`
+  - `src/components/professional/SalonCustomizationHub.tsx`, `src/components/professional/ProfessionalServicesManager.tsx`, `src/components/professional/TeamManager.tsx`, `src/components/professional/ProfessionalSpaceManager.tsx`, `src/components/professional/BusinessDataCardView.tsx`, `src/components/professional/SalonDesignStudioView.tsx`
+  - `server.ts`, `index.html`, `public/sw.js`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Persistência Verificada & Supabase Realtime (`supabase.ts`, `server.ts`, `SalonProfileView.tsx`, gerenciadores):** Todos os fluxos de gravação (Serviços, Categorias, Equipe/Escalas, Espaço, Dados do Negócio e Identidade Visual) passaram a aguardar confirmação real do Supabase (`{ success, error }`), com remoção iterativa de colunas opcionais ausentes (`PGRST204`/`42703`), fallback via `/api/salon/sync` com service role no servidor e tratamento explícito de erros na UI sem falso sucesso. Adicionada assinatura `subscribeToSalonRealtime` para `salons`, `services`, `salon_services`, `professionals`, `salon_ui_settings` e `salon_media_items`.
+  2. **Conversão Unificada de Duração (`src/utils/duration.ts`):** `parseDurationToMinutes` e `formatDurationFromMinutes` corrigem o bug em que strings como `"1h"` / `"2h"` / `"1h 30min"` eram reduzidas a `1 min` / `2 min` via `.replace(/\D/g, '')`.
+  3. **PWA Domínio Principal vs White-Label (`server.ts`, `src/utils/pwaAssets.ts`, `index.html`, `public/sw.js`, `PWAInstallButton.tsx`):** Domínio principal (`meunegocio.vagouapp.com`) exibe e instala **Vagou Pro** com ícones oficiais (`/icon-192.png`, `/icon-512.png`, `/icon.svg`). Subdomínios de estabelecimentos servem `GET /manifest.json?salon=<slug>` (`short_name` <= 12 chars), metadados dinâmicos no HTML inicial e ícones quadrados PNG reais via `GET /api/pwa/icon` (com `sharp` centralizando logos horizontais automaticamente e aplicando padding seguro para `purpose: maskable`).
+
 ### [2026-11-17] — Correção Definitiva de Erro de Chave Estrangeira ao Confirmar Agendamento (`appointments_client_id_fkey`) (`bol-182`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Fix / Database / Auth / Booking]`
 - **Motivo / Solicitação:** Ao clicar em "CONFIRMAR AGENDAMENTO" na vitrine do salão (ex.: usuário `ANDERSON` no salão `AVELLI`), o Supabase retornava erro crítico `insert or update on table "appointments" violates foreign key constraint "appointments_client_id_fkey"` (`23503`).

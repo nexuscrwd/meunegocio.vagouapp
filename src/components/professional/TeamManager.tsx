@@ -2,14 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Users, UserPlus, User as UserIcon, 
   Trash2, ArrowLeft, ChevronRight, Check,
-  Briefcase, ShieldCheck, Scissors, Calendar, Clock, Save, Camera, Layers,
-  Plus, X
+  Briefcase, ShieldCheck, Scissors, Clock, Save, Camera, Layers,
+  Plus, X, AlertCircle, Loader2
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
+import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
+import { compressImageFile } from '../../utils/imageCompressor';
 import {
-  hapticLight,
-  hapticSuccess,
-  hapticMedium,
   ProfessionalTeamMember,
   ProfessionalRole,
   ProfessionalAccessType,
@@ -19,6 +18,7 @@ import {
   SalonProfessionalItem,
   CatalogServiceItem,
   DayOperatingHours,
+  SalonAdminSettings,
 } from '../../types';
 import { generateUuidV4 } from '../../lib/supabase';
 
@@ -58,9 +58,23 @@ export const createDefaultProDays = (
   { dayKey: 'dom', dayLabel: 'Dom', isOpen: false, openTime: '09:00', closeTime: '14:00', hasBreak: false, breakStart: '12:00', breakEnd: '13:00' },
 ];
 
-export const mapMemberToScheduleDays = (member: ProfessionalTeamMember): DayOperatingHours[] => {
+export const mapMemberToScheduleDays = (
+  member: ProfessionalTeamMember,
+  adminSettings?: SalonAdminSettings
+): DayOperatingHours[] => {
+  const fromSettings = adminSettings?.operatingSchedule?.professionalSchedules?.[member.id];
+  if (Array.isArray(fromSettings) && fromSettings.length === 7) {
+    return fromSettings.map((d: DayOperatingHours) => ({
+      ...d,
+      hasBreak: d.hasBreak ?? false,
+      breakStart: d.breakStart || '12:00',
+      breakEnd: d.breakEnd || '13:00',
+    }));
+  }
   try {
-    const rawAdmin = localStorage.getItem('vagou_admin_settings');
+    const rawAdmin =
+      localStorage.getItem('vagou_salon_admin_settings') ||
+      localStorage.getItem('vagou_admin_settings');
     if (rawAdmin) {
       const parsed = JSON.parse(rawAdmin);
       const savedProDays = parsed?.operatingSchedule?.professionalSchedules?.[member.id];
@@ -131,7 +145,12 @@ export function createDefaultDailySchedules(days: string[] = ['seg', 'ter', 'qua
 
 export interface TeamManagerProps {
   salonProfessionals?: SalonProfessionalItem[];
-  onUpdateSalonProfessionals?: (professionals: SalonProfessionalItem[]) => void;
+  onUpdateSalonProfessionals?: (
+    professionals: SalonProfessionalItem[],
+    professionalSchedules?: Record<string, DayOperatingHours[]>
+  ) => Promise<{ success?: boolean; error?: string } | any> | void;
+  adminSettings?: SalonAdminSettings;
+  onUpdateSettings?: (settings: Partial<SalonAdminSettings>) => Promise<{ success?: boolean; error?: string } | any> | void;
   services?: CatalogServiceItem[];
   onBack?: () => void;
 }
@@ -213,12 +232,14 @@ function mapSalonProsToTeamMembers(pros?: SalonProfessionalItem[]): Professional
 export const TeamManager: React.FC<TeamManagerProps> = ({
   salonProfessionals,
   onUpdateSalonProfessionals,
+  adminSettings,
+  onUpdateSettings,
   services = [],
 }) => {
   const { isDark } = useTheme();
 
   const [team, setTeam] = useState<ProfessionalTeamMember[]>(() => {
-    if (Array.isArray(salonProfessionals) && salonProfessionals.length > 0) {
+    if (Array.isArray(salonProfessionals)) {
       return mapSalonProsToTeamMembers(salonProfessionals);
     }
     try {
@@ -234,7 +255,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
   });
 
   useEffect(() => {
-    if (Array.isArray(salonProfessionals) && salonProfessionals.length > 0) {
+    if (Array.isArray(salonProfessionals)) {
       setTeam(mapSalonProsToTeamMembers(salonProfessionals));
     }
   }, [salonProfessionals]);
@@ -243,6 +264,8 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
   const [activeView, setActiveView] = useState<'list' | 'detail'>('list');
   const [editingMember, setEditingMember] = useState<ProfessionalTeamMember | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<ProfessionalTeamMember | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Estados da Seção do Profissional
   const [formAvatarUrl, setFormAvatarUrl] = useState('');
@@ -256,11 +279,18 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
     createDefaultProDays('09:00', '18:00', true)
   );
 
-  // Categorias disponíveis no salão (combinando catálogo + localStorage + padrão)
+  // Categorias disponíveis no salão (combinando banco + catálogo + localStorage + padrão)
   const availableCategories = useMemo(() => {
     const set = new Set<string>(DEFAULT_CATEGORIES);
+    if (Array.isArray(adminSettings?.serviceCategories)) {
+      adminSettings.serviceCategories.forEach((c) => {
+        if (typeof c === 'string' && c.trim()) set.add(c.trim());
+      });
+    }
     try {
-      const savedCats = localStorage.getItem('vagou_custom_categories');
+      const savedCats =
+        localStorage.getItem('vagou_custom_service_categories') ||
+        localStorage.getItem('vagou_custom_categories');
       if (savedCats) {
         const parsed = JSON.parse(savedCats);
         if (Array.isArray(parsed)) {
@@ -274,13 +304,15 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
       if (s.category && s.category.trim()) set.add(s.category.trim());
     });
     return Array.from(set);
-  }, [services]);
+  }, [services, adminSettings?.serviceCategories]);
 
   // Serviços disponíveis no salão (do catálogo ou localStorage)
   const allCatalogServices = useMemo<CatalogServiceItem[]>(() => {
     if (Array.isArray(services) && services.length > 0) return services;
     try {
-      const saved = localStorage.getItem('vagou_catalog_services');
+      const saved =
+        localStorage.getItem('vagou_custom_catalog_services') ||
+        localStorage.getItem('vagou_catalog_services');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -329,7 +361,10 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
     return `${daysText} • ${timeRange}`;
   };
 
-  const saveTeam = (newTeam: ProfessionalTeamMember[]) => {
+  const saveTeam = async (
+    newTeam: ProfessionalTeamMember[],
+    professionalSchedules?: Record<string, DayOperatingHours[]>
+  ): Promise<{ success?: boolean; error?: string }> => {
     setTeam(newTeam);
     try {
       localStorage.setItem('vagou_team_members', JSON.stringify(newTeam));
@@ -370,13 +405,16 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
         isActive: member.isActive,
         rating: 5.0,
       }));
-      onUpdateSalonProfessionals(mappedPros);
+      const res = await onUpdateSalonProfessionals(mappedPros, professionalSchedules);
+      return res || { success: true };
     }
+    return { success: true };
   };
 
   // Abrir Seção do Profissional (edição ou criação)
   const handleOpenProfessionalSection = (member?: ProfessionalTeamMember) => {
     hapticLight();
+    setSaveError(null);
     if (member) {
       setEditingMember(member);
       setFormAvatarUrl(member.avatarUrl || '');
@@ -404,7 +442,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
           : allCatalogServices.map((s) => s.id)
       );
 
-      setFormScheduleDays(mapMemberToScheduleDays(member));
+      setFormScheduleDays(mapMemberToScheduleDays(member, adminSettings));
     } else {
       setEditingMember(null);
       setFormAvatarUrl('');
@@ -419,9 +457,18 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
     setActiveView('detail');
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+    try {
+      const compressed = await compressImageFile(file, {
+        maxWidth: 400,
+        maxHeight: 400,
+        quality: 0.85,
+      });
+      setFormAvatarUrl(compressed);
+      hapticLight();
+    } catch {
       const reader = new FileReader();
       reader.onloadend = () => {
         setFormAvatarUrl(reader.result as string);
@@ -481,9 +528,9 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
     );
   };
 
-  const handleSaveProfessional = (e?: React.FormEvent) => {
+  const handleSaveProfessional = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!formName.trim()) return;
+    if (!formName.trim() || isSaving) return;
 
     const cleanedAvatarUrl = formAvatarUrl.trim();
     const mappedRole: ProfessionalRole =
@@ -577,30 +624,75 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
       updatedTeam = [...team, newMember];
     }
 
-    // Sincronização automática com a agenda de profissionais de vagou_admin_settings
+    const nextSchedules: Record<string, DayOperatingHours[]> = {
+      ...(adminSettings?.operatingSchedule?.professionalSchedules || {}),
+      [targetMemberId]: formScheduleDays,
+    };
+
     try {
-      const rawAdmin = localStorage.getItem('vagou_admin_settings');
-      if (rawAdmin) {
-        const parsed = JSON.parse(rawAdmin);
-        if (!parsed.operatingSchedule) {
-          parsed.operatingSchedule = { preset: 'personalizado', days: [] };
-        }
-        if (!parsed.operatingSchedule.professionalSchedules) {
-          parsed.operatingSchedule.professionalSchedules = {};
-        }
-        parsed.operatingSchedule.professionalSchedules[targetMemberId] = formScheduleDays;
-        localStorage.setItem('vagou_admin_settings', JSON.stringify(parsed));
+      const rawAdmin =
+        localStorage.getItem('vagou_salon_admin_settings') ||
+        localStorage.getItem('vagou_admin_settings');
+      const parsed = rawAdmin ? JSON.parse(rawAdmin) : {};
+      if (!parsed.operatingSchedule) {
+        parsed.operatingSchedule = { preset: 'personalizado', days: [] };
       }
+      parsed.operatingSchedule.professionalSchedules = nextSchedules;
+      localStorage.setItem('vagou_salon_admin_settings', JSON.stringify(parsed));
     } catch {}
 
-    saveTeam(updatedTeam);
+    setIsSaving(true);
+    setSaveError(null);
+    const proRes = await saveTeam(updatedTeam, nextSchedules);
+    let schedRes: { success?: boolean; error?: string } = { success: true };
+    if (onUpdateSettings) {
+      const res = await onUpdateSettings({
+        operatingSchedule: {
+          ...(adminSettings?.operatingSchedule || { preset: 'personalizado', days: [] }),
+          professionalSchedules: nextSchedules,
+        },
+      });
+      if (res) schedRes = res;
+    }
+    setIsSaving(false);
+
+    if (proRes?.success === false || schedRes?.success === false) {
+      setSaveError(proRes?.error || schedRes?.error || 'Falha ao salvar profissional no banco.');
+      hapticMedium();
+      return;
+    }
+
     hapticSuccess();
     setActiveView('list');
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
+    if (isSaving) return;
     const updatedTeam = team.filter((m) => m.id !== id);
-    saveTeam(updatedTeam);
+    const nextSchedules: Record<string, DayOperatingHours[]> = {
+      ...(adminSettings?.operatingSchedule?.professionalSchedules || {}),
+    };
+    delete nextSchedules[id];
+
+    setIsSaving(true);
+    setSaveError(null);
+    const res = await saveTeam(updatedTeam, nextSchedules);
+    if (onUpdateSettings) {
+      await onUpdateSettings({
+        operatingSchedule: {
+          ...(adminSettings?.operatingSchedule || { preset: 'personalizado', days: [] }),
+          professionalSchedules: nextSchedules,
+        },
+      });
+    }
+    setIsSaving(false);
+
+    if (res?.success === false) {
+      setSaveError(res.error || 'Erro ao excluir profissional no banco.');
+      hapticMedium();
+      return;
+    }
+
     setDeleteConfirm(null);
     setActiveView('list');
     hapticMedium();
@@ -1121,8 +1213,9 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800/60">
                 <button
                   type="button"
+                  disabled={isSaving}
                   onClick={() => setDeleteConfirm(null)}
-                  className={`px-4 py-2 rounded-[4px] text-xs font-bold transition cursor-pointer border ${
+                  className={`px-4 py-2 rounded-[4px] text-xs font-bold transition cursor-pointer border disabled:opacity-50 ${
                     isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-900' : 'border-slate-200 text-slate-700 hover:bg-slate-100'
                   }`}
                 >
@@ -1130,11 +1223,12 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
                 </button>
                 <button
                   type="button"
+                  disabled={isSaving}
                   onClick={() => handleDelete(deleteConfirm.id)}
-                  className="px-4 py-2 rounded-[4px] bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-[4px] bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
                 >
                   <Trash2 className="w-3.5 h-3.5 text-white" />
-                  <span className="text-white">Excluir</span>
+                  <span className="text-white">{isSaving ? 'Excluindo...' : 'Excluir'}</span>
                 </button>
               </div>
             </div>
@@ -1143,30 +1237,45 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
 
         {/* Rodapé Fixo de Ação (sticky bottom-0 z-20) */}
         <div
-          className={`sticky bottom-0 z-20 p-3 border-t backdrop-blur-md flex items-center justify-between gap-3 ${
+          className={`sticky bottom-0 z-20 p-3 border-t backdrop-blur-md space-y-2 ${
             isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
           }`}
         >
-          <button
-            type="button"
-            onClick={() => {
-              hapticLight();
-              setActiveView('list');
-            }}
-            className={`px-4 py-2.5 rounded-[4px] border text-xs font-bold transition cursor-pointer ${
-              isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-900' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
-            }`}
-          >
-            Voltar
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSaveProfessional()}
-            className="flex-1 py-2.5 px-4 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98"
-          >
-            <Save className="w-4 h-4 text-white" />
-            <span className="text-white">Salvar Profissional</span>
-          </button>
+          {saveError && (
+            <div className="p-2 rounded-[4px] bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[11px] font-semibold flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+              <span>{saveError}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={() => {
+                hapticLight();
+                setSaveError(null);
+                setActiveView('list');
+              }}
+              className={`px-4 py-2.5 rounded-[4px] border text-xs font-bold transition cursor-pointer disabled:opacity-50 ${
+                isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-900' : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              Voltar
+            </button>
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={() => handleSaveProfessional()}
+              className="flex-1 py-2.5 px-4 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98 disabled:opacity-60"
+            >
+              {isSaving ? (
+                <Loader2 className="w-4 h-4 text-white animate-spin" />
+              ) : (
+                <Save className="w-4 h-4 text-white" />
+              )}
+              <span className="text-white">{isSaving ? 'Salvando...' : 'Salvar Profissional'}</span>
+            </button>
+          </div>
         </div>
       </div>
     );

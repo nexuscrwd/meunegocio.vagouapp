@@ -1,5 +1,5 @@
-// Service Worker for Vagou PWA - Network First, Auto-Update & Complete Cache Reset
-const CACHE_NAME = 'vagou-cache-v10';
+// Service Worker for Vagou PWA - Network First, Auto-Update & Dynamic Manifest Bypass
+const CACHE_NAME = 'vagou-cache-v11';
 
 // Instalação: força ativação imediata sem esperar o fechamento de abas
 self.addEventListener('install', (event) => {
@@ -13,7 +13,6 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
-            console.log('[SW] Purgando cache antigo:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -32,23 +31,24 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Estratégia Network-First estrita com bypass total para desenvolvimento
+// Estratégia Network-First estrita com bypass total para manifestos dinâmicos, ícones PWA e APIs
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-  
+
   const url = new URL(event.request.url);
 
-  // Não intercepta chamadas de dev server, node_modules ou APIs
+  // Não intercepta dev server, node_modules, APIs, manifesto dinâmico ou ícones gerados por subdomínio
   if (
     url.pathname.startsWith('/@') ||
     url.pathname.includes('node_modules') ||
     url.pathname.includes('hot-update') ||
-    url.pathname.startsWith('/api/')
+    url.pathname.startsWith('/api/') ||
+    url.pathname === '/manifest.json'
   ) {
     return;
   }
 
-  // HTML / Navegação: SEMPRE busca da rede para ter os hashes de CSS/JS mais recentes
+  // HTML / Navegação: SEMPRE busca da rede para ter meta tags, título e hashes mais recentes
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)

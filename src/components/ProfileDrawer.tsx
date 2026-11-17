@@ -18,6 +18,8 @@ import { LiveRouteDepartureModal, LiveTrackingDrawerModal } from './live-trackin
 import { RouteSimulatorModal } from './live-tracking/RouteSimulatorModal';
 import { getSavedBookingDraft, saveBookingDraft, BookingDraftItem } from '../utils/bookingSlots';
 import { SecurityQuestionProfileCard } from './auth/SecurityQuestionProfileCard';
+import { parseDurationToMinutes } from '../utils/duration';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface ProfileDrawerProps {
   isOpen: boolean;
@@ -70,22 +72,7 @@ export interface CandidateSlotInfo {
 }
 
 export const parseDurationInMinutes = (durationStr?: string): number => {
-  if (!durationStr) return 45;
-  const lower = durationStr.toLowerCase().trim();
-  let total = 0;
-  const hourMatch = lower.match(/(\d+)\s*h/);
-  if (hourMatch) {
-    total += parseInt(hourMatch[1], 10) * 60;
-  }
-  const minMatch = lower.match(/(\d+)\s*m/);
-  if (minMatch) {
-    total += parseInt(minMatch[1], 10);
-  }
-  if (!hourMatch && !minMatch) {
-    const numOnly = parseInt(lower.replace(/\D/g, ''), 10);
-    if (!isNaN(numOnly) && numOnly > 0) total = numOnly;
-  }
-  return total > 0 ? total : 45;
+  return parseDurationToMinutes(durationStr, 45);
 };
 
 export const checkSlotLeadTime = (slotTime: string, dayGroup?: string): { isLeadTimeValid: boolean; reason?: string } => {
@@ -1723,6 +1710,9 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     </button>
                   </>
                 )}
+
+                {/* Botão de Instalação PWA (Vagou no domínio principal ou Salão no subdomínio) */}
+                <PWAInstallButton appName={salonName} isDark={isDark} />
 
                 {/* Desconectar do Modo Pro / Gestão */}
                 {isSalonLoggedIn ? (

@@ -1,9 +1,11 @@
 import express from 'express';
+import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
+import sharp from 'sharp';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -2141,18 +2143,845 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
     }
   });
 
+  // ============================================================================
+  // PWA WHITE-LABEL DINÂMICO (/manifest.json, /api/pwa/icon, Head HTML) & /api/salon/sync
+  // ============================================================================
+  const RESERVED_PWA_SUBDOMAINS = new Set([
+    'www', 'app', 'portal', 'adm', 'admin', 'meunegocio', 'api', 'vagouapp', 'dev', 'staging',
+  ]);
+
+  const parseDurationToMinutesServer = (input: unknown, fallback = 40): number => {
+    if (typeof input === 'number' && Number.isFinite(input) && input > 0) {
+      return Math.round(input);
+    }
+    if (input === null || input === undefined) return fallback;
+    const raw = String(input).trim().toLowerCase();
+    if (!raw) return fallback;
+    if (/^\d+$/.test(raw)) {
+      const n = parseInt(raw, 10);
+      return n > 0 ? n : fallback;
+    }
+    const colonMatch = raw.match(/^(\d{1,2}):(\d{1,2})$/);
+    if (colonMatch) {
+      const tot = parseInt(colonMatch[1], 10) * 60 + parseInt(colonMatch[2], 10);
+      return tot > 0 ? tot : fallback;
+    }
+    let totalMinutes = 0;
+    let matched = false;
+    const hourMatch = raw.match(/(\d+(?:[.,]\d+)?)\s*(?:horas?|hrs?|h)\b/);
+    if (hourMatch) {
+      const hFloat = parseFloat(hourMatch[1].replace(',', '.'));
+      if (Number.isFinite(hFloat)) {
+        totalMinutes += Math.round(hFloat * 60);
+        matched = true;
+      }
+      const afterHour = raw.slice((hourMatch.index ?? 0) + hourMatch[0].length);
+      const trailingMin = afterHour.match(/^\s*(\d{1,2})\s*(?:minutos?|mins?|min|m)?\b/);
+      if (trailingMin && !raw.match(/(\d+)\s*(?:minutos?|mins?|min|m)\b/)) {
+        const extra = parseInt(trailingMin[1], 10);
+        if (Number.isFinite(extra)) totalMinutes += extra;
+      }
+    }
+    const minMatch = raw.match(/(\d+)\s*(?:minutos?|mins?|min|m)\b/);
+    if (minMatch) {
+      const m = parseInt(minMatch[1], 10);
+      if (Number.isFinite(m)) {
+        totalMinutes += m;
+        matched = true;
+      }
+    }
+    if (matched && totalMinutes > 0) return totalMinutes;
+    const digits = parseInt(raw.replace(/\D/g, ''), 10);
+    return Number.isFinite(digits) && digits > 0 ? digits : fallback;
+  };
+
+  const resolveSalonSlugFromRequest = (req: express.Request): string | null => {
+    const querySlug = String(req.query?.salon || req.query?.slug || '').trim().toLowerCase();
+    if (querySlug && !RESERVED_PWA_SUBDOMAINS.has(querySlug)) {
+      return querySlug;
+    }
+
+    const rawHost = String(req.headers['x-forwarded-host'] || req.headers.host || '')
+      .split(',')[0]
+      .trim()
+      .toLowerCase()
+      .replace(/:\d+$/, '');
+
+    const isPreviewHost =
+      !rawHost ||
+      rawHost === 'localhost' ||
+      rawHost === '127.0.0.1' ||
+      rawHost.includes('.run.app') ||
+      rawHost.startsWith('ais-');
+
+    if (!isPreviewHost) {
+      const parts = rawHost.split('.');
+      if (parts.length >= 3 && parts[0] && !RESERVED_PWA_SUBDOMAINS.has(parts[0])) {
+        return parts[0];
+      }
+    }
+
+    const envSlug = (process.env.VITE_DEV_SALON_SLUG || '').trim().toLowerCase();
+    if (envSlug && !RESERVED_PWA_SUBDOMAINS.has(envSlug)) {
+      return envSlug;
+    }
+    return null;
+  };
+
+  interface SalonPwaMetadata {
+    slug: string;
+    name: string;
+    shortName: string;
+    slogan: string;
+    isDark: boolean;
+    themeColor: string;
+    backgroundColor: string;
+    squareIcon: string;
+    wideLogo: string;
+  }
+
+  const fetchSalonManifestMetadata = async (slug: string): Promise<SalonPwaMetadata | null> => {
+    try {
+      const supabase = getSupabaseServerClient();
+      const { data, error } = await supabase
+        .from('salons')
+        .select('id, slug, trade_name, primary_color, default_theme, logo_url, logo_light_url, logo_dark_url, favicon_url, slogan, branding')
+        .eq('slug', slug)
+        .maybeSingle();
+
+      if (error || !data) return null;
+
+      const branding = (data.branding && typeof data.branding === 'object') ? (data.branding as Record<string, any>) : {};
+      const name = String(branding.pwaName || data.trade_name || slug).trim() || slug;
+      const shortName = name.length > 12 ? name.slice(0, 12).trim() : name;
+      const slogan = String(branding.slogan || data.slogan || '').trim();
+      const isDark = data.default_theme === 'dark' || branding.defaultTheme === 'dark';
+      const backgroundColor = isDark ? '#0F172A' : '#FFFFFF';
+      const rawAccent = String(branding.accentColor || data.primary_color || '').trim();
+      const isLegacyAccent = !rawAccent || rawAccent === '#20C933' || rawAccent === '#10B981' || rawAccent === '#005CA9' || rawAccent === '#2B82C9';
+      const themeColor = isLegacyAccent ? backgroundColor : rawAccent;
+
+      const squareIcon = String(branding.salonIcon || data.favicon_url || '').trim();
+      const wideLogo = String(
+        (isDark ? (branding.salonLogoDark || data.logo_dark_url || branding.salonLogoLight || data.logo_light_url)
+                : (branding.salonLogoLight || data.logo_light_url || branding.salonLogoDark || data.logo_dark_url)) ||
+        data.logo_url ||
+        branding.salonLogo ||
+        ''
+      ).trim();
+
+      return {
+        slug,
+        name,
+        shortName,
+        slogan,
+        isDark,
+        themeColor,
+        backgroundColor,
+        squareIcon,
+        wideLogo,
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const escapeHtmlAttr = (val: string): string =>
+    val.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const decodeImageSourceBuffer = async (source: string): Promise<Buffer | null> => {
+    if (!source) return null;
+    try {
+      if (source.startsWith('data:image/')) {
+        const commaIdx = source.indexOf(',');
+        if (commaIdx === -1) return null;
+        const header = source.slice(0, commaIdx).toLowerCase();
+        const body = source.slice(commaIdx + 1);
+        if (header.includes(';base64')) {
+          return Buffer.from(body, 'base64');
+        }
+        return Buffer.from(decodeURIComponent(body), 'utf8');
+      }
+      if (source.startsWith('http://') || source.startsWith('https://')) {
+        const res = await fetch(source, { signal: AbortSignal.timeout(4500) });
+        if (!res.ok) return null;
+        const arr = await res.arrayBuffer();
+        return Buffer.from(arr);
+      }
+      if (source.startsWith('/')) {
+        const localFile = path.join(process.cwd(), 'public', source.replace(/^\/+/, ''));
+        return await fs.readFile(localFile);
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  };
+
+  const parseHexRgb = (hex: string): { r: number; g: number; b: number; alpha: number } => {
+    const clean = hex.replace('#', '').trim();
+    if (/^[0-9a-fA-F]{6}$/.test(clean)) {
+      return {
+        r: parseInt(clean.slice(0, 2), 16),
+        g: parseInt(clean.slice(2, 4), 16),
+        b: parseInt(clean.slice(4, 6), 16),
+        alpha: 1,
+      };
+    }
+    return { r: 255, g: 255, b: 255, alpha: 1 };
+  };
+
+  app.get('/manifest.json', async (req, res) => {
+    res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+
+    const slug = resolveSalonSlugFromRequest(req);
+    if (!slug) {
+      try {
+        const staticManifestPath = path.join(process.cwd(), 'public', 'manifest.json');
+        const raw = await fs.readFile(staticManifestPath, 'utf8');
+        return res.send(raw);
+      } catch {
+        return res.json({
+          id: '/?source=pwa',
+          name: 'Vagou Pro — Gestão & Vagas Imediatas',
+          short_name: 'Vagou Pro',
+          start_url: '/?source=pwa',
+          scope: '/',
+          display: 'standalone',
+          theme_color: '#20C933',
+          background_color: '#151A1E',
+          icons: [
+            { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+            { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+            { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+            { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          ],
+        });
+      }
+    }
+
+    const meta = await fetchSalonManifestMetadata(slug);
+    const displayName = meta?.name || slug.toUpperCase();
+    const shortName = meta?.shortName || (displayName.length > 12 ? displayName.slice(0, 12).trim() : displayName);
+    const slogan = meta?.slogan || '';
+    const fullTitle = slogan ? `${displayName} — ${slogan}` : displayName;
+    const encodedSlug = encodeURIComponent(slug);
+    const startUrl = req.query?.salon ? `/?source=pwa&salon=${encodedSlug}` : '/?source=pwa';
+
+    return res.json({
+      id: `/?source=pwa&salon=${encodedSlug}`,
+      name: fullTitle,
+      short_name: shortName,
+      description: slogan || `${displayName} — Agendamentos e Serviços`,
+      start_url: startUrl,
+      scope: '/',
+      display: 'standalone',
+      display_override: ['standalone', 'minimal-ui', 'window-controls-overlay'],
+      orientation: 'portrait-primary',
+      theme_color: meta?.themeColor || '#FFFFFF',
+      background_color: meta?.backgroundColor || '#FFFFFF',
+      lang: 'pt-BR',
+      dir: 'ltr',
+      prefer_related_applications: false,
+      categories: ['beauty', 'lifestyle', 'business', 'utilities'],
+      icons: [
+        {
+          src: `/api/pwa/icon?salon=${encodedSlug}&size=192&purpose=any`,
+          sizes: '192x192',
+          type: 'image/png',
+          purpose: 'any',
+        },
+        {
+          src: `/api/pwa/icon?salon=${encodedSlug}&size=192&purpose=maskable`,
+          sizes: '192x192',
+          type: 'image/png',
+          purpose: 'maskable',
+        },
+        {
+          src: `/api/pwa/icon?salon=${encodedSlug}&size=512&purpose=any`,
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'any',
+        },
+        {
+          src: `/api/pwa/icon?salon=${encodedSlug}&size=512&purpose=maskable`,
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'maskable',
+        },
+      ],
+    });
+  });
+
+  app.get('/api/pwa/icon', async (req, res) => {
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+
+    const rawSize = parseInt(String(req.query?.size || '192'), 10);
+    const size = Number.isFinite(rawSize) ? Math.min(1024, Math.max(64, rawSize)) : 192;
+    const purpose = String(req.query?.purpose || 'any').toLowerCase() === 'maskable' ? 'maskable' : 'any';
+    const slug = resolveSalonSlugFromRequest(req);
+
+    try {
+      if (!slug) {
+        const defaultPath = path.join(process.cwd(), 'public', size <= 192 ? 'icon-192.png' : 'icon-512.png');
+        const defaultBuf = await fs.readFile(defaultPath);
+        if (purpose === 'maskable') {
+          const inner = Math.round(size * 0.72);
+          const resized = await sharp(defaultBuf).resize(inner, inner, { fit: 'contain', background: { r: 21, g: 26, b: 30, alpha: 1 } }).png().toBuffer();
+          const finalPng = await sharp({
+            create: { width: size, height: size, channels: 4, background: { r: 21, g: 26, b: 30, alpha: 1 } },
+          }).composite([{ input: resized, gravity: 'center' }]).png().toBuffer();
+          return res.send(finalPng);
+        }
+        const exactPng = await sharp(defaultBuf).resize(size, size, { fit: 'contain' }).png().toBuffer();
+        return res.send(exactPng);
+      }
+
+      const meta = await fetchSalonManifestMetadata(slug);
+      const bgRgb = parseHexRgb(meta?.backgroundColor || '#FFFFFF');
+      const sourceUrl = meta?.squareIcon || meta?.wideLogo || '';
+      let srcBuf = await decodeImageSourceBuffer(sourceUrl);
+
+      if (!srcBuf) {
+        const label = (meta?.name || slug).trim();
+        const words = label.split(/\s+/).filter(Boolean);
+        const initials = words.length >= 2
+          ? `${words[0][0]}${words[1][0]}`.toUpperCase()
+          : label.slice(0, 2).toUpperCase();
+        const textFill = meta?.isDark ? '#F8FAFC' : '#0F172A';
+        const svgFallback = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 512 512"><rect width="512" height="512" fill="${meta?.backgroundColor || '#FFFFFF'}"/><text x="256" y="310" text-anchor="middle" font-family="sans-serif" font-weight="800" font-size="185" fill="${textFill}">${escapeHtmlAttr(initials || 'V')}</text></svg>`;
+        const pngFallback = await sharp(Buffer.from(svgFallback, 'utf8')).resize(size, size).png().toBuffer();
+        return res.send(pngFallback);
+      }
+
+      const imgMeta = await sharp(srcBuf).metadata();
+      const width = imgMeta.width || size;
+      const height = imgMeta.height || size;
+      const isDedicatedSquare = Boolean(meta?.squareIcon) && Math.abs(width - height) <= Math.max(width, height) * 0.15;
+
+      // Para logos largas/retangulares (ex: AVELLI) ou propósito maskable: centraliza com margem de segurança em quadrado sólido
+      const paddingFactor = purpose === 'maskable' ? 0.72 : (isDedicatedSquare ? 1.0 : 0.80);
+      const targetInner = Math.max(32, Math.round(size * paddingFactor));
+
+      if (isDedicatedSquare && purpose === 'any') {
+        const directSquare = await sharp(srcBuf)
+          .resize(size, size, { fit: 'contain', background: bgRgb })
+          .png()
+          .toBuffer();
+        return res.send(directSquare);
+      }
+
+      const logoLayer = await sharp(srcBuf)
+        .trim({ threshold: 10 })
+        .resize(targetInner, targetInner, {
+          fit: 'contain',
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
+        })
+        .png()
+        .toBuffer()
+        .catch(async () =>
+          sharp(srcBuf!)
+            .resize(targetInner, targetInner, {
+              fit: 'contain',
+              background: { r: 0, g: 0, b: 0, alpha: 0 },
+            })
+            .png()
+            .toBuffer()
+        );
+
+      const composed = await sharp({
+        create: {
+          width: size,
+          height: size,
+          channels: 4,
+          background: bgRgb,
+        },
+      })
+        .composite([{ input: logoLayer, gravity: 'center' }])
+        .png()
+        .toBuffer();
+
+      return res.send(composed);
+    } catch {
+      try {
+        const fallbackPath = path.join(process.cwd(), 'public', 'icon-192.png');
+        const fallbackBuf = await fs.readFile(fallbackPath);
+        const out = await sharp(fallbackBuf).resize(size, size).png().toBuffer();
+        return res.send(out);
+      } catch {
+        return res.status(500).end();
+      }
+    }
+  });
+
+  const injectDynamicPwaHead = async (html: string, req: express.Request): Promise<string> => {
+    const slug = resolveSalonSlugFromRequest(req);
+    if (!slug) return html;
+    const meta = await fetchSalonManifestMetadata(slug);
+    if (!meta) return html;
+
+    const encodedSlug = encodeURIComponent(slug);
+    const fullTitle = escapeHtmlAttr(meta.slogan ? `${meta.name} — ${meta.slogan}` : meta.name);
+    const desc = escapeHtmlAttr(meta.slogan || meta.name);
+    const shortTitle = escapeHtmlAttr(meta.shortName);
+    const themeColor = escapeHtmlAttr(meta.themeColor);
+    const manifestHref = `/manifest.json?salon=${encodedSlug}`;
+    const icon192 = `/api/pwa/icon?salon=${encodedSlug}&size=192&purpose=any`;
+    const icon512 = `/api/pwa/icon?salon=${encodedSlug}&size=512&purpose=any`;
+    const icon180 = `/api/pwa/icon?salon=${encodedSlug}&size=180&purpose=any`;
+
+    return html
+      .replace(/<title>[\s\S]*?<\/title>/i, `<title>${fullTitle}</title>`)
+      .replace(/<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i, `<meta name="description" content="${desc}" />`)
+      .replace(/<meta\s+name="apple-mobile-web-app-title"\s+content="[^"]*"\s*\/?>/i, `<meta name="apple-mobile-web-app-title" content="${shortTitle}" />`)
+      .replace(/<meta\s+name="theme-color"\s+content="[^"]*"([^>]*)\/?>/i, `<meta name="theme-color" content="${themeColor}"$1/>`)
+      .replace(/<link\s+rel="manifest"\s+href="[^"]*"\s*\/?>/i, `<link rel="manifest" href="${manifestHref}" />`)
+      .replace(/<link\s+rel="icon"\s+type="image\/svg\+xml"\s+href="[^"]*"\s*\/?>/i, `<link rel="icon" type="image/png" sizes="192x192" href="${icon192}" />`)
+      .replace(/<link\s+rel="icon"\s+type="image\/png"\s+sizes="192x192"\s+href="[^"]*"\s*\/?>/i, `<link rel="icon" type="image/png" sizes="192x192" href="${icon192}" />`)
+      .replace(/<link\s+rel="icon"\s+type="image\/png"\s+sizes="512x512"\s+href="[^"]*"\s*\/?>/i, `<link rel="icon" type="image/png" sizes="512x512" href="${icon512}" />`)
+      .replace(/<link\s+rel="apple-touch-icon"\s+sizes="192x192"\s+href="[^"]*"\s*\/?>/i, `<link rel="apple-touch-icon" sizes="192x192" href="${icon192}" />`)
+      .replace(/<link\s+rel="apple-touch-icon"\s+href="[^"]*"\s*\/?>/i, `<link rel="apple-touch-icon" href="${icon180}" />`)
+      .replace(/<meta\s+property="og:title"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:title" content="${escapeHtmlAttr(meta.name)}" />`)
+      .replace(/<meta\s+property="og:description"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:description" content="${desc}" />`)
+      .replace(/<meta\s+property="og:image"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:image" content="${icon512}" />`);
+  };
+
+  // Endpoint proxy privilegiado para gravações do Painel Profissional com fallback resiliente a RLS e drift de colunas
+  app.post('/api/salon/sync', async (req, res) => {
+    try {
+      const { action, salonId, payload } = req.body || {};
+      if (!salonId || typeof salonId !== 'string') {
+        return res.status(400).json({ success: false, error: 'salonId obrigatório.' });
+      }
+      if (!action) {
+        return res.status(400).json({ success: false, error: 'action obrigatório.' });
+      }
+
+      const supabase = getSupabaseServerClient();
+      const { data: existingSalon, error: lookupErr } = await supabase
+        .from('salons')
+        .select('id, branding, trade_name')
+        .eq('id', salonId)
+        .maybeSingle();
+
+      if (lookupErr) {
+        return res.status(500).json({ success: false, error: lookupErr.message });
+      }
+      if (!existingSalon) {
+        return res.status(404).json({ success: false, error: 'Estabelecimento não encontrado.' });
+      }
+
+      const currentBranding =
+        existingSalon.branding && typeof existingSalon.branding === 'object'
+          ? { ...(existingSalon.branding as Record<string, any>) }
+          : {};
+
+      const safeUpdateSalonsRow = async (fields: Record<string, any>) => {
+        const candidate = { ...fields };
+        for (let attempt = 0; attempt < 25; attempt++) {
+          const { data, error } = await supabase
+            .from('salons')
+            .update(candidate)
+            .eq('id', salonId)
+            .select('id')
+            .maybeSingle();
+          if (!error && data) {
+            return { success: true as const };
+          }
+          const msg = error?.message || 'Sem permissão para atualizar o estabelecimento no banco.';
+          const colMatch =
+            msg.match(/Could not find the '([^']+)' column/i) ||
+            msg.match(/column "([^"]+)" of relation/i) ||
+            msg.match(/column (?:[a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+) does not exist/i);
+          if (colMatch && colMatch[1] && colMatch[1] in candidate) {
+            delete candidate[colMatch[1]];
+            continue;
+          }
+          return { success: false as const, error: msg };
+        }
+        return { success: false as const, error: 'Falha após múltiplas tentativas de schema.' };
+      };
+
+      if (action === 'settings') {
+        const settings = (payload && typeof payload === 'object') ? (payload as Record<string, any>) : {};
+        const nextBranding: Record<string, any> = {
+          ...currentBranding,
+          ...(settings.accentColor !== undefined ? { accentColor: settings.accentColor } : {}),
+          ...(settings.primaryColor !== undefined ? { primaryColor: settings.primaryColor } : {}),
+          ...(settings.secondaryColor !== undefined ? { secondaryColor: settings.secondaryColor } : {}),
+          ...(settings.themePresetId !== undefined ? { themePresetId: settings.themePresetId } : {}),
+          ...(settings.themeExplicitlyCustomized !== undefined ? { themeExplicitlyCustomized: settings.themeExplicitlyCustomized } : {}),
+          ...(settings.defaultTheme !== undefined ? { defaultTheme: settings.defaultTheme } : {}),
+          ...(settings.salonLogoLight !== undefined ? { salonLogoLight: settings.salonLogoLight } : {}),
+          ...(settings.salonLogoDark !== undefined ? { salonLogoDark: settings.salonLogoDark } : {}),
+          ...(settings.salonIcon !== undefined ? { salonIcon: settings.salonIcon } : {}),
+          ...(settings.salonLogo !== undefined ? { salonLogo: settings.salonLogo } : {}),
+          ...(settings.pwaName !== undefined ? { pwaName: settings.pwaName } : {}),
+          ...(settings.slogan !== undefined ? { slogan: settings.slogan } : {}),
+          ...(settings.showSlogan !== undefined ? { showSlogan: settings.showSlogan } : {}),
+          ...(settings.logoTextFallback !== undefined ? { logoTextFallback: settings.logoTextFallback } : {}),
+          ...(settings.logoTextColor !== undefined ? { logoTextColor: settings.logoTextColor } : {}),
+          ...(settings.showHeroSlides !== undefined ? { showHeroSlides: settings.showHeroSlides } : {}),
+          ...(settings.brandFont !== undefined ? { brandFont: settings.brandFont } : {}),
+          ...(settings.navStyle !== undefined ? { navStyle: settings.navStyle } : {}),
+          ...(settings.navShape !== undefined ? { navShape: settings.navShape } : {}),
+          ...(settings.navBorder !== undefined ? { navBorder: settings.navBorder } : {}),
+          ...(settings.navIconBorder !== undefined ? { navIconBorder: settings.navIconBorder } : {}),
+          ...(settings.navBgStyle !== undefined ? { navBgStyle: settings.navBgStyle } : {}),
+          ...(settings.navBgColor !== undefined ? { navBgColor: settings.navBgColor } : {}),
+          ...(settings.navBtnBgColor !== undefined ? { navBtnBgColor: settings.navBtnBgColor } : {}),
+          ...(settings.navBtnActiveBgColor !== undefined ? { navBtnActiveBgColor: settings.navBtnActiveBgColor } : {}),
+          ...(settings.navActiveColor !== undefined ? { navActiveColor: settings.navActiveColor } : {}),
+          ...(settings.navTextColor !== undefined ? { navTextColor: settings.navTextColor } : {}),
+          ...(settings.navBtnShadow !== undefined ? { navBtnShadow: settings.navBtnShadow } : {}),
+          ...(settings.navBtnBlur !== undefined ? { navBtnBlur: settings.navBtnBlur } : {}),
+          ...(settings.navBtnFont !== undefined ? { navBtnFont: settings.navBtnFont } : {}),
+          ...(settings.welcomeStyle !== undefined ? { welcomeStyle: settings.welcomeStyle } : {}),
+          ...(settings.sectionHeaderBgColor !== undefined ? { sectionHeaderBgColor: settings.sectionHeaderBgColor } : {}),
+          ...(settings.sectionHeaderTextColor !== undefined ? { sectionHeaderTextColor: settings.sectionHeaderTextColor } : {}),
+          ...(settings.sectionHeaderIconColor !== undefined ? { sectionHeaderIconColor: settings.sectionHeaderIconColor } : {}),
+          ...(settings.sectionHeaderBgStyle !== undefined ? { sectionHeaderBgStyle: settings.sectionHeaderBgStyle } : {}),
+          ...(settings.sectionHeaderBorder !== undefined ? { sectionHeaderBorder: settings.sectionHeaderBorder } : {}),
+          ...(settings.sectionHeaderBtnBgColor !== undefined ? { sectionHeaderBtnBgColor: settings.sectionHeaderBtnBgColor } : {}),
+          ...(settings.sectionHeaderBtnActiveBgColor !== undefined ? { sectionHeaderBtnActiveBgColor: settings.sectionHeaderBtnActiveBgColor } : {}),
+          ...(settings.sectionHeaderBtnBorder !== undefined ? { sectionHeaderBtnBorder: settings.sectionHeaderBtnBorder } : {}),
+          ...(settings.sectionHeaderBtnShadow !== undefined ? { sectionHeaderBtnShadow: settings.sectionHeaderBtnShadow } : {}),
+          ...(settings.sectionHeaderBtnBlur !== undefined ? { sectionHeaderBtnBlur: settings.sectionHeaderBtnBlur } : {}),
+          ...(settings.sectionHeaderBtnFont !== undefined ? { sectionHeaderBtnFont: settings.sectionHeaderBtnFont } : {}),
+          ...(settings.spaceDescription !== undefined ? { spaceDescription: settings.spaceDescription } : {}),
+          ...(settings.amenities !== undefined ? { amenities: settings.amenities } : {}),
+          ...(settings.serviceCategories !== undefined ? { serviceCategories: settings.serviceCategories } : {}),
+          ...(settings.openingHours !== undefined ? { openingHours: settings.openingHours } : {}),
+          ...(settings.operatingSchedule !== undefined ? { operatingSchedule: settings.operatingSchedule } : {}),
+          ...(settings.cancellationPolicy !== undefined ? { cancellationPolicy: settings.cancellationPolicy } : {}),
+          ...(settings.holidays !== undefined ? { holidays: settings.holidays } : {}),
+          ...(settings.spacePhotos !== undefined ? { spacePhotos: settings.spacePhotos } : {}),
+          ...(settings.pinCode !== undefined ? { pinCode: settings.pinCode } : {}),
+          ...(settings.isOpenNow !== undefined ? { isOpenNow: settings.isOpenNow } : {}),
+          updatedAt: new Date().toISOString(),
+        };
+
+        const rowUpdate: Record<string, any> = {
+          branding: nextBranding,
+          updated_at: new Date().toISOString(),
+        };
+        if (settings.salonName !== undefined) rowUpdate.trade_name = settings.salonName;
+        if (settings.category !== undefined) rowUpdate.category = settings.category;
+        if (settings.email !== undefined) rowUpdate.email = settings.email;
+        if (settings.salonPhone !== undefined) rowUpdate.phone_whatsapp = settings.salonPhone;
+        if (settings.phoneLandline !== undefined) rowUpdate.phone_landline = settings.phoneLandline;
+        if (settings.salonAddress !== undefined) rowUpdate.address = settings.salonAddress;
+        if (settings.openingHours !== undefined) rowUpdate.opening_hours_text = settings.openingHours;
+        if (settings.isOpenNow !== undefined) rowUpdate.is_open_now = settings.isOpenNow;
+        if (settings.accentColor !== undefined) rowUpdate.primary_color = settings.accentColor;
+        if (settings.secondaryColor !== undefined) rowUpdate.secondary_color = settings.secondaryColor;
+        if (settings.defaultTheme !== undefined) rowUpdate.default_theme = settings.defaultTheme;
+        if (settings.salonLogoLight !== undefined) rowUpdate.logo_light_url = settings.salonLogoLight;
+        if (settings.salonLogoDark !== undefined) rowUpdate.logo_dark_url = settings.salonLogoDark;
+        if (settings.salonIcon !== undefined) rowUpdate.favicon_url = settings.salonIcon;
+        if (settings.salonLogo !== undefined || settings.salonLogoLight !== undefined || settings.salonLogoDark !== undefined) {
+          rowUpdate.logo_url = settings.salonLogo || settings.salonLogoLight || settings.salonLogoDark;
+        }
+        if (settings.slogan !== undefined) rowUpdate.slogan = settings.slogan;
+        if (settings.bio !== undefined) rowUpdate.bio = settings.bio;
+        if (settings.spaceDescription !== undefined) rowUpdate.space_description = settings.spaceDescription;
+        if (settings.amenities !== undefined) rowUpdate.amenities = settings.amenities;
+        if (settings.operatingSchedule !== undefined) rowUpdate.operating_hours = settings.operatingSchedule;
+        if (settings.holidays !== undefined) rowUpdate.holidays = settings.holidays;
+        if (settings.cancellationPolicy !== undefined) rowUpdate.cancellation_policy = settings.cancellationPolicy;
+        if (settings.spacePhotos !== undefined) rowUpdate.space_photos = settings.spacePhotos;
+        if (settings.websiteUrl !== undefined) rowUpdate.website_url = settings.websiteUrl;
+        if (settings.instagramUrl !== undefined) rowUpdate.instagram_url = settings.instagramUrl;
+        if (settings.facebookUrl !== undefined) rowUpdate.facebook_url = settings.facebookUrl;
+        if (settings.mapsUrl !== undefined) rowUpdate.maps_url = settings.mapsUrl;
+        if (settings.cep !== undefined) rowUpdate.cep = settings.cep;
+        if (settings.logradouro !== undefined) rowUpdate.logradouro = settings.logradouro;
+        if (settings.numero !== undefined) rowUpdate.numero = settings.numero;
+        if (settings.complemento !== undefined) rowUpdate.complemento = settings.complemento;
+        if (settings.bairro !== undefined) rowUpdate.bairro = settings.bairro;
+        if (settings.cidade !== undefined) rowUpdate.city = settings.cidade;
+        if (settings.uf !== undefined) rowUpdate.state = settings.uf;
+        if (settings.pixKey !== undefined) rowUpdate.pix_key = settings.pixKey;
+        if (settings.pixKeys !== undefined) rowUpdate.pix_keys = settings.pixKeys;
+        if (settings.cnpj !== undefined) rowUpdate.cnpj = settings.cnpj;
+        if (settings.razaoSocial !== undefined) rowUpdate.corporate_name = settings.razaoSocial;
+
+        const result = await safeUpdateSalonsRow(rowUpdate);
+        if (!result.success) {
+          return res.status(403).json({ success: false, error: result.error });
+        }
+        return res.json({ success: true });
+      }
+
+      if (action === 'services') {
+        const services = Array.isArray(payload?.services) ? payload.services : [];
+        const categories = Array.isArray(payload?.categories) ? payload.categories : undefined;
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+        const catalogMirror = services.map((s: any) => ({
+          id: s.id,
+          title: s.title || s.name || 'Serviço',
+          duration: s.duration || `${parseDurationToMinutesServer(s.duration_minutes ?? s.duration, 40)} min`,
+          duration_minutes: parseDurationToMinutesServer(s.duration_minutes ?? s.duration, 40),
+          price: Number(s.price) || 0,
+          description: s.description || '',
+          category: s.category || 'Beleza',
+          image: s.image || '',
+          photos: Array.isArray(s.photos) ? s.photos : (s.image ? [s.image] : []),
+          mediaType: s.mediaType || 'image',
+          videoUrl: s.videoUrl || '',
+          videoDurationSeconds: s.videoDurationSeconds || 0,
+          displayMode: s.displayMode || 'static',
+          aspectRatio: s.aspectRatio || '1:1',
+          professionalId: s.professionalId || undefined,
+        }));
+
+        const nextBranding: Record<string, any> = {
+          ...currentBranding,
+          catalogServices: catalogMirror,
+          ...(categories ? { serviceCategories: categories } : {}),
+          updatedAt: new Date().toISOString(),
+        };
+
+        const brandingResult = await safeUpdateSalonsRow({ branding: nextBranding, updated_at: new Date().toISOString() });
+
+        const { data: existingRows } = await supabase
+          .from('services')
+          .select('id')
+          .eq('salon_id', salonId);
+
+        const incomingIds = new Set(services.map((s: any) => s.id).filter((id: string) => uuidRegex.test(id)));
+        const idsToDelete = (existingRows || [])
+          .map((r: any) => r.id)
+          .filter((id: string) => !incomingIds.has(id));
+
+        if (idsToDelete.length > 0) {
+          const { error: delErr } = await supabase
+            .from('services')
+            .delete()
+            .in('id', idsToDelete)
+            .eq('salon_id', salonId);
+          if (delErr) {
+            await supabase
+              .from('services')
+              .update({ is_active: false })
+              .in('id', idsToDelete)
+              .eq('salon_id', salonId);
+          }
+        }
+
+        const rowsToUpsert = services
+          .filter((s: any) => uuidRegex.test(s.id))
+          .map((s: any) => ({
+            id: s.id,
+            salon_id: salonId,
+            name: s.title || 'Serviço',
+            title: s.title || 'Serviço',
+            category: s.category || 'Beleza',
+            price: Number(s.price) || 0,
+            duration_minutes: parseDurationToMinutesServer(s.duration_minutes ?? s.duration, 40),
+            description: s.description || '',
+            image_url: s.image || null,
+            photos: Array.isArray(s.photos) ? s.photos : (s.image ? [s.image] : []),
+            media_type: s.mediaType || 'image',
+            video_url: s.videoUrl || null,
+            video_duration_seconds: s.videoDurationSeconds || 0,
+            display_mode: s.displayMode || 'static',
+            aspect_ratio: s.aspectRatio || '1:1',
+            is_active: true,
+          }));
+
+        let srvErrorMsg: string | null = null;
+        if (rowsToUpsert.length > 0) {
+          let workingRows = rowsToUpsert.map((r: any) => ({ ...r }));
+          for (let attempt = 0; attempt < 15; attempt++) {
+            const { error: upErr } = await supabase
+              .from('services')
+              .upsert(workingRows, { onConflict: 'id' });
+            if (!upErr) {
+              srvErrorMsg = null;
+              break;
+            }
+            const colMatch =
+              upErr.message.match(/Could not find the '([^']+)' column/i) ||
+              upErr.message.match(/column "([^"]+)" of relation/i) ||
+              upErr.message.match(/column (?:[a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+) does not exist/i);
+            if (colMatch && colMatch[1] && colMatch[1] in workingRows[0]) {
+              const badCol = colMatch[1];
+              workingRows = workingRows.map((row: any) => {
+                const clone = { ...row };
+                delete clone[badCol];
+                return clone;
+              });
+              continue;
+            }
+            srvErrorMsg = upErr.message;
+            break;
+          }
+        }
+
+        if (!brandingResult.success && srvErrorMsg) {
+          return res.status(403).json({ success: false, error: srvErrorMsg });
+        }
+        return res.json({ success: true });
+      }
+
+      if (action === 'professionals') {
+        const professionals = Array.isArray(payload?.professionals) ? payload.professionals : [];
+        const professionalSchedules = payload?.professionalSchedules;
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+        const nextBranding: Record<string, any> = {
+          ...currentBranding,
+          teamMembers: professionals,
+          ...(professionalSchedules ? {
+            operatingSchedule: {
+              ...(currentBranding.operatingSchedule || {}),
+              professionalSchedules,
+            },
+          } : {}),
+          updatedAt: new Date().toISOString(),
+        };
+
+        const brandingResult = await safeUpdateSalonsRow({ branding: nextBranding, updated_at: new Date().toISOString() });
+
+        const { data: existingPros } = await supabase
+          .from('professionals')
+          .select('id')
+          .eq('salon_id', salonId);
+
+        const incomingIds = new Set(professionals.map((p: any) => p.id).filter((id: string) => uuidRegex.test(id)));
+        const idsToDelete = (existingPros || [])
+          .map((r: any) => r.id)
+          .filter((id: string) => !incomingIds.has(id));
+
+        if (idsToDelete.length > 0) {
+          const { error: delErr } = await supabase
+            .from('professionals')
+            .delete()
+            .in('id', idsToDelete)
+            .eq('salon_id', salonId);
+          if (delErr) {
+            await supabase
+              .from('professionals')
+              .update({ is_active: false })
+              .in('id', idsToDelete)
+              .eq('salon_id', salonId);
+          }
+        }
+
+        const proRows = professionals
+          .filter((p: any) => uuidRegex.test(p.id))
+          .map((p: any) => ({
+            id: p.id,
+            salon_id: salonId,
+            name: p.name || 'Profissional',
+            role: p.role || 'Profissional',
+            access_level: p.accessType || p.systemRole || 'professional',
+            avatar_url: p.avatar || p.avatarUrl || null,
+            phone: p.phone || null,
+            email: p.email || null,
+            specialties: Array.isArray(p.specialties) ? p.specialties : [],
+            commission_rate: Number(p.commissionRate) || 0,
+            schedule_config: p.workSchedule || {},
+            is_active: p.isActive !== false,
+          }));
+
+        let proErrMsg: string | null = null;
+        if (proRows.length > 0) {
+          let workingPros = proRows.map((r: any) => ({ ...r }));
+          for (let attempt = 0; attempt < 15; attempt++) {
+            const { error: proErr } = await supabase
+              .from('professionals')
+              .upsert(workingPros, { onConflict: 'id' });
+            if (!proErr) {
+              proErrMsg = null;
+              break;
+            }
+            const colMatch =
+              proErr.message.match(/Could not find the '([^']+)' column/i) ||
+              proErr.message.match(/column "([^"]+)" of relation/i) ||
+              proErr.message.match(/column (?:[a-zA-Z0-9_]+\.)?([a-zA-Z0-9_]+) does not exist/i);
+            if (colMatch && colMatch[1] && colMatch[1] in workingPros[0]) {
+              const badCol = colMatch[1];
+              workingPros = workingPros.map((row: any) => {
+                const clone = { ...row };
+                delete clone[badCol];
+                return clone;
+              });
+              continue;
+            }
+            proErrMsg = proErr.message;
+            break;
+          }
+        }
+
+        if (!brandingResult.success && proErrMsg) {
+          return res.status(403).json({ success: false, error: proErrMsg });
+        }
+        return res.json({ success: true });
+      }
+
+      return res.status(400).json({ success: false, error: `Ação desconhecida: ${action}` });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message || 'Erro interno no sync.' });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true, hmr: false },
       appType: 'spa',
     });
+
+    app.use(async (req, res, next) => {
+      const accept = String(req.headers.accept || '');
+      const acceptsHtml = !accept || accept.includes('text/html') || accept.includes('*/*');
+      const isHtmlNav =
+        req.method === 'GET' &&
+        acceptsHtml &&
+        !req.path.startsWith('/api/') &&
+        !req.path.startsWith('/@') &&
+        !req.path.startsWith('/__') &&
+        !req.path.startsWith('/src/') &&
+        !req.path.startsWith('/node_modules/') &&
+        !req.path.startsWith('/assets/') &&
+        req.path !== '/manifest.json' &&
+        (!/\.[a-z0-9]+$/i.test(req.path) || req.path === '/index.html');
+
+      if (!isHtmlNav) {
+        return next();
+      }
+
+      try {
+        const indexPath = path.join(process.cwd(), 'index.html');
+        let rawHtml = await fs.readFile(indexPath, 'utf8');
+        rawHtml = await vite.transformIndexHtml(req.originalUrl, rawHtml);
+        const personalizedHtml = await injectDynamicPwaHead(rawHtml, req);
+        res.status(200).set({ 'Content-Type': 'text/html; charset=utf-8' }).end(personalizedHtml);
+      } catch (err) {
+        next(err);
+      }
+    });
+
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.use(express.static(distPath, { index: false }));
+    app.get('*', async (req, res, next) => {
+      if (req.path.startsWith('/api/') || req.path === '/manifest.json' || /\.[a-z0-9]+$/i.test(req.path)) {
+        return next();
+      }
+      try {
+        const indexHtml = await fs.readFile(path.join(distPath, 'index.html'), 'utf8');
+        const personalizedHtml = await injectDynamicPwaHead(indexHtml, req);
+        res.status(200).set({ 'Content-Type': 'text/html; charset=utf-8' }).send(personalizedHtml);
+      } catch {
+        res.sendFile(path.join(distPath, 'index.html'));
+      }
     });
   }
 

@@ -67,7 +67,9 @@ const getCompanyLogo = (item: BookingAppointment, isDarkTheme: boolean): string 
     if (isRealLogoUrl(darkLogo)) return darkLogo.trim();
     if (isRealLogoUrl(lightLogo)) return lightLogo.trim();
 
-    const rawAdmin = localStorage.getItem('vagou_admin_settings');
+    const rawAdmin =
+      localStorage.getItem('vagou_salon_admin_settings') ||
+      localStorage.getItem('vagou_admin_settings');
     if (rawAdmin) {
       const parsed = JSON.parse(rawAdmin);
       const logo = isDarkTheme
