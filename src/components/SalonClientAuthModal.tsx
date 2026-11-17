@@ -381,7 +381,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
     const effectiveUserId = String(
       userId || existingAccountRow?.id || clientRow?.user_id || clientRow?.id || ''
     ).trim();
-    const effectiveClientId = String(clientRow?.id || effectiveUserId).trim();
+    const effectiveClientId = String(clientRow?.id || '').trim();
     const cleanCpf = (
       fallbackCpf ||
       existingAccountRow?.cpf ||
@@ -450,7 +450,11 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
         sessionStorage.setItem('vagou_explicit_public_preview', '1');
       }
       if (effectiveUserId) localStorage.setItem('vagou_auth_user_id', effectiveUserId);
-      if (effectiveClientId) localStorage.setItem('vagou_client_id', effectiveClientId);
+      if (effectiveClientId) {
+        localStorage.setItem('vagou_client_id', effectiveClientId);
+      } else {
+        localStorage.removeItem('vagou_client_id');
+      }
       if (resolvedName) localStorage.setItem('vagou_user_name', resolvedName);
       if (effectiveIdentity) {
         localStorage.setItem('vagou_user_email', effectiveIdentity);
@@ -469,7 +473,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
         'vagou_client_session',
         JSON.stringify({
           id: effectiveUserId || effectiveClientId,
-          clientId: effectiveClientId || effectiveUserId,
+          clientId: effectiveClientId || undefined,
           name: resolvedName,
           email: effectiveIdentity,
           username: effectiveUsername,

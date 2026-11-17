@@ -69,6 +69,7 @@ import {
   isValidAvatarUrlString,
   checkUserSalonMembership,
   ensureClientRow,
+  findExistingClientRow,
   mapDbAppointmentToBookingAppointment,
   mapBookingAppointmentToDbPayload,
   upsertAppointmentInDb,
@@ -2113,75 +2114,62 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           if (s) rawClientSession = JSON.parse(s);
         } catch {}
 
-        const rawStoredClientId = (localStorage.getItem('vagou_client_id') || rawClientSession?.id || rawClientSession?.clientId || '').trim();
+        const rawStoredClientId = (localStorage.getItem('vagou_client_id') || rawClientSession?.clientId || rawClientSession?.id || '').trim();
         const storedClientId = rawStoredClientId.startsWith('guest-') ? '' : rawStoredClientId;
         const storedEmail = (localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || rawClientSession?.email || '').trim();
+        const storedUsername = String(rawClientSession?.username || '').trim();
         const storedPhone = (localStorage.getItem('vagou_user_phone') || rawClientSession?.phone || bookingData.clientPhone || '').trim();
         const storedName = (localStorage.getItem('vagou_user_name') || rawClientSession?.name || currentUserName || 'Cliente').trim();
 
-        if (!session?.user && !storedClientId && !storedEmail) {
+        if (!session?.user && !storedClientId && !storedEmail && !storedUsername) {
           setIsClientAuthModalOpen(true);
           return { success: false, error: 'Faça login ou cadastre-se para realizar o agendamento.' };
         }
 
-        // Garante linha do cliente em public.clients
-        let clientRow: any = null;
-        if (session?.user?.id) {
-          const { data: existingClient } = await (supabase.from('clients') as any)
-            .select('id, name, phone, email')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-
-          if (existingClient) {
-            clientRow = existingClient;
-          } else {
-            const ensured = await ensureClientRow(session.user.id, session.user.email, session.user.user_metadata);
-            clientRow = ensured.client;
-          }
-        } else if (storedClientId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storedClientId)) {
-          const { data: existingClient } = await (supabase.from('clients') as any)
-            .select('id, name, phone, email')
-            .eq('id', storedClientId)
-            .maybeSingle();
-          if (existingClient) clientRow = existingClient;
-        } else if (storedEmail) {
-          const { data: existingClient } = await (supabase.from('clients') as any)
-            .select('id, name, phone, email')
-            .ilike('email', storedEmail)
-            .maybeSingle();
-          if (existingClient) clientRow = existingClient;
-        }
+        // Garante linha REAL do cliente em public.clients (nunca usa ID não verificado em client_id)
+        let clientRow: any = await findExistingClientRow({
+          clientId: storedClientId || null,
+          userId: session?.user?.id || rawClientSession?.id || null,
+          email: session?.user?.email || storedEmail || null,
+          username: storedUsername || null,
+        });
 
         if (!clientRow?.id) {
-          const { data: newClient, error: clientErr } = await (supabase.from('clients') as any)
-            .insert({
-              name: storedName || 'Cliente',
-              email: storedEmail || null,
+          const fallbackUserId =
+            session?.user?.id ||
+            (storedClientId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storedClientId)
+              ? storedClientId
+              : '');
+          const ensured = await ensureClientRow(
+            fallbackUserId,
+            session?.user?.email || storedEmail || null,
+            {
+              ...(session?.user?.user_metadata || {}),
+              full_name: session?.user?.user_metadata?.full_name || storedName || 'Cliente',
               phone: storedPhone || null,
-            })
-            .select('id, name, phone, email')
-            .maybeSingle();
-          if (newClient) {
-            clientRow = newClient;
-            try { localStorage.setItem('vagou_client_id', newClient.id); } catch {}
-          } else {
-            console.warn('Inserção remota de cliente bloqueada por RLS ou offline:', clientErr);
-            // Fallback resiliente para garantir agendamento sem travar cliente
-            const fallbackClientId = localStorage.getItem('vagou_client_id') || `guest-${Date.now()}`;
-            clientRow = {
-              id: fallbackClientId,
-              name: storedName || currentUserName || 'Cliente',
-              phone: storedPhone || null,
-              email: storedEmail || null,
-            };
-            try { localStorage.setItem('vagou_client_id', fallbackClientId); } catch {}
+              username: storedUsername || undefined,
+            }
+          );
+          if (ensured.client?.id) {
+            clientRow = ensured.client;
           }
         }
+
+        if (clientRow?.id) {
+          try {
+            localStorage.setItem('vagou_client_id', String(clientRow.id));
+          } catch {}
+        }
+
+        const verifiedClientId: string | null =
+          clientRow?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(clientRow.id))
+            ? String(clientRow.id)
+            : null;
 
         const finalClientName = bookingData.isDependentBooking && bookingData.dependentName
           ? bookingData.dependentName
-          : (clientRow.name || storedName || currentUserName || 'Cliente');
-        const finalPhone = (bookingData.clientPhone || clientRow.phone || storedPhone || 'Não informado').trim();
+          : (clientRow?.name || storedName || currentUserName || 'Cliente');
+        const finalPhone = (bookingData.clientPhone || clientRow?.phone || storedPhone || 'Não informado').trim();
 
         // Determina horário de início e fim
         const [h, m] = bookingData.timeSlot.split(':').map(Number);
@@ -2208,7 +2196,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           protocol_code: `#${rawCode}`,
           salon_id: targetSalonId,
           offer_id: bookingData.offerId || null,
-          client_id: clientRow.id,
+          client_id: verifiedClientId,
           client_name: finalClientName,
           client_phone: finalPhone,
           client_email: session?.user?.email || storedEmail || clientRow?.email || null,
@@ -2230,14 +2218,15 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           selected_route_summary: bookingData.selectedRouteSummary || null,
         };
 
+        let activePayload: Record<string, any> = { ...appointmentPayload };
         let { error: insertErr } = await (supabase.from('appointments') as any)
-          .insert(appointmentPayload)
+          .insert(activePayload)
           .select()
           .single();
 
         // Fallback resiliente caso o banco remoto ainda não possua todas as colunas extras de bol-020
         if (insertErr && (insertErr.code === 'PGRST204' || insertErr.code === '42703' || insertErr.message?.includes('column'))) {
-          const fallbackPayload = { ...appointmentPayload };
+          const fallbackPayload = { ...activePayload };
           delete fallbackPayload.is_dependent;
           delete fallbackPayload.dependent_id;
           delete fallbackPayload.dependent_name;
@@ -2246,11 +2235,22 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           delete fallbackPayload.prep_buffer_minutes;
           delete fallbackPayload.transport_mode;
           delete fallbackPayload.selected_route_summary;
+          activePayload = fallbackPayload;
           const retry = await (supabase.from('appointments') as any)
-            .insert(fallbackPayload)
+            .insert(activePayload)
             .select()
             .single();
           insertErr = retry.error;
+        }
+
+        // Blindagem definitiva contra FK appointments_client_id_fkey (23503)
+        if (insertErr && (insertErr.code === '23503' || String(insertErr.message || '').includes('appointments_client_id_fkey'))) {
+          const fkSafePayload = { ...activePayload, client_id: null };
+          const fkRetry = await (supabase.from('appointments') as any)
+            .insert(fkSafePayload)
+            .select()
+            .single();
+          insertErr = fkRetry.error;
         }
 
         if (insertErr) {

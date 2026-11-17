@@ -228,26 +228,40 @@ export async function confirmAppointmentInDatabase(params: ConfirmAppointmentPar
       if (stored) salonId = stored;
     }
     
-    // Resolve client_id (usuário logado)
-    let clientId = params.clientId;
+    // Resolve client_id verificado em public.clients (evita erro FK appointments_client_id_fkey)
+    let clientId: string | undefined | null = params.clientId;
     if (!clientId) {
       try {
         const raw = localStorage.getItem(STORAGE_KEYS.CLIENT_SESSION);
         if (raw) {
           const parsed = JSON.parse(raw);
-          clientId = parsed.id || parsed.clientId;
+          clientId = parsed.clientId || parsed.id;
         }
       } catch {}
-      
-      // Fallback: busca por email
-      if (!clientId) {
-        const email = localStorage.getItem(STORAGE_KEYS.USER_EMAIL)?.trim().toLowerCase();
-        if (email) {
-          const { data: cRow } = await supabase.from('clients').select('id').ilike('email', `%${email}%`).maybeSingle();
-          if (cRow?.id) {
-            clientId = cRow.id;
-            localStorage.setItem(STORAGE_KEYS.CLIENT_SESSION, JSON.stringify({ id: cRow.id, email }));
-          }
+    }
+
+    if (clientId) {
+      const { data: verifiedById } = await supabase
+        .from('clients')
+        .select('id')
+        .or(`id.eq.${clientId},user_id.eq.${clientId}`)
+        .limit(1)
+        .maybeSingle();
+      clientId = verifiedById?.id || null;
+    }
+
+    if (!clientId) {
+      const email = localStorage.getItem(STORAGE_KEYS.USER_EMAIL)?.trim().toLowerCase();
+      if (email) {
+        const { data: cRow } = await supabase
+          .from('clients')
+          .select('id')
+          .ilike('email', email)
+          .limit(1)
+          .maybeSingle();
+        if (cRow?.id) {
+          clientId = cRow.id;
+          localStorage.setItem(STORAGE_KEYS.CLIENT_SESSION, JSON.stringify({ id: cRow.id, clientId: cRow.id, email }));
         }
       }
     }
@@ -258,7 +272,7 @@ export async function confirmAppointmentInDatabase(params: ConfirmAppointmentPar
     // Monta payload para inserção
     const appointmentPayload = {
       salon_id: salonId,
-      client_id: clientId,
+      client_id: clientId || null,
       service_title: params.service.title,
       service_category: params.service.category,
       service_duration: params.service.duration,
@@ -291,11 +305,21 @@ export async function confirmAppointmentInDatabase(params: ConfirmAppointmentPar
       created_at: new Date().toISOString(),
     };
     
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('appointments')
       .insert([appointmentPayload])
       .select()
       .single();
+
+    if (error && (error.code === '23503' || String(error.message || '').includes('appointments_client_id_fkey'))) {
+      const retry = await supabase
+        .from('appointments')
+        .insert([{ ...appointmentPayload, client_id: null }])
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
     
     if (error) {
       console.error('[bookingService] Erro ao inserir agendamento:', error);

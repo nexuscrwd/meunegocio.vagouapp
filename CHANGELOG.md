@@ -11,6 +11,33 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-17] — Correção Definitiva de Erro de Chave Estrangeira ao Confirmar Agendamento (`appointments_client_id_fkey`) (`bol-182`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / Database / Auth / Booking]`
+- **Motivo / Solicitação:** Ao clicar em "CONFIRMAR AGENDAMENTO" na vitrine do salão (ex.: usuário `ANDERSON` no salão `AVELLI`), o Supabase retornava erro crítico `insert or update on table "appointments" violates foreign key constraint "appointments_client_id_fkey"` (`23503`).
+- **Causa Raiz Identificada:**
+  1. Contas autenticadas via `system_admins` (Superadmin Master), `profiles`/`professionals` ou registros em `public.clients` cujo `id` diferia de `user_id` armazenavam um UUID que não existia em `public.clients(id)` dentro de `localStorage.vagou_client_id`.
+  2. Em `SalonProfileView.tsx`, a busca encadeada (`if / else if`) não consultava por `email`/`username` quando havia `storedClientId` divergente, e, em caso de erro de duplicidade (`23505`) ou falha em `ensureClientRow`, o fallback injetava o próprio UUID inválido (ou `guest-*`) diretamente em `appointments.client_id`, violando a FK `appointments_client_id_fkey`.
+- **Arquivos Impactados:**
+  - `src/lib/supabase.ts`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/services/bookingService.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **`findExistingClientRow` e `ensureClientRow` blindados (`src/lib/supabase.ts`):** Nova função `findExistingClientRow` busca o cliente de forma exaustiva em `public.clients` por `id`, `user_id`, `email` (`ilike`) e `username` (`ilike`), tratando colisões `23505` e colunas opcionais ausentes (`PGRST204`/`42703`) sem sobrescrever nem duplicar cadastros.
+  2. **Sanitização Estrita de `vagou_client_id` no Login (`src/components/SalonClientAuthModal.tsx`):** `effectiveClientId` agora grava exclusivamente `clientRow.id` verificado em `public.clients` (removendo `vagou_client_id` obsoleto se não houver linha correspondente em `clients`, em vez de reutilizar IDs de `system_admins` ou `auth.users`).
+  3. **Payload Seguro e Fallback Automático contra `23503` (`SalonProfileView.tsx`, `upsertAppointmentInDb`, `bookingService.ts`):** `appointments.client_id` só recebe `clients.id` verificado (ou `null`, permitido pelo schema quando o agendamento é feito por admin/convidado). Se ainda ocorrer erro `23503` / `appointments_client_id_fkey` em qualquer fluxo de gravação, o cliente executa retry automático com `client_id: null` mantendo nome, telefone e e-mail do solicitante preservados.
+
+### [2026-11-16] — Ajuste da Caixa de Logo no Cabeçalho Principal (`MobileHeader`): Sem Borda, Margem Mínima e Escala Proporcional (`bol-181`)
+- **Tipo:** `[UI / Layout]`
+- **Motivo / Solicitação:** Remover a borda e o preenchimento da caixa da logo no cabeçalho principal (`MobileHeader`), aproximá-la ao máximo (distância mínima) das linhas superior e inferior do cabeçalho e escalonar a imagem proporcionalmente tanto na vertical quanto na horizontal.
+- **Arquivos Impactados:**
+  - `src/components/MobileHeader.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Caixa da Logo Sem Borda e Transparente:** Removida a borda (`border`, `borderColor: boxBorder`), arredondamento e fundo (`backgroundColor: boxBg`), aplicando `border-0 bg-transparent`.
+  2. **Distância Mínima e Escala Proporcional (`h-[60px] -my-2.5 flex-1 min-w-0 max-w-[200px]`):** A caixa da logo expande para `60px` de altura útil (ficando a `4px` das bordas superior e inferior do cabeçalho sem alterar a altura total ou o alinhamento do perfil à direita) e até `200px` de largura responsiva, com `<img className="w-full h-full object-contain object-left select-none" />`.
+
 ### [2026-11-16] — Blindagem Definitiva do Slideshow Editorial no Bundle TS, Isolamento Dark contra `html:not(.dark)` e Correção de Autofill nos Subdomínios Publicados (`bol-180`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Fix / Build / CSS / Auth]`
 - **Motivo / Solicitação:** Após o commit para produção (`bone.vagouapp.com`), o slideshow não aparecia (exibindo ícone de imagem quebrada no canto superior esquerdo), o fundo ficava acinzentado claro devido às regras globais de `html:not(.dark)` em `src/index.css`, e o preenchimento automático do Chrome pintava uma faixa branca sólida nos inputs escuros.

@@ -126,25 +126,19 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
         }}
       >
         <div className="flex items-center justify-between gap-2">
-          {/* Bloco Esquerdo: Logo do Estabelecimento ou Fallback "Logo" */}
-          <div
-            className="h-10 min-w-[70px] px-3 rounded-[4px] border flex items-center justify-center overflow-hidden shrink-0 transition-colors"
-            style={{
-              backgroundColor: boxBg,
-              borderColor: boxBorder,
-            }}
-          >
+          {/* Bloco Esquerdo: Logo do Estabelecimento sem borda, escalada proporcionalmente com distância mínima das linhas superior e inferior do cabeçalho */}
+          <div className="h-[60px] -my-2.5 flex-1 min-w-0 max-w-[200px] border-0 bg-transparent flex items-center justify-start overflow-hidden">
             {hasValidLogo ? (
               <img
                 src={resolvedLogo}
                 alt="Logo"
-                className="max-h-7 max-w-[85px] object-contain"
+                className="w-full h-full object-contain object-left select-none"
                 referrerPolicy="no-referrer"
               />
             ) : (
               <span
-                className="font-display font-extrabold text-xs tracking-wider uppercase select-none"
-                style={{ color: resolvedPalette.isCustomized && !isDark ? headerText : headerText }}
+                className="font-display font-extrabold text-sm tracking-wider uppercase select-none"
+                style={{ color: headerText }}
               >
                 Logo
               </span>

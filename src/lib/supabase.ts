@@ -512,53 +512,165 @@ export async function checkUserSalonMembership(
   return { isMember: false, role: 'cliente' };
 }
 
+const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function findExistingClientRow(params: {
+  clientId?: string | null;
+  userId?: string | null;
+  email?: string | null;
+  username?: string | null;
+}): Promise<any | null> {
+  if (!supabase || !isSupabaseConfigured) return null;
+  const db = getDbClient() || supabase;
+
+  const cleanClientId = String(params.clientId || '').trim();
+  if (cleanClientId && UUID_V4_RE.test(cleanClientId)) {
+    try {
+      const { data } = await (db.from('clients') as any)
+        .select('*')
+        .or(`id.eq.${cleanClientId},user_id.eq.${cleanClientId}`)
+        .limit(1)
+        .maybeSingle();
+      if (data?.id) return data;
+    } catch {}
+  }
+
+  const cleanUserId = String(params.userId || '').trim();
+  if (cleanUserId && UUID_V4_RE.test(cleanUserId) && cleanUserId !== cleanClientId) {
+    try {
+      const { data } = await (db.from('clients') as any)
+        .select('*')
+        .or(`user_id.eq.${cleanUserId},id.eq.${cleanUserId}`)
+        .limit(1)
+        .maybeSingle();
+      if (data?.id) return data;
+    } catch {}
+  }
+
+  const cleanEmail = String(params.email || '').trim().toLowerCase();
+  if (cleanEmail && cleanEmail.includes('@')) {
+    try {
+      const { data } = await (db.from('clients') as any)
+        .select('*')
+        .ilike('email', cleanEmail)
+        .limit(1)
+        .maybeSingle();
+      if (data?.id) return data;
+    } catch {}
+  }
+
+  const cleanUsername = String(params.username || '').trim();
+  if (cleanUsername && cleanUsername.length >= 2) {
+    try {
+      const { data } = await (db.from('clients') as any)
+        .select('*')
+        .ilike('username', cleanUsername)
+        .limit(1)
+        .maybeSingle();
+      if (data?.id) return data;
+    } catch {}
+  }
+
+  return null;
+}
+
 /**
  * Garante a linha do cliente em public.clients sem sobrescrever dados existentes.
- * Trata concorrência com retry no erro 23505 (unique constraint).
+ * Busca por user_id/id, email e username antes de inserir e trata 23505 / colunas ausentes.
  */
 export async function ensureClientRow(
   userId: string,
   userEmail?: string | null,
   userMetadata?: Record<string, any> | null
 ): Promise<{ client: any; error: any }> {
-  if (!supabase || !isSupabaseConfigured || !userId) {
+  if (!supabase || !isSupabaseConfigured) {
     return { client: null, error: new Error('Sessão ou Supabase indisponível') };
   }
 
+  const db = getDbClient() || supabase;
+  const cleanUserId = String(userId || '').trim();
+  const isUuid = UUID_V4_RE.test(cleanUserId);
+  const cleanEmail = userEmail ? String(userEmail).trim().toLowerCase() : null;
+  const cleanUsername = userMetadata?.username ? String(userMetadata.username).trim() : null;
+
   try {
-    // 1. Verifica se já existe por user_id ou id
-    const { data: existingClient } = await (supabase
-      .from('clients') as any)
-      .select('*')
-      .or(`user_id.eq.${userId},id.eq.${userId}`)
-      .limit(1)
-      .maybeSingle();
+    // 1. Verifica se já existe por user_id, id, email ou username
+    const existingClient = await findExistingClientRow({
+      userId: isUuid ? cleanUserId : null,
+      email: cleanEmail,
+      username: cleanUsername,
+    });
 
     if (existingClient) {
       return { client: existingClient, error: null };
     }
 
     // 2. Se não existir, insere com metadados reais
-    const resolvedName = userMetadata?.full_name || userMetadata?.name || (userEmail ? userEmail.split('@')[0] : 'Usuário');
+    const resolvedName =
+      userMetadata?.full_name ||
+      userMetadata?.name ||
+      cleanUsername ||
+      (cleanEmail ? cleanEmail.split('@')[0] : 'Usuário');
+
     const insertPayload: Record<string, any> = {
-      user_id: userId,
-      name: resolvedName.trim(),
+      ...(isUuid ? { user_id: cleanUserId } : {}),
+      name: String(resolvedName).trim(),
       phone: userMetadata?.phone || null,
-      email: userEmail || null,
+      email: cleanEmail || null,
       avatar_url: userMetadata?.avatar_url || null,
-      ...(userMetadata?.username ? { username: String(userMetadata.username).trim() } : {}),
+      ...(cleanUsername ? { username: cleanUsername } : {}),
       ...(userMetadata?.password_hash ? { password_hash: String(userMetadata.password_hash) } : {}),
       ...(userMetadata?.cpf ? { cpf: String(userMetadata.cpf).trim() } : {}),
     };
-    const { data: insertedClient, error: insertErr } = await (supabase.from('clients') as any)
+
+    let { data: insertedClient, error: insertErr } = await (db.from('clients') as any)
       .insert(insertPayload)
       .select()
-      .single();
+      .maybeSingle();
 
-    // Se colidiu em corrida concorrente (23505), reconsulta e retorna a linha existente
+    // Se colidiu por colunas ausentes, tenta payload enxuto
+    if (
+      insertErr &&
+      (insertErr.code === 'PGRST204' || insertErr.code === '42703' || insertErr.message?.includes('column'))
+    ) {
+      const minimalPayload: Record<string, any> = {
+        ...(isUuid ? { user_id: cleanUserId } : {}),
+        name: String(resolvedName).trim(),
+        phone: userMetadata?.phone || null,
+        email: cleanEmail || null,
+      };
+      const retryCols = await (db.from('clients') as any)
+        .insert(minimalPayload)
+        .select()
+        .maybeSingle();
+      insertedClient = retryCols.data;
+      insertErr = retryCols.error;
+    }
+
+    // Se colidiu em corrida concorrente ou unicidade (23505), reconsulta por user_id/email/username
     if (insertErr && (insertErr.code === '23505' || insertErr.message?.includes('duplicate'))) {
-      const { data: reFetched } = await (supabase.from('clients') as any).select('*').eq('user_id', userId).maybeSingle();
-      return { client: reFetched, error: null };
+      const reFetched = await findExistingClientRow({
+        userId: isUuid ? cleanUserId : null,
+        email: cleanEmail,
+        username: cleanUsername,
+      });
+      if (reFetched) {
+        return { client: reFetched, error: null };
+      }
+
+      // Se colidiu apenas em username/cpf, tenta inserir registro mínimo sem campos únicos conflitantes
+      const fallbackInsert = await (db.from('clients') as any)
+        .insert({
+          ...(isUuid ? { user_id: cleanUserId } : {}),
+          name: String(resolvedName).trim(),
+          phone: userMetadata?.phone || null,
+          email: cleanEmail || null,
+        })
+        .select()
+        .maybeSingle();
+      if (fallbackInsert.data) {
+        return { client: fallbackInsert.data, error: null };
+      }
     }
 
     return { client: insertedClient, error: insertErr };
@@ -1709,20 +1821,43 @@ export async function upsertAppointmentInDb(appointmentData: any): Promise<{ suc
       updated_at: new Date().toISOString(),
     };
 
+    let workingPayload: Record<string, any> = { ...payload };
+
+    // Garante que client_id (se informado) aponte para uma linha real em public.clients
+    if (workingPayload.client_id) {
+      const rawCid = String(workingPayload.client_id).trim();
+      if (!UUID_V4_RE.test(rawCid)) {
+        workingPayload.client_id = null;
+      } else {
+        const verifiedClient = await findExistingClientRow({
+          clientId: rawCid,
+          email: workingPayload.client_email || null,
+        });
+        if (verifiedClient?.id) {
+          workingPayload.client_id = verifiedClient.id;
+        } else {
+          workingPayload.client_id = null;
+        }
+      }
+    }
+
+    let activePayload: Record<string, any> = { ...workingPayload };
+
     let { data, error } = await (client.from('appointments') as any)
-      .upsert(payload, { onConflict: 'protocol_code' })
+      .upsert(activePayload, { onConflict: 'protocol_code' })
       .select()
       .maybeSingle();
 
     // Estágio 1 de Fallback: remover apenas colunas estendidas v3.1 (professional_name, client_avatar_url, duration_minutes)
     // preservando 100% das colunas bol-020/bol-103/bol-133 (is_blocked_slot, block_reason, cancellation_reason, tracking_status, etc.)
     if (error && (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('column'))) {
-      const stage1Payload: any = { ...payload };
+      const stage1Payload: any = { ...activePayload };
       delete stage1Payload.professional_name;
       delete stage1Payload.client_avatar_url;
       delete stage1Payload.duration_minutes;
+      activePayload = stage1Payload;
       const retryStage1 = await (client.from('appointments') as any)
-        .upsert(stage1Payload, { onConflict: 'protocol_code' })
+        .upsert(activePayload, { onConflict: 'protocol_code' })
         .select()
         .maybeSingle();
       data = retryStage1.data;
@@ -1731,7 +1866,7 @@ export async function upsertAppointmentInDb(appointmentData: any): Promise<{ suc
 
     // Estágio 2 de Fallback: caso o banco ainda não possua as colunas bol-020
     if (error && (error.code === 'PGRST204' || error.code === '42703' || error.message?.includes('column'))) {
-      const safePayload: any = { ...payload };
+      const safePayload: any = { ...activePayload };
       delete safePayload.professional_name;
       delete safePayload.client_avatar_url;
       delete safePayload.duration_minutes;
@@ -1756,12 +1891,24 @@ export async function upsertAppointmentInDb(appointmentData: any): Promise<{ suc
       delete safePayload.last_location_update;
       delete safePayload.is_blocked_slot;
       delete safePayload.block_reason;
+      activePayload = safePayload;
       const retry = await (client.from('appointments') as any)
-        .upsert(safePayload, { onConflict: 'protocol_code' })
+        .upsert(activePayload, { onConflict: 'protocol_code' })
         .select()
         .maybeSingle();
       data = retry.data;
       error = retry.error;
+    }
+
+    // Estágio 3 de Fallback: blindagem absoluta contra FK appointments_client_id_fkey (23503)
+    if (error && (error.code === '23503' || String(error.message || '').includes('appointments_client_id_fkey'))) {
+      const fkSafePayload: any = { ...activePayload, client_id: null };
+      const fkRetry = await (client.from('appointments') as any)
+        .upsert(fkSafePayload, { onConflict: 'protocol_code' })
+        .select()
+        .maybeSingle();
+      data = fkRetry.data;
+      error = fkRetry.error;
     }
 
     if (error) {
