@@ -220,8 +220,8 @@ const WazeTrafficAlertsContainer: React.FC<{
       );
     }
     return (
-      <div className="w-7 h-7 rounded-[4px] bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-        <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+      <div className="w-7 h-7 rounded-[4px] brand-soft-badge flex items-center justify-center shrink-0">
+        <CheckCircle2 className="w-4 h-4 brand-icon stroke-[2.5]" />
       </div>
     );
   };
@@ -499,10 +499,10 @@ const MapGlassBottomSwipeMenu: React.FC<MapGlassBottomSwipeMenuProps> = ({
               <button
                 type="button"
                 onClick={onMarkArrived}
-                className="w-full h-10 px-4 rounded-[4px] bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs uppercase tracking-wider inline-flex items-center justify-center gap-2 transition cursor-pointer shadow-sm"
+                className="w-full h-10 px-4 rounded-[4px] brand-btn font-extrabold text-xs uppercase tracking-wider inline-flex items-center justify-center gap-2 transition cursor-pointer shadow-sm"
               >
-                <Check className="w-4 h-4 text-white shrink-0 stroke-[2.5]" />
-                <span className="text-white">Cheguei no Local</span>
+                <Check className="w-4 h-4 shrink-0 stroke-[2.5]" />
+                <span>Cheguei no Local</span>
               </button>
             )}
 
@@ -1518,7 +1518,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                     <div
                       className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
                         appointment.tracking_status === 'arrived' || hasReachedDestination
-                          ? 'bg-emerald-500 text-white'
+                          ? 'brand-tab-active'
                           : isDark
                           ? 'bg-slate-800 text-slate-400'
                           : 'bg-slate-200 text-slate-600'
@@ -1536,7 +1536,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                       <span
                         className={`text-xs font-bold ${
                           appointment.tracking_status === 'arrived' || hasReachedDestination
-                            ? 'text-emerald-500'
+                            ? 'brand-text'
                             : isDark
                             ? 'text-slate-300'
                             : 'text-slate-800'
@@ -1564,10 +1564,10 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
               <button
                 type="button"
                 onClick={handleMarkArrived}
-                className="w-full py-2.5 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs uppercase tracking-wider inline-flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
+                className="w-full py-2.5 px-4 rounded-[4px] brand-btn font-extrabold text-xs uppercase tracking-wider inline-flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
               >
-                <Check className="w-4 h-4 text-white shrink-0 stroke-[2.5]" />
-                <span className="text-white">Cheguei</span>
+                <Check className="w-4 h-4 shrink-0 stroke-[2.5]" />
+                <span>Cheguei</span>
               </button>
             </div>
           )}
@@ -2351,16 +2351,16 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
 
         {/* Alerta Automático de Chegada Iminente (ETA <= 5 min) */}
         {isArriving5Min && appointment.tracking_status !== 'arrived' && (
-          <div className="px-4 py-2 bg-emerald-500 text-white flex items-center justify-between gap-2 shrink-0">
+          <div className="px-4 py-2 brand-tab-active flex items-center justify-between gap-2 shrink-0">
             <div className="flex items-center gap-2 min-w-0">
-              <Bell className="w-4 h-4 text-white shrink-0" />
-              <span className="text-xs font-black text-white truncate">
+              <Bell className="w-4 h-4 shrink-0" />
+              <span className="text-xs font-black truncate">
                 {viewerRole === 'salon'
                   ? `Chegando em ${appointment.eta_minutes ?? 4} min — Prepare a cadeira!`
                   : `Chegada prevista em ${appointment.eta_minutes ?? 4} min!`}
               </span>
             </div>
-            <span className="text-[10px] font-mono tabular-nums font-black text-white shrink-0">
+            <span className="text-[10px] font-mono tabular-nums font-black shrink-0">
               {formatCurrentClockTime(appointment.eta_minutes ?? 4)}
             </span>
           </div>
@@ -2561,7 +2561,7 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                   <div
                     className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
                       appointment.tracking_status === 'arrived' || hasReachedDestination
-                        ? 'bg-emerald-500 text-white'
+                        ? 'brand-tab-active'
                         : isDark
                         ? 'bg-slate-800 text-slate-400'
                         : 'bg-slate-200 text-slate-600'
@@ -2579,7 +2579,7 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                     <span
                       className={`text-xs font-bold ${
                         appointment.tracking_status === 'arrived' || hasReachedDestination
-                          ? 'text-emerald-500'
+                          ? 'brand-text'
                           : isDark
                           ? 'text-slate-300'
                           : 'text-slate-800'
@@ -2607,10 +2607,10 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
             <button
               type="button"
               onClick={handleMarkArrived}
-              className="w-full py-2.5 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-extrabold uppercase tracking-wider inline-flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-2.5 px-4 rounded-[4px] brand-btn text-xs font-extrabold uppercase tracking-wider inline-flex items-center justify-center gap-2 cursor-pointer"
             >
-              <Check className="w-4 h-4 text-white shrink-0 stroke-[2.5]" />
-              <span className="text-white">Cheguei</span>
+              <Check className="w-4 h-4 shrink-0 stroke-[2.5]" />
+              <span>Cheguei</span>
             </button>
           </div>
         )}

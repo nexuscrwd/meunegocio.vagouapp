@@ -294,9 +294,9 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
           )}
 
           {draftSavedFeedback && (
-            <div className="p-2.5 bg-emerald-500 text-white rounded-[4px] text-xs font-bold flex items-center gap-2">
-              <Check className="w-4 h-4 text-white shrink-0" />
-              <span className="text-white">{draftSavedFeedback}</span>
+            <div className="p-2.5 brand-tab-active rounded-[4px] text-xs font-bold flex items-center gap-2">
+              <Check className="w-4 h-4 shrink-0" />
+              <span>{draftSavedFeedback}</span>
             </div>
           )}
         </div>

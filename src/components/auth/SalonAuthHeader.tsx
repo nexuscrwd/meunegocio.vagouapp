@@ -95,7 +95,7 @@ export const SalonAuthHeader: React.FC<SalonAuthHeaderProps> = ({
           {resolvedSlogan}
         </p>
         {subtitle && subtitle !== 'ACESSAR' && subtitle !== 'ENTRAR' && (
-          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 text-center pt-1">
+          <p className="text-[10px] font-bold uppercase tracking-wider brand-text text-center pt-1">
             {subtitle}
           </p>
         )}

@@ -114,6 +114,7 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
       themePresetId: DEFAULT_NEUTRAL_PRESET_ID,
       themeExplicitlyCustomized: false,
       showSlogan: true,
+      showHomeTab: true,
       showHeroSlides: true,
       welcomeStyle: 'atmospheric',
       brandFont: 'Plus Jakarta Sans',
@@ -191,11 +192,11 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
     );
   }
 
-  // SUB-VIEW UNIFICADA: 2. Visual & Layout (Tema & Cores / Marca & Logos / Estrutura)
+  // SUB-VIEW UNIFICADA: 2. Visual & Layout (Tema & Cores / Logo / Layout)
   if (selectedCard === 'visual' || selectedCard === 'layout') {
     return (
       <SalonDesignStudioView
-        initialTab={selectedCard === 'layout' ? 'estrutura' : 'tema'}
+        initialTab={selectedCard === 'layout' ? 'estrutura' : null}
         adminSettings={adminSettings}
         onUpdateSettings={onUpdateSettings}
         onBack={() => {

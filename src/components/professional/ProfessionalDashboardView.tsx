@@ -909,10 +909,10 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
         className={`w-full rounded-[4px] select-none transition-all duration-200 overflow-hidden cursor-pointer ${
           isDark 
             ? isProgress && cardType === 'atual'
-              ? 'bg-slate-900 border border-emerald-500/80 ring-1 ring-emerald-500/40' 
+              ? 'bg-slate-900 border border-[var(--brand-primary)] ring-1 ring-[rgba(var(--brand-primary-rgb),0.4)]' 
               : 'bg-slate-900 border border-slate-800' 
             : isProgress && cardType === 'atual'
-              ? 'caixa-card ring-1 ring-[#008B47]/40' 
+              ? 'caixa-card ring-1 ring-[rgba(var(--brand-primary-rgb),0.4)]' 
               : 'caixa-card'
         }`}
       >
@@ -922,7 +922,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
           title="Clique para abrir detalhes do atendimento"
           className={`px-3 py-2.5 border-b flex items-center justify-between gap-2.5 cursor-pointer ${
             isProgress && cardType === 'atual'
-              ? 'bg-[#008B47]/10 border-[#EDF2F7] dark:border-emerald-500/30'
+              ? 'bg-[rgba(var(--brand-primary-rgb),0.10)] border-[#EDF2F7] dark:border-[rgba(var(--brand-primary-rgb),0.3)]'
               : isDark
               ? 'bg-slate-850 border-slate-800'
               : 'bg-[#F7F9FC] border-[#EDF2F7]'
@@ -988,9 +988,9 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 {cardType === 'atual' && (
                   <>
                     {isProgress ? (
-                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-[#008B47] text-white shadow-2xs whitespace-nowrap">
-                        <Zap className="w-2.5 h-2.5 text-white fill-white animate-pulse" />
-                        <span className="text-white">Em Atendimento</span>
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 brand-tab-active shadow-2xs whitespace-nowrap">
+                        <Zap className="w-2.5 h-2.5 fill-current animate-pulse" />
+                        <span>Em Atendimento</span>
                       </span>
                     ) : isPaused ? (
                       <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-amber-500 text-white shadow-2xs whitespace-nowrap">
@@ -998,9 +998,9 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                         <span className="text-white">Pausado</span>
                       </span>
                     ) : isArrived ? (
-                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-[#008B47] text-white shadow-2xs whitespace-nowrap">
-                        <MapPin className="w-2.5 h-2.5 text-white" />
-                        <span className="text-white">No Local</span>
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 brand-tab-active shadow-2xs whitespace-nowrap">
+                        <MapPin className="w-2.5 h-2.5" />
+                        <span>No Local</span>
                       </span>
                     ) : isDelayedOrImminent ? (
                       <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-rose-600 text-white shadow-2xs whitespace-nowrap">
@@ -1008,9 +1008,9 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                         <span className="text-white">Atrasado</span>
                       </span>
                     ) : isLiveSharing ? (
-                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-emerald-500 text-white shadow-2xs whitespace-nowrap">
-                        <Navigation className="w-2.5 h-2.5 fill-white text-white animate-pulse" />
-                        <span className="text-white">Em Trajeto</span>
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 brand-tab-active shadow-2xs whitespace-nowrap">
+                        <Navigation className="w-2.5 h-2.5 fill-current animate-pulse" />
+                        <span>Em Trajeto</span>
                       </span>
                     ) : isEnRouteNoMap ? (
                       <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-blue-500 text-white shadow-2xs whitespace-nowrap">
@@ -1041,14 +1041,14 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     </span>
 
                     {isArrived ? (
-                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-[#008B47] text-white shadow-2xs whitespace-nowrap">
-                        <MapPin className="w-2.5 h-2.5 text-white" />
-                        <span className="text-white">No Local</span>
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 brand-tab-active shadow-2xs whitespace-nowrap">
+                        <MapPin className="w-2.5 h-2.5" />
+                        <span>No Local</span>
                       </span>
                     ) : isLiveSharing ? (
-                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-emerald-500 text-white shadow-2xs whitespace-nowrap">
-                        <Navigation className="w-2.5 h-2.5 fill-white text-white animate-pulse" />
-                        <span className="text-white">Em Trajeto</span>
+                      <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 brand-tab-active shadow-2xs whitespace-nowrap">
+                        <Navigation className="w-2.5 h-2.5 fill-current animate-pulse" />
+                        <span>Em Trajeto</span>
                       </span>
                     ) : isEnRouteNoMap ? (
                       <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-blue-500 text-white shadow-2xs whitespace-nowrap">
@@ -1083,9 +1083,9 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     </span>
 
                     {isConfirmed ? (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-emerald-500 text-white whitespace-nowrap">
-                        <CheckCircle2 className="w-2.5 h-2.5 text-white" />
-                        <span className="text-white">Confirmado</span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 brand-tab-active whitespace-nowrap">
+                        <CheckCircle2 className="w-2.5 h-2.5" />
+                        <span>Confirmado</span>
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1 bg-amber-500 text-white whitespace-nowrap">
@@ -1110,14 +1110,10 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                   e.stopPropagation();
                   hapticLight();
                 }}
-                className={`w-8 h-8 rounded-[4px] border flex items-center justify-center transition active:scale-95 cursor-pointer ${
-                  isDark
-                    ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
-                }`}
+                className="w-8 h-8 rounded-[4px] border flex items-center justify-center transition active:scale-95 cursor-pointer brand-soft-badge hover:opacity-90"
                 title={`Enviar mensagem no WhatsApp para ${clientFirstName}`}
               >
-                <MessageCircle className="w-4 h-4 text-emerald-500" />
+                <MessageCircle className="w-4 h-4 brand-icon" />
               </a>
 
               <button
@@ -1343,8 +1339,8 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
 
                 <div className="flex items-center gap-2">
                   {isProgress ? (
-                    <span className="px-2 py-0.5 rounded-[4px] bg-[#008B47] text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1">
-                      <Zap className="w-3 h-3 text-white fill-white animate-pulse" />
+                    <span className="px-2 py-0.5 rounded-[4px] brand-tab-active font-black text-[10px] uppercase tracking-wider flex items-center gap-1">
+                      <Zap className="w-3 h-3 fill-current animate-pulse" />
                       <span>Em Atendimento</span>
                     </span>
                   ) : isPaused ? (
@@ -1411,14 +1407,10 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => hapticLight()}
-                    className={`h-9 px-3 rounded-[4px] border flex items-center gap-1.5 text-xs font-bold transition active:scale-95 cursor-pointer shrink-0 ${
-                      isDark
-                        ? 'bg-slate-800 border-slate-700 text-emerald-400 hover:bg-slate-750'
-                        : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
-                    }`}
+                    className="h-9 px-3 rounded-[4px] border flex items-center gap-1.5 text-xs font-bold transition active:scale-95 cursor-pointer shrink-0 brand-soft-badge hover:opacity-90"
                     title={`Enviar WhatsApp para ${modalFirstName}`}
                   >
-                    <MessageCircle className="w-4 h-4 text-emerald-500" />
+                    <MessageCircle className="w-4 h-4 brand-icon" />
                     <span>WhatsApp</span>
                   </a>
                 )}
@@ -1456,8 +1448,8 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
 
               {/* Feedback de Adição de Tempo */}
               {timeExtensionFeedback && (
-                <div className="p-2 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold text-center flex items-center justify-center gap-1.5 animate-in fade-in duration-150">
-                  <Clock className="w-3.5 h-3.5 shrink-0" />
+                <div className="p-2 rounded brand-soft-badge border text-xs font-bold text-center flex items-center justify-center gap-1.5 animate-in fade-in duration-150">
+                  <Clock className="w-3.5 h-3.5 brand-icon shrink-0" />
                   <span>{timeExtensionFeedback}</span>
                 </div>
               )}
@@ -1477,8 +1469,8 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
 
               {/* Feedback de Transferência Concluída */}
               {transferSuccessMessage && (
-                <div className="p-2.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-white font-bold text-xs flex items-center justify-center gap-2 text-center animate-in fade-in duration-150">
-                  <Check className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
+                <div className="p-2.5 rounded-lg brand-soft-badge border font-bold text-xs flex items-center justify-center gap-2 text-center animate-in fade-in duration-150">
+                  <Check className="w-4 h-4 brand-icon stroke-[2.5]" />
                   <span>{transferSuccessMessage}</span>
                 </div>
               )}

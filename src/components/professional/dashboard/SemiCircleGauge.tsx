@@ -123,7 +123,7 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
 
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
           percentage >= 100 
-            ? 'bg-emerald-600 text-white font-extrabold' 
+            ? 'brand-tab-active font-extrabold' 
             : percentage >= 70 
             ? 'brand-soft-badge font-bold'
             : isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'
@@ -176,26 +176,26 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
       {/* Tradução Prática em Linguagem Simples (Sem MBA) */}
       <div className={`w-full mt-2 p-2 rounded border flex items-start gap-2 ${
         percentage >= 100
-          ? isDark ? 'bg-emerald-950/40 border-emerald-800/60' : 'bg-emerald-50 border-emerald-200'
+          ? 'brand-soft-badge'
           : isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100/80 border-slate-200'
       }`}>
         {percentage >= 100 ? (
-          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+          <CheckCircle2 className="w-4 h-4 brand-icon shrink-0 mt-0.5" />
         ) : (
           <TrendingUp className="w-4 h-4 brand-icon shrink-0 mt-0.5" />
         )}
 
         <div className="text-[11px] leading-snug">
           {percentage >= 100 ? (
-            <p className="font-medium text-emerald-500">
+            <p className="font-medium brand-text">
               {period === 'diaria' && (
-                <>Parabéns! <strong>Meta diária batida!</strong> Você faturou <strong>R$ {activeRealized.toFixed(2).replace('.', ',')}</strong> hoje.</>
+                <>Parabéns! <strong>Meta diária batida!</strong> Você faturou <strong className="text-emerald-500">R$ {activeRealized.toFixed(2).replace('.', ',')}</strong> hoje.</>
               )}
               {period === 'semanal' && (
-                <>Parabéns! <strong>Meta semanal batida!</strong> Você faturou <strong>R$ {activeRealized.toFixed(2).replace('.', ',')}</strong> nesta semana.</>
+                <>Parabéns! <strong>Meta semanal batida!</strong> Você faturou <strong className="text-emerald-500">R$ {activeRealized.toFixed(2).replace('.', ',')}</strong> nesta semana.</>
               )}
               {period === 'mensal' && (
-                <>Parabéns! <strong>Meta do mês batida!</strong> Você alcançou 100% da sua meta com <strong>R$ {activeRealized.toFixed(2).replace('.', ',')}</strong> faturados!</>
+                <>Parabéns! <strong>Meta do mês batida!</strong> Você alcançou 100% da sua meta com <strong className="text-emerald-500">R$ {activeRealized.toFixed(2).replace('.', ',')}</strong> faturados!</>
               )}
             </p>
           ) : (

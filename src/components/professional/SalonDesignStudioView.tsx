@@ -25,6 +25,8 @@ import {
   Sparkles,
   Layers,
   AlertCircle,
+  ChevronRight,
+  Type,
 } from 'lucide-react';
 import { useTheme, EXPLICIT_THEME_STORAGE_KEY } from '../../context/ThemeContext';
 import { SalonAdminSettings } from '../../types';
@@ -49,7 +51,7 @@ import {
 export type DesignStudioTab = 'tema' | 'marca' | 'estrutura';
 
 export interface SalonDesignStudioViewProps {
-  initialTab?: DesignStudioTab;
+  initialTab?: DesignStudioTab | null;
   adminSettings: SalonAdminSettings;
   onUpdateSettings: (settings: Partial<SalonAdminSettings>) => Promise<any> | void;
   onBack: () => void;
@@ -63,7 +65,7 @@ const BRAND_FONT_PRESETS = [
 ];
 
 export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
-  initialTab = 'tema',
+  initialTab = null,
   adminSettings,
   onUpdateSettings,
   onBack,
@@ -77,8 +79,13 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
     resolvedPalette,
   } = useTheme();
 
-  const [activeStudioTab, setActiveStudioTab] = useState<DesignStudioTab>(initialTab);
+  const [activeStudioTab, setActiveStudioTab] = useState<DesignStudioTab | null>(initialTab ?? null);
+  const [logoSubTab, setLogoSubTab] = useState<'logos' | 'icone' | 'provisorio'>('logos');
   const [isDefaultModalOpen, setIsDefaultModalOpen] = useState(false);
+
+  useEffect(() => {
+    setActiveStudioTab(initialTab ?? null);
+  }, [initialTab]);
 
   // Estado local espelhado das configurações
   const [salonName] = useState(adminSettings.salonName || '');
@@ -106,6 +113,7 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
 
   // Controles estruturais & barras
   const [showSlogan, setShowSlogan] = useState<boolean>(adminSettings.showSlogan !== false);
+  const [showHomeTab, setShowHomeTab] = useState<boolean>(adminSettings.showHomeTab !== false);
   const [showHeroSlides, setShowHeroSlides] = useState<boolean>(adminSettings.showHeroSlides !== false);
   const [welcomeStyle, setWelcomeStyle] = useState<'atmospheric' | 'glass'>(adminSettings.welcomeStyle || 'atmospheric');
 
@@ -162,6 +170,7 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
       setIsCustomized(Boolean(adminSettings.themeExplicitlyCustomized));
     }
     if (adminSettings.showSlogan !== undefined) setShowSlogan(adminSettings.showSlogan !== false);
+    if (adminSettings.showHomeTab !== undefined) setShowHomeTab(adminSettings.showHomeTab !== false);
     if (adminSettings.showHeroSlides !== undefined) setShowHeroSlides(adminSettings.showHeroSlides !== false);
     if (adminSettings.welcomeStyle !== undefined) setWelcomeStyle(adminSettings.welcomeStyle || 'atmospheric');
     if (adminSettings.sectionHeaderBgStyle !== undefined) setSectionHeaderBgStyle(adminSettings.sectionHeaderBgStyle || 'solid');
@@ -287,6 +296,7 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
     setTheme('light', { isExplicitUserChoice: false });
 
     setShowSlogan(true);
+    setShowHomeTab(true);
     setShowHeroSlides(true);
     setWelcomeStyle('atmospheric');
     setSectionHeaderBgStyle('solid');
@@ -338,6 +348,7 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
       themePresetId: DEFAULT_NEUTRAL_PRESET_ID,
       themeExplicitlyCustomized: false,
       showSlogan: true,
+      showHomeTab: true,
       showHeroSlides: true,
       welcomeStyle: 'atmospheric',
       brandFont: 'Plus Jakarta Sans',
@@ -467,6 +478,7 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
       themePresetId: resolveThemePresetId(resolvedAccent, isCustomized),
       themeExplicitlyCustomized: isCustomized || defaultTheme === 'dark',
       showSlogan,
+      showHomeTab,
       showHeroSlides,
       welcomeStyle,
       sectionHeaderBgStyle,
@@ -572,6 +584,44 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
     );
   };
 
+  const activePresetMeta = useMemo(() => {
+    const presetId = resolveThemePresetId(accentColor, isCustomized);
+    return QUICK_THEME_PRESETS.find((p) => p.id === presetId);
+  }, [accentColor, isCustomized]);
+
+  const activeSectionMeta = useMemo(() => {
+    if (activeStudioTab === 'tema') return { title: 'Tema & Cores', icon: Palette };
+    if (activeStudioTab === 'marca') return { title: 'Logo', icon: ImageIcon };
+    if (activeStudioTab === 'estrutura') return { title: 'Layout', icon: Sliders };
+    return { title: 'Visual & Layout', icon: Palette };
+  }, [activeStudioTab]);
+
+  const ActiveHeaderIcon = activeSectionMeta.icon;
+  const studioCards = useMemo(
+    () => [
+      {
+        id: 'marca' as DesignStudioTab,
+        label: 'Logo',
+        icon: ImageIcon,
+        meta: salonLogoLight || salonLogoDark || salonIcon ? 'Personalizada' : 'Texto padrão',
+      },
+      {
+        id: 'tema' as DesignStudioTab,
+        label: 'Tema & Cores',
+        icon: Palette,
+        meta: `${defaultTheme === 'dark' ? 'Escuro' : 'Claro'} • ${activePresetMeta?.name || accentColor}`,
+        swatch: accentColor,
+      },
+      {
+        id: 'estrutura' as DesignStudioTab,
+        label: 'Layout',
+        icon: Sliders,
+        meta: showHomeTab ? 'Início ativo' : 'Início oculto',
+      },
+    ],
+    [defaultTheme, activePresetMeta, accentColor, salonLogoLight, salonLogoDark, salonIcon, showHomeTab]
+  );
+
   return (
     <div
       className="w-full h-full flex flex-col justify-between overflow-hidden"
@@ -588,20 +638,24 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
               type="button"
               onClick={() => {
                 hapticLight();
-                onBack();
+                if (activeStudioTab !== null) {
+                  setActiveStudioTab(null);
+                } else {
+                  onBack();
+                }
               }}
               className={`p-1.5 rounded-[4px] transition cursor-pointer active:scale-95 ${
                 isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-200/60'
               }`}
-              title="Voltar"
-              aria-label="Voltar"
+              title={activeStudioTab !== null ? 'Voltar para Visual & Layout' : 'Voltar'}
+              aria-label={activeStudioTab !== null ? 'Voltar para Visual & Layout' : 'Voltar'}
             >
               <ArrowLeft className="w-4 h-4" style={sectionHeaderStyleData.iconStyle} />
             </button>
             <div className="flex items-center gap-1.5 min-w-0">
-              <Palette className="w-4 h-4 shrink-0" style={sectionHeaderStyleData.iconStyle} />
+              <ActiveHeaderIcon className="w-4 h-4 shrink-0" style={sectionHeaderStyleData.iconStyle} />
               <h2 className="text-xs sm:text-sm font-bold font-display truncate" style={sectionHeaderStyleData.titleStyle}>
-                Visual & Layout
+                {activeSectionMeta.title}
               </h2>
             </div>
           </div>
@@ -631,48 +685,61 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
             </button>
           </div>
         </div>
-
-        {/* Barra de Abas Unificada (3 Abas) */}
-        <div
-          className={`grid grid-cols-3 border-b ${
-            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-          }`}
-        >
-          {[
-            { id: 'tema' as DesignStudioTab, label: 'Tema & Cores', icon: Palette },
-            { id: 'marca' as DesignStudioTab, label: 'Marca & Logos', icon: ImageIcon },
-            { id: 'estrutura' as DesignStudioTab, label: 'Estrutura', icon: Sliders },
-          ].map((tab) => {
-            const TabIcon = tab.icon;
-            const isTabActive = activeStudioTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  hapticLight();
-                  setActiveStudioTab(tab.id);
-                }}
-                className={`py-2.5 px-2 text-[11px] font-bold flex items-center justify-center gap-1.5 border-b-2 transition cursor-pointer whitespace-nowrap ${
-                  isTabActive
-                    ? 'brand-border-active brand-text'
-                    : isDark
-                      ? 'border-transparent text-slate-400 hover:text-slate-200'
-                      : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <TabIcon className="w-3.5 h-3.5 shrink-0" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
       </div>
 
-      {/* Área Rolável do Estúdio */}
-      <form onSubmit={handleSaveAll} className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-3.5 space-y-4 pb-24">
-        {/* ================= ABA 1: TEMA & CORES ================= */}
-        {activeStudioTab === 'tema' && (
+      {/* Menu Exclusivo de CardButtons da Seção Visual & Layout */}
+      {activeStudioTab === null ? (
+        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-3.5 pb-20">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-w-2xl mx-auto">
+            {studioCards.map((card) => {
+              const CardIcon = card.icon;
+              return (
+                <button
+                  key={card.id}
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    setActiveStudioTab(card.id);
+                  }}
+                  className={`p-3.5 rounded-[4px] border text-left transition-all cursor-pointer active:scale-[0.98] group flex items-center justify-between gap-3 sm:flex-col sm:items-start sm:justify-between shadow-xs ${
+                    isDark
+                      ? 'bg-slate-900 border-slate-800 text-slate-100 hover:border-[var(--brand-primary)] hover:bg-slate-900/80'
+                      : 'bg-white border-slate-200 text-slate-900 hover:border-[var(--brand-primary)] hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 sm:flex-col sm:items-start sm:gap-2 min-w-0">
+                    <CardIcon className="w-5 h-5 brand-icon shrink-0 transition-transform group-hover:scale-105" />
+                    <div className="min-w-0">
+                      <h3 className="text-xs sm:text-sm font-bold font-display leading-tight truncate">
+                        {card.label}
+                      </h3>
+                      <div
+                        className={`mt-1 flex items-center gap-1.5 text-[11px] font-medium truncate ${
+                          isDark ? 'text-slate-400' : 'text-slate-500'
+                        }`}
+                      >
+                        {card.swatch && (
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/15"
+                            style={{ backgroundColor: card.swatch }}
+                          />
+                        )}
+                        <span className="truncate">{card.meta}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 brand-icon shrink-0 sm:self-end transition-transform group-hover:translate-x-0.5" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Área Rolável da Seção Selecionada */}
+          <form onSubmit={handleSaveAll} className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-3.5 space-y-4 pb-24">
+            {/* ================= ABA 1: TEMA & CORES ================= */}
+            {activeStudioTab === 'tema' && (
           <div className="space-y-4">
             {/* Prévia Ao Vivo do App Inteiro */}
             <div
@@ -729,16 +796,16 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
 
               {/* Barra Inferior Simulada */}
               <div
-                className="px-2.5 py-1.5 border-t grid grid-cols-4 gap-1.5"
+                className={`px-2.5 py-1.5 border-t grid gap-1.5 ${showHomeTab ? 'grid-cols-4' : 'grid-cols-3'}`}
                 style={{
                   backgroundColor: normalizeHex(navBgColor) || previewPalette.navBg,
                   borderColor: previewPalette.navBorder,
                 }}
               >
                 {[
-                  { label: 'Início', Icon: Home, active: true },
-                  { label: 'Serviços', Icon: LayoutGrid, active: false },
-                  { label: 'Agenda', Icon: Calendar, active: false },
+                  ...(showHomeTab ? [{ label: 'Início', Icon: Home, active: true }] : []),
+                  { label: 'Serviços', Icon: LayoutGrid, active: !showHomeTab },
+                  { label: 'Agendar', Icon: Calendar, active: false },
                   { label: 'Espaço', Icon: Store, active: false },
                 ].map((item) => {
                   const IconItem = item.Icon;
@@ -908,310 +975,341 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
                     let val = e.target.value.trim().toUpperCase();
                     if (val && !val.startsWith('#')) val = '#' + val;
                     setHexDraft(val);
+                    if (/^#[0-9A-F]{6}$/.test(val)) {
+                      applyQuickThemeCascade(val);
+                    }
                   }}
                   placeholder="#2563EB"
-                  className={`flex-1 h-9 px-3 rounded-[4px] border text-xs font-mono font-bold uppercase tracking-wider focus:outline-none ${
+                  className={`w-full h-9 px-3 rounded-[4px] border text-xs font-mono font-bold uppercase tracking-wider focus:outline-none ${
                     isDark
                       ? 'bg-slate-900 border-slate-700 text-white'
                       : 'bg-white border-slate-300 text-slate-900'
                   }`}
                 />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const valid = normalizeHex(hexDraft);
-                    if (valid) applyQuickThemeCascade(valid);
-                  }}
-                  disabled={!normalizeHex(hexDraft)}
-                  className="h-9 px-3.5 rounded-[4px] brand-btn text-xs font-bold transition cursor-pointer disabled:opacity-40 whitespace-nowrap"
-                >
-                  Aplicar
-                </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* ================= ABA 2: MARCA & LOGOS ================= */}
+        {/* ================= SEÇÃO: LOGO (3 ABAS INTERNAS) ================= */}
         {activeStudioTab === 'marca' && (
           <div className="space-y-4">
-            {/* Logo Tema Claro & Tema Escuro */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Logo Tema Claro */}
-              <div className="space-y-2 pb-3 border-b sm:border-b-0 sm:pr-2 border-slate-200 dark:border-slate-800">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold flex items-center gap-1.5">
-                    <Sun className="w-3.5 h-3.5 text-amber-500" />
-                    Logo Tema Claro
-                  </span>
-                  {salonLogoLight && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        hapticLight();
-                        setSalonLogoLight('');
-                      }}
-                      className="p-1 rounded-[4px] text-rose-500 hover:bg-rose-500/10 cursor-pointer"
-                      title="Remover logo claro"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                <div className="h-12 rounded-[4px] border border-slate-200 bg-white px-3 flex items-center justify-between">
-                  {salonLogoLight ? (
-                    <img src={salonLogoLight} alt="Logo Claro" className="max-h-8 max-w-[140px] object-contain" />
-                  ) : (
-                    <span className="text-xs font-black uppercase text-slate-800 truncate">
-                      {logoTextFallback || salonName || 'Logo Claro'}
-                    </span>
-                  )}
+            {/* Abas Internas da Seção Logo */}
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                { id: 'logos' as const, label: 'Logo Claro/Escuro', icon: ImageIcon },
+                { id: 'icone' as const, label: 'Ícone App & Nav', icon: Smartphone },
+                { id: 'provisorio' as const, label: 'Provisório', icon: Type },
+              ].map((sub) => {
+                const SubIcon = sub.icon;
+                const isSubActive = logoSubTab === sub.id;
+                return (
                   <button
+                    key={sub.id}
                     type="button"
-                    onClick={() => logoLightInputRef.current?.click()}
-                    className="px-2.5 py-1 rounded-[4px] brand-btn text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                    onClick={() => {
+                      hapticLight();
+                      setLogoSubTab(sub.id);
+                    }}
+                    aria-pressed={isSubActive}
+                    className={`px-2 py-2 rounded-[4px] border text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap active:scale-[0.98] ${
+                      isSubActive
+                        ? 'brand-tab-active shadow-xs'
+                        : isDark
+                          ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-[var(--brand-primary)]'
+                          : 'bg-white border-slate-200 text-slate-700 hover:border-[var(--brand-primary)]'
+                    }`}
                   >
-                    <Upload className="w-3 h-3" />
-                    <span>{salonLogoLight ? 'Trocar' : 'Enviar'}</span>
+                    <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? '' : 'brand-icon'}`} />
+                    <span className="truncate">{sub.label}</span>
                   </button>
-                  <input
-                    ref={logoLightInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                    className="hidden"
-                    onChange={(e) => handleImageUpload(e.target.files?.[0], 'light')}
-                  />
-                </div>
-              </div>
-
-              {/* Logo Tema Escuro */}
-              <div className="space-y-2 pb-3 border-b sm:border-b-0 border-slate-200 dark:border-slate-800">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold flex items-center gap-1.5">
-                    <Moon className="w-3.5 h-3.5 text-blue-400" />
-                    Logo Tema Escuro
-                  </span>
-                  {salonLogoDark && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        hapticLight();
-                        setSalonLogoDark('');
-                      }}
-                      className="p-1 rounded-[4px] text-rose-500 hover:bg-rose-500/10 cursor-pointer"
-                      title="Remover logo escuro"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                <div className="h-12 rounded-[4px] border border-slate-800 bg-[#0F172A] px-3 flex items-center justify-between">
-                  {salonLogoDark ? (
-                    <img src={salonLogoDark} alt="Logo Escuro" className="max-h-8 max-w-[140px] object-contain" />
-                  ) : (
-                    <span className="text-xs font-black uppercase text-white truncate">
-                      {logoTextFallback || salonName || 'Logo Escuro'}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => logoDarkInputRef.current?.click()}
-                    className="px-2.5 py-1 rounded-[4px] brand-btn text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    <Upload className="w-3 h-3" />
-                    <span>{salonLogoDark ? 'Trocar' : 'Enviar'}</span>
-                  </button>
-                  <input
-                    ref={logoDarkInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                    className="hidden"
-                    onChange={(e) => handleImageUpload(e.target.files?.[0], 'dark')}
-                  />
-                </div>
-              </div>
+                );
+              })}
             </div>
 
-            {/* Ícone Mobile (PWA) & Nome na Tela Inicial */}
-            <div className={`space-y-2.5 pt-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold flex items-center gap-1.5">
-                  <Smartphone className="w-3.5 h-3.5 brand-icon" />
-                  Ícone do App (1:1)
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    hapticLight();
-                    setPwaName(salonName);
-                  }}
-                  className="text-[10px] font-bold brand-text flex items-center gap-1 cursor-pointer"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  <span>Sincronizar Nome</span>
-                </button>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-12 h-12 rounded-[4px] border shrink-0 overflow-hidden flex items-center justify-center font-bold text-sm"
-                  style={{
-                    backgroundColor: salonIcon ? 'transparent' : previewPalette.primary,
-                    borderColor: previewPalette.cardBorder,
-                    color: previewPalette.primaryFg,
-                  }}
-                >
-                  {salonIcon ? (
-                    <img src={salonIcon} alt="Ícone" className="w-full h-full object-cover" />
-                  ) : (
-                    (pwaName || salonName || 'VG').slice(0, 2).toUpperCase()
-                  )}
-                </div>
-
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <input
-                    type="text"
-                    maxLength={18}
-                    value={pwaName}
-                    onChange={(e) => setPwaName(e.target.value)}
-                    placeholder="Nome no celular"
-                    className={`w-full h-8 px-2.5 rounded-[4px] border text-xs font-semibold ${
-                      isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                    }`}
-                  />
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => iconInputRef.current?.click()}
-                      className="flex-1 h-7 px-2.5 rounded-[4px] brand-btn text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer"
-                    >
-                      <Upload className="w-3 h-3" />
-                      <span>{salonIcon ? 'Trocar' : 'Enviar Ícone'}</span>
-                    </button>
-                    {(salonLogoDark || salonLogoLight) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          hapticSuccess();
-                          setSalonIcon(salonLogoLight || salonLogoDark);
-                        }}
-                        className={`h-7 px-2 rounded-[4px] border text-[10px] font-bold flex items-center gap-1 cursor-pointer ${
-                          isDark ? 'border-slate-700 text-slate-200' : 'border-slate-300 text-slate-700'
-                        }`}
-                        title="Copiar logo"
-                      >
-                        <Copy className="w-3 h-3" />
-                        <span>Logo</span>
-                      </button>
-                    )}
-                    {salonIcon && (
+            {/* ABA 1: LOGO TEMA CLARO E ESCURO */}
+            {logoSubTab === 'logos' && (
+              <div className="space-y-3.5">
+                {/* Logo Tema Claro */}
+                <div className="space-y-2 pb-3 border-b border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      <Sun className="w-3.5 h-3.5 text-amber-500" />
+                      Logo Tema Claro
+                    </span>
+                    {salonLogoLight && (
                       <button
                         type="button"
                         onClick={() => {
                           hapticLight();
-                          setSalonIcon('');
+                          setSalonLogoLight('');
                         }}
-                        className="h-7 px-2 rounded-[4px] border border-rose-500/30 text-rose-500 cursor-pointer"
-                        title="Remover ícone"
+                        className="p-1 rounded-[4px] text-rose-500 hover:bg-rose-500/10 cursor-pointer"
+                        title="Remover logo claro"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
+                  </div>
+
+                  <div className="h-14 rounded-[4px] border border-slate-200 bg-white px-3 flex items-center justify-between">
+                    {salonLogoLight ? (
+                      <img src={salonLogoLight} alt="Logo Claro" className="max-h-9 max-w-[160px] object-contain" />
+                    ) : (
+                      <span className="text-xs font-black uppercase text-slate-800 truncate">
+                        {logoTextFallback || salonName || 'Logo Claro'}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => logoLightInputRef.current?.click()}
+                      className="px-3 py-1.5 rounded-[4px] brand-btn text-[11px] font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{salonLogoLight ? 'Trocar' : 'Enviar'}</span>
+                    </button>
                     <input
-                      ref={iconInputRef}
+                      ref={logoLightInputRef}
                       type="file"
                       accept="image/png,image/jpeg,image/svg+xml,image/webp"
                       className="hidden"
-                      onChange={(e) => handleImageUpload(e.target.files?.[0], 'icon')}
+                      onChange={(e) => handleImageUpload(e.target.files?.[0], 'light')}
+                    />
+                  </div>
+                </div>
+
+                {/* Logo Tema Escuro */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      <Moon className="w-3.5 h-3.5 text-blue-400" />
+                      Logo Tema Escuro
+                    </span>
+                    {salonLogoDark && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          hapticLight();
+                          setSalonLogoDark('');
+                        }}
+                        className="p-1 rounded-[4px] text-rose-500 hover:bg-rose-500/10 cursor-pointer"
+                        title="Remover logo escuro"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="h-14 rounded-[4px] border border-slate-800 bg-[#0F172A] px-3 flex items-center justify-between">
+                    {salonLogoDark ? (
+                      <img src={salonLogoDark} alt="Logo Escuro" className="max-h-9 max-w-[160px] object-contain" />
+                    ) : (
+                      <span className="text-xs font-black uppercase text-white truncate">
+                        {logoTextFallback || salonName || 'Logo Escuro'}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => logoDarkInputRef.current?.click()}
+                      className="px-3 py-1.5 rounded-[4px] brand-btn text-[11px] font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{salonLogoDark ? 'Trocar' : 'Enviar'}</span>
+                    </button>
+                    <input
+                      ref={logoDarkInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                      className="hidden"
+                      onChange={(e) => handleImageUpload(e.target.files?.[0], 'dark')}
                     />
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Texto Provisório & Slogan */}
-            <div className={`space-y-3 pt-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-              <div className="space-y-1">
-                <label className="text-xs font-bold block">Texto Provisório (Sem Logo)</label>
-                <input
-                  type="text"
-                  maxLength={40}
-                  value={logoTextFallback}
-                  onChange={(e) => {
-                    setLogoTextFallback(e.target.value);
-                    syncPartial({ logoTextFallback: e.target.value.trim() });
-                  }}
-                  placeholder={salonName || 'Nome do estabelecimento'}
-                  className={`w-full h-9 px-3 rounded-[4px] border text-xs font-medium ${
-                    isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                  }`}
-                />
-              </div>
-
-              {renderInlineColorRow('Cor do Texto Provisório', logoTextColor, (val) => {
-                const nextVal = val || DEFAULT_NEUTRAL_HEX;
-                setLogoTextColor(nextVal);
-                syncPartial({ logoTextColor: nextVal });
-              }, false)}
-
-              <div className="space-y-1">
+            {/* ABA 2: ÍCONE DO APP E NAVEGADOR */}
+            {logoSubTab === 'icone' && (
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold">Slogan Curto</label>
-                  <span className="text-[10px] font-mono opacity-60">{slogan.length}/60</span>
+                  <span className="text-xs font-bold flex items-center gap-1.5">
+                    <Smartphone className="w-3.5 h-3.5 brand-icon" />
+                    Ícone do App e Navegador (1:1)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      hapticLight();
+                      setPwaName(salonName);
+                    }}
+                    className="text-[10px] font-bold brand-text flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Sincronizar Nome</span>
+                  </button>
                 </div>
-                <input
-                  type="text"
-                  maxLength={60}
-                  value={slogan}
-                  onChange={(e) => {
-                    setSlogan(e.target.value);
-                    syncPartial({ slogan: e.target.value });
-                  }}
-                  placeholder="Frase curta da marca"
-                  className={`w-full h-9 px-3 rounded-[4px] border text-xs font-medium ${
-                    isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                  }`}
-                />
-              </div>
 
-              {/* Fonte da Marca */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold block">Fonte da Marca</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {BRAND_FONT_PRESETS.map((f) => {
-                    const isSel = brandFont === f.id;
-                    return (
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-14 h-14 rounded-[4px] border shrink-0 overflow-hidden flex items-center justify-center font-bold text-sm"
+                    style={{
+                      backgroundColor: salonIcon ? 'transparent' : previewPalette.primary,
+                      borderColor: previewPalette.cardBorder,
+                      color: previewPalette.primaryFg,
+                    }}
+                  >
+                    {salonIcon ? (
+                      <img src={salonIcon} alt="Ícone" className="w-full h-full object-cover" />
+                    ) : (
+                      (pwaName || salonName || 'VG').slice(0, 2).toUpperCase()
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <input
+                      type="text"
+                      maxLength={18}
+                      value={pwaName}
+                      onChange={(e) => setPwaName(e.target.value)}
+                      placeholder="Nome no celular e aba"
+                      className={`w-full h-9 px-3 rounded-[4px] border text-xs font-semibold ${
+                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      }`}
+                    />
+                    <div className="flex items-center gap-1.5">
                       <button
-                        key={f.id}
                         type="button"
-                        onClick={() => {
-                          hapticLight();
-                          setBrandFont(f.id);
-                          syncPartial({ brandFont: f.id });
-                        }}
-                        className={`p-2 rounded-[4px] border text-left transition cursor-pointer flex items-center justify-between gap-2 ${
-                          isSel
-                            ? 'brand-btn shadow-xs'
-                            : isDark
-                              ? 'bg-slate-900 border-slate-800 text-slate-200'
-                              : 'bg-white border-slate-200 text-slate-800'
-                        }`}
+                        onClick={() => iconInputRef.current?.click()}
+                        className="flex-1 h-8 px-2.5 rounded-[4px] brand-btn text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap"
                       >
-                        <div className="min-w-0">
-                          <span className="text-xs font-bold block truncate" style={{ fontFamily: f.family }}>
-                            {f.label}
-                          </span>
-                          <span className={`text-[9px] ${isSel ? 'opacity-85' : 'opacity-60'}`}>{f.desc}</span>
-                        </div>
-                        {isSel && <Check className="w-3.5 h-3.5 shrink-0" />}
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{salonIcon ? 'Trocar' : 'Enviar Ícone'}</span>
                       </button>
-                    );
-                  })}
+                      {(salonLogoDark || salonLogoLight) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            hapticSuccess();
+                            setSalonIcon(salonLogoLight || salonLogoDark);
+                          }}
+                          className={`h-8 px-2.5 rounded-[4px] border text-[11px] font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap ${
+                            isDark ? 'border-slate-700 text-slate-200' : 'border-slate-300 text-slate-700'
+                          }`}
+                          title="Copiar logo"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Logo</span>
+                        </button>
+                      )}
+                      {salonIcon && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            hapticLight();
+                            setSalonIcon('');
+                          }}
+                          className="h-8 px-2.5 rounded-[4px] border border-rose-500/30 text-rose-500 cursor-pointer"
+                          title="Remover ícone"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <input
+                        ref={iconInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                        className="hidden"
+                        onChange={(e) => handleImageUpload(e.target.files?.[0], 'icon')}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* ABA 3: PROVISÓRIO (TEXTO PROVISÓRIO NA AUSÊNCIA DE LOGO) */}
+            {logoSubTab === 'provisorio' && (
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold block">Texto Provisório na ausência de logo</label>
+                  <input
+                    type="text"
+                    maxLength={40}
+                    value={logoTextFallback}
+                    onChange={(e) => {
+                      setLogoTextFallback(e.target.value);
+                      syncPartial({ logoTextFallback: e.target.value.trim() });
+                    }}
+                    placeholder={salonName || 'Nome do estabelecimento'}
+                    className={`w-full h-9 px-3 rounded-[4px] border text-xs font-medium ${
+                      isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
+
+                {renderInlineColorRow('Cor do Texto Provisório', logoTextColor, (val) => {
+                  const nextVal = val || DEFAULT_NEUTRAL_HEX;
+                  setLogoTextColor(nextVal);
+                  syncPartial({ logoTextColor: nextVal });
+                }, false)}
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold">Slogan Curto</label>
+                    <span className="text-[10px] font-mono opacity-60">{slogan.length}/60</span>
+                  </div>
+                  <input
+                    type="text"
+                    maxLength={60}
+                    value={slogan}
+                    onChange={(e) => {
+                      setSlogan(e.target.value);
+                      syncPartial({ slogan: e.target.value });
+                    }}
+                    placeholder="Frase curta da marca"
+                    className={`w-full h-9 px-3 rounded-[4px] border text-xs font-medium ${
+                      isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
+
+                {/* Fonte da Marca */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold block">Fonte da Marca</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {BRAND_FONT_PRESETS.map((f) => {
+                      const isSel = brandFont === f.id;
+                      return (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => {
+                            hapticLight();
+                            setBrandFont(f.id);
+                            syncPartial({ brandFont: f.id });
+                          }}
+                          className={`p-2 rounded-[4px] border text-left transition cursor-pointer flex items-center justify-between gap-2 ${
+                            isSel
+                              ? 'brand-btn shadow-xs'
+                              : isDark
+                                ? 'bg-slate-900 border-slate-800 text-slate-200'
+                                : 'bg-white border-slate-200 text-slate-800'
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold block truncate" style={{ fontFamily: f.family }}>
+                              {f.label}
+                            </span>
+                            <span className={`text-[9px] ${isSel ? 'opacity-85' : 'opacity-60'}`}>{f.desc}</span>
+                          </div>
+                          {isSel && <Check className="w-3.5 h-3.5 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1223,6 +1321,28 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
               <h3 className="text-[11px] font-extrabold uppercase tracking-wider opacity-80">
                 Vitrine & Início
               </h3>
+
+              <div className="flex items-center justify-between py-2 border-b border-slate-200 dark:border-slate-800">
+                <span className="text-xs font-bold flex items-center gap-1.5">
+                  <Home className="w-3.5 h-3.5 brand-icon" />
+                  Tela Inicial (Botão Início)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    const next = !showHomeTab;
+                    setShowHomeTab(next);
+                    syncPartial({ showHomeTab: next });
+                  }}
+                  className={`h-7 px-2.5 rounded-[4px] text-[10px] font-bold flex items-center gap-1 cursor-pointer ${
+                    showHomeTab ? 'brand-btn' : isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {showHomeTab ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                  <span>{showHomeTab ? 'Ativo' : 'Oculto'}</span>
+                </button>
+              </div>
 
               <div className="flex items-center justify-between py-2 border-b border-slate-200 dark:border-slate-800">
                 <span className="text-xs font-bold">Exibir Slogan no Cabeçalho</span>
@@ -1243,63 +1363,67 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
                 </button>
               </div>
 
-              <div className="flex items-center justify-between py-2 border-b border-slate-200 dark:border-slate-800">
-                <span className="text-xs font-bold flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 brand-icon" />
-                  Slides na Tela Inicial
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    hapticLight();
-                    const next = !showHeroSlides;
-                    setShowHeroSlides(next);
-                    syncPartial({ showHeroSlides: next });
-                  }}
-                  className={`h-7 px-2.5 rounded-[4px] text-[10px] font-bold flex items-center gap-1 cursor-pointer ${
-                    showHeroSlides ? 'brand-btn' : isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {showHeroSlides ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                  <span>{showHeroSlides ? 'Ativo' : 'Oculto'}</span>
-                </button>
-              </div>
+              {showHomeTab && (
+                <>
+                  <div className="flex items-center justify-between py-2 border-b border-slate-200 dark:border-slate-800">
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 brand-icon" />
+                      Slides na Tela Inicial
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        hapticLight();
+                        const next = !showHeroSlides;
+                        setShowHeroSlides(next);
+                        syncPartial({ showHeroSlides: next });
+                      }}
+                      className={`h-7 px-2.5 rounded-[4px] text-[10px] font-bold flex items-center gap-1 cursor-pointer ${
+                        showHeroSlides ? 'brand-btn' : isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {showHeroSlides ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                      <span>{showHeroSlides ? 'Ativo' : 'Oculto'}</span>
+                    </button>
+                  </div>
 
-              <div className="space-y-1.5 pt-1">
-                <span className="text-xs font-bold flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 brand-icon" />
-                  Faixa de Boas-Vindas
-                </span>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: 'atmospheric' as const, label: 'Tema Suave' },
-                    { id: 'glass' as const, label: 'Cristal / Vidro' },
-                  ].map((opt) => {
-                    const isSel = welcomeStyle === opt.id;
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => {
-                          hapticLight();
-                          setWelcomeStyle(opt.id);
-                          syncPartial({ welcomeStyle: opt.id });
-                        }}
-                        className={`p-2 rounded-[4px] border text-xs font-bold flex items-center justify-between cursor-pointer ${
-                          isSel
-                            ? 'brand-btn'
-                            : isDark
-                              ? 'bg-slate-900 border-slate-800 text-slate-300'
-                              : 'bg-white border-slate-200 text-slate-700'
-                        }`}
-                      >
-                        <span>{opt.label}</span>
-                        {isSel && <Check className="w-3.5 h-3.5" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                  <div className="space-y-1.5 pt-1">
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 brand-icon" />
+                      Faixa de Boas-Vindas
+                    </span>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: 'atmospheric' as const, label: 'Tema Suave' },
+                        { id: 'glass' as const, label: 'Cristal / Vidro' },
+                      ].map((opt) => {
+                        const isSel = welcomeStyle === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => {
+                              hapticLight();
+                              setWelcomeStyle(opt.id);
+                              syncPartial({ welcomeStyle: opt.id });
+                            }}
+                            className={`p-2 rounded-[4px] border text-xs font-bold flex items-center justify-between cursor-pointer ${
+                              isSel
+                                ? 'brand-btn'
+                                : isDark
+                                  ? 'bg-slate-900 border-slate-800 text-slate-300'
+                                  : 'bg-white border-slate-200 text-slate-700'
+                            }`}
+                          >
+                            <span>{opt.label}</span>
+                            {isSel && <Check className="w-3.5 h-3.5" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Barra de Títulos das Seções */}
@@ -1544,47 +1668,49 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
         )}
       </form>
 
-      {/* Rodapé Fixo de Ação */}
-      <div
-        className={`p-3 border-t shrink-0 sticky bottom-0 z-20 space-y-2 ${
-          isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
-        }`}
-      >
-        {saveError && (
-          <div className="p-2 rounded-[4px] bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[11px] font-semibold flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-            <span>{saveError}</span>
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            disabled={isSaving}
-            onClick={() => {
-              hapticLight();
-              setIsDefaultModalOpen(true);
-            }}
-            className={`px-3 py-2.5 rounded-[4px] border text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0 disabled:opacity-50 ${
-              isDark
-                ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
-                : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+          {/* Rodapé Fixo de Ação */}
+          <div
+            className={`p-3 border-t shrink-0 sticky bottom-0 z-20 space-y-2 ${
+              isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
             }`}
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Default</span>
-          </button>
+            {saveError && (
+              <div className="p-2 rounded-[4px] bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[11px] font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                <span>{saveError}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => {
+                  hapticLight();
+                  setIsDefaultModalOpen(true);
+                }}
+                className={`px-3 py-2.5 rounded-[4px] border text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0 disabled:opacity-50 ${
+                  isDark
+                    ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
+                    : 'border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200'
+                }`}
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Default</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => handleSaveAll()}
-            disabled={isSaving}
-            className="flex-1 py-2.5 px-4 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs disabled:opacity-60"
-          >
-            {isSaving ? <RefreshCw className="w-3.5 h-3.5 text-white animate-spin" /> : <Save className="w-3.5 h-3.5 text-white" />}
-            <span className="text-white">{isSaving ? 'Salvando...' : 'Salvar Alterações'}</span>
-          </button>
-        </div>
-      </div>
+              <button
+                type="button"
+                onClick={() => handleSaveAll()}
+                disabled={isSaving}
+                className="flex-1 py-2.5 px-4 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs disabled:opacity-60"
+              >
+                {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                <span>{isSaving ? 'Salvando...' : 'Salvar Alterações'}</span>
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Modal In-App de Confirmação Default */}
       <DefaultThemeConfirmModal

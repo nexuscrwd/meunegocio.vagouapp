@@ -356,14 +356,14 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
           <div className={`p-2.5 rounded border transition-colors ${
             hasEnergyLeakAlert || hasWaterLeakAlert
               ? isDark ? 'bg-rose-950/20 border-rose-800/70' : 'bg-rose-50 border-rose-300'
-              : isDark ? 'bg-emerald-950/20 border-emerald-800/50' : 'bg-emerald-50 border-emerald-200'
+              : isDark ? 'bg-slate-900/80 brand-border-active' : 'bg-white brand-border-active'
           }`}>
             <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center gap-1.5">
                 {hasEnergyLeakAlert || hasWaterLeakAlert ? (
                   <AlertOctagon className="w-4 h-4 text-rose-500 shrink-0" />
                 ) : (
-                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <ShieldCheck className="w-4 h-4 brand-icon shrink-0" />
                 )}
                 <span className="text-xs font-bold">
                   {hasEnergyLeakAlert || hasWaterLeakAlert
@@ -375,7 +375,7 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
               <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded ${
                 hasEnergyLeakAlert || hasWaterLeakAlert
                   ? 'bg-rose-500 text-white'
-                  : 'status-green-bg text-white'
+                  : 'brand-tab-active'
               }`}>
                 {hasEnergyLeakAlert ? `+${energyDivergencePercent}% Energia` : 'Rede Estável'}
               </span>
@@ -395,7 +395,7 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
                 <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
                   Registrado no Medidor:
                 </span>
-                <p className={`font-bold ${hasEnergyLeakAlert ? 'text-rose-400' : 'text-emerald-400'}`}>
+                <p className={`font-bold ${hasEnergyLeakAlert ? 'text-rose-400' : 'brand-text'}`}>
                   {totalPeriodRealKwh.toFixed(0)} kWh e {totalPeriodRealWaterM3.toFixed(1)} m³
                 </p>
               </div>

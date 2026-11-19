@@ -31,6 +31,7 @@ export interface SalonNavContext {
   navBtnShadow?: 'none' | 'subtle' | 'medium' | 'glow';
   navBtnBlur?: 'none' | 'sm' | 'md' | 'lg';
   navBtnFont?: string;
+  showHomeTab?: boolean;
 }
 
 interface BottomNavProps {
@@ -60,6 +61,7 @@ interface BottomNavProps {
   navBtnShadow?: 'none' | 'subtle' | 'medium' | 'glow';
   navBtnBlur?: 'none' | 'sm' | 'md' | 'lg';
   navBtnFont?: string;
+  showHomeTab?: boolean;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
@@ -88,6 +90,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   navBtnShadow: propNavBtnShadow,
   navBtnBlur: propNavBtnBlur,
   navBtnFont: propNavBtnFont,
+  showHomeTab: propShowHomeTab,
 }) => {
   const { isDark, resolvedPalette } = useTheme();
 
@@ -97,6 +100,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const isOwnerOrManager = propIsOwnerOrManager ?? salonContext?.isOwnerOrManager ?? (currentPersona !== 'cliente');
   const isProfessionalStaff = propIsProfessionalStaff ?? salonContext?.isProfessionalStaff ?? false;
   const hasPausedSlots = propHasPausedSlots ?? salonContext?.hasPausedSlots ?? false;
+  const showHomeTab = propShowHomeTab ?? salonContext?.showHomeTab ?? true;
   const vagasTabLabel = propVagasTabLabel || salonContext?.vagasTabLabel || 'Agenda';
   const spaceTabLabel = propSpaceTabLabel || salonContext?.spaceTabLabel || 'Espaço';
   const ServicesIconComponent = propServicesIcon || salonContext?.ServicesIcon || LayoutGrid;
@@ -193,9 +197,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     ];
   } else {
     establishmentTabs = [
-      { id: 'home', label: 'Início', icon: Home },
+      ...(showHomeTab ? [{ id: 'home' as const, label: 'Início', icon: Home }] : []),
       { id: 'servicos', label: 'Serviços', icon: ServicesIconComponent },
-      { id: 'vagas', label: vagasTabLabel || 'Agenda', icon: Calendar },
+      { id: 'vagas', label: propVagasTabLabel || salonContext?.vagasTabLabel || 'Agendar', icon: Calendar },
       { id: 'espaco', label: spaceTabLabel, icon: SpaceIconComponent },
     ];
   }

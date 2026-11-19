@@ -309,9 +309,7 @@ export const SecurityQuestionProfileCard: React.FC<SecurityQuestionProfileCardPr
                 <span
                   className={`text-[10px] font-semibold ${
                     hasConfiguredSecret
-                      ? isDark
-                        ? 'text-emerald-400'
-                        : 'text-emerald-600'
+                      ? 'brand-text'
                       : isDark
                         ? 'text-amber-400'
                         : 'text-amber-600'
@@ -359,9 +357,7 @@ export const SecurityQuestionProfileCard: React.FC<SecurityQuestionProfileCardPr
         <div
           className={`px-3 py-2 rounded-[4px] text-xs font-semibold flex items-center gap-2 ${
             feedback.type === 'success'
-              ? isDark
-                ? 'bg-emerald-500/15 text-emerald-300'
-                : 'bg-emerald-50 text-emerald-700'
+              ? 'brand-soft-badge'
               : isDark
                 ? 'bg-rose-500/15 text-rose-300'
                 : 'bg-rose-50 text-rose-700'

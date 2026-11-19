@@ -148,7 +148,7 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
 
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
             isBreakEvenReached
-              ? 'bg-emerald-600 text-white shadow-2xs'
+              ? 'brand-tab-active shadow-2xs'
               : 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-extrabold'
           }`}>
             {isBreakEvenReached ? 'Zona de Lucro Real' : 'Em Cobertura de Custos'}
@@ -165,7 +165,7 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
           <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-800">
             <div 
               className={`h-full rounded-full transition-all duration-700 ${
-                isBreakEvenReached ? 'bg-emerald-500' : 'bg-amber-400'
+                isBreakEvenReached ? 'brand-bar' : 'bg-amber-400'
               }`}
               style={{ width: `${breakEvenProgress}%` }}
             />
@@ -175,14 +175,14 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
         {/* Status Mensagem */}
         <div className={`p-2 rounded text-[11px] font-medium flex items-center gap-2 ${
           isBreakEvenReached 
-            ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
+            ? 'brand-soft-badge'
             : 'bg-amber-500/10 border border-amber-500/30 text-amber-300'
         }`}>
           {isBreakEvenReached ? (
             <>
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 brand-icon shrink-0" />
               <span>
-                Suas despesas foram 100% cobertas! Lucro líquido atual: <strong>R$ {netProfitOrDeficit.toFixed(2).replace('.', ',')}</strong>
+                Suas despesas foram 100% cobertas! Lucro líquido atual: <strong className="text-emerald-500">R$ {netProfitOrDeficit.toFixed(2).replace('.', ',')}</strong>
               </span>
             </>
           ) : (

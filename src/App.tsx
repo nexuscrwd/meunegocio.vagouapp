@@ -856,7 +856,7 @@ export const App: React.FC = () => {
   if (isValidatingSubdomain) {
     return (
       <div className="min-h-screen w-full bg-slate-950 flex items-center justify-center font-sans">
-        <Loader2 className="w-7 h-7 animate-spin text-[#20C933]" />
+        <Loader2 className="w-7 h-7 animate-spin brand-icon" />
       </div>
     );
   }
@@ -890,7 +890,7 @@ export const App: React.FC = () => {
             aria-live="polite"
             className={`absolute top-4 left-4 right-4 z-[9999] pointer-events-auto p-3.5 rounded-[4px] border shadow-2xl flex items-start gap-3 backdrop-blur-md animate-in slide-in-from-top-4 duration-300 ${
               activeToast.type === 'success'
-                ? isDark ? 'bg-emerald-950/95 border-emerald-500/40 text-white shadow-emerald-900/10' : 'bg-emerald-50/95 border-emerald-200 text-emerald-900'
+                ? isDark ? 'bg-slate-900/95 brand-border-active text-white' : 'bg-white/95 brand-border-active text-slate-900'
                 : activeToast.type === 'error'
                   ? isDark ? 'bg-rose-950/95 border-rose-500/40 text-white shadow-rose-900/10' : 'bg-rose-50/95 border-rose-200 text-rose-900'
                   : isDark ? 'bg-slate-900/95 border-slate-700/50 text-white' : 'bg-slate-100/95 border-slate-200 text-slate-900'
@@ -899,7 +899,7 @@ export const App: React.FC = () => {
             <article className="flex-1 min-w-0">
               <header className="text-xs font-black tracking-tight font-['Poppins'] flex items-center gap-1.5">
                 <span className={`w-2 h-2 rounded-full animate-pulse shrink-0 ${
-                  activeToast.type === 'success' ? 'bg-emerald-400' : activeToast.type === 'error' ? 'bg-rose-400' : 'bg-amber-400'
+                  activeToast.type === 'success' ? 'bg-[var(--brand-primary)]' : activeToast.type === 'error' ? 'bg-rose-400' : 'bg-amber-400'
                 }`} />
                 {activeToast.title}
               </header>

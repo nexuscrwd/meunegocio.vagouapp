@@ -372,7 +372,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className={`relative w-24 h-24 rounded-full border-2 cursor-pointer group flex items-center justify-center overflow-hidden transition-all shrink-0 ${
+              className={`relative w-24 h-24 rounded-[4px] border-2 cursor-pointer group flex items-center justify-center overflow-hidden transition-all shrink-0 ${
                 isDragging 
                   ? 'border-[var(--brand-primary)] bg-[var(--brand-soft-bg)] scale-105' 
                   : isDark 
@@ -396,7 +396,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               </div>
               
               {/* Botão flutuante para indicar editabilidade */}
-              <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full brand-btn flex items-center justify-center shadow-md">
+              <div className="absolute bottom-1 right-1 w-6 h-6 rounded-[4px] brand-btn flex items-center justify-center shadow-md">
                 <Camera className="w-3 h-3" />
               </div>
             </div>
@@ -562,8 +562,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
           {/* Banner de Salvo com sucesso */}
           {isSavedSuccessfully && (
-            <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs py-2 px-3 rounded-[4px] font-bold flex items-center gap-2">
-              <Check className="w-4 h-4 shrink-0" />
+            <div className="brand-soft-badge text-xs py-2 px-3 rounded-[4px] font-bold flex items-center gap-2">
+              <Check className="w-4 h-4 brand-icon shrink-0" />
               <span>Perfil salvo com sucesso! Seus dados foram sincronizados.</span>
             </div>
           )}

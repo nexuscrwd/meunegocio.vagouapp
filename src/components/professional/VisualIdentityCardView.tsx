@@ -15,7 +15,7 @@ export const VisualIdentityCardView: React.FC<VisualIdentityCardViewProps> = ({
 }) => {
   return (
     <SalonDesignStudioView
-      initialTab="tema"
+      initialTab={null}
       adminSettings={adminSettings}
       onUpdateSettings={onUpdateSettings}
       onBack={onBack}

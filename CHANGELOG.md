@@ -11,6 +11,193 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-19] — Moldura Quadrada na Foto do Perfil em Meus Dados Pessoais (`bol-202`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[UI / UX]`
+- **Motivo / Solicitação:** Usuário selecionou via Focus Mode a moldura da foto de perfil em **Meus Dados Pessoais** (`UserDashboard`) e informou que a moldura deve ser quadrada.
+- **Arquivos Impactados:**
+  - `src/components/UserDashboard.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Substituído `rounded-full` por `rounded-[4px]` no contêiner `w-24 h-24` da foto do perfil e no indicador interno de câmera (`bottom-1 right-1 rounded-[4px]`), alinhando a moldura ao padrão geométrico quadrado do VagouApp.
+
+### [2026-11-19] — Alinhamento à Esquerda no Rótulo "Valor do serviço" da Modal de Opções (`bol-201`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[UI / CSS]`
+- **Motivo / Solicitação:** Usuário selecionou via Focus Mode o rótulo `Valor do serviço` na modal de opções do agendamento ativo (`UserAppointmentsView`) e solicitou aplicar `text-align: left`.
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Adicionada a classe `text-left` ao `<span>` de rótulo `Valor do serviço` dentro da 3ª coluna da grade da modal de opções.
+
+### [2026-11-19] — Alinhamento em Linha Única de Profissional, Data/Horário e Valor na Modal de Opções (`bol-200`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[UI / UX]`
+- **Motivo / Solicitação:** Usuário selecionou via Focus Mode o bloco de **Valor do serviço** na modal de opções do agendamento ativo (`UserAppointmentsView`) e solicitou colocá-lo na mesma linha de **Profissional** e **Data e Horário**.
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Substituída a linha inferior de valor por uma grade horizontal única (`grid-cols-3`) exibindo lado a lado **Profissional**, **Data e Horário** e **Valor do serviço** (com badge de pagamento `Pago` / `À pagar` e contraste ajustado em modo claro), mantendo **Dependente** em linha separada apenas quando aplicável.
+
+### [2026-11-19] — Pequena Modal de Opções ao Clicar no Agendamento Ativo em Minha Agenda (`bol-199`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Feat / UI / UX]`
+- **Motivo / Solicitação:** Usuário selecionou via Focus Mode o card de agendamento ativo em **Minha Agenda** (`UserAppointmentsView`) e solicitou que ao clicar nele seja aberta uma pequena modal exibindo os botões de opções que haviam sido removidos do rodapé do card.
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Cards da aba **Ativo** passaram a abrir uma pequena modal centrada (`optionsModalApt`) contendo resumo compacto do agendamento (salão, serviço, status, profissional, data/horário, dependente quando houver e valor/situação de pagamento) e a grade de 3 botões de ação restaurados: **`Cancelar`** (`cancel_reason`), **`Remarcar`** (`openRescheduleAndSwapModal`) e **`Ir`** (`in_app_map` / mapa ao vivo para atendimento domiciliar).
+  - Restaurado o estado `departureModalStep` e aplicado `e.stopPropagation()` nos botões internos da faixa de permuta em cascata.
+
+### [2026-11-19] — Botões de Limpeza Local (Selecionados ou Lista Completa) em Concluídos e Cancelados (`bol-198`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Feat / UI / LocalStorage]`
+- **Motivo / Solicitação:** Usuário solicitou inserir nas abas **Concluídos** e **Cancelados** de **Minha Agenda** (`UserAppointmentsView`) controles compactos para limpar apenas os itens selecionados ou a lista completa somente da visualização do app, mantendo os registros preservados no banco de dados (Supabase).
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Adicionado seletor por card (checkbox compacto ao lado do status) e barra superior nas abas **Concluídos** e **Cancelados** com os botões **`Selecionar`**, **`Limpar (N)`** e **`Limpar tudo`**.
+  - A limpeza grava os identificadores locais (`id` / `protocolCode`) na chave `vagou_hidden_agenda_ids` em `localStorage`, ocultando os itens imediatamente e após sincronizações futuras sem enviar `DELETE` ao Supabase.
+
+### [2026-11-19] — Remoção da Tag de Dependente no Cabeçalho dos Cards de Minha Agenda (`bol-197`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[UI / UX]`
+- **Motivo / Solicitação:** Usuário selecionou via Focus Mode a tag ciano de dependente ao lado do nome do salão nos cards de **Minha Agenda** (`UserAppointmentsView`) e solicitou sua remoção.
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Removida a badge de dependente (`item.is_dependent && item.dependent_name`) ao lado de `companyName` no cabeçalho dos cards e limpo o import não utilizado `Baby`.
+
+### [2026-11-19] — Renomeação do Botão de Agendamento no Menu Inferior para "Agendar" (`bol-196`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[UI / UX]`
+- **Motivo / Solicitação:** Usuário selecionou via Focus Mode o botão `nav-salon-vagas` na barra de navegação inferior (`BottomNav`) do modo vitrine/cliente e definiu que seu nome é **`Agendar`** (mantendo **`Agenda`** apenas no painel de gestão do proprietário/profissional).
+- **Arquivos Impactados:**
+  - `src/components/BottomNav.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/SalonDesignStudioView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Alterado o rótulo padrão do botão `vagas` no modo cliente de `BottomNav.tsx` para **`Agendar`**, sincronizado o título da seção `section-vagas` em `SalonProfileView.tsx` e atualizada a prévia da barra inferior em `SalonDesignStudioView.tsx`.
+
+### [2026-11-19] — Alinhamento em Linha Única de Profissional e Data/Horário nos Cards de Minha Agenda (`bol-195`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[UI / UX]`
+- **Motivo / Solicitação:** Usuário selecionou via Focus Mode os blocos **Profissional** e **Data e Horário** nos cards de **Minha Agenda** (`UserAppointmentsView`) e solicitou organizá-los na mesma linha horizontal.
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Substituído o empilhamento vertical (`space-y-2.5`) por uma grade de 2 colunas (`grid-cols-2`) alinhada horizontalmente para **Profissional** e **Data e Horário**, otimizando a altura dos cards no celular.
+
+### [2026-11-19] — Realocação da Badge de Status para o Topo do Card ao Lado Oposto do Nome do Salão (`bol-194`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[UI / UX]`
+- **Motivo / Solicitação:** Usuário selecionou via Focus Mode a badge de status nos cards de **Minha Agenda** (`UserAppointmentsView`) e solicitou movê-la para a `div` superior do card, no lado oposto ao nome do estabelecimento.
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Movida a chamada `getStatusBadge(item.status)` do corpo do card para a extremidade direita do cabeçalho do card (`flex items-start justify-between gap-2`), liberando toda a largura do corpo para as informações de profissional e data/horário.
+
+### [2026-11-19] — Remoção da Barra de Ações do Rodapé nos Cards de Minha Agenda (`bol-193`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[UI / UX]`
+- **Motivo / Solicitação:** Usuário selecionou via Focus Mode o bloco inferior dos cards de **Minha Agenda** (`Cancelar | Remarcar | Ir`) e solicitou sua remoção.
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Removido o contêiner de botões (`Cancelar`, `Remarcar`, `Ir`) do rodapé dos cards em `UserAppointmentsView.tsx`, além da limpeza do import `MapIcon` e do estado `departureModalStep` sem uso.
+
+### [2026-11-19] — Remoção do Valor e Selo de Pagamento nos Cards de Minha Agenda (`bol-192`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[UI / UX]`
+- **Motivo / Solicitação:** Usuário selecionou via Focus Mode os dois spans (`R$ XX.XX` e `À pagar`/`Pago`) nos cards de **Minha Agenda** (`UserAppointmentsView`) e solicitou sua remoção.
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Removidos o valor monetário e a tag de pagamento (`Pago`/`À pagar`) do bloco direito dos cards em `UserAppointmentsView.tsx`, mantendo apenas a badge de status e removendo a variável `isAppointmentPaid` sem uso.
+
+### [2026-11-19] — Abas de Filtro em Minha Agenda do Usuário: Ativo, Concluídos e Cancelados (`bol-191`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Feat / UI / UX]`
+- **Motivo / Solicitação:** Usuário solicitou dividir a seção **Minha Agenda** (`UserAppointmentsView`) em 3 abas de status: **`Ativo`** (selecionada por padrão ao abrir), **`Concluídos`** e **`Cancelados`**.
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Adicionado estado `activeAgendaTab` (`'ativo' | 'concluidos' | 'cancelados'`, padrão `'ativo'`).
+  - Segmentada a lista de agendamentos do usuário em `activeAppointments`, `completedAppointments` e `cancelledAppointments`, exibindo contadores em tempo real nas 3 abas (`Ativo`, `Concluídos`, `Cancelados`) e estados vazios dedicados para cada filtro.
+
+### [2026-11-19] — Remoção do Botão Redundante "Aplicar" em Cor Personalizada com Aplicação Realtime (`bol-190`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[UI / UX]`
+- **Motivo / Solicitação:** Usuário selecionou via Focus Mode o botão **`Aplicar`** ao lado do campo `#HEX` em **Cor Personalizada** (`Tema & Cores`) e solicitou sua remoção, já que o tema é atualizado em tempo real.
+- **Arquivos Impactados:**
+  - `src/components/professional/SalonDesignStudioView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Removido o botão `Aplicar` em **Cor Personalizada** e configurada a aplicação automática em tempo real (`applyQuickThemeCascade`) assim que um código hexadecimal válido de 6 dígitos (`#RRGGBB`) é digitado ou colado no input.
+
+### [2026-11-19] — Sub-Abas na Seção Logo: Logo Claro/Escuro, Ícone App & Nav e Provisório (`bol-189`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Feat / UI / UX]`
+- **Motivo / Solicitação:** Usuário solicitou dividir o conteúdo interno da seção **`Logo`** em 3 abas dedicadas para aproveitar melhor o espaço vertical da tela:
+  1. **Logo Tema Claro e Escuro**
+  2. **Ícone do App e Navegador**
+  3. **Provisório** (*Texto Provisório na ausência de logo*, cor, slogan e fonte).
+- **Arquivos Impactados:**
+  - `src/components/professional/SalonDesignStudioView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Adicionado estado `logoSubTab` (`'logos' | 'icone' | 'provisorio'`) dentro de `activeStudioTab === 'marca'`.
+  - Renderizadas 3 abas responsivas (`grid-cols-3`, `rounded-[4px]`, destaque `.brand-tab-active` na aba ativa) separando cada grupo em sua respectiva visualização sem rolagem excessiva.
+
+### [2026-11-19] — Reordenação dos CardButtons de Visual & Layout: Logo, Tema & Cores e Layout (`bol-188`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[UI / UX]`
+- **Motivo / Solicitação:** Usuário definiu a ordem dos 3 CardButtons dentro da seção **`Visual & Layout`** como: **1. `Logo`**, **2. `Tema & Cores`** e **3. `Layout`**.
+- **Arquivos Impactados:**
+  - `src/components/professional/SalonDesignStudioView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Reordenada a matriz `studioCards` em `SalonDesignStudioView.tsx` para renderizar `Logo` (`marca`), seguido de `Tema & Cores` (`tema`) e `Layout` (`estrutura`).
+
+### [2026-11-19] — Navegação em Cards Dedicados na Seção Visual & Layout (`bol-187`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Refactor / UI / UX]`
+- **Motivo / Solicitação:** Usuário refinou a UX da seção **`Visual & Layout`** para exibir exclusivamente os 3 **CardButtons responsivos** (**`Logo`**, **`Tema & Cores`** e **`Layout`**) ao entrar na seção, abrindo a tela específica de cada opção somente ao clicar no card selecionado (com retorno via seta `←` no cabeçalho).
+- **Arquivos Impactados:**
+  - `src/components/professional/SalonDesignStudioView.tsx`
+  - `src/components/professional/SalonCustomizationHub.tsx`
+  - `src/components/professional/VisualIdentityCardView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - `activeStudioTab` alterado para `DesignStudioTab | null` com padrão `null`.
+  - Quando `activeStudioTab === null`, a seção **`Visual & Layout`** exibe apenas os 3 CardButtons responsivos (`grid-cols-1 sm:grid-cols-3`, `rounded-[4px]`, bordas, `shadow-xs`, hover na cor do tema e layout plano sem caixa dentro de caixa), ocultando o formulário e o rodapé de salvamento.
+  - Ao clicar em **`Logo`**, **`Tema & Cores`** ou **`Layout`**, abre-se exclusivamente a seção correspondente, o cabeçalho assume o título/ícone da seção aberta com botão `←` voltando para os 3 cards, e o rodapé fixo (`Default` + `Salvar Alterações`) é exibido.
+
+### [2026-11-19] — Controle de Exibição da Tela Inicial + Botão Início e CardButtons na Seção Visual & Layout (`bol-186`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Feat / UI / Database]`
+- **Motivo / Solicitação:** Usuário solicitou (1) um botão/toggle para exibir ou ocultar a Tela Inicial da vitrine pública afetando também a visibilidade do botão **`Início`** no menu de navegação inferior (`BottomNav`), e (2) converter as 3 abas horizontais de `Visual & Layout` (`Tema & Cores`, `Marca & Logos` renomeada para **`Logo`**, e `Estrutura` renomeada para **`Layout`**) em **CardButtons responsivos** dentro da seção seguindo bordas, sombras e tema do app.
+- **Arquivos Impactados:**
+  - `src/types.ts`
+  - `src/lib/supabase.ts`, `server.ts`
+  - `src/components/BottomNav.tsx`
+  - `src/components/SalonProfileView.tsx`
+  - `src/components/professional/SalonDesignStudioView.tsx`, `SalonCustomizationHub.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Flag `showHomeTab` (`branding.showHomeTab` / `show_home_tab`):** Persistida via `updateSalonSettingsInDb` e `/api/salon/sync`, hidratada no carregamento e sincronizada em tempo real. Quando `false`: oculta a Tela Inicial pública e remove o botão **`Início`** da barra inferior (`BottomNav` exibe `Serviços`, `Agenda` e `Espaço`), redirecionando automaticamente a vitrine pública para **`Serviços`** (preservando intacto o `Painel` no modo proprietário/gestor). Na aba `Layout`, subcontroles exclusivos da Tela Inicial (`Slides na Tela Inicial` e `Faixa de Boas-Vindas`) recolhem automaticamente quando desativada.
+  2. **CardButtons Responsivos em `Visual & Layout` (`SalonDesignStudioView.tsx`):** Removida a barra superior plana de sublinhado e adicionados 3 CardButtons responsivos (`grid-cols-3`, `rounded-[4px]`, bordas e sombras padronizadas com destaque dinâmico `.brand-tab-active` no card ativo) para **`Tema & Cores`**, **`Logo`** e **`Layout`**.
+
+### [2026-11-19] — Regra Estrita de Verde Exclusivo para Valores Monetários Positivos (`bol-185`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / Refactor / Design System]`
+- **Motivo / Solicitação:** Usuário identificou a badge `Aberto` ainda em verde na tela de Equipe/Escalas e definiu a diretriz estrita: **verde é exclusivo para valores monetários positivos (`R$`, receitas, lucros positivos)** — jamais para status (`Aberto`, `LIVRE`, `Confirmado`, `Em Atendimento`, `No Local`, `Pago`, `Meta Batida`, `Zona de Lucro Real`, `Rede Estável`), feedbacks/toasts de confirmação, pontos de status online, botões de WhatsApp ou elementos do mapa/navegação GPS, os quais devem seguir 100% a cor do tema escolhida pelo salão.
+- **Arquivos Impactados:**
+  - `src/App.tsx`
+  - `src/components/professional/TeamManager.tsx`, `ProfessionalServicesManager.tsx`, `ProfessionalDashboardView.tsx`, `ProfessionalAgendaView.tsx`, `FinancialManagerView.tsx`, `PixCheckoutModal.tsx`, `SalonPixPrintModal.tsx`, `GoogleWorkspaceHub.tsx`
+  - `src/components/professional/financial/BreakEvenSimulator.tsx`, `ExpensesManager.tsx`
+  - `src/components/professional/dashboard/SemiCircleGauge.tsx`, `UtilitiesEfficiencySection.tsx`, `QuickFinancialCards.tsx`
+  - `src/components/auth/SalonAuthHeader.tsx`, `SecurityQuestionProfileCard.tsx`
+  - `src/components/UserAppointmentsView.tsx`, `UserDashboard.tsx`, `ProfileDrawer.tsx`, `SalonBookingModal.tsx`, `SalonProfileView.tsx`, `modals/SummaryModal.tsx`
+  - `src/components/live-tracking/LiveTrackingModal.tsx`, `InteractiveGoogleRouteMap.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Varredura Completa & Remoção Total de Verde Não-Monetário (24 arquivos):** Migradas todas as badges de status (`Aberto`, `LIVRE`, `Confirmado`, `Em Atendimento`, `No Local`, `Em Trajeto`, `Pago`, `Meta Batida!`, `Zona de Lucro Real`, `Rede Estável`, `Ativa`, `Aceitou`, `Histórico Fechado`), toasts de salvamento/upload, checkmarks de confirmação, pontos online, botões WhatsApp no painel e elementos de GPS (`InteractiveGoogleRouteMap`: polilinha da rota, cone de visão, puck/seta direcional, pino de destino e botão `Recentralizar`; `LiveTrackingModal`: alertas de chegada, ícones e botões `Cheguei`) para os tokens dinâmicos do tema do salão (`.brand-tab-active`, `.brand-btn`, `.brand-soft-badge`, `.brand-text`, `.brand-icon`, `var(--brand-primary)`).
+  2. **Semântica Financeira Blindada:** Auditado via regex em toda a base de componentes que 100% das classes verdes remanescentes dentro de vitrines/painéis de salão pertencem exclusivamente a valores em moeda (`R$`) positivos (`Caixa Realizado`, `Lucro Líquido >= 0`, faturamento realizado/previsto, comissões em `R$`, totais de agendamento/checkout PIX e comparação de ticket médio em `R$`), mantendo vermelho para valores negativos/custos/erros e âmbar para pendências/bloqueios.
+
 ### [2026-11-19] — Motor Global de Cores White-Label, Sincronização de Colunas Visuais no Banco e Semântica Financeira (`bol-184`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Fix / Refactor / Design System / Database]`
 - **Motivo / Solicitação:** Mesmo após escolher a cor do tema no painel do salão (ex.: dourado/bege Avelli `#C5A36A`), diversas áreas do aplicativo (modais, Caixa, Agenda, Visual & Layout, menu lateral, fluxo de agendamento, PIX e navegação GPS) continuavam exibindo verde esmeralda (`emerald-*`, `#20C933`, `#008B47`) ou azul legado (`#2B82C9`) hardcoded. Usuário definiu a diretriz oficial: toda a interface e métricas indexadas (`Meta`, `%`, gráficos, barras, `Ticket Médio`) seguem a cor do tema do salão, enquanto **verde** é reservado a valores financeiros positivos e status de confirmação, e **vermelho** a valores negativos/custos/erros.

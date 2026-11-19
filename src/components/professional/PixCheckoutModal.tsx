@@ -385,8 +385,8 @@ export const PixCheckoutModal: React.FC<PixCheckoutModalProps> = ({
                 >
                   {copied ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                      <span className="text-emerald-600 dark:text-emerald-400">PIX Copia e Cola Copiado!</span>
+                      <Check className="w-3.5 h-3.5 brand-icon" />
+                      <span className="brand-text">PIX Copia e Cola Copiado!</span>
                     </>
                   ) : (
                     <>

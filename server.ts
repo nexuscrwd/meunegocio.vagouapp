@@ -2623,6 +2623,7 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
           ...(settings.showSlogan !== undefined ? { showSlogan: settings.showSlogan } : {}),
           ...(settings.logoTextFallback !== undefined ? { logoTextFallback: settings.logoTextFallback } : {}),
           ...(settings.logoTextColor !== undefined ? { logoTextColor: settings.logoTextColor } : {}),
+          ...(settings.showHomeTab !== undefined ? { showHomeTab: settings.showHomeTab } : {}),
           ...(settings.showHeroSlides !== undefined ? { showHeroSlides: settings.showHeroSlides } : {}),
           ...(settings.brandFont !== undefined ? { brandFont: settings.brandFont } : {}),
           ...(settings.navStyle !== undefined ? { navStyle: settings.navStyle } : {}),
@@ -2681,6 +2682,9 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
         if (settings.defaultTheme !== undefined) rowUpdate.default_theme = settings.defaultTheme;
         if (settings.brandFont !== undefined) rowUpdate.brand_font = settings.brandFont;
         if (settings.welcomeStyle !== undefined) rowUpdate.welcome_style = settings.welcomeStyle;
+        if (settings.showSlogan !== undefined) rowUpdate.show_slogan = settings.showSlogan;
+        if (settings.showHomeTab !== undefined) rowUpdate.show_home_tab = settings.showHomeTab;
+        if (settings.showHeroSlides !== undefined) rowUpdate.show_hero_slides = settings.showHeroSlides;
         if (settings.logoTextColor !== undefined) rowUpdate.logo_text_color = settings.logoTextColor || null;
         if (settings.sectionHeaderBgColor !== undefined) rowUpdate.section_header_bg_color = settings.sectionHeaderBgColor || null;
         if (settings.sectionHeaderTextColor !== undefined) rowUpdate.section_header_text_color = settings.sectionHeaderTextColor || null;

@@ -23,22 +23,20 @@ export const QuickFinancialCards: React.FC<QuickFinancialCardsProps> = ({
 
   return (
     <div className="grid grid-cols-2 gap-2 select-none">
-      {/* 1. Caixa Realizado (Dinheiro já garantido) */}
+      {/* 1. Caixa Realizado (Dinheiro já garantido — verde apenas no valor) */}
       <div className={`p-2.5 rounded-lg border flex flex-col justify-between ${
-        isDark ? 'bg-emerald-950/40 border-emerald-800/60' : 'status-green-bg text-white'
+        isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 shadow-xs text-slate-900'
       }`}>
         <div className="flex items-center justify-between">
           <span className={`text-[9px] font-bold uppercase tracking-wider ${
-            isDark ? 'text-emerald-400' : 'text-emerald-100'
+            isDark ? 'text-slate-400' : 'text-slate-500'
           }`}>
             Caixa Realizado
           </span>
-          <DollarSign className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-white'}`} />
+          <DollarSign className="w-3.5 h-3.5 brand-icon" />
         </div>
         <div className="my-1">
-          <span className={`text-base sm:text-lg font-black font-mono leading-none ${
-            isDark ? 'text-emerald-400' : 'text-white'
-          }`}>
+          <span className="text-base sm:text-lg font-black font-mono leading-none text-emerald-500">
             R$ {realizedRevenue.toFixed(2).replace('.', ',')}
           </span>
         </div>
@@ -46,20 +44,18 @@ export const QuickFinancialCards: React.FC<QuickFinancialCardsProps> = ({
 
       {/* 2. Previsão em Aberto (Ainda vai entrar hoje/mês) */}
       <div className={`p-2.5 rounded-lg border flex flex-col justify-between ${
-        isDark ? 'bg-blue-950/40 border-blue-800/60' : 'status-blue-bg text-white'
+        isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 shadow-xs text-slate-900'
       }`}>
         <div className="flex items-center justify-between">
           <span className={`text-[9px] font-bold uppercase tracking-wider ${
-            isDark ? 'text-blue-400' : 'text-blue-100'
+            isDark ? 'text-slate-400' : 'text-slate-500'
           }`}>
             Previsão na Agenda
           </span>
-          <Clock className={`w-3.5 h-3.5 ${isDark ? 'text-blue-400' : 'text-white'}`} />
+          <Clock className="w-3.5 h-3.5 text-amber-500" />
         </div>
         <div className="my-1">
-          <span className={`text-base sm:text-lg font-black font-mono leading-none ${
-            isDark ? 'text-blue-400' : 'text-white'
-          }`}>
+          <span className="text-base sm:text-lg font-black font-mono leading-none text-amber-500">
             R$ {forecastRevenue.toFixed(2).replace('.', ',')}
           </span>
         </div>
@@ -99,7 +95,7 @@ export const QuickFinancialCards: React.FC<QuickFinancialCardsProps> = ({
           }`}>
             {isOwner ? 'Lucro Líquido' : 'Meu Bolso (Líquido)'}
           </span>
-          <Wallet className={`w-3.5 h-3.5 ${netProfitOrCommission < 0 ? 'text-rose-500' : 'text-emerald-500'}`} />
+          <Wallet className={`w-3.5 h-3.5 ${netProfitOrCommission < 0 ? 'text-rose-500' : 'brand-icon'}`} />
         </div>
         <div className="my-1">
           <span className={`text-base sm:text-lg font-black font-mono leading-none ${

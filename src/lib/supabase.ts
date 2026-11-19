@@ -3313,6 +3313,7 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       showSlogan: settings.showSlogan !== undefined ? settings.showSlogan : (existingBranding.showSlogan !== false),
       logoTextFallback: settings.logoTextFallback !== undefined ? settings.logoTextFallback : (existingBranding.logoTextFallback || ''),
       logoTextColor: settings.logoTextColor !== undefined ? settings.logoTextColor : (existingBranding.logoTextColor || settings.accentColor || DEFAULT_NEUTRAL_HEX),
+      showHomeTab: settings.showHomeTab !== undefined ? settings.showHomeTab : (existingBranding.showHomeTab !== false),
       showHeroSlides: settings.showHeroSlides !== undefined ? settings.showHeroSlides : (existingBranding.showHeroSlides !== false),
       faviconUrl: resolvedIcon,
       salonIcon: resolvedIcon,
@@ -3385,6 +3386,7 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
     if (settings.brandFont !== undefined) payload.brand_font = settings.brandFont || 'Plus Jakarta Sans';
     if (settings.welcomeStyle !== undefined) payload.welcome_style = settings.welcomeStyle || 'atmospheric';
     if (settings.showSlogan !== undefined) payload.show_slogan = settings.showSlogan;
+    if (settings.showHomeTab !== undefined) payload.show_home_tab = settings.showHomeTab;
     if (settings.showHeroSlides !== undefined) payload.show_hero_slides = settings.showHeroSlides;
     if (settings.logoTextFallback !== undefined) payload.logo_text_fallback = settings.logoTextFallback || null;
     if (settings.logoTextColor !== undefined) payload.logo_text_color = settings.logoTextColor || null;

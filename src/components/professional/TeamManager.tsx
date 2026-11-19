@@ -1081,7 +1081,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
                         <span className="font-bold w-9">{d.dayLabel}</span>
                         <span
                           className={`text-[10px] px-1.5 py-0.5 rounded-[4px] font-bold ${
-                            d.isOpen ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'
+                            d.isOpen ? 'brand-tab-active' : 'bg-slate-800 text-slate-400'
                           }`}
                         >
                           {d.isOpen ? 'Aberto' : 'Fechado'}

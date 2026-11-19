@@ -2641,9 +2641,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
 
         {/* Feedback de Pré-Salvamento */}
         {draftSavedFeedback && (
-          <div className="p-2.5 bg-emerald-600 text-white rounded-[4px] text-xs font-bold flex items-center gap-2">
-            <Check className="w-4 h-4 text-white shrink-0" />
-            <span className="text-white">{draftSavedFeedback}</span>
+          <div className="p-2.5 brand-tab-active rounded-[4px] text-xs font-bold flex items-center gap-2">
+            <Check className="w-4 h-4 shrink-0" />
+            <span>{draftSavedFeedback}</span>
           </div>
         )}
       </div>
@@ -2738,8 +2738,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       <div className="flex-1 overflow-y-auto p-3.5 sm:p-4">
         <section className="caixa-card p-5 space-y-4">
           <div className="flex items-center gap-3 pb-3 border-b border-[#EDF2F7] dark:border-slate-800">
-            <div className="w-10 h-10 rounded-[4px] bg-emerald-600 flex items-center justify-center shrink-0">
-              <Check className="w-5 h-5 text-white stroke-[2.5]" />
+            <div className="w-10 h-10 rounded-[4px] brand-tab-active flex items-center justify-center shrink-0">
+              <Check className="w-5 h-5 stroke-[2.5]" />
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-extrabold font-display leading-snug">

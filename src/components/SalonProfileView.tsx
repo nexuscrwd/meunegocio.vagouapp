@@ -724,6 +724,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         showSlogan: initialSalonData.show_slogan !== undefined ? initialSalonData.show_slogan : (initialSalonData.branding?.showSlogan !== undefined ? initialSalonData.branding?.showSlogan : (localSaved.showSlogan !== false)),
         logoTextFallback: initialSalonData.logo_text_fallback || initialSalonData.branding?.logoTextFallback || localSaved.logoTextFallback || '',
         logoTextColor: pickInitBrandingOrCol(initialSalonData.branding?.logoTextColor, initialSalonData.logo_text_color, localSaved.logoTextColor, true) || resolvedColor,
+        showHomeTab: initialSalonData.branding?.showHomeTab !== undefined ? initialSalonData.branding.showHomeTab : (initialSalonData.show_home_tab !== undefined ? initialSalonData.show_home_tab : (localSaved.showHomeTab !== false)),
         showHeroSlides: initialSalonData.show_hero_slides !== undefined ? initialSalonData.show_hero_slides : (initialSalonData.branding?.showHeroSlides !== undefined ? initialSalonData.branding?.showHeroSlides : (localSaved.showHeroSlides !== false)),
         
         // Barra de Títulos das Seções (Section Header — prioriza branding JSONB atualizado sobre colunas antigas)
@@ -806,6 +807,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       showSlogan: true,
       logoTextFallback: '',
       logoTextColor: effectiveColor,
+      showHomeTab: true,
       showHeroSlides: true,
       brandFont: 'Poppins',
       defaultTheme: 'light',
@@ -844,6 +846,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             showSlogan: parsed.showSlogan !== undefined ? parsed.showSlogan : defaults.showSlogan,
             logoTextFallback: parsed.logoTextFallback !== undefined ? parsed.logoTextFallback : defaults.logoTextFallback,
             logoTextColor: parsed.logoTextColor || defaults.logoTextColor,
+            showHomeTab: parsed.showHomeTab !== undefined ? parsed.showHomeTab : defaults.showHomeTab,
             showHeroSlides: parsed.showHeroSlides !== undefined ? parsed.showHeroSlides : defaults.showHeroSlides,
             defaultTheme: parsed.themeExplicitlyCustomized ? (parsed.defaultTheme || 'light') : 'light',
             brandFont: parsed.brandFont || defaults.brandFont,
@@ -1164,6 +1167,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     const resolvedLogoTextColor = pickRemoteBrandingOrCol(salonRecord.branding?.logoTextColor, salonRecord.logo_text_color, true);
     if (resolvedLogoTextColor) {
       updatedSettings.logoTextColor = resolvedLogoTextColor;
+    }
+    if (salonRecord.show_home_tab !== undefined || salonRecord.branding?.showHomeTab !== undefined) {
+      updatedSettings.showHomeTab = salonRecord.branding?.showHomeTab !== undefined ? salonRecord.branding?.showHomeTab : salonRecord.show_home_tab;
     }
     if (salonRecord.show_hero_slides !== undefined || salonRecord.branding?.showHeroSlides !== undefined) {
       updatedSettings.showHeroSlides = salonRecord.branding?.showHeroSlides !== undefined ? salonRecord.branding?.showHeroSlides : salonRecord.show_hero_slides;
@@ -1807,7 +1813,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     setIsProfileDrawerOpen(false);
     setIsClientAuthModalOpen(false);
     setIsPublicPreviewMode(true);
-    setActiveTab('home');
+    setActiveTab(adminSettings.showHomeTab !== false ? 'home' : 'servicos');
 
     // 3. Disparo de eventos para todos os hooks (useSalonRole, useOwnerAccess, App, ProfileDrawer)
     window.dispatchEvent(new CustomEvent('vagou:auth-updated', { detail: { loggedOut: true } }));
@@ -1843,8 +1849,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     });
   }, [isSalonLoggedIn]);
 
-  const [activeTab, setActiveTab] = useState<'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout' | 'pausar'>('home');
-  const [previewTestTab, setPreviewTestTab] = useState<'home' | 'servicos' | 'vagas' | 'espaco'>('home');
+  const showHomeTab = adminSettings.showHomeTab !== false;
+
+  const [activeTab, setActiveTab] = useState<'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout' | 'pausar'>(() => (isGerMode || adminSettings.showHomeTab !== false ? 'home' : 'servicos'));
+  const [previewTestTab, setPreviewTestTab] = useState<'home' | 'servicos' | 'vagas' | 'espaco'>(() => (adminSettings.showHomeTab !== false ? 'home' : 'servicos'));
   const [isPauseSlotsModalOpen, setIsPauseSlotsModalOpen] = useState(false);
 
   // Monitora se há horários pausados hoje para exibir indicador na barra inferior
@@ -1869,9 +1877,22 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
     const managementTabs = ['caixa', 'financeiro', 'equipe', 'personalizar', 'utilidades', 'dados', 'visual', 'preferencias', 'layout'];
     if (managementTabs.includes(activeTab) && !isOwnerOrManager) {
-      setActiveTab('home');
+      setActiveTab(showHomeTab ? 'home' : 'servicos');
     }
-  }, [activeTab, isOwnerOrManager, isRoleLoading]);
+  }, [activeTab, isOwnerOrManager, isRoleLoading, showHomeTab]);
+
+  // Se a Tela Inicial estiver oculta no modo público/cliente, redireciona automaticamente para Serviços
+  useEffect(() => {
+    if (!isGerMode && !showHomeTab && activeTab === 'home') {
+      setActiveTab('servicos');
+    }
+  }, [isGerMode, showHomeTab, activeTab]);
+
+  useEffect(() => {
+    if (!showHomeTab && previewTestTab === 'home') {
+      setPreviewTestTab('servicos');
+    }
+  }, [showHomeTab, previewTestTab]);
 
   const [bookingService, setBookingService] = useState<CatalogServiceItem | null>(null);
   const [bookingTrigger, setBookingTrigger] = useState<number>(0);
@@ -2144,16 +2165,21 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       return;
     }
 
+    if (tab === 'home' && !isGerMode && !showHomeTab) {
+      setActiveTab('servicos');
+      return;
+    }
+
     setActiveTab(tab);
-  }, [isGerMode, isOwnerOrManager, isUserLoggedInState, checkHasActiveSession]);
+  }, [isGerMode, isOwnerOrManager, isUserLoggedInState, checkHasActiveSession, showHomeTab]);
 
   // Retorna diretamente para a tela de Opções do Menu (ProfileDrawer) sem fechar o menu por completo
   const handleBackToMenu = useCallback(() => {
     hapticLight();
-    setActiveTab('home');
+    setActiveTab(isGerMode || showHomeTab ? 'home' : 'servicos');
     setProfileDrawerInitialTab('menu');
     setIsProfileDrawerOpen(true);
-  }, []);
+  }, [isGerMode, showHomeTab]);
 
   // Catálogo completo de serviços conectado ao estado dinâmico gerenciável
   const filteredCatalogServices = useMemo(() => {
@@ -2763,7 +2789,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         /* MODO PÚBLICO / CLIENTE: NAVEGAÇÃO POR ABAS DEDICADAS COM BARRA DE ROLAGEM VERTICAL */
         <main className="flex-1 min-h-0 w-full flex flex-col app-vertical-scroll relative">
           {/* SEÇÃO 1: INÍCIO */}
-          {activeTab === 'home' && (
+          {activeTab === 'home' && showHomeTab && (
             <section
               id="section-home"
               data-tab-id="home"
@@ -3180,7 +3206,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               data-tab-id="vagas"
               className="w-full h-full flex-1 min-h-0 overflow-hidden flex flex-col justify-start bg-[var(--brand-canvas-bg)] dark:bg-slate-950 animate-in fade-in duration-150"
             >
-              {/* Subcabeçalho de Título da Seção: Agenda com Botão Voltar */}
+              {/* Subcabeçalho de Título da Seção: Agendar com Botão Voltar */}
               <div className={sectionHeaderStyleData.containerClass} style={sectionHeaderStyleData.containerStyle}>
                 <div className="flex items-center gap-2">
                   <button
@@ -3195,7 +3221,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   <h2 className={`text-xs sm:text-sm font-bold font-display ${
                     !adminSettings.sectionHeaderTextColor ? (isDark ? 'text-white' : 'text-[#1E293B]') : ''
                   }`} style={sectionHeaderStyleData.titleStyle}>
-                    Agenda
+                    Agendar
                   </h2>
                 </div>
               </div>
@@ -3741,6 +3767,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     : undefined
                 }
                 navTextColor={adminSettings.navTextColor}
+                showHomeTab={showHomeTab}
               />
             </div>
           </footer>
@@ -3768,8 +3795,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
           <div className="p-4 flex-1 flex flex-col items-center justify-center text-center space-y-4">
             {/* Ícone de Sucesso */}
-            <div className="w-14 h-14 rounded-[4px] bg-[#008B47] text-white flex items-center justify-center shadow-xs">
-              <Check className="w-8 h-8 stroke-[3] text-white" />
+            <div className="w-14 h-14 rounded-[4px] brand-tab-active flex items-center justify-center shadow-xs">
+              <Check className="w-8 h-8 stroke-[3]" />
             </div>
 
             <div className="space-y-1">
@@ -4113,7 +4140,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               sessionStorage.setItem('vagou_explicit_public_preview', '1');
             } catch {}
             setIsPublicPreviewMode(true);
-            setActiveTab('home');
+            setActiveTab(showHomeTab ? 'home' : 'servicos');
           } else if (target === 'salon_mode') {
             try {
               sessionStorage.removeItem('vagou_explicit_public_preview');

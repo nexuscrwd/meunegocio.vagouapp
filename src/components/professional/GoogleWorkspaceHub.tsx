@@ -477,7 +477,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
         <div
           className={`p-3 rounded-[4px] border flex items-center justify-between gap-2 text-xs font-semibold ${
             feedbackToast.type === 'success'
-              ? 'bg-emerald-500 text-white border-emerald-600'
+              ? 'brand-tab-active'
               : isDark
                 ? 'bg-rose-950/80 text-rose-200 border-rose-800'
                 : 'bg-rose-50 text-rose-900 border-rose-200'
@@ -485,7 +485,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
         >
           <div className="flex items-center gap-2">
             {feedbackToast.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
             ) : (
               <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
             )}
@@ -547,7 +547,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
           {/* BARRA DO USUÁRIO CONECTADO + NAVEGAÇÃO DE SERVIÇOS */}
           <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span className="w-2 h-2 rounded-full bg-[var(--brand-primary)] shrink-0" />
               <span className="text-xs font-bold truncate">
                 {user?.email || user?.displayName || 'Conta Google Conectada'}
               </span>

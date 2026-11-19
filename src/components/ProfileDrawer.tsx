@@ -1181,11 +1181,11 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
           {/* STATUS DE UPLOAD E SINCRONIZAÇÃO COM O SUPABASE */}
           {avatarUploadStatus && (
-            <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded flex items-center gap-2.5 text-emerald-400 text-xs font-semibold animate-in fade-in slide-in-from-top-2">
+            <div className="p-3 brand-soft-badge border rounded flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-top-2">
               {isUploadingAvatar ? (
-                <Loader2 className="w-4 h-4 text-emerald-400 animate-spin shrink-0" />
+                <Loader2 className="w-4 h-4 brand-icon animate-spin shrink-0" />
               ) : (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <CheckCircle2 className="w-4 h-4 brand-icon shrink-0" />
               )}
               <span>{avatarUploadStatus}</span>
             </div>
@@ -1193,8 +1193,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
           {/* TOAST DE FEEDBACK DE SALVAMENTO */}
           {savedSuccessToast && (
-            <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded flex items-center gap-2.5 text-emerald-400 text-xs font-semibold animate-in fade-in slide-in-from-top-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="p-3 brand-soft-badge border rounded flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-top-2">
+              <CheckCircle2 className="w-4 h-4 brand-icon shrink-0" />
               <span>Dados pessoais atualizados com sucesso!</span>
             </div>
           )}
@@ -1967,7 +1967,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         </span>
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           item.status === 'CONFIRMADO' 
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            ? 'brand-soft-badge border'
                             : item.status === 'ALTERADO' || isPendingB || isPendingSalon
                             ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                             : 'bg-slate-800 text-slate-400 border border-slate-700'
@@ -2043,8 +2043,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
                                   <div className="flex items-center gap-1.5 text-[10px]">
                                     {isAcceptedTarget && (
-                                      <span className="text-emerald-400 font-bold flex items-center gap-0.5">
-                                        <Check className="w-3 h-3" /> Aceitou
+                                      <span className="brand-text font-bold flex items-center gap-0.5">
+                                        <Check className="w-3 h-3 brand-icon" /> Aceitou
                                       </span>
                                     )}
                                     {isRejectedTarget && (
@@ -2136,14 +2136,14 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       {!isPendingB && !isRejected && !isPendingSalon && item.status === 'CONFIRMADO' && (
                         <div className="space-y-2 pt-1">
                           {(item.tracking_status === 'live_sharing' || item.tracking_status === 'arriving_5min') && (
-                            <div className="px-2.5 py-1.5 rounded-[4px] bg-emerald-500 text-white text-[10.5px] font-mono tabular-nums font-bold flex items-center justify-between">
-                              <span className="flex items-center gap-1.5 text-white truncate">
-                                <Bell className="w-3.5 h-3.5 text-white shrink-0" />
-                                <span className="text-white truncate">
+                            <div className="px-2.5 py-1.5 rounded-[4px] brand-tab-active text-[10.5px] font-mono tabular-nums font-bold flex items-center justify-between">
+                              <span className="flex items-center gap-1.5 truncate">
+                                <Bell className="w-3.5 h-3.5 shrink-0" />
+                                <span className="truncate">
                                   {item.current_street_name || 'Av. Rebouças'} • ETA {item.eta_minutes ?? 12}m
                                 </span>
                               </span>
-                              <span className="text-[9.5px] font-black text-white shrink-0">10s</span>
+                              <span className="text-[9.5px] font-black shrink-0">10s</span>
                             </div>
                           )}
 
@@ -2863,7 +2863,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       <h3 className={`font-bold text-xs truncate ${isDark ? 'text-white' : 'text-[#1E293B]'}`}>
                         {salonName}
                       </h3>
-                      <span className="w-2 h-2 rounded-full bg-[#008B47] shrink-0" title="Online no Vagou" />
+                      <span className="w-2 h-2 rounded-full bg-[var(--brand-primary)] shrink-0" title="Online no Vagou" />
                     </div>
                     <p className="text-[10px] text-[#64748B] truncate flex items-center gap-1">
                       <ShieldCheck className="w-3.5 h-3.5 brand-icon shrink-0" />

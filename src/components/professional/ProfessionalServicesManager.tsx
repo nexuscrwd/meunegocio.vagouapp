@@ -2800,7 +2800,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'} leading-relaxed`}>
                   Tem certeza que deseja excluir a categoria <strong className={isDark ? 'text-white' : 'text-slate-900'}>"{deleteConfirmCategory}"</strong>? 
                   <br />
-                  <span className="text-emerald-400 font-semibold">Nota:</span> Seus serviços associados não serão excluídos, eles serão movidos de forma segura para a categoria <strong className={isDark ? 'text-white' : 'text-slate-900'}>"Outros"</strong>.
+                  <span className="brand-text font-semibold">Nota:</span> Seus serviços associados não serão excluídos, eles serão movidos de forma segura para a categoria <strong className={isDark ? 'text-white' : 'text-slate-900'}>"Outros"</strong>.
                 </p>
               </div>
             </div>

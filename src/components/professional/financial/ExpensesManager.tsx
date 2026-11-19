@@ -87,9 +87,9 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
         </div>
 
         <div className={`p-2.5 rounded border flex flex-col justify-between ${
-          isDark ? 'bg-slate-900/90 border-emerald-500/30' : 'bg-white border-emerald-300 shadow-2xs'
+          isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
         }`}>
-          <span className="text-[9.5px] font-bold uppercase tracking-wider text-emerald-500">Total Pago</span>
+          <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400">Total Pago</span>
           <span className="text-sm font-black font-mono text-rose-500 mt-1">
             R$ {paidAmount.toFixed(2).replace('.', ',')}
           </span>
@@ -223,14 +223,14 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                       }}
                       className={`text-[9px] font-bold px-2 py-0.5 rounded cursor-pointer transition uppercase tracking-wider inline-flex items-center gap-1 ${
                         isPaid
-                          ? 'bg-emerald-500 text-white shadow-2xs hover:bg-emerald-600'
+                          ? 'brand-tab-active shadow-2xs'
                           : 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30'
                       }`}
                       title="Clique para alternar status"
                     >
                       {isPaid ? (
                         <>
-                          <CheckCircle2 className="w-2.5 h-2.5 text-white" />
+                          <CheckCircle2 className="w-2.5 h-2.5" />
                           <span>Pago</span>
                         </>
                       ) : (
@@ -388,7 +388,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                     onClick={() => setStatus('paid')}
                     className={`py-1.5 rounded text-xs font-bold border transition cursor-pointer ${
                       status === 'paid'
-                        ? 'bg-emerald-500 text-white border-emerald-500'
+                        ? 'brand-tab-active'
                         : isDark ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
                     }`}
                   >

@@ -681,7 +681,7 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
               }`}>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Caixa Realizado</span>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <CheckCircle2 className="w-3.5 h-3.5 brand-icon" />
                 </div>
                 <div className="mt-1.5">
                   <span className="text-[25px] text-center leading-none font-black font-mono tracking-tighter text-emerald-400 block">
@@ -724,11 +724,11 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
               <div className={`p-3 rounded border flex flex-col justify-between ${
                 salonNetProfit < 0
                   ? isDark ? 'bg-slate-900/90 border-rose-500/40' : 'bg-white border-rose-300 shadow-2xs'
-                  : isDark ? 'bg-slate-900/90 border-emerald-500/40' : 'bg-white border-emerald-300 shadow-2xs'
+                  : isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
               }`}>
                 <div className="flex items-center justify-between">
                   <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                    salonNetProfit < 0 ? 'text-rose-500' : 'text-emerald-500'
+                    salonNetProfit < 0 ? 'text-rose-500' : 'text-slate-400'
                   }`}>Lucro Líquido</span>
                 </div>
                 <div className="mt-1.5">
@@ -781,7 +781,7 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
                       <span className="font-mono font-bold text-rose-500">- R$ {totalPlatformFees.toFixed(2).replace('.', ',')}</span>
                     </div>
                     <div className="flex justify-between items-center pt-2">
-                      <span className={`font-bold uppercase text-[11px] tracking-wider ${salonNetProfit < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>(=) Lucro Líquido Real</span>
+                      <span className={`font-bold uppercase text-[11px] tracking-wider ${salonNetProfit < 0 ? 'text-rose-500' : isDark ? 'text-slate-200' : 'text-slate-700'}`}>(=) Lucro Líquido Real</span>
                       <span className={`font-mono font-black text-sm ${salonNetProfit < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
                         {salonNetProfit < 0 ? '- ' : ''}R$ {Math.abs(salonNetProfit).toFixed(2).replace('.', ',')}
                       </span>

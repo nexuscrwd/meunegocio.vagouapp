@@ -301,7 +301,7 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
           >
             {copied ? (
               <>
-                <Check className="w-3.5 h-3.5 text-emerald-500" />
+                <Check className="w-3.5 h-3.5 brand-icon" />
                 <span>Copiado!</span>
               </>
             ) : (

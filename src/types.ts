@@ -291,6 +291,7 @@ export interface SalonAdminSettings {
   showSlogan?: boolean; // Ocultar ou exibir slogan do cabeçalho (padrão true)
   logoTextFallback?: string; // Texto provisório do cabeçalho na ausência de logotipo
   logoTextColor?: string; // Cor personalizada da fonte do texto provisório
+  showHomeTab?: boolean; // Ocultar ou exibir a tela inicial e o botão Início no menu inferior (padrão true)
   showHeroSlides?: boolean; // Ocultar ou exibir slide da página principal (padrão true)
   brandFont?: 'Poppins' | 'Cormorant Garamond' | 'Oswald' | 'Plus Jakarta Sans' | string; // Fonte de destaque do Nome/Cabeçalho
   defaultTheme?: 'dark' | 'light'; // Layout claro ou escuro permanente

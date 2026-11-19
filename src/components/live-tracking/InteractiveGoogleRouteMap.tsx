@@ -542,11 +542,34 @@ function resolveActiveUserAvatarUrl(propAvatarUrl?: string): string {
   return '';
 }
 
+function getBrandThemeColors(): {
+  primary: string;
+  primaryFg: string;
+  primaryDark: string;
+  rgb: string;
+} {
+  if (typeof window === 'undefined') {
+    return {
+      primary: '#20C933',
+      primaryFg: '#FFFFFF',
+      primaryDark: '#0F172A',
+      rgb: '32, 201, 51',
+    };
+  }
+  const style = getComputedStyle(document.documentElement);
+  const primary = style.getPropertyValue('--brand-primary').trim() || '#20C933';
+  const primaryFg = style.getPropertyValue('--brand-primary-fg').trim() || '#FFFFFF';
+  const primaryDark = style.getPropertyValue('--brand-primary-dark').trim() || '#0F172A';
+  const rgb = style.getPropertyValue('--brand-primary-rgb').trim() || '32, 201, 51';
+  return { primary, primaryFg, primaryDark, rgb };
+}
+
 function createDirectionalUserMarkerElement(avatarUrl?: string): {
   container: HTMLDivElement;
   rotor: HTMLDivElement;
 } {
   const hasValidPhoto = isValidAvatarUrlString(avatarUrl);
+  const { primary, primaryFg, rgb } = getBrandThemeColors();
 
   const container = document.createElement('div');
   container.style.width = '56px';
@@ -575,8 +598,7 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
   visionCone.style.transform = 'translateX(-50%)';
   visionCone.style.width = '42px';
   visionCone.style.height = '40px';
-  visionCone.style.background =
-    'linear-gradient(to top, rgba(16, 185, 129, 0.55) 0%, rgba(16, 185, 129, 0.0) 100%)';
+  visionCone.style.background = `linear-gradient(to top, rgba(${rgb}, 0.55) 0%, rgba(${rgb}, 0.0) 100%)`;
   visionCone.style.clipPath = 'polygon(0% 0%, 100% 0%, 65% 100%, 35% 100%)';
   visionCone.style.borderRadius = '50% 50% 0 0';
 
@@ -585,10 +607,9 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
   defaultPuck.style.width = '26px';
   defaultPuck.style.height = '26px';
   defaultPuck.style.borderRadius = '9999px';
-  defaultPuck.style.background = '#10b981';
+  defaultPuck.style.background = primary;
   defaultPuck.style.border = '3px solid #ffffff';
-  defaultPuck.style.boxShadow =
-    '0 3px 12px rgba(0, 0, 0, 0.45), 0 0 0 4px rgba(16, 185, 129, 0.35)';
+  defaultPuck.style.boxShadow = `0 3px 12px rgba(0, 0, 0, 0.45), 0 0 0 4px rgba(${rgb}, 0.35)`;
   defaultPuck.style.display = hasValidPhoto ? 'none' : 'flex';
   defaultPuck.style.alignItems = 'center';
   defaultPuck.style.justifyContent = 'center';
@@ -598,7 +619,7 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
   arrow.style.height = '0';
   arrow.style.borderLeft = '5px solid transparent';
   arrow.style.borderRight = '5px solid transparent';
-  arrow.style.borderBottom = '9px solid #ffffff';
+  arrow.style.borderBottom = `9px solid ${primaryFg}`;
   arrow.style.transform = 'translateY(-1px)';
 
   defaultPuck.appendChild(arrow);
@@ -615,7 +636,7 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
     directionTip.style.height = '0';
     directionTip.style.borderLeft = '6px solid transparent';
     directionTip.style.borderRight = '6px solid transparent';
-    directionTip.style.borderBottom = '10px solid #10b981';
+    directionTip.style.borderBottom = `10px solid ${primary}`;
     directionTip.style.filter = 'drop-shadow(0 -1px 2px rgba(255,255,255,0.95))';
     rotor.appendChild(directionTip);
 
@@ -624,9 +645,8 @@ function createDirectionalUserMarkerElement(avatarUrl?: string): {
     avatarBadge.style.width = '34px';
     avatarBadge.style.height = '34px';
     avatarBadge.style.borderRadius = '9999px';
-    avatarBadge.style.border = '2.5px solid #10b981';
-    avatarBadge.style.boxShadow =
-      '0 2px 10px rgba(0, 0, 0, 0.45), 0 0 0 2px #ffffff, 0 0 0 5px rgba(16, 185, 129, 0.3)';
+    avatarBadge.style.border = `2.5px solid ${primary}`;
+    avatarBadge.style.boxShadow = `0 2px 10px rgba(0, 0, 0, 0.45), 0 0 0 2px #ffffff, 0 0 0 5px rgba(${rgb}, 0.3)`;
     avatarBadge.style.background = '#0f172a';
     avatarBadge.style.overflow = 'hidden';
     avatarBadge.style.display = 'flex';
@@ -752,7 +772,7 @@ const DirectionalUserPuck: React.FC<DirectionalUserPuckProps> = ({
           className="absolute -top-4 left-1/2 -translate-x-1/2 w-[42px] h-10 rounded-t-full"
           style={{
             background:
-              'linear-gradient(to top, rgba(16, 185, 129, 0.55) 0%, rgba(16, 185, 129, 0) 100%)',
+              'linear-gradient(to top, rgba(var(--brand-primary-rgb), 0.55) 0%, rgba(var(--brand-primary-rgb), 0) 100%)',
             clipPath: 'polygon(0% 0%, 100% 0%, 65% 100%, 35% 100%)',
           }}
         />
@@ -762,15 +782,15 @@ const DirectionalUserPuck: React.FC<DirectionalUserPuckProps> = ({
             style={{
               borderLeft: '6px solid transparent',
               borderRight: '6px solid transparent',
-              borderBottom: '10px solid #10b981',
+              borderBottom: '10px solid var(--brand-primary)',
               filter: 'drop-shadow(0 -1px 2px rgba(255,255,255,0.95))',
             }}
           />
         ) : (
           <div
-            className="relative w-[26px] h-[26px] rounded-full bg-emerald-500 border-[3px] border-white flex items-center justify-center"
+            className="relative w-[26px] h-[26px] rounded-full bg-[var(--brand-primary)] border-[3px] border-white flex items-center justify-center"
             style={{
-              boxShadow: '0 3px 12px rgba(0, 0, 0, 0.45), 0 0 0 4px rgba(16, 185, 129, 0.35)',
+              boxShadow: '0 3px 12px rgba(0, 0, 0, 0.45), 0 0 0 4px rgba(var(--brand-primary-rgb), 0.35)',
             }}
           >
             <div
@@ -778,7 +798,7 @@ const DirectionalUserPuck: React.FC<DirectionalUserPuckProps> = ({
               style={{
                 borderLeft: '5px solid transparent',
                 borderRight: '5px solid transparent',
-                borderBottom: '9px solid #ffffff',
+                borderBottom: '9px solid var(--brand-primary-fg)',
               }}
             />
           </div>
@@ -787,10 +807,10 @@ const DirectionalUserPuck: React.FC<DirectionalUserPuckProps> = ({
 
       {showPhoto && avatarUrl && (
         <div
-          className="absolute w-[34px] h-[34px] rounded-full border-[2.5px] border-emerald-500 bg-slate-900 overflow-hidden flex items-center justify-center z-10"
+          className="absolute w-[34px] h-[34px] rounded-full border-[2.5px] border-[var(--brand-primary)] bg-slate-900 overflow-hidden flex items-center justify-center z-10"
           style={{
             boxShadow:
-              '0 2px 10px rgba(0, 0, 0, 0.45), 0 0 0 2px #ffffff, 0 0 0 5px rgba(16, 185, 129, 0.3)',
+              '0 2px 10px rgba(0, 0, 0, 0.45), 0 0 0 2px #ffffff, 0 0 0 5px rgba(var(--brand-primary-rgb), 0.3)',
             transform: counterRotateCssVar ? 'rotate(var(--map-counter-rotate, 0deg))' : 'none',
             transition: 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)',
           }}
@@ -1193,8 +1213,10 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
 
     mountTileLayer(0);
 
+    const mapBrand = getBrandThemeColors();
+
     const outerPoly = L.polyline([], {
-      color: '#064e3b',
+      color: mapBrand.primaryDark,
       weight: 9,
       opacity: 0.9,
       lineCap: 'round',
@@ -1202,7 +1224,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     }).addTo(lmap);
 
     const innerPoly = L.polyline([], {
-      color: '#10b981',
+      color: mapBrand.primary,
       weight: 5.5,
       opacity: 1.0,
       lineCap: 'round',
@@ -1227,7 +1249,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     }).addTo(lmap);
 
     const destIcon = L.divIcon({
-      html: createPinBadge('#10b981', '#ffffff', destLabel.slice(0, 22)),
+      html: createPinBadge(mapBrand.primary, mapBrand.primaryFg, destLabel.slice(0, 22)),
       className: 'vagou-leaflet-badge',
       iconSize: [120, 24],
       iconAnchor: [60, 12],
@@ -1475,8 +1497,9 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
 
   useEffect(() => {
     if (leafletDestMarkerRef.current) {
+      const mapBrand = getBrandThemeColors();
       const destIcon = L.divIcon({
-        html: createPinBadge('#10b981', '#ffffff', destLabel.slice(0, 22)),
+        html: createPinBadge(mapBrand.primary, mapBrand.primaryFg, destLabel.slice(0, 22)),
         className: 'vagou-leaflet-badge',
         iconSize: [120, 24],
         iconAnchor: [60, 12],
@@ -1962,7 +1985,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
                 <>
                   <GooglePolyline
                     path={activePolylinePath}
-                    strokeColor="#064e3b"
+                    strokeColor={getBrandThemeColors().primaryDark}
                     strokeOpacity={0.9}
                     strokeWeight={9}
                     zIndex={10}
@@ -1970,7 +1993,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
                   />
                   <GooglePolyline
                     path={activePolylinePath}
-                    strokeColor="#10b981"
+                    strokeColor={getBrandThemeColors().primary}
                     strokeOpacity={1.0}
                     strokeWeight={5.5}
                     zIndex={11}
@@ -2008,7 +2031,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
                 zIndex={25}
               >
                 <div
-                  className="px-2 py-0.5 rounded-[4px] bg-emerald-500 text-white text-[10px] font-extrabold whitespace-nowrap shadow-md border border-white/90"
+                  className="px-2 py-0.5 rounded-[4px] brand-tab-active text-[10px] font-extrabold whitespace-nowrap shadow-md border border-white/90"
                   style={{
                     transform: useNativeVectorHeading
                       ? 'none'
@@ -2043,10 +2066,10 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         <button
           type="button"
           onClick={handleRecenterGps}
-          className="absolute top-3 right-3 z-20 px-3 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs flex items-center gap-1.5 shadow-xl active:scale-95 transition cursor-pointer"
+          className="absolute top-3 right-3 z-20 px-3 py-1.5 rounded-[4px] brand-btn font-black text-xs flex items-center gap-1.5 shadow-xl active:scale-95 transition cursor-pointer"
         >
-          <Navigation className="w-3.5 h-3.5 text-white" />
-          <span className="text-white">Recentralizar</span>
+          <Navigation className="w-3.5 h-3.5" />
+          <span>Recentralizar</span>
         </button>
       )}
     </div>
