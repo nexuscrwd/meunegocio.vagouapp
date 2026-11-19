@@ -112,7 +112,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
       <div className="w-full max-w-md my-auto border rounded-[4px] overflow-hidden shadow-2xl flex flex-col max-h-[90vh] bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white">
         <div className="px-4 py-3 border-b flex items-center justify-between gap-2 bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-2 min-w-0">
-            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+            <CheckCircle2 className="w-4 h-4 brand-icon shrink-0" />
             <h3 className="text-sm font-extrabold font-['Poppins'] leading-snug">Resumo do Agendamento</h3>
           </div>
           <button
@@ -128,20 +128,20 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
           <div className="space-y-2">
             <div className="flex justify-between items-start gap-2">
               <span className="flex items-center gap-1.5 text-slate-500 shrink-0">
-                <Scissors className="w-3.5 h-3.5 text-emerald-500" /> Serviço:
+                <Scissors className="w-3.5 h-3.5 brand-icon" /> Serviço:
               </span>
               <span className="font-bold text-right break-words">{selectedService.title}</span>
             </div>
 
             <div className="flex justify-between items-start gap-2">
               <span className="flex items-center gap-1.5 text-slate-500 shrink-0">
-                {isDependentBooking ? <Users className="w-3.5 h-3.5 text-emerald-500" /> : <User className="w-3.5 h-3.5 text-emerald-500" />}
+                {isDependentBooking ? <Users className="w-3.5 h-3.5 brand-icon" /> : <User className="w-3.5 h-3.5 brand-icon" />}
                 Beneficiário:
               </span>
               <button
                 type="button"
                 onClick={() => { onClose(); beneficiary.openBeneficiaryModal(); }}
-                className="font-bold text-emerald-500 hover:underline cursor-pointer text-right break-words"
+                className="font-bold brand-text hover:underline cursor-pointer text-right break-words"
               >
                 {isDependentBooking && dependentName ? `${dependentName} (Dependente)` : 'Para Você (Titular)'}
               </button>
@@ -149,14 +149,14 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
 
             <div className="flex justify-between items-start gap-2">
               <span className="flex items-center gap-1.5 text-slate-500 shrink-0">
-                <Building2 className="w-3.5 h-3.5 text-emerald-500" /> Estabelecimento:
+                <Building2 className="w-3.5 h-3.5 brand-icon" /> Estabelecimento:
               </span>
               <span className="font-bold text-right break-words">{salonName}</span>
             </div>
 
             <div className="flex justify-between items-start gap-2">
               <span className="flex items-center gap-1.5 text-slate-500 shrink-0">
-                <User className="w-3.5 h-3.5 text-emerald-500" /> Profissional:
+                <User className="w-3.5 h-3.5 brand-icon" /> Profissional:
               </span>
               <span className="font-bold text-right break-words">
                 {selectedProfessional === 'any' ? resolvedProfessionalName : selectedProfessional}
@@ -165,9 +165,9 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
 
             <div className="flex justify-between items-center gap-2">
               <span className="flex items-center gap-1.5 text-slate-500 shrink-0">
-                <Calendar className="w-3.5 h-3.5 text-emerald-500" /> Data e Horário:
+                <Calendar className="w-3.5 h-3.5 brand-icon" /> Data e Horário:
               </span>
-              <span className="font-extrabold text-emerald-500 text-right">
+              <span className="font-extrabold brand-text text-right">
                 {shortDateFormatted} às {selectedTimeSlot}
               </span>
             </div>
@@ -175,13 +175,13 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
             {transport.resolvedRoute && (
               <div className="p-3 rounded-[4px] space-y-2.5 mt-2 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-white">
                 <div className="flex items-start justify-between gap-2">
-                  <span className="text-[11px] font-extrabold text-emerald-500 leading-snug break-words flex-1">
+                  <span className="text-[11px] font-extrabold brand-text leading-snug break-words flex-1">
                     {transport.resolvedRoute.formattedAddress}
                   </span>
                   <button
                     type="button"
                     onClick={() => { onClose(); origin.isOpen(); }}
-                    className="text-[10px] font-bold text-emerald-500 hover:underline shrink-0 cursor-pointer"
+                    className="text-[10px] font-bold brand-text hover:underline shrink-0 cursor-pointer"
                   >
                     Alterar origem
                   </button>
@@ -189,22 +189,22 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
 
                 <div className="space-y-1 font-bold text-xs">
                   <div className="flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <MapPin className="w-3.5 h-3.5 brand-icon shrink-0" />
                     <span>Distância de {transport.resolvedRoute.distanceKm.toFixed(1).replace('.', ',')} km</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    {transport.transportMode === 'motorcycle' ? <Bike className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> :
-                     transport.transportMode === 'transit' ? <Bus className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> :
-                     transport.transportMode === 'rideshare' ? <Smartphone className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> :
-                     <Car className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
+                    {transport.transportMode === 'motorcycle' ? <Bike className="w-3.5 h-3.5 brand-icon shrink-0" /> :
+                     transport.transportMode === 'transit' ? <Bus className="w-3.5 h-3.5 brand-icon shrink-0" /> :
+                     transport.transportMode === 'rideshare' ? <Smartphone className="w-3.5 h-3.5 brand-icon shrink-0" /> :
+                     <Car className="w-3.5 h-3.5 brand-icon shrink-0" />}
                     <span>
                       Trajeto de {formatEta(transport.resolvedRoute.etaMinutes)} ({TRANSPORT_MODE_META[transport.transportMode].shortLabel})
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <Clock className="w-3.5 h-3.5 brand-icon shrink-0" />
                     <span>
-                      Horário Máx. de saída <strong className="text-emerald-500">{maxDepartureTime}</strong>
+                      Horário Máx. de saída <strong className="brand-text">{maxDepartureTime}</strong>
                     </span>
                   </div>
                 </div>
@@ -216,11 +216,11 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
                         href={transportLinks.googleMapsTransitUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="w-full py-2.5 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center"
+                        className="w-full py-2.5 px-3 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center"
                       >
-                        <Bus className="w-3.5 h-3.5 text-white shrink-0" />
-                        <span className="text-white">Ver Linhas e Baldeações no Maps</span>
-                        <ExternalLink className="w-3 h-3 text-white shrink-0" />
+                        <Bus className="w-3.5 h-3.5 shrink-0" />
+                        <span>Ver Linhas e Baldeações no Maps</span>
+                        <ExternalLink className="w-3 h-3 shrink-0" />
                       </a>
                     )}
 
@@ -230,11 +230,11 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
                           href={transportLinks.googleMapsUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="py-2.5 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center"
+                          className="py-2.5 px-2.5 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center"
                         >
-                          <MapPin className="w-3.5 h-3.5 text-white shrink-0" />
-                          <span className="text-white">Maps ({transport.transportMode === 'motorcycle' ? 'Moto' : 'Carro'})</span>
-                          <ExternalLink className="w-3 h-3 text-white shrink-0" />
+                          <MapPin className="w-3.5 h-3.5 shrink-0" />
+                          <span>Maps ({transport.transportMode === 'motorcycle' ? 'Moto' : 'Carro'})</span>
+                          <ExternalLink className="w-3 h-3 shrink-0" />
                         </a>
                         <a
                           href={transportLinks.wazeUrl}
@@ -242,9 +242,9 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
                           rel="noopener noreferrer"
                           className="py-2.5 px-2.5 rounded-[4px] font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white hover:bg-slate-300 dark:hover:bg-slate-600"
                         >
-                          <Navigation className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                          <Navigation className="w-3.5 h-3.5 brand-icon shrink-0" />
                           <span>Abrir no Waze</span>
-                          <ExternalLink className="w-3 h-3 text-emerald-500 shrink-0" />
+                          <ExternalLink className="w-3 h-3 brand-icon shrink-0" />
                         </a>
                       </div>
                     )}
@@ -255,11 +255,11 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
                           href={transportLinks.uberUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="py-2.5 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center"
+                          className="py-2.5 px-2.5 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center"
                         >
-                          <Smartphone className="w-3.5 h-3.5 text-white shrink-0" />
-                          <span className="text-white">Chamar Uber</span>
-                          <ExternalLink className="w-3 h-3 text-white shrink-0" />
+                          <Smartphone className="w-3.5 h-3.5 shrink-0" />
+                          <span>Chamar Uber</span>
+                          <ExternalLink className="w-3 h-3 shrink-0" />
                         </a>
                         <a
                           href={transportLinks.app99Url}
@@ -310,11 +310,11 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({
             className={`w-full py-3 px-4 font-black text-xs uppercase tracking-wider rounded-[4px] transition flex items-center justify-center gap-2 font-['Poppins'] ${
               isSubmittingBooking
                 ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-wait'
-                : 'bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer active:scale-98'
+                : 'brand-btn cursor-pointer active:scale-98'
             }`}
           >
-            <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
-            <span className="text-white">{isSubmittingBooking ? 'Confirmando...' : 'Confirmar Agendamento'}</span>
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>{isSubmittingBooking ? 'Confirmando...' : 'Confirmar Agendamento'}</span>
           </button>
 
           <div className="grid grid-cols-3 gap-2">

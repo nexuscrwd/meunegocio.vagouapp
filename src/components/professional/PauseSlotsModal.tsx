@@ -40,8 +40,7 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
   salonName = 'Meu Estabelecimento',
   activeProName = 'Profissional',
 }) => {
-  const { isDark, accentColor } = useTheme();
-  const themeHex = accentColor || '#2B82C9';
+  const { isDark } = useTheme();
 
   // Determinar data de hoje
   const today = useMemo(() => new Date(), []);
@@ -260,7 +259,7 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
               isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-[#F1F5F9] text-[#1E293B]'
             }`}
           >
-            <ChevronRight className="w-4 h-4 rotate-180 text-[#2B82C9]" />
+            <ChevronRight className="w-4 h-4 rotate-180 brand-icon" />
             <span>Voltar</span>
           </button>
 
@@ -287,14 +286,14 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
           }`}>
             <div className="flex items-center gap-2.5">
               <div className="caixa-icon-halo w-10 h-10 rounded-full shrink-0">
-                <CirclePause className="w-5 h-5 text-[#2B82C9] stroke-[2.2]" />
+                <CirclePause className="w-5 h-5 brand-icon stroke-[2.2]" />
               </div>
               <div>
                 <h2 className="text-xs font-bold text-[#1E293B] dark:text-white tracking-tight leading-tight">
                   Pausar Agendamentos
                 </h2>
                 <p className={`text-[11px] flex items-center gap-1.5 mt-0.5 font-mono-tabular ${isDark ? 'text-slate-400' : 'text-[#64748B]'}`}>
-                  <Calendar className="w-3 h-3 text-[#2B82C9]" />
+                  <Calendar className="w-3 h-3 brand-icon" />
                   Hoje • {formattedToday}
                 </p>
               </div>
@@ -308,10 +307,10 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
               type="button"
               onClick={handlePauseAllUpcoming}
               disabled={stats.futureAvailableCount === 0}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] disabled:opacity-40 disabled:pointer-events-none text-white font-bold text-xs transition active:scale-98 shadow-xs cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-[4px] brand-btn disabled:opacity-40 disabled:pointer-events-none font-bold text-xs transition active:scale-98 shadow-xs cursor-pointer"
             >
-              <Lock className="w-3.5 h-3.5 text-white stroke-[2.4]" />
-              <span className="text-white">Pausar Todos ({stats.futureAvailableCount} livres)</span>
+              <Lock className="w-3.5 h-3.5 stroke-[2.4]" />
+              <span>Pausar Todos ({stats.futureAvailableCount} livres)</span>
             </button>
 
             {/* Botão Despausar (> 1h) */}
@@ -326,7 +325,7 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
               }`}
               title="Desbloqueia os horários a partir de 1 hora da hora atual"
             >
-              <Unlock className="w-3.5 h-3.5 text-[#2B82C9]" />
+              <Unlock className="w-3.5 h-3.5 brand-icon" />
               <span>Despausar (&gt; 1h)</span>
             </button>
 
@@ -404,8 +403,8 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
                       onClick={() => handleToggleSlot(s.time)}
                       className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-[4px] border transition active:scale-95 cursor-pointer ${
                         isDark 
-                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white hover:border-slate-700' 
-                          : 'bg-[#F7F9FC] hover:bg-[#EBF5FF] border-[#D5E0EC] text-[#1E293B] hover:border-[#2B82C9]'
+                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white hover:border-[var(--brand-primary)]' 
+                          : 'bg-[#F7F9FC] hover:bg-[var(--brand-soft-bg)] border-[#D5E0EC] text-[#1E293B] hover:border-[var(--brand-primary)]'
                       }`}
                       title="Toque para pausar este horário"
                     >
@@ -413,7 +412,7 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
                         {s.time}
                       </span>
                       <span 
-                        className="text-[9px] font-bold uppercase tracking-wider mt-0.5 text-[#2B82C9]"
+                        className="text-[9px] font-bold uppercase tracking-wider mt-0.5 brand-text"
                       >
                         Vago
                       </span>
@@ -440,10 +439,10 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
               hapticLight();
               onClose();
             }}
-            className="py-2 px-5 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] text-white font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-xs cursor-pointer"
+            className="py-2 px-5 rounded-[4px] brand-btn font-bold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-xs cursor-pointer"
           >
-            <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
-            <span className="text-white">Concluir</span>
+            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Concluir</span>
           </button>
         </div>
       </div>

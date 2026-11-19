@@ -55,9 +55,7 @@ export const DateSelectionStep: React.FC<DateSelectionStepProps> = ({
               'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'
             }`}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
+            <ChevronLeft className="w-4 h-4" />
           </button>
 
           <div className="text-center">
@@ -74,9 +72,7 @@ export const DateSelectionStep: React.FC<DateSelectionStepProps> = ({
               'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'
             }`}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
 
@@ -109,15 +105,15 @@ export const DateSelectionStep: React.FC<DateSelectionStepProps> = ({
                 }}
                 className={`h-11 rounded-[4px] font-bold text-xs transition-all relative flex flex-col items-center justify-center cursor-pointer ${
                   isSelected
-                    ? 'bg-emerald-500 text-white font-black shadow-md z-10'
+                    ? 'brand-tab-active font-black shadow-md z-10'
                     : isDayDisabled
                     ? 'bg-slate-100/50 dark:bg-slate-900/40 text-slate-300 dark:text-slate-700 cursor-not-allowed border border-slate-200 dark:border-slate-800/50 opacity-40'
-                    : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-emerald-500/40 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20'
+                    : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-[var(--brand-primary)]/50'
                 }`}
               >
-                <span className={isSelected ? 'text-white' : ''}>{item.dayNumber}</span>
+                <span>{item.dayNumber}</span>
                 {item.isToday && !isSelected && (
-                  <span className="text-[8px] font-black uppercase text-emerald-500">Hoje</span>
+                  <span className="text-[8px] font-black uppercase brand-text">Hoje</span>
                 )}
                 {item.isClosed && (
                   <span className="text-[8px] text-rose-500 font-bold">Fechado</span>

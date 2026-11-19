@@ -93,26 +93,16 @@ export const ProfileModeSwitchModal: React.FC<ProfileModeSwitchModalProps> = ({
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <div
-              className={`w-9 h-9 rounded-[4px] flex items-center justify-center shrink-0 text-white ${
-                isEnteringClientMode ? 'bg-emerald-500' : 'bg-[#2B82C9]'
-              }`}
+              className="w-9 h-9 rounded-[4px] flex items-center justify-center shrink-0 brand-btn"
             >
               {isEnteringClientMode ? (
-                <Eye className="w-4 h-4 text-white" />
+                <Eye className="w-4 h-4" />
               ) : (
-                <Store className="w-4 h-4 text-white" />
+                <Store className="w-4 h-4" />
               )}
             </div>
             <div className="min-w-0">
-              <span
-                className={`text-[10px] font-extrabold uppercase tracking-wider block ${
-                  isEnteringClientMode
-                    ? 'text-emerald-500'
-                    : isDark
-                    ? 'text-sky-400'
-                    : 'text-[#2B82C9]'
-                }`}
-              >
+              <span className="text-[10px] font-extrabold uppercase tracking-wider block brand-text">
                 {isEnteringClientMode ? 'Mudando para Visão Pública' : 'Mudando para Gestão Interna'}
               </span>
               <h3 className="text-sm font-extrabold font-['Poppins'] truncate leading-tight">
@@ -159,11 +149,7 @@ export const ProfileModeSwitchModal: React.FC<ProfileModeSwitchModalProps> = ({
               const Icon = item.icon;
               return (
                 <div key={idx} className="py-3 flex items-start gap-3">
-                  <Icon
-                    className={`w-4 h-4 shrink-0 mt-0.5 ${
-                      isEnteringClientMode ? 'text-emerald-500' : 'text-[#2B82C9]'
-                    }`}
-                  />
+                  <Icon className="w-4 h-4 shrink-0 mt-0.5 brand-icon" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold leading-snug">{item.title}</p>
                     <p
@@ -207,14 +193,10 @@ export const ProfileModeSwitchModal: React.FC<ProfileModeSwitchModalProps> = ({
               hapticSuccess();
               onConfirm();
             }}
-            className={`flex-1 py-2.5 px-4 rounded-[4px] font-bold text-xs text-white flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98 whitespace-nowrap ${
-              isEnteringClientMode
-                ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                : 'bg-[#2B82C9] hover:bg-[#1F6FB0] text-white'
-            }`}
+            className="flex-1 py-2.5 px-4 rounded-[4px] font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98 whitespace-nowrap brand-btn"
           >
-            <Check className="w-4 h-4 text-white shrink-0" />
-            <span className="text-white">
+            <Check className="w-4 h-4 shrink-0" />
+            <span>
               {isEnteringClientMode ? 'Entrar no Modo Cliente' : 'Entrar no Modo Salão'}
             </span>
           </button>

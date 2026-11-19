@@ -80,8 +80,8 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
           isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
         }`}>
           <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400">Total Custos</span>
-          <span className="text-sm font-black font-mono text-slate-100 mt-1">
-            R$ {totalAmount.toFixed(2).replace('.', ',')}
+          <span className="text-sm font-black font-mono text-rose-500 mt-1">
+            - R$ {totalAmount.toFixed(2).replace('.', ',')}
           </span>
           <span className="text-[9px] text-slate-500 mt-0.5">{expenses.length} lançamentos</span>
         </div>
@@ -89,8 +89,8 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
         <div className={`p-2.5 rounded border flex flex-col justify-between ${
           isDark ? 'bg-slate-900/90 border-emerald-500/30' : 'bg-white border-emerald-300 shadow-2xs'
         }`}>
-          <span className="text-[9.5px] font-bold uppercase tracking-wider text-emerald-400">Total Pago</span>
-          <span className="text-sm font-black font-mono text-emerald-400 mt-1">
+          <span className="text-[9.5px] font-bold uppercase tracking-wider text-emerald-500">Total Pago</span>
+          <span className="text-sm font-black font-mono text-rose-500 mt-1">
             R$ {paidAmount.toFixed(2).replace('.', ',')}
           </span>
           <span className="text-[9px] text-slate-500 mt-0.5">Quitados</span>
@@ -99,8 +99,8 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
         <div className={`p-2.5 rounded border flex flex-col justify-between ${
           isDark ? 'bg-slate-900/90 border-amber-500/30' : 'bg-white border-amber-300 shadow-2xs'
         }`}>
-          <span className="text-[9.5px] font-bold uppercase tracking-wider text-amber-400">A Vencer</span>
-          <span className="text-sm font-black font-mono text-amber-400 mt-1">
+          <span className="text-[9.5px] font-bold uppercase tracking-wider text-amber-500">A Vencer</span>
+          <span className="text-sm font-black font-mono text-amber-500 mt-1">
             R$ {pendingAmount.toFixed(2).replace('.', ',')}
           </span>
           <span className="text-[9px] text-slate-500 mt-0.5">Pendentes</span>
@@ -129,7 +129,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
               }}
               className={`px-2.5 py-1 rounded text-[10.5px] font-bold transition whitespace-nowrap cursor-pointer ${
                 filter === item.id
-                  ? 'bg-emerald-500 text-white shadow-xs'
+                  ? 'brand-tab-active shadow-xs'
                   : isDark
                   ? 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
                   : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
@@ -147,9 +147,9 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
             hapticLight();
             setShowAddModal(true);
           }}
-          className="px-3 py-1.5 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition cursor-pointer shadow-xs shrink-0 ml-auto"
+          className="px-3 py-1.5 rounded brand-btn text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition cursor-pointer shadow-xs shrink-0 ml-auto"
         >
-          <Plus className="w-3.5 h-3.5 text-white" />
+          <Plus className="w-3.5 h-3.5" />
           <span>Lançar Custo</span>
         </button>
       </div>
@@ -269,7 +269,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
           }`}>
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
               <div className="flex items-center gap-2">
-                <Receipt className="w-4 h-4 text-emerald-400" />
+                <Receipt className="w-4 h-4 brand-icon" />
                 <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
                   Lançar Custo / Despesa
                 </h3>
@@ -293,8 +293,8 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                   placeholder="Ex: Aluguel do Espaço, Pomada Matte, Energia..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className={`w-full px-3 py-2 text-xs rounded border outline-none font-medium ${
-                    isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  className={`w-full px-3 py-2 text-xs rounded border outline-none font-medium brand-ring-focus ${
+                    isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
                   required
                 />
@@ -310,8 +310,8 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                     placeholder="0,00"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className={`w-full px-3 py-2 text-xs font-mono font-bold rounded border outline-none ${
-                      isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    className={`w-full px-3 py-2 text-xs font-mono font-bold rounded border outline-none brand-ring-focus ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                     }`}
                     required
                   />
@@ -325,8 +325,8 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                     type="date"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
-                    className={`w-full px-3 py-2 text-xs font-mono rounded border outline-none ${
-                      isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    className={`w-full px-3 py-2 text-xs font-mono rounded border outline-none brand-ring-focus ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                     }`}
                     required
                   />
@@ -407,7 +407,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold uppercase tracking-wider shadow-xs cursor-pointer"
+                  className="px-4 py-1.5 rounded brand-btn text-xs font-bold uppercase tracking-wider shadow-xs cursor-pointer"
                 >
                   Confirmar Lançamento
                 </button>

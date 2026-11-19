@@ -171,7 +171,7 @@ export const SalonLocationGroundingPanel: React.FC<SalonLocationGroundingPanelPr
       {/* Seletor de Modo: Radar Google Maps vs Google Search Web */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
-          <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+          <MapPin className="w-3.5 h-3.5 brand-icon shrink-0" />
           <span className="text-[11px] font-bold uppercase tracking-wider">
             Radar Inteligente da Região
           </span>
@@ -183,14 +183,14 @@ export const SalonLocationGroundingPanel: React.FC<SalonLocationGroundingPanelPr
             onClick={() => handleModeSwitch('maps')}
             className={`px-2 py-1 rounded-[4px] text-[10px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap ${
               mode === 'maps'
-                ? 'bg-emerald-500 text-white'
+                ? 'brand-tab-active'
                 : isDark
                 ? 'bg-slate-900 text-slate-400 hover:text-white'
                 : 'bg-slate-200 text-slate-700 hover:text-slate-950'
             }`}
           >
-            <MapPin className={`w-3 h-3 shrink-0 ${mode === 'maps' ? 'text-white' : 'text-emerald-400'}`} />
-            <span className={mode === 'maps' ? 'text-white' : ''}>Google Maps</span>
+            <MapPin className={`w-3 h-3 shrink-0 ${mode === 'maps' ? '' : 'brand-icon'}`} />
+            <span>Google Maps</span>
           </button>
 
           <button
@@ -198,14 +198,14 @@ export const SalonLocationGroundingPanel: React.FC<SalonLocationGroundingPanelPr
             onClick={() => handleModeSwitch('search')}
             className={`px-2 py-1 rounded-[4px] text-[10px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap ${
               mode === 'search'
-                ? 'bg-emerald-500 text-white'
+                ? 'brand-tab-active'
                 : isDark
                 ? 'bg-slate-900 text-slate-400 hover:text-white'
                 : 'bg-slate-200 text-slate-700 hover:text-slate-950'
             }`}
           >
-            <Globe className={`w-3 h-3 shrink-0 ${mode === 'search' ? 'text-white' : 'text-emerald-400'}`} />
-            <span className={mode === 'search' ? 'text-white' : ''}>Busca Google</span>
+            <Globe className={`w-3 h-3 shrink-0 ${mode === 'search' ? '' : 'brand-icon'}`} />
+            <span>Busca Google</span>
           </button>
         </div>
       </div>
@@ -224,14 +224,14 @@ export const SalonLocationGroundingPanel: React.FC<SalonLocationGroundingPanelPr
               }}
               className={`px-2.5 py-1.5 rounded-[4px] text-[10px] font-bold flex items-center gap-1.5 shrink-0 transition cursor-pointer whitespace-nowrap ${
                 isSelected
-                  ? 'bg-emerald-500 text-white'
+                  ? 'brand-tab-active'
                   : isDark
                   ? 'bg-slate-900 text-slate-300 hover:bg-slate-800'
                   : 'bg-white text-slate-700 hover:bg-slate-100'
               }`}
             >
-              <Icon className={`w-3 h-3 shrink-0 ${isSelected ? 'text-white' : 'text-emerald-400'}`} />
-              <span className={isSelected ? 'text-white' : ''}>{label}</span>
+              <Icon className={`w-3 h-3 shrink-0 ${isSelected ? '' : 'brand-icon'}`} />
+              <span>{label}</span>
             </button>
           );
         })}
@@ -250,19 +250,19 @@ export const SalonLocationGroundingPanel: React.FC<SalonLocationGroundingPanelPr
                 ? 'Buscar farmácia, banco, estacionamento perto...'
                 : 'Pesquisar tendências, clima ou trânsito no Google...'
             }
-            className={`w-full pl-8 pr-2.5 py-1.5 rounded-[4px] text-[11px] outline-none transition ${
+            className={`w-full pl-8 pr-2.5 py-1.5 rounded-[4px] text-[11px] outline-none transition brand-ring-focus ${
               isDark
-                ? 'bg-slate-900 text-white placeholder:text-slate-500 focus:ring-1 focus:ring-emerald-500'
-                : 'bg-white text-slate-900 placeholder:text-slate-400 focus:ring-1 focus:ring-emerald-500'
+                ? 'bg-slate-900 text-white placeholder:text-slate-500'
+                : 'bg-white text-slate-900 placeholder:text-slate-400'
             }`}
           />
         </div>
         <button
           type="submit"
           disabled={isLoading || !customQuery.trim()}
-          className="px-3 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-[10px] font-bold transition cursor-pointer whitespace-nowrap"
+          className="px-3 py-1.5 rounded-[4px] brand-btn disabled:opacity-50 text-[10px] font-bold transition cursor-pointer whitespace-nowrap"
         >
-          <span className="text-white">Consultar</span>
+          <span>Consultar</span>
         </button>
       </form>
 
@@ -274,7 +274,7 @@ export const SalonLocationGroundingPanel: React.FC<SalonLocationGroundingPanelPr
       >
         {isLoading ? (
           <div className="py-4 flex items-center justify-center gap-2 text-xs text-slate-400">
-            <Loader2 className="w-4 h-4 animate-spin text-emerald-500 shrink-0" />
+            <Loader2 className="w-4 h-4 animate-spin brand-icon shrink-0" />
             <span>
               {mode === 'maps'
                 ? 'Consultando Google Maps ao redor do salão...'
@@ -303,7 +303,7 @@ export const SalonLocationGroundingPanel: React.FC<SalonLocationGroundingPanelPr
             {/* Fontes & Links Diretos Obrigatórios (groundingChunks.maps.uri / groundingChunks.web.uri) */}
             {sources.length > 0 && (
               <div className="pt-1.5 space-y-1">
-                <span className="text-[9.5px] font-bold uppercase tracking-wider text-emerald-400 block">
+                <span className="text-[9.5px] font-bold uppercase tracking-wider brand-text block">
                   {mode === 'maps'
                     ? 'Locais Verificados no Google Maps:'
                     : 'Fontes Verificadas no Google Search:'}
@@ -317,8 +317,8 @@ export const SalonLocationGroundingPanel: React.FC<SalonLocationGroundingPanelPr
                       rel="noopener noreferrer"
                       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-[10px] font-bold transition cursor-pointer max-w-full ${
                         isDark
-                          ? 'bg-slate-950 hover:bg-emerald-500 text-emerald-400 hover:text-white'
-                          : 'bg-slate-100 hover:bg-emerald-500 text-slate-800 hover:text-white'
+                          ? 'bg-slate-950 hover:bg-[var(--brand-primary)] brand-text hover:text-[var(--brand-primary-fg)]'
+                          : 'bg-slate-100 hover:bg-[var(--brand-primary)] text-slate-800 hover:text-[var(--brand-primary-fg)]'
                       }`}
                       title={src.reviewSnippet || src.address || src.title}
                     >

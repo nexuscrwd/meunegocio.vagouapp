@@ -65,33 +65,31 @@ export const QuickFinancialCards: React.FC<QuickFinancialCardsProps> = ({
         </div>
       </div>
 
-      {/* 3. Ticket Médio (Média por cadeira) */}
+      {/* 3. Ticket Médio (Média por cadeira — valor indexado segue cor do tema) */}
       <div className={`p-2.5 rounded-lg border flex flex-col justify-between ${
-        isDark ? 'bg-amber-950/40 border-amber-800/60' : 'status-amber-bg text-slate-950'
+        isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 shadow-xs text-slate-900'
       }`}>
         <div className="flex items-center justify-between">
           <span className={`text-[9px] font-bold uppercase tracking-wider ${
-            isDark ? 'text-amber-400' : 'text-amber-950 font-extrabold'
+            isDark ? 'text-slate-400' : 'text-slate-500'
           }`}>
             Média por Cliente
           </span>
-          <Users className={`w-3.5 h-3.5 ${isDark ? 'text-amber-400' : 'text-slate-950'}`} />
+          <Users className="w-3.5 h-3.5 brand-icon" />
         </div>
         <div className="my-1">
-          <span className={`text-base sm:text-lg font-black font-mono leading-none ${
-            isDark ? 'text-amber-400' : 'text-slate-950'
-          }`}>
+          <span className="text-base sm:text-lg font-black font-mono leading-none brand-text">
             R$ {averageTicket.toFixed(2).replace('.', ',')}
           </span>
         </div>
         <span className={`text-[9px] font-mono ${
-          isDark ? 'text-amber-300/80' : 'text-amber-900 font-bold'
+          isDark ? 'text-slate-400' : 'text-slate-500'
         }`}>
           Ticket médio praticado
         </span>
       </div>
 
-      {/* 4. Lucro Líquido / Meu Bolso */}
+      {/* 4. Lucro Líquido / Meu Bolso (verde positivo, vermelho negativo) */}
       <div className={`p-2.5 rounded-lg border flex flex-col justify-between ${
         isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 shadow-xs text-slate-900'
       }`}>
@@ -101,10 +99,12 @@ export const QuickFinancialCards: React.FC<QuickFinancialCardsProps> = ({
           }`}>
             {isOwner ? 'Lucro Líquido' : 'Meu Bolso (Líquido)'}
           </span>
-          <Wallet className="w-3.5 h-3.5 text-emerald-500" />
+          <Wallet className={`w-3.5 h-3.5 ${netProfitOrCommission < 0 ? 'text-rose-500' : 'text-emerald-500'}`} />
         </div>
         <div className="my-1">
-          <span className="text-base sm:text-lg font-black font-mono leading-none text-emerald-500">
+          <span className={`text-base sm:text-lg font-black font-mono leading-none ${
+            netProfitOrCommission < 0 ? 'text-rose-500' : 'text-emerald-500'
+          }`}>
             R$ {netProfitOrCommission.toFixed(2).replace('.', ',')}
           </span>
         </div>

@@ -1129,7 +1129,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 }}
                 className={`h-8 px-2.5 rounded-[4px] border flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider transition active:scale-95 cursor-pointer shadow-2xs ${
                   isLiveSharing
-                    ? 'bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 shadow-xs'
+                    ? 'brand-btn shadow-xs'
                     : isDark
                       ? 'opacity-50 hover:opacity-75 bg-slate-800/80 text-slate-400 border-slate-700'
                       : 'opacity-50 hover:opacity-75 bg-slate-100 text-slate-500 border-slate-300'
@@ -1143,7 +1143,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 <Navigation
                   className={`w-3.5 h-3.5 ${
                     isLiveSharing
-                      ? 'text-white fill-white animate-pulse'
+                      ? 'fill-current animate-pulse'
                       : isDark
                         ? 'text-slate-400'
                         : 'text-slate-500'
@@ -1152,7 +1152,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 <span
                   className={
                     isLiveSharing
-                      ? 'text-white font-bold'
+                      ? 'font-bold'
                       : isDark
                         ? 'text-slate-400'
                         : 'text-slate-500'
@@ -1238,7 +1238,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
           isDark ? 'bg-slate-900/40 border-slate-800/80 text-slate-500' : 'bg-[#FFFFFF] border-[#D5E0EC] text-[#5F6C7B]'
         }`}
       >
-        <CheckCircle2 className="w-4 h-4 mb-0.5 text-[#008B47]" />
+        <CheckCircle2 className="w-4 h-4 mb-0.5 brand-icon" />
         <p className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-[#1E293B]'}`}>
           Confirmação de Atendimento
         </p>
@@ -1354,7 +1354,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     </span>
                   ) : (
                     <span className={`px-2 py-0.5 rounded-[4px] font-bold text-[10px] uppercase tracking-wider ${
-                      isDark ? 'bg-slate-800 text-slate-300' : 'bg-[#005CA9] text-white'
+                      isDark ? 'bg-slate-800 text-slate-300' : 'brand-btn'
                     }`}>
                       Aguardando Início
                     </span>
@@ -1549,10 +1549,10 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                         const protocolCode = actionModalAppointment.protocolCode || actionModalAppointment.id;
                         handleConfirmAppointment(protocolCode);
                       }}
-                      className="w-full py-2.5 px-4 rounded bg-[#005CA9] hover:bg-[#004A87] text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition cursor-pointer active:scale-98"
+                      className="w-full py-2.5 px-4 rounded-[4px] brand-btn font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition cursor-pointer active:scale-98"
                     >
-                      <CheckCircle2 className="w-4 h-4 text-white" />
-                      <span className="text-white">Confirmar Presença</span>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Confirmar Presença</span>
                     </button>
                   )}
 

@@ -728,7 +728,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
               }`}
               title="Voltar à lista de profissionais"
             >
-              <ArrowLeft className="w-4 h-4 text-emerald-500" />
+              <ArrowLeft className="w-4 h-4 brand-icon" />
             </button>
             <h2 className="text-xs sm:text-sm font-bold font-['Poppins'] truncate">
               {editingMember ? editingMember.name : 'Novo Profissional'}
@@ -780,9 +780,9 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
                   Foto de Perfil
                 </span>
-                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold cursor-pointer transition">
-                  <Camera className="w-3.5 h-3.5 text-white" />
-                  <span className="text-white">Selecionar Foto</span>
+                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] brand-btn text-xs font-bold cursor-pointer transition">
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Selecionar Foto</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -804,10 +804,10 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
                 placeholder="Ex: Carlos Silva"
-                className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition brand-ring-focus ${
                   isDark
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
-                    : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                    ? 'bg-slate-950 border-slate-800 text-white'
+                    : 'bg-slate-50 border-slate-300 text-slate-900'
                 }`}
               />
             </div>
@@ -815,7 +815,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
             {/* 2. FUNÇÃO (Atendente, Recepcionista, Prof. Autônomo ou Outros com Input de Texto) */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <Briefcase className="w-3.5 h-3.5 text-emerald-400" />
+                <Briefcase className="w-3.5 h-3.5 brand-icon" />
                 <span>Função</span>
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
@@ -836,13 +836,13 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
                       }}
                       className={`py-2 px-2.5 rounded-[4px] text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
                         isSel
-                          ? 'bg-emerald-500 text-white shadow-xs'
+                          ? 'brand-btn shadow-xs'
                           : isDark
                           ? 'bg-slate-950 text-slate-300 hover:text-white'
                           : 'bg-slate-100 text-slate-700 hover:text-slate-900'
                       }`}
                     >
-                      <span className={isSel ? 'text-white' : ''}>{opt.label}</span>
+                      <span>{opt.label}</span>
                     </button>
                   );
                 })}
@@ -854,10 +854,10 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
                   value={formCustomJobFunction}
                   onChange={(e) => setFormCustomJobFunction(e.target.value)}
                   placeholder="Digite a função (ex: Barbeiro, Manicure, Esteticista...)"
-                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition animate-in fade-in ${
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition animate-in fade-in brand-ring-focus ${
                     isDark
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      ? 'bg-slate-950 border-slate-800 text-white'
+                      : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
                 />
               )}
@@ -866,7 +866,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
             {/* 3. TIPO (Profissional, Administrador, Superadministrador) */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <ShieldCheck className="w-3.5 h-3.5 brand-icon" />
                 <span>Tipo</span>
               </label>
               <div className="grid grid-cols-3 gap-1.5">
@@ -886,13 +886,13 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
                       }}
                       className={`py-2 px-2 rounded-[4px] text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap truncate ${
                         isSel
-                          ? 'bg-emerald-500 text-white shadow-xs'
+                          ? 'brand-btn shadow-xs'
                           : isDark
                           ? 'bg-slate-950 text-slate-300 hover:text-white'
                           : 'bg-slate-100 text-slate-700 hover:text-slate-900'
                       }`}
                     >
-                      <span className={`truncate ${isSel ? 'text-white' : ''}`}>{opt.label}</span>
+                      <span className="truncate">{opt.label}</span>
                     </button>
                   );
                 })}
@@ -910,10 +910,10 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                  <Layers className="w-3.5 h-3.5 brand-icon" />
                   <span>Categorias que Atende</span>
                 </label>
-                <span className="text-[10px] font-bold text-emerald-400">
+                <span className="text-[10px] font-bold brand-text">
                   {formCategories.length} selecionadas
                 </span>
               </div>
@@ -928,14 +928,14 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
                       onClick={() => toggleCategory(cat)}
                       className={`px-2.5 py-1.5 rounded-[4px] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                         isSel
-                          ? 'bg-emerald-500 text-white shadow-xs'
+                          ? 'brand-btn shadow-xs'
                           : isDark
                           ? 'bg-slate-950 text-slate-300 hover:text-white'
                           : 'bg-slate-100 text-slate-700 hover:text-slate-900'
                       }`}
                     >
-                      {isSel && <Check className="w-3 h-3 text-white shrink-0" />}
-                      <span className={isSel ? 'text-white' : ''}>{cat}</span>
+                      {isSel && <Check className="w-3 h-3 shrink-0" />}
+                      <span>{cat}</span>
                     </button>
                   );
                 })}
@@ -946,7 +946,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
             <div className="space-y-2 pt-2 border-t border-slate-800/60">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Scissors className="w-3.5 h-3.5 text-emerald-400" />
+                  <Scissors className="w-3.5 h-3.5 brand-icon" />
                   <span>Serviços que Trabalha</span>
                 </label>
                 {filteredServicesForPro.length > 0 && (
@@ -962,7 +962,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
                         setFormServiceIds((prev) => Array.from(new Set([...prev, ...allVisibleIds])));
                       }
                     }}
-                    className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                    className="text-[10px] font-bold brand-text hover:opacity-80 cursor-pointer"
                   >
                     Alternar Todos
                   </button>
@@ -984,25 +984,25 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
                         onClick={() => toggleServiceId(srv.id)}
                         className={`p-2 rounded-[4px] text-xs font-bold transition flex items-center justify-between gap-2 cursor-pointer text-left ${
                           isSel
-                            ? 'bg-emerald-500 text-white shadow-xs'
+                            ? 'brand-btn shadow-xs'
                             : isDark
                             ? 'bg-slate-950 text-slate-300 hover:text-white'
                             : 'bg-slate-100 text-slate-700 hover:text-slate-900'
                         }`}
                       >
                         <div className="min-w-0 truncate">
-                          <span className={`block truncate ${isSel ? 'text-white' : ''}`}>
+                          <span className="block truncate">
                             {srv.title}
                           </span>
                           <span
                             className={`text-[10px] font-normal ${
-                              isSel ? 'text-white/90' : 'text-slate-400'
+                              isSel ? 'opacity-90' : 'text-slate-400'
                             }`}
                           >
                             {srv.category} • R$ {srv.price}
                           </span>
                         </div>
-                        {isSel && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                        {isSel && <Check className="w-3.5 h-3.5 shrink-0" />}
                       </button>
                     );
                   })}
@@ -1019,7 +1019,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
           >
             <div className="flex items-center justify-between pb-2 border-b border-slate-800/60 gap-2 flex-wrap">
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-emerald-400" />
+                <Clock className="w-4 h-4 brand-icon" />
                 <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
                   Atendimento
                 </h3>
@@ -1027,7 +1027,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
               <button
                 type="button"
                 onClick={replicateFirstDayScheduleToAll}
-                className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                className="text-[10px] font-bold brand-text hover:opacity-80 cursor-pointer"
                 title="Copiar o horário do primeiro dia para todos os dias selecionados"
               >
                 Repetir 1º dia em todos
@@ -1047,14 +1047,14 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
                     onClick={() => toggleScheduleDay(d.dayKey)}
                     className={`py-2 rounded-[4px] text-xs font-bold transition flex flex-col items-center justify-center cursor-pointer ${
                       d.isOpen
-                        ? 'bg-emerald-500 text-white shadow-xs'
+                        ? 'brand-btn shadow-xs'
                         : isDark
                         ? 'bg-slate-950 text-slate-500'
                         : 'bg-slate-100 text-slate-400'
                     }`}
                   >
-                    <span className={d.isOpen ? 'text-white' : ''}>{d.dayLabel}</span>
-                    <span className={`text-[9px] mt-0.5 ${d.isOpen ? 'text-white font-semibold' : 'text-slate-500'}`}>
+                    <span>{d.dayLabel}</span>
+                    <span className={`text-[9px] mt-0.5 ${d.isOpen ? 'opacity-90 font-semibold' : 'text-slate-500'}`}>
                       {d.isOpen ? 'Aberto' : 'Off'}
                     </span>
                   </button>
@@ -1112,7 +1112,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
                                 />
                               </div>
 
-                              <span className="text-xs font-bold text-emerald-400">-</span>
+                              <span className="text-xs font-bold brand-text">-</span>
 
                               <div className="flex items-center gap-1">
                                 <input
@@ -1168,10 +1168,10 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
                                   hapticLight();
                                   updateScheduleDayField(d.dayKey, 'hasBreak', true);
                                 }}
-                                className="px-2 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
+                                className="px-2 py-1 rounded-[4px] brand-btn text-[10px] font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap"
                               >
-                                <Plus className="w-3 h-3 text-white" />
-                                <span className="text-white">Pausa</span>
+                                <Plus className="w-3 h-3" />
+                                <span>Pausa</span>
                               </button>
                             </>
                           )}

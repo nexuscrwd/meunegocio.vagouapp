@@ -74,7 +74,7 @@ const STATION_PRESETS: Record<CameraPresetKey, StationMeta> = {
 
 export const SalonStudio3DView: React.FC<SalonStudio3DViewProps> = ({
   salonName,
-  accentColor = '#20C933',
+  accentColor,
   isDark = true,
   onSelectStationForBooking,
 }) => {
@@ -189,7 +189,13 @@ export const SalonStudio3DView: React.FC<SalonStudio3DViewProps> = ({
     controls.autoRotateSpeed = 0.75;
 
     // Materiais PBR Reutilizáveis (Studio Palette)
-    const brandColor = new THREE.Color(accentColor || '#20C933');
+    const resolvedAccentHex =
+      accentColor ||
+      (typeof window !== 'undefined'
+        ? getComputedStyle(document.documentElement).getPropertyValue('--brand-primary').trim()
+        : '') ||
+      '#10B981';
+    const brandColor = new THREE.Color(resolvedAccentHex);
     const floorMat = new THREE.MeshStandardMaterial({
       color: 0x111722,
       roughness: 0.72,
@@ -704,7 +710,7 @@ export const SalonStudio3DView: React.FC<SalonStudio3DViewProps> = ({
       <div className="relative z-10 p-2.5 flex items-start justify-between gap-2 pointer-events-none">
         <div className="bg-slate-950/90 border border-slate-800 rounded-[4px] px-2.5 py-1.5 max-w-[72%] pointer-events-auto">
           <div className="flex items-center gap-1.5">
-            <Box className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <Box className="w-3.5 h-3.5 brand-icon shrink-0" />
             <span className="text-[11px] font-bold text-white truncate">
               {currentStation.title}
             </span>
@@ -736,12 +742,12 @@ export const SalonStudio3DView: React.FC<SalonStudio3DViewProps> = ({
             onClick={handleToggleAutoRotate}
             className={`p-1.5 rounded-[4px] border transition cursor-pointer ${
               autoRotate
-                ? 'bg-emerald-500 border-emerald-500 text-white'
+                ? 'brand-tab-active'
                 : 'bg-slate-950/90 border-slate-800 text-slate-300 hover:text-white'
             }`}
             title="Alternar giro automático 360°"
           >
-            <RotateCw className={`w-3.5 h-3.5 ${autoRotate ? 'text-white' : 'text-emerald-400'}`} />
+            <RotateCw className={`w-3.5 h-3.5 ${autoRotate ? '' : 'brand-icon'}`} />
           </button>
         </div>
       </div>
@@ -750,7 +756,7 @@ export const SalonStudio3DView: React.FC<SalonStudio3DViewProps> = ({
       <div className="relative z-10 m-2 bg-slate-950/95 border border-slate-800 rounded-[4px] transition-all">
         <div className="px-2.5 py-1.5 flex items-center justify-between border-b border-slate-800/80">
           <div className="flex items-center gap-1.5">
-            <Camera className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <Camera className="w-3.5 h-3.5 brand-icon shrink-0" />
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-200">
               Tour 3D • {salonName}
             </span>
@@ -762,12 +768,12 @@ export const SalonStudio3DView: React.FC<SalonStudio3DViewProps> = ({
               onClick={handleToggleRecline}
               className={`px-2 py-0.5 rounded-[4px] text-[10px] font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap transition ${
                 isChairReclined
-                  ? 'bg-emerald-500 text-white'
+                  ? 'brand-tab-active'
                   : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
               }`}
             >
-              <Sliders className={`w-3 h-3 ${isChairReclined ? 'text-white' : 'text-emerald-400'}`} />
-              <span className={isChairReclined ? 'text-white' : ''}>
+              <Sliders className={`w-3 h-3 ${isChairReclined ? '' : 'brand-icon'}`} />
+              <span>
                 {isChairReclined ? 'Cadeira Reclinada' : 'Reclinar Cadeira'}
               </span>
             </button>
@@ -809,16 +815,16 @@ export const SalonStudio3DView: React.FC<SalonStudio3DViewProps> = ({
                     onClick={() => handleSelectPreset(key)}
                     className={`py-1.5 px-2 rounded-[4px] text-[10px] font-bold flex items-center justify-center gap-1 transition cursor-pointer whitespace-nowrap ${
                       isSelected
-                        ? 'bg-emerald-500 text-white'
+                        ? 'brand-tab-active'
                         : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
                     }`}
                   >
                     <Icon
                       className={`w-3 h-3 shrink-0 ${
-                        isSelected ? 'text-white' : 'text-emerald-400'
+                        isSelected ? '' : 'brand-icon'
                       }`}
                     />
-                    <span className={isSelected ? 'text-white' : ''}>{label}</span>
+                    <span>{label}</span>
                   </button>
                 );
               })}
@@ -831,10 +837,10 @@ export const SalonStudio3DView: React.FC<SalonStudio3DViewProps> = ({
                   hapticMedium();
                   onSelectStationForBooking(currentStation.title);
                 }}
-                className="w-full py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                className="w-full py-2 px-3 rounded-[4px] brand-btn font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
               >
-                <Scissors className="w-3.5 h-3.5 text-white shrink-0" />
-                <span className="text-white">Reservar Horário nesta Estação</span>
+                <Scissors className="w-3.5 h-3.5 shrink-0" />
+                <span>Reservar Horário nesta Estação</span>
               </button>
             )}
           </div>

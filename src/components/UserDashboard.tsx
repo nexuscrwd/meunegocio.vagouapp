@@ -359,8 +359,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         <div className={`p-4 rounded-[4px] border ${
           isDark ? 'bg-slate-900/70 border-slate-800/80' : 'bg-white border-slate-200'
         } space-y-4`}>
-          <div className="flex items-center gap-1.5 text-xs font-bold tracking-tight text-emerald-400">
-            <Camera className="w-4 h-4 text-emerald-400" />
+          <div className="flex items-center gap-1.5 text-xs font-bold tracking-tight brand-text">
+            <Camera className="w-4 h-4 brand-icon" />
             <span>Foto do Perfil</span>
           </div>
 
@@ -374,10 +374,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               onClick={() => fileInputRef.current?.click()}
               className={`relative w-24 h-24 rounded-full border-2 cursor-pointer group flex items-center justify-center overflow-hidden transition-all shrink-0 ${
                 isDragging 
-                  ? 'border-emerald-400 bg-emerald-500/10 scale-105' 
+                  ? 'border-[var(--brand-primary)] bg-[var(--brand-soft-bg)] scale-105' 
                   : isDark 
-                    ? 'border-slate-800 hover:border-emerald-500 bg-slate-950' 
-                    : 'border-slate-300 hover:border-emerald-500 bg-slate-100 shadow-2xs'
+                    ? 'border-slate-800 hover:border-[var(--brand-primary)] bg-slate-950' 
+                    : 'border-slate-300 hover:border-[var(--brand-primary)] bg-slate-100 shadow-2xs'
               }`}
             >
               {avatarUrl && !avatarUrl.includes('unsplash.com') && !avatarUrl.startsWith('data:image/svg+xml') ? (
@@ -388,16 +388,16 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <User className={`w-10 h-10 stroke-[1.8] ${isDark ? 'text-slate-300 group-hover:text-emerald-400' : 'text-slate-700 group-hover:text-emerald-600'} transition-colors`} />
+                <User className={`w-10 h-10 stroke-[1.8] ${isDark ? 'text-slate-300 group-hover:text-[var(--brand-primary)]' : 'text-slate-700 group-hover:text-[var(--brand-primary)]'} transition-colors`} />
               )}
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center text-white">
-                <Upload className="w-4 h-4 text-emerald-400 mb-1" />
+                <Upload className="w-4 h-4 brand-icon mb-1" />
                 <span className="text-[9px] font-bold text-slate-300 uppercase">Enviar</span>
               </div>
               
               {/* Botão flutuante para indicar editabilidade */}
-              <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-md">
-                <Camera className="w-3 h-3 text-white" />
+              <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full brand-btn flex items-center justify-center shadow-md">
+                <Camera className="w-3 h-3" />
               </div>
             </div>
 
@@ -426,7 +426,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-3 py-1.5 rounded text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white transition active:scale-95 cursor-pointer shadow-xs flex items-center gap-1.5"
+                  className="px-3 py-1.5 rounded text-xs font-bold brand-btn transition active:scale-95 cursor-pointer shadow-xs flex items-center gap-1.5"
                 >
                   <Upload className="w-3.5 h-3.5" />
                   <span>Escolher Foto</span>
@@ -460,10 +460,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             isDark ? 'bg-slate-900/60 border-slate-800/80' : 'bg-white border-slate-200 shadow-2xs'
           }`}>
             <div className="flex items-center gap-1.5 text-slate-400 mb-1">
-              <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+              <Calendar className="w-3.5 h-3.5 brand-icon" />
               <span className="text-[10px] font-bold uppercase tracking-wider">Ativos</span>
             </div>
-            <div className="text-xl font-black text-emerald-400 leading-none">
+            <div className="text-xl font-black brand-text leading-none">
               {stats.activeCount}
             </div>
             <div className="text-[9px] text-slate-400 mt-1">
@@ -478,7 +478,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               <Heart className="w-3.5 h-3.5 text-rose-400" />
               <span className="text-[10px] font-bold uppercase tracking-wider">Concluídos</span>
             </div>
-            <div className="text-xl font-black text-emerald-400 leading-none">
+            <div className="text-xl font-black brand-text leading-none">
               {stats.concludedCount}
             </div>
             <div className="text-[9px] text-slate-400 mt-1">
@@ -498,7 +498,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               <label className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                 isDark ? 'text-slate-400' : 'text-slate-600'
               }`}>
-                <User className="w-3.5 h-3.5 text-emerald-400" />
+                <User className="w-3.5 h-3.5 brand-icon" />
                 <span>Nome Completo</span>
               </label>
               <input 
@@ -507,10 +507,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 onChange={(e) => setName(e.target.value)}
                 required
                 placeholder="Insira seu nome completo"
-                className={`w-full px-3 py-2.5 rounded-[4px] text-xs border outline-hidden transition font-semibold ${
+                className={`w-full px-3 py-2.5 rounded-[4px] text-xs border outline-hidden transition font-semibold brand-ring-focus ${
                   isDark 
-                    ? 'bg-slate-950 border-slate-800 focus:border-emerald-500 text-slate-100' 
-                    : 'bg-white border-slate-200 focus:border-emerald-500 text-slate-950 focus:ring-1 focus:ring-emerald-500 shadow-2xs'
+                    ? 'bg-slate-950 border-slate-800 text-slate-100' 
+                    : 'bg-white border-slate-200 text-slate-950 shadow-2xs'
                 }`}
               />
             </div>
@@ -520,7 +520,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               <label className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                 isDark ? 'text-slate-400' : 'text-slate-600'
               }`}>
-                <Mail className="w-3.5 h-3.5 text-emerald-400" />
+                <Mail className="w-3.5 h-3.5 brand-icon" />
                 <span>E-mail</span>
               </label>
               <input 
@@ -529,10 +529,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="exemplo@email.com"
-                className={`w-full px-3 py-2.5 rounded-[4px] text-xs border outline-hidden transition font-semibold ${
+                className={`w-full px-3 py-2.5 rounded-[4px] text-xs border outline-hidden transition font-semibold brand-ring-focus ${
                   isDark 
-                    ? 'bg-slate-950 border-slate-800 focus:border-emerald-500 text-slate-100' 
-                    : 'bg-white border-slate-200 focus:border-emerald-500 text-slate-950 focus:ring-1 focus:ring-emerald-500 shadow-2xs'
+                    ? 'bg-slate-950 border-slate-800 text-slate-100' 
+                    : 'bg-white border-slate-200 text-slate-950 shadow-2xs'
                 }`}
               />
             </div>
@@ -542,7 +542,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               <label className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                 isDark ? 'text-slate-400' : 'text-slate-600'
               }`}>
-                <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                <Phone className="w-3.5 h-3.5 brand-icon" />
                 <span>Telefone Celular</span>
               </label>
               <input 
@@ -551,10 +551,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 onChange={(e) => setPhone(formatPhone(e.target.value))}
                 required
                 placeholder="(11) 99999-9999"
-                className={`w-full px-3 py-2.5 rounded-[4px] text-xs border outline-hidden transition font-semibold ${
+                className={`w-full px-3 py-2.5 rounded-[4px] text-xs border outline-hidden transition font-semibold brand-ring-focus ${
                   isDark 
-                    ? 'bg-slate-950 border-slate-800 focus:border-emerald-500 text-slate-100' 
-                    : 'bg-white border-slate-200 focus:border-emerald-500 text-slate-950 focus:ring-1 focus:ring-emerald-500 shadow-2xs'
+                    ? 'bg-slate-950 border-slate-800 text-slate-100' 
+                    : 'bg-white border-slate-200 text-slate-950 shadow-2xs'
                 }`}
               />
             </div>
@@ -562,7 +562,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
           {/* Banner de Salvo com sucesso */}
           {isSavedSuccessfully && (
-            <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs py-2 px-3 rounded-[4px] font-bold flex items-center gap-2">
+            <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs py-2 px-3 rounded-[4px] font-bold flex items-center gap-2">
               <Check className="w-4 h-4 shrink-0" />
               <span>Perfil salvo com sucesso! Seus dados foram sincronizados.</span>
             </div>
@@ -571,10 +571,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           {/* Botão de Envio Unificado */}
           <button
             type="submit"
-            className="w-full py-3.5 bg-[#334155] hover:bg-[#1E293B] active:scale-[0.99] text-white font-bold text-xs rounded-[4px] transition uppercase tracking-wider font-display flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+            className="w-full py-3.5 brand-btn active:scale-[0.99] font-bold text-xs rounded-[4px] transition uppercase tracking-wider font-display flex items-center justify-center gap-2 cursor-pointer shadow-xs"
           >
-            <Check className="w-4 h-4 text-white" />
-            <span className="text-white">Salvar Alterações</span>
+            <Check className="w-4 h-4" />
+            <span>Salvar Alterações</span>
           </button>
         </form>
 

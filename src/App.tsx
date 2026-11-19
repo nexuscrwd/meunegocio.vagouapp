@@ -29,7 +29,7 @@ import {
   EXPLICIT_THEME_STORAGE_KEY,
   type ThemeContextType 
 } from './context/ThemeContext';
-import { DEFAULT_NEUTRAL_HEX } from './utils/themePalette';
+import { DEFAULT_NEUTRAL_HEX, isCustomBrandHex } from './utils/themePalette';
 
 export { ThemeContext, ThemeProvider, useTheme, applyAccentColorToDom, type ThemeContextType };
 
@@ -117,7 +117,7 @@ function hasActiveAppSession(): boolean {
 }
 
 export const App: React.FC = () => {
-  const { isDark, accentColor } = useTheme();
+  const { isDark, setAccentColor, setTheme, resetToDefaultPalette } = useTheme();
 
   // Validação do Subdomínio Wildcard (*.vagouapp.com)
   const [isNotFound, setIsNotFound] = useState(false);
@@ -695,12 +695,35 @@ export const App: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    applyAccentColorToDom(accentColor);
-  }, [accentColor]);
-
   // Validação Inicial de Subdomínio Wildcard (*.vagouapp.com) e Validação Soberana de Papel (RBAC)
   useEffect(() => {
+    const syncSalonThemeState = (salonRow: any) => {
+      const dbColor = salonRow?.primary_color || salonRow?.branding?.primaryColor;
+      const hasCustomColor = Boolean(dbColor && isCustomBrandHex(dbColor));
+      const isCustomized =
+        salonRow?.branding?.themeExplicitlyCustomized === false
+          ? false
+          : Boolean(
+              salonRow?.branding?.themeExplicitlyCustomized ||
+              salonRow?.default_theme === 'dark' ||
+              hasCustomColor
+            );
+      const resolvedColor = isCustomized
+        ? (dbColor || DEFAULT_NEUTRAL_HEX)
+        : DEFAULT_NEUTRAL_HEX;
+
+      if (isCustomized) {
+        localStorage.setItem(CUSTOMIZED_THEME_STORAGE_KEY, '1');
+        localStorage.setItem('vagou_accent_color', resolvedColor);
+        if (!localStorage.getItem(EXPLICIT_THEME_STORAGE_KEY)) {
+          setTheme(salonRow?.default_theme === 'dark' ? 'dark' : 'light', { isExplicitUserChoice: false });
+        }
+        setAccentColor(resolvedColor, { isExplicitUserChoice: true });
+      } else {
+        resetToDefaultPalette();
+      }
+    };
+
     async function validateSubdomainAndSession() {
       try {
         const sub = detectActiveSubdomain();
@@ -729,28 +752,7 @@ export const App: React.FC = () => {
             localStorage.setItem('vagou_salon_name', displayName);
             localStorage.setItem('vagou_salon_slug', salon.slug || sub);
 
-            const isCustomized = Boolean(
-              salon.branding?.themeExplicitlyCustomized || salon.default_theme === 'dark'
-            );
-            const resolvedColor = isCustomized
-              ? (salon.primary_color || salon.branding?.primaryColor || DEFAULT_NEUTRAL_HEX)
-              : DEFAULT_NEUTRAL_HEX;
-
-            if (isCustomized) {
-              localStorage.setItem(CUSTOMIZED_THEME_STORAGE_KEY, '1');
-              localStorage.setItem('vagou_accent_color', resolvedColor);
-              if (salon.default_theme === 'dark' && !localStorage.getItem(EXPLICIT_THEME_STORAGE_KEY)) {
-                document.documentElement.classList.add('dark');
-              }
-              applyAccentColorToDom(resolvedColor, 1, true);
-            } else {
-              localStorage.removeItem(CUSTOMIZED_THEME_STORAGE_KEY);
-              localStorage.removeItem('vagou_accent_color');
-              if (!localStorage.getItem(EXPLICIT_THEME_STORAGE_KEY)) {
-                document.documentElement.classList.remove('dark');
-              }
-              applyAccentColorToDom(DEFAULT_NEUTRAL_HEX, 1, false);
-            }
+            syncSalonThemeState(salon);
           }
         } else {
           // Ambiente sem subdomínio wildcard (Preview / Localhost / Dev): resolve salão ativo para garantir persistência de CRUD
@@ -774,28 +776,7 @@ export const App: React.FC = () => {
               localStorage.setItem('vagou_salon_name', displayName);
               localStorage.setItem('vagou_salon_slug', resolvedSalon.slug);
 
-              const isCustomized = Boolean(
-                resolvedSalon.branding?.themeExplicitlyCustomized || resolvedSalon.default_theme === 'dark'
-              );
-              const resolvedColor = isCustomized
-                ? (resolvedSalon.primary_color || resolvedSalon.branding?.primaryColor || DEFAULT_NEUTRAL_HEX)
-                : DEFAULT_NEUTRAL_HEX;
-
-              if (isCustomized) {
-                localStorage.setItem(CUSTOMIZED_THEME_STORAGE_KEY, '1');
-                localStorage.setItem('vagou_accent_color', resolvedColor);
-                if (resolvedSalon.default_theme === 'dark' && !localStorage.getItem(EXPLICIT_THEME_STORAGE_KEY)) {
-                  document.documentElement.classList.add('dark');
-                }
-                applyAccentColorToDom(resolvedColor, 1, true);
-              } else {
-                localStorage.removeItem(CUSTOMIZED_THEME_STORAGE_KEY);
-                localStorage.removeItem('vagou_accent_color');
-                if (!localStorage.getItem(EXPLICIT_THEME_STORAGE_KEY)) {
-                  document.documentElement.classList.remove('dark');
-                }
-                applyAccentColorToDom(DEFAULT_NEUTRAL_HEX, 1, false);
-              }
+              syncSalonThemeState(resolvedSalon);
             }
           }
         }

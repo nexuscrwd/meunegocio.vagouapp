@@ -702,15 +702,15 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
                     value={cep}
                     onChange={handleCepChange}
                     placeholder="00000-000"
-                    className={`w-full pl-2.5 pr-8 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
+                    className={`w-full pl-2.5 pr-8 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition brand-ring-focus ${
                       isDark
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
-                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                        ? 'bg-slate-950 border-slate-800 text-white'
+                        : 'bg-slate-50 border-slate-300 text-slate-900'
                     }`}
                   />
                   <div className="absolute right-2 top-1/2 -translate-y-1/2">
                     {isSearchingCep ? (
-                      <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+                      <Loader2 className="w-3.5 h-3.5 brand-icon animate-spin" />
                     ) : (
                       <Search className="w-3.5 h-3.5 text-slate-500" />
                     )}
@@ -728,10 +728,10 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
                   value={logradouro}
                   onChange={(e) => setLogradouro(e.target.value)}
                   placeholder="Rua, Avenida, Alameda..."
-                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition brand-ring-focus ${
                     isDark
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      ? 'bg-slate-950 border-slate-800 text-white'
+                      : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
                 />
               </div>
@@ -752,10 +752,10 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
                   value={numero}
                   onChange={(e) => setNumero(e.target.value)}
                   placeholder="123"
-                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition brand-ring-focus ${
                     isDark
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      ? 'bg-slate-950 border-slate-800 text-white'
+                      : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
                 />
               </div>
@@ -769,10 +769,10 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
                   value={complemento}
                   onChange={(e) => setComplemento(e.target.value)}
                   placeholder="Sala 2, Loja B, Galeria..."
-                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition brand-ring-focus ${
                     isDark
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      ? 'bg-slate-950 border-slate-800 text-white'
+                      : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
                 />
               </div>
@@ -789,10 +789,10 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
                   value={bairro}
                   onChange={(e) => setBairro(e.target.value)}
                   placeholder="Centro"
-                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition brand-ring-focus ${
                     isDark
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      ? 'bg-slate-950 border-slate-800 text-white'
+                      : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
                 />
               </div>
@@ -807,10 +807,10 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
                   value={cidade}
                   onChange={(e) => setCidade(e.target.value)}
                   placeholder="São Paulo"
-                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition brand-ring-focus ${
                     isDark
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      ? 'bg-slate-950 border-slate-800 text-white'
+                      : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
                 />
               </div>
@@ -826,10 +826,10 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
                   value={uf}
                   onChange={(e) => setUf(e.target.value.toUpperCase())}
                   placeholder="SP"
-                  className={`w-full px-2 py-2 rounded-[4px] border text-xs font-mono text-center uppercase outline-hidden transition ${
+                  className={`w-full px-2 py-2 rounded-[4px] border text-xs font-mono text-center uppercase outline-hidden transition brand-ring-focus ${
                     isDark
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500'
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                      ? 'bg-slate-950 border-slate-800 text-white'
+                      : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
                 />
               </div>

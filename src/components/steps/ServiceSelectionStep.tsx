@@ -44,10 +44,10 @@ export const ServiceSelectionStep: React.FC<ServiceSelectionStepProps> = ({
         <button
           type="button"
           onClick={onAddExtraServices}
-          className="w-full py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+          className="w-full py-2 px-3 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
         >
-          <Plus className="w-4 h-4 text-white shrink-0" />
-          <span className="text-white">Concluir Seleção ({selectedServices.length} itens)</span>
+          <Plus className="w-4 h-4 shrink-0" />
+          <span>Concluir Seleção ({selectedServices.length} itens)</span>
         </button>
       )}
 
@@ -55,7 +55,7 @@ export const ServiceSelectionStep: React.FC<ServiceSelectionStepProps> = ({
         {(Object.entries(groupedServices) as [string, CatalogServiceItem[]][]).map(([categoryName, catServices]) => (
           <div key={categoryName} className="space-y-1.5">
             <div className="flex items-center gap-2 px-1 pt-1 pb-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <span className="w-1.5 h-1.5 rounded-full brand-bar" />
               <h3 className="text-[11px] font-black uppercase tracking-wider font-['Poppins'] text-slate-700 dark:text-slate-300">
                 {categoryName}
               </h3>
@@ -83,41 +83,41 @@ export const ServiceSelectionStep: React.FC<ServiceSelectionStepProps> = ({
                     }}
                     className={`w-full p-2.5 rounded-[4px] transition-all flex items-center justify-between gap-3 text-left cursor-pointer border ${
                       isSelected
-                        ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-500/50 text-slate-900 dark:text-white'
-                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white hover:border-emerald-500/50'
+                        ? 'brand-btn-soft brand-border-active text-slate-900 dark:text-white'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white hover:border-[var(--brand-primary)]/50'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className={`w-5 h-5 rounded-[4px] flex items-center justify-center shrink-0 transition-all border ${
                         isSelected
-                          ? 'bg-emerald-500 border-emerald-500 text-white'
+                          ? 'brand-tab-active'
                           : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900'
                       }`}>
-                        {isSelected && <Check className="w-3.5 h-3.5 stroke-[3] text-white" />}
+                        {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                       </div>
 
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          <h4 className={`text-xs font-bold leading-snug truncate ${isSelected ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
+                          <h4 className={`text-xs font-bold leading-snug truncate ${isSelected ? 'brand-text' : 'text-slate-900 dark:text-white'}`}>
                             {srv.title}
                           </h4>
                           {isVideoMode && (
-                            <span className="shrink-0 px-1 py-0.2 rounded-[4px] bg-emerald-500 text-white text-[8px] font-black uppercase flex items-center gap-0.5">
-                              <Video className="w-2.5 h-2.5 text-white" />
-                              <span className="text-white">5s</span>
+                            <span className="shrink-0 px-1 py-0.2 rounded-[4px] brand-btn text-[8px] font-black uppercase flex items-center gap-0.5">
+                              <Video className="w-2.5 h-2.5" />
+                              <span>5s</span>
                             </span>
                           )}
                           {isSlideshowMode && (
-                            <span className="shrink-0 px-1 py-0.2 rounded-[4px] bg-emerald-500 text-white text-[8px] font-black uppercase flex items-center gap-0.5">
-                              <Images className="w-2.5 h-2.5 text-white" />
-                              <span className="text-white">Slide</span>
+                            <span className="shrink-0 px-1 py-0.2 rounded-[4px] brand-btn text-[8px] font-black uppercase flex items-center gap-0.5">
+                              <Images className="w-2.5 h-2.5" />
+                              <span>Slide</span>
                             </span>
                           )}
                         </div>
 
                         <div className="flex items-center gap-2 mt-1 text-[10px]">
-                          <span className={`inline-flex items-center gap-1 font-medium ${isSelected ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
-                            <Clock className="w-3 h-3 text-emerald-500" />
+                          <span className={`inline-flex items-center gap-1 font-medium ${isSelected ? 'brand-text' : 'text-slate-500 dark:text-slate-400'}`}>
+                            <Clock className="w-3 h-3 brand-icon" />
                             <span>{srv.duration}</span>
                           </span>
                         </div>
@@ -125,7 +125,7 @@ export const ServiceSelectionStep: React.FC<ServiceSelectionStepProps> = ({
                     </div>
 
                     <div className="shrink-0 text-right">
-                      <span className={`text-sm font-extrabold ${isSelected ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
+                      <span className={`text-sm font-extrabold ${isSelected ? 'brand-text' : 'text-slate-900 dark:text-white'}`}>
                         R$ {srv.price.toFixed(0)}
                       </span>
                     </div>

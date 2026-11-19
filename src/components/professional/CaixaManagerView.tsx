@@ -7,6 +7,7 @@ import { BookingAppointment, UserPersona, SalonAdminSettings } from '../../types
 import { hapticLight } from '../../utils/haptics';
 import { FinancialManagerView } from './FinancialManagerView';
 import { GoalsAndShiftsCard } from './dashboard/GoalsAndShiftsCard';
+import { getSectionHeaderStyleData } from '../../utils/sectionHeaderStyle';
 
 export interface CaixaManagerViewProps {
   appointments: BookingAppointment[];
@@ -33,6 +34,10 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
   onUpdateSettings,
 }) => {
   const { isDark } = useTheme();
+  const sectionHeaderStyleData = useMemo(
+    () => getSectionHeaderStyleData(adminSettings || {}, isDark),
+    [adminSettings, isDark]
+  );
 
   // Faturamento Realizado no Dia de Hoje (Conexão direta com Caixa e Metas)
   const todayRealizedRevenue = useMemo(() => {
@@ -74,9 +79,10 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
       isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
     }`}>
       {/* 1. CABEÇALHO UNIFICADO DA SEÇÃO CAIXA */}
-      <header className={`w-full shrink-0 px-3.5 py-2.5 min-h-[44px] border-b flex items-center justify-between gap-2 transition-colors z-20 ${
-        isDark ? 'bg-slate-900/95 border-slate-800 text-slate-100' : 'bg-slate-100/95 border-slate-200 text-slate-900 shadow-xs'
-      }`}>
+      <header
+        className={sectionHeaderStyleData.containerClass}
+        style={sectionHeaderStyleData.containerStyle}
+      >
         <div className="flex items-center gap-2 min-w-0">
           {onBack && (
             <button
@@ -88,18 +94,21 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
               }}
               className={`p-1.5 rounded-[4px] transition active:scale-95 cursor-pointer shrink-0 ${
                 isDark 
-                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' 
-                  : 'bg-slate-200/80 hover:bg-slate-200 text-slate-700'
+                  ? 'hover:bg-slate-800/80' 
+                  : 'hover:bg-black/5'
               }`}
               title="Voltar ao Menu"
               aria-label="Voltar ao Menu"
             >
-              <ArrowLeft className="w-4 h-4 text-emerald-500" />
+              <ArrowLeft className="w-4 h-4" style={sectionHeaderStyleData.iconStyle} />
             </button>
           )}
 
           <div className="flex items-center gap-1.5 min-w-0">
-            <h1 className="text-xs sm:text-sm font-bold font-['Poppins'] tracking-tight truncate">
+            <h1
+              className="text-xs sm:text-sm font-bold font-['Poppins'] tracking-tight truncate"
+              style={sectionHeaderStyleData.titleStyle}
+            >
               Caixa
             </h1>
           </div>

@@ -258,7 +258,7 @@ export const EnergyMeterManager: React.FC = () => {
 
               <div className="text-right">
                 <span className="text-[9px] uppercase font-bold text-slate-500">Tarifa Efetiva</span>
-                <p className={`text-xs font-mono font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                <p className="text-xs font-mono font-bold brand-text">
                   R$ {effectiveKwhRate.toFixed(3)}/kWh
                 </p>
               </div>
@@ -310,7 +310,7 @@ export const EnergyMeterManager: React.FC = () => {
 
                 <div className="flex items-baseline justify-between pt-0.5">
                   <div>
-                    <span className={`text-2xl font-black font-mono ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                    <span className="text-2xl font-black font-mono text-rose-500">
                       R$ {forecastData.totalProjectedBill.toFixed(2).replace('.', ',')}
                     </span>
                     <span className="text-[10px] text-slate-500 block mt-0.5">
@@ -321,7 +321,7 @@ export const EnergyMeterManager: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleSaveSimulatedReading}
-                    className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
+                    className="px-3 py-1.5 rounded-[4px] brand-btn text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>Salvar no Histórico</span>
@@ -392,7 +392,7 @@ export const EnergyMeterManager: React.FC = () => {
 
                   <div className="flex items-center gap-3 shrink-0">
                     {r.costAmountReais && (
-                      <span className={`text-xs font-black font-mono ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                      <span className="text-xs font-black font-mono text-rose-500">
                         R$ {r.costAmountReais.toFixed(2).replace('.', ',')}
                       </span>
                     )}
@@ -634,11 +634,11 @@ export const EnergyMeterManager: React.FC = () => {
           </div>
 
           {/* Resumo da Tarifa Efetiva Final */}
-          <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
+          <div className="p-3 rounded-[4px] brand-soft-badge border flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Info className="w-4 h-4 text-emerald-400 shrink-0" />
+              <Info className="w-4 h-4 brand-icon shrink-0" />
               <div>
-                <span className="text-xs font-bold text-white block">
+                <span className={`text-xs font-bold block ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   Tarifa Efetiva com Tributos Calculados
                 </span>
                 <span className="text-[10px] text-slate-400">
@@ -646,7 +646,7 @@ export const EnergyMeterManager: React.FC = () => {
                 </span>
               </div>
             </div>
-            <span className="text-base font-black font-mono text-emerald-400">
+            <span className="text-base font-black font-mono brand-text">
               R$ {effectiveKwhRate.toFixed(3)} <span className="text-[10px]">/ kWh</span>
             </span>
           </div>

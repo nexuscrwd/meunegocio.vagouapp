@@ -92,15 +92,15 @@ export const DayShiftsForecast: React.FC<DayShiftsForecastProps> = ({
       {/* Cabeçalho Limpo e Direto */}
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800/40">
         <div className="flex items-center gap-1.5">
-          <div className="w-5 h-5 rounded bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-            <Users className="w-3 h-3 text-emerald-400" />
+          <div className="w-5 h-5 rounded brand-soft-badge flex items-center justify-center">
+            <Users className="w-3 h-3 brand-icon" />
           </div>
           <span className="text-xs font-bold font-['Poppins']">
             Evolução de Clientes por Turno
           </span>
         </div>
 
-        <span className="text-xs font-bold font-mono text-emerald-400">
+        <span className="text-xs font-bold font-mono brand-text">
           {totalClients} atendimentos hoje
         </span>
       </div>
@@ -114,14 +114,14 @@ export const DayShiftsForecast: React.FC<DayShiftsForecastProps> = ({
           return (
             <div key={shift.label} className="flex-1 flex flex-col items-center h-full justify-end">
               {/* Topo da barra: Apenas o número de atendimento para este dia */}
-              <span className="text-sm font-bold font-mono text-emerald-400 mb-1.5">
+              <span className="text-sm font-bold font-mono brand-text mb-1.5">
                 {shift.count}
               </span>
 
               {/* Barra Vertical Limpa */}
               <div
                 style={{ height: `${heightPercent}%` }}
-                className="w-full max-w-[56px] rounded-t bg-emerald-500 transition-all duration-300"
+                className="w-full max-w-[56px] rounded-t brand-bar transition-all duration-300"
               />
 
               {/* Ao pé da barra: Apenas o título manhã, tarde ou noite */}

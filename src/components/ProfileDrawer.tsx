@@ -1145,7 +1145,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               title="Voltar ao Menu"
               aria-label="Voltar ao Menu"
             >
-              <ChevronRight className="w-4 h-4 rotate-180 text-[#2B82C9]" />
+              <ChevronRight className="w-4 h-4 rotate-180 brand-icon" />
               <span>Voltar</span>
             </button>
 
@@ -1229,7 +1229,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           referrerPolicy="no-referrer"
                         />
                       ) : (
-                        <User className={`w-6 h-6 stroke-[1.8] ${isDark ? 'text-slate-300' : 'text-[#2B82C9]'}`} />
+                        <User className={`w-6 h-6 stroke-[1.8] ${isDark ? 'text-slate-300' : 'brand-icon'}`} />
                       )}
                     </div>
                     {/* Botão de Câmera de Toque Imediato no Celular */}
@@ -1237,14 +1237,14 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isUploadingAvatar}
-                      className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#2B82C9] hover:bg-[#1F6FB0] active:scale-95 text-white flex items-center justify-center shadow-sm transition cursor-pointer"
+                      className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full brand-btn active:scale-95 flex items-center justify-center shadow-sm transition cursor-pointer"
                       title="Alterar foto de perfil"
                       aria-label="Alterar foto de perfil"
                     >
                       {isUploadingAvatar ? (
-                        <Loader2 className="w-3 h-3 text-white animate-spin" />
+                        <Loader2 className="w-3 h-3 animate-spin" />
                       ) : (
-                        <Camera className="w-3 h-3 text-white" />
+                        <Camera className="w-3 h-3" />
                       )}
                     </button>
                   </div>
@@ -1323,17 +1323,17 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           onClose();
                           onToggleMode();
                         }}
-                        className="w-full p-3 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] text-white font-bold text-xs flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer shadow-xs"
+                        className="w-full p-3 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer shadow-xs"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white shrink-0">
-                            <LayoutDashboard className="w-4 h-4 text-white" />
+                          <div className="w-9 h-9 rounded-full bg-current/15 flex items-center justify-center shrink-0">
+                            <LayoutDashboard className="w-4 h-4" />
                           </div>
                           <div>
-                            <div className="text-xs font-bold text-white">MODO SALÃO</div>
+                            <div className="text-xs font-bold">MODO SALÃO</div>
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-white" />
+                        <ChevronRight className="w-4 h-4" />
                       </button>
                     )}
 
@@ -1358,7 +1358,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     >
                       <div className="flex items-center gap-3">
                         <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
-                          <LayoutGrid className="w-4 h-4 text-[#2B82C9]" />
+                          <LayoutGrid className="w-4 h-4 brand-icon" />
                         </div>
                         <div>
                           <div className="text-xs font-bold text-[#1E293B] dark:text-white">Gerenciar</div>
@@ -1391,7 +1391,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         >
                           <div className="flex items-center gap-3">
                             <div className="caixa-icon-halo w-8 h-8 rounded-full shrink-0">
-                              <Scissors className="w-3.5 h-3.5 text-[#2B82C9]" />
+                              <Scissors className="w-3.5 h-3.5 brand-icon" />
                             </div>
                             <div>
                               <div className="text-xs font-bold text-[#1E293B] dark:text-white">Serviços</div>
@@ -1418,7 +1418,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         >
                           <div className="flex items-center gap-3">
                             <div className="caixa-icon-halo w-8 h-8 rounded-full shrink-0">
-                              <Users className="w-3.5 h-3.5 text-[#2B82C9]" />
+                              <Users className="w-3.5 h-3.5 brand-icon" />
                             </div>
                             <div>
                               <div className="text-xs font-bold text-[#1E293B] dark:text-white">Equipe</div>
@@ -1445,7 +1445,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         >
                           <div className="flex items-center gap-3">
                             <div className="caixa-icon-halo w-8 h-8 rounded-full shrink-0">
-                              <Store className="w-3.5 h-3.5 text-[#2B82C9]" />
+                              <Store className="w-3.5 h-3.5 brand-icon" />
                             </div>
                             <div>
                               <div className="text-xs font-bold text-[#1E293B] dark:text-white">Espaço</div>
@@ -1475,7 +1475,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       >
                         <div className="flex items-center gap-3">
                           <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
-                            <Sliders className="w-4 h-4 text-[#2B82C9]" />
+                            <Sliders className="w-4 h-4 brand-icon" />
                           </div>
                           <div>
                             <div className="text-xs font-bold text-[#1E293B] dark:text-white">Preferências</div>
@@ -1503,7 +1503,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     >
                       <div className="flex items-center gap-3">
                         <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
-                          <Mail className="w-4 h-4 text-[#2B82C9]" />
+                          <Mail className="w-4 h-4 brand-icon" />
                         </div>
                         <div>
                           <div className="text-xs font-bold text-[#1E293B] dark:text-white">Utilidades</div>
@@ -1531,17 +1531,17 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           onClose();
                           onToggleMode();
                         }}
-                        className="w-full p-3 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] text-white font-bold text-xs flex items-center justify-between transition active:scale-[0.99] cursor-pointer shadow-xs"
+                        className="w-full p-3 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-between transition active:scale-[0.99] cursor-pointer shadow-xs"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white shrink-0">
-                            <Store className="w-4 h-4 text-white" />
+                          <div className="w-9 h-9 rounded-full bg-current/15 flex items-center justify-center shrink-0">
+                            <Store className="w-4 h-4" />
                           </div>
                           <div className="text-left">
-                            <div className="text-white font-bold">MODO CLIENTE</div>
+                            <div className="font-bold">MODO CLIENTE</div>
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-white" />
+                        <ChevronRight className="w-4 h-4" />
                       </button>
                     )}
 
@@ -1572,7 +1572,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     >
                       <div className="flex items-center gap-3">
                         <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
-                          <User className="w-4 h-4 text-[#2B82C9]" />
+                          <User className="w-4 h-4 brand-icon" />
                         </div>
                         <div>
                           <div className="text-xs font-bold text-[#1E293B] dark:text-white">Meus Dados Pessoais</div>
@@ -1605,7 +1605,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     >
                       <div className="flex items-center gap-3">
                         <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
-                          <Calendar className="w-4 h-4 text-[#2B82C9]" />
+                          <Calendar className="w-4 h-4 brand-icon" />
                         </div>
                         <div>
                           <div className="text-xs font-bold text-[#1E293B] dark:text-white">Minha Agenda</div>
@@ -1630,13 +1630,13 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     >
                       <div className="flex items-center gap-3">
                         <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
-                          <Users className="w-4 h-4 text-[#2B82C9]" />
+                          <Users className="w-4 h-4 brand-icon" />
                         </div>
                         <div>
                           <div className="text-xs font-bold text-[#1E293B] dark:text-white flex items-center gap-1.5">
                             <span>Conta Família • Dependentes</span>
                             {dependents.length > 0 && (
-                              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#2B82C9] text-white">
+                              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold brand-tab-active">
                                 {dependents.length}
                               </span>
                             )}
@@ -1664,7 +1664,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     >
                       <div className="flex items-center gap-3">
                         <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
-                          <MessageSquare className="w-4 h-4 text-[#2B82C9]" />
+                          <MessageSquare className="w-4 h-4 brand-icon" />
                         </div>
                         <div>
                           <div className="text-xs font-bold text-[#1E293B] dark:text-white">Chat no App Vagou</div>
@@ -1692,7 +1692,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     >
                       <div className="flex items-center gap-3">
                         <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
-                          <Navigation className="w-4 h-4 text-[#2B82C9]" />
+                          <Navigation className="w-4 h-4 brand-icon" />
                         </div>
                         <div>
                           <div className="text-xs font-bold text-[#1E293B] dark:text-white flex items-center gap-1.5">
@@ -1768,7 +1768,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
           {activeSubTab === 'agenda' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between pb-1">
-                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider font-['Poppins']">
+                <span className="text-xs font-bold brand-text uppercase tracking-wider font-['Poppins']">
                   Histórico de Agendamentos
                 </span>
                 <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -1824,10 +1824,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       onClose();
                       onNavigateToSchedule?.();
                     }}
-                    className="w-full py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    className="w-full py-2 px-3 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                   >
-                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                    <span className="text-white">Retomar e Confirmar Vaga</span>
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Retomar e Confirmar Vaga</span>
                   </button>
                 </div>
               )}
@@ -1858,7 +1858,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
                         <div className="mt-2 text-xs">
                           <p className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                            <strong className="text-emerald-400">{swap.clientA.name}</strong> propôs trocar de horário com você:
+                            <strong className="brand-text">{swap.clientA.name}</strong> propôs trocar de horário com você:
                           </p>
                           <div className={`mt-1.5 p-2 rounded flex items-center justify-around text-center ${
                             isDark ? 'bg-slate-950 border border-slate-800' : 'bg-white border border-amber-200'
@@ -1870,7 +1870,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                             <ArrowLeftRight className="w-4 h-4 text-amber-400" />
                             <div>
                               <div className="text-[9px] uppercase font-bold text-slate-400">Novo Horário Proposto</div>
-                              <div className="text-xs font-black text-emerald-400">{swap.clientA.originalTime}</div>
+                              <div className="text-xs font-black brand-text">{swap.clientA.originalTime}</div>
                             </div>
                           </div>
                         </div>
@@ -1904,10 +1904,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           <button
                             type="button"
                             onClick={() => handleAcceptIncomingSwap(reqApt)}
-                            className="py-2 px-3 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition active:scale-98 shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
+                            className="py-2 px-3 rounded brand-btn text-xs font-bold transition active:scale-98 shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
                           >
-                            <Check className="w-3.5 h-3.5 stroke-[2.5] text-white" />
-                            <span className="text-white">Aceitar Troca</span>
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                            <span>Aceitar Troca</span>
                           </button>
                         </div>
 
@@ -1931,7 +1931,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 <div className={`p-6 rounded border text-center space-y-3 ${
                   isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600'
                 }`}>
-                  <Calendar className="w-8 h-8 text-emerald-500 mx-auto opacity-60" />
+                  <Calendar className="w-8 h-8 brand-icon mx-auto opacity-60" />
                   <p className="text-xs font-medium">Você ainda não possui agendamentos cadastrados.</p>
                   {onNavigateToSchedule && (
                     <button
@@ -1941,7 +1941,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         onClose();
                         onNavigateToSchedule();
                       }}
-                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded uppercase tracking-wider cursor-pointer"
+                      className="px-4 py-2 brand-btn text-xs font-bold rounded uppercase tracking-wider cursor-pointer"
                     >
                       Agendar Agora
                     </button>
@@ -1962,7 +1962,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-slate-800 text-emerald-400 border border-slate-700">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono brand-soft-badge">
                           #{item.protocolCode}
                         </span>
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -1984,8 +1984,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       </div>
 
                       <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-800/60">
-                        <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
-                          <Clock className="w-3.5 h-3.5" />
+                        <div className="flex items-center gap-1.5 brand-text font-semibold">
+                          <Clock className="w-3.5 h-3.5 brand-icon" />
                           <span>{item.dateTime || `${item.dayGroup} às ${item.time}`}</span>
                         </div>
                         <span className="font-bold text-xs">
@@ -2109,10 +2109,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                               setSelectedSwapSlots(candidates.slice(0, 3).map(c => c.time || ''));
                               setIsSwapModalOpen(true);
                             }}
-                            className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 active:scale-98 text-white text-xs font-bold rounded flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                            className="w-full py-2 brand-btn active:scale-98 text-xs font-bold rounded flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                           >
-                            <ArrowLeftRight className="w-3.5 h-3.5 text-white" />
-                            <span className="text-white">Montar Nova Fila em Cascata</span>
+                            <ArrowLeftRight className="w-3.5 h-3.5" />
+                            <span>Montar Nova Fila em Cascata</span>
                           </button>
                         </div>
                       )}
@@ -2154,10 +2154,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                                 hapticLight();
                                 setDrawerDepartureApt(item);
                               }}
-                              className="py-2 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-extrabold flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer whitespace-nowrap"
+                              className="py-2 px-2.5 rounded-[4px] brand-btn text-xs font-extrabold flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer whitespace-nowrap"
                             >
-                              <Navigation className="w-3.5 h-3.5 text-white shrink-0" />
-                              <span className="text-white">Ir</span>
+                              <Navigation className="w-3.5 h-3.5 shrink-0" />
+                              <span>Ir</span>
                             </button>
 
                             <button
@@ -2166,9 +2166,9 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                                 hapticLight();
                                 setDrawerLiveViewState({ appointment: item, initialTab: 'timeline' });
                               }}
-                              className="py-2 px-2.5 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[11px] font-bold flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer whitespace-nowrap"
+                              className="py-2 px-2.5 rounded-[4px] brand-btn-soft text-[11px] font-bold flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer whitespace-nowrap"
                             >
-                              <Package className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                              <Package className="w-3.5 h-3.5 brand-icon shrink-0" />
                               <span>Itinerário</span>
                             </button>
                           </div>
@@ -2194,11 +2194,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                               setSelectedSwapSlots(candidates.slice(0, 1).map(c => c.time || ''));
                               setIsSwapModalOpen(true);
                             }}
-                            className={`w-full py-2 px-3 rounded border text-[11px] font-bold flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer ${
-                              isDark
-                                ? 'border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10'
-                                : 'border-emerald-600/40 text-emerald-700 hover:bg-emerald-50'
-                            }`}
+                            className="w-full py-2 px-3 rounded brand-btn-soft text-[11px] font-bold flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer"
                           >
                             <ArrowLeftRight className="w-3.5 h-3.5" />
                             <span>Solicitar Troca de Horário (Cascata)</span>
@@ -2236,10 +2232,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     onClose();
                     onNavigateToSchedule();
                   }}
-                  className="w-full py-3 mt-2 bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white font-bold text-xs rounded transition uppercase tracking-wider font-['Poppins'] flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-3 mt-2 brand-btn active:scale-[0.99] font-bold text-xs rounded transition uppercase tracking-wider font-['Poppins'] flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Scissors className="w-4 h-4 text-white" />
-                  <span className="text-white">AGENDAR NOVO HORÁRIO</span>
+                  <Scissors className="w-4 h-4" />
+                  <span>AGENDAR NOVO HORÁRIO</span>
                 </button>
               )}
             </div>
@@ -2281,12 +2277,12 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isUploadingAvatar}
-                      className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-xs font-bold rounded flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      className="px-3 py-1.5 brand-btn active:scale-95 text-xs font-bold rounded flex items-center gap-1.5 cursor-pointer shadow-xs"
                     >
                       {isUploadingAvatar ? (
-                        <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
-                        <Camera className="w-3.5 h-3.5 text-white" />
+                        <Camera className="w-3.5 h-3.5" />
                       )}
                       <span>{isUploadingAvatar ? 'Enviando...' : 'Alterar'}</span>
                     </button>
@@ -2298,7 +2294,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   <label className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                     isDark ? 'text-slate-400' : 'text-slate-600'
                   }`}>
-                    <User className="w-3.5 h-3.5 text-emerald-500" />
+                    <User className="w-3.5 h-3.5 brand-icon" />
                     <span>Nome Completo</span>
                   </label>
                   <input
@@ -2310,7 +2306,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     className={`w-full px-3 py-2.5 rounded text-xs border outline-hidden transition ${
                       !isEditing
                         ? isDark ? 'bg-slate-900/60 border-slate-800/60 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
-                        : isDark ? 'bg-slate-900 border-emerald-500 text-white focus:ring-1 focus:ring-emerald-500' : 'bg-white border-emerald-500 text-slate-900 focus:ring-1 focus:ring-emerald-500'
+                        : isDark ? 'bg-slate-900 brand-border-active text-white brand-ring-focus' : 'bg-white brand-border-active text-slate-900 brand-ring-focus'
                     }`}
                   />
                 </div>
@@ -2320,7 +2316,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   <label className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                     isDark ? 'text-slate-400' : 'text-slate-600'
                   }`}>
-                    <Mail className="w-3.5 h-3.5 text-emerald-500" />
+                    <Mail className="w-3.5 h-3.5 brand-icon" />
                     <span>E-mail</span>
                   </label>
                   <input
@@ -2332,7 +2328,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     className={`w-full px-3 py-2.5 rounded text-xs border outline-hidden transition ${
                       !isEditing
                         ? isDark ? 'bg-slate-900/60 border-slate-800/60 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
-                        : isDark ? 'bg-slate-900 border-emerald-500 text-white focus:ring-1 focus:ring-emerald-500' : 'bg-white border-emerald-500 text-slate-900 focus:ring-1 focus:ring-emerald-500'
+                        : isDark ? 'bg-slate-900 brand-border-active text-white brand-ring-focus' : 'bg-white brand-border-active text-slate-900 brand-ring-focus'
                     }`}
                   />
                 </div>
@@ -2343,7 +2339,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     <label className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                       isDark ? 'text-slate-400' : 'text-slate-600'
                     }`}>
-                      <Phone className="w-3.5 h-3.5 text-emerald-500" />
+                      <Phone className="w-3.5 h-3.5 brand-icon" />
                       <span>Telefone / WhatsApp</span>
                     </label>
                     <input
@@ -2354,7 +2350,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       className={`w-full px-3 py-2.5 rounded text-xs border outline-hidden transition ${
                         !isEditing
                           ? isDark ? 'bg-slate-900/60 border-slate-800/60 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
-                          : isDark ? 'bg-slate-900 border-emerald-500 text-white focus:ring-1 focus:ring-emerald-500' : 'bg-white border-emerald-500 text-slate-900 focus:ring-1 focus:ring-emerald-500'
+                          : isDark ? 'bg-slate-900 brand-border-active text-white brand-ring-focus' : 'bg-white brand-border-active text-slate-900 brand-ring-focus'
                       }`}
                     />
                   </div>
@@ -2365,7 +2361,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   <label className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                     isDark ? 'text-slate-400' : 'text-slate-600'
                   }`}>
-                    <MapPin className="w-3.5 h-3.5 text-emerald-500" />
+                    <MapPin className="w-3.5 h-3.5 brand-icon" />
                     <span>Endereço Residencial</span>
                   </label>
                   <input
@@ -2376,7 +2372,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     className={`w-full px-3 py-2.5 rounded text-xs border outline-hidden transition ${
                       !isEditing
                         ? isDark ? 'bg-slate-900/60 border-slate-800/60 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
-                        : isDark ? 'bg-slate-900 border-emerald-500 text-white focus:ring-1 focus:ring-emerald-500' : 'bg-white border-emerald-500 text-slate-900 focus:ring-1 focus:ring-emerald-500'
+                        : isDark ? 'bg-slate-900 brand-border-active text-white brand-ring-focus' : 'bg-white brand-border-active text-slate-900 brand-ring-focus'
                     }`}
                   />
                 </div>
@@ -2390,7 +2386,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         hapticLight();
                         setIsEditing(true);
                       }}
-                      className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white font-bold text-xs rounded transition uppercase tracking-wider font-['Poppins'] cursor-pointer flex items-center justify-center gap-2"
+                      className="w-full py-3 brand-btn active:scale-[0.99] font-bold text-xs rounded transition uppercase tracking-wider font-['Poppins'] cursor-pointer flex items-center justify-center gap-2"
                     >
                       <User className="w-4 h-4" />
                       <span>EDITAR DADOS</span>
@@ -2413,7 +2409,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       </button>
                       <button
                         type="submit"
-                        className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white font-bold text-xs rounded transition uppercase tracking-wider font-['Poppins'] cursor-pointer flex items-center justify-center gap-2"
+                        className="flex-1 py-3 brand-btn active:scale-[0.99] font-bold text-xs rounded transition uppercase tracking-wider font-['Poppins'] cursor-pointer flex items-center justify-center gap-2"
                       >
                         <Check className="w-4 h-4 stroke-[2.5]" />
                         <span>SALVAR</span>
@@ -2441,7 +2437,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               }`}>
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="caixa-icon-halo w-10 h-10 rounded-full shrink-0">
-                    <Users className="w-5 h-5 text-[#2B82C9]" />
+                    <Users className="w-5 h-5 brand-icon" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <h4 className="text-xs font-bold text-[#1E293B] dark:text-white truncate">
@@ -2459,17 +2455,17 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     hapticLight();
                     setIsAddingDependent(!isAddingDependent);
                   }}
-                  className="px-3 py-1.5 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 shrink-0"
+                  className="px-3 py-1.5 rounded-[4px] brand-btn text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 shrink-0"
                 >
-                  <Plus className="w-3.5 h-3.5 text-white stroke-[2.5]" />
-                  <span className="text-white">{isAddingDependent ? 'Fechar' : 'Novo'}</span>
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>{isAddingDependent ? 'Fechar' : 'Novo'}</span>
                 </button>
               </div>
 
               {/* Feedback de Ação */}
               {dependentFeedback && (
-                <div className="p-3 bg-[#EBF5FF] border border-[#2B82C9]/30 rounded-[4px] flex items-center gap-2 text-[#2B82C9] text-xs font-semibold animate-in fade-in">
-                  <CheckCircle2 className="w-4 h-4 text-[#2B82C9] shrink-0" />
+                <div className="p-3 brand-soft-badge rounded-[4px] flex items-center gap-2 text-xs font-semibold animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 brand-icon shrink-0" />
                   <span>{dependentFeedback}</span>
                 </div>
               )}
@@ -2483,8 +2479,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   }`}
                 >
                   <div className="flex items-center justify-between pb-1.5 border-b border-[#EDF2F7] dark:border-slate-800/80">
-                    <span className="text-xs font-bold uppercase tracking-wider text-[#2B82C9] flex items-center gap-1.5 font-mono">
-                      <UserPlus className="w-3.5 h-3.5 text-[#2B82C9]" />
+                    <span className="text-xs font-bold uppercase tracking-wider brand-text flex items-center gap-1.5 font-mono">
+                      <UserPlus className="w-3.5 h-3.5 brand-icon" />
                       Novo Dependente
                     </span>
                   </div>
@@ -2526,13 +2522,13 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           }}
                           className={`py-1.5 px-2 rounded-[4px] text-xs font-semibold border transition cursor-pointer text-center ${
                             newDepRel === item.id
-                              ? 'bg-[#2B82C9] border-[#2B82C9] text-white font-bold'
+                              ? 'brand-tab-active font-bold'
                               : isDark
                               ? 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
                               : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#CBD5E1]'
                           }`}
                         >
-                          <span className={newDepRel === item.id ? 'text-white' : ''}>{item.label}</span>
+                          <span>{item.label}</span>
                         </button>
                       ))}
                     </div>
@@ -2568,10 +2564,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   <button
                     type="submit"
                     disabled={isSavingDep || !newDepName.trim()}
-                    className="w-full py-2.5 bg-[#2B82C9] hover:bg-[#1F6FB0] active:scale-[0.99] text-white font-bold text-xs rounded-[4px] transition uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                    className="w-full py-2.5 brand-btn active:scale-[0.99] font-bold text-xs rounded-[4px] transition uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
                   >
-                    <Check className="w-4 h-4 text-white stroke-[2.5]" />
-                    <span className="text-white">{isSavingDep ? 'Salvando...' : 'Salvar Dependente'}</span>
+                    <Check className="w-4 h-4 stroke-[2.5]" />
+                    <span>{isSavingDep ? 'Salvando...' : 'Salvar Dependente'}</span>
                   </button>
                 </form>
               )}
@@ -2589,7 +2585,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white text-[#64748B]'
                   }`}>
                     <div className="caixa-icon-halo w-12 h-12 rounded-full mx-auto mb-2.5">
-                      <Users className="w-6 h-6 text-[#2B82C9]" />
+                      <Users className="w-6 h-6 brand-icon" />
                     </div>
                     <p className="text-xs font-bold text-[#1E293B] dark:text-slate-200">Nenhum dependente cadastrado</p>
                     <p className="text-[11px] mt-1 text-[#64748B]">
@@ -2614,7 +2610,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                               <h5 className="text-xs font-bold text-[#1E293B] dark:text-white truncate">
                                 {dep.full_name}
                               </h5>
-                              <span className="px-1.5 py-0.5 rounded-[4px] bg-[#EBF5FF] text-[#2B82C9] text-[9px] font-mono font-bold shrink-0">
+                              <span className="px-1.5 py-0.5 rounded-[4px] brand-soft-badge text-[9px] font-mono font-bold shrink-0">
                                 {dep.relationship === 'son' 
                                   ? 'Filho(a)' 
                                   : dep.relationship === 'daughter' 
@@ -2673,7 +2669,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   type="button"
                   onClick={handleToggleNotifications}
                   className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                    notificationsEnabled ? 'bg-emerald-500' : 'bg-slate-300'
+                    notificationsEnabled ? 'brand-toggle-on' : 'bg-slate-300'
                   }`}
                   title="Ativar/Desativar Lembretes"
                   aria-label="Ativar/Desativar Lembretes"
@@ -2700,7 +2696,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   type="button"
                   onClick={handleToggleHaptics}
                   className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                    hapticsEnabled ? 'bg-emerald-500' : 'bg-slate-300'
+                    hapticsEnabled ? 'brand-toggle-on' : 'bg-slate-300'
                   }`}
                   title="Ativar/Desativar Vibração"
                   aria-label="Ativar/Desativar Vibração"
@@ -2720,7 +2716,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <div className="text-xs font-bold font-['Poppins'] flex items-center gap-1.5">
-                      <ArrowLeftRight className="w-4 h-4 text-emerald-400" />
+                      <ArrowLeftRight className="w-4 h-4 brand-icon" />
                       <span>Rede Solidária de Trocas</span>
                     </div>
                     <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -2731,7 +2727,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     type="button"
                     onClick={handleToggleSwapOptIn}
                     className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                      swapGovernance.optIn ? 'bg-emerald-500' : 'bg-slate-300'
+                      swapGovernance.optIn ? 'brand-toggle-on' : 'bg-slate-300'
                     }`}
                     title="Ativar/Desativar Opt-in de Trocas"
                     aria-label="Ativar/Desativar Opt-in de Trocas"
@@ -2750,7 +2746,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
                   }`}>
                     <span className="text-[9px] uppercase font-bold text-slate-400 block">Cota Mensal</span>
-                    <span className="text-xs font-black text-emerald-400">
+                    <span className="text-xs font-black brand-text">
                       {swapGovernance.usedThisMonth} / {swapGovernance.monthlyQuota}
                     </span>
                     <span className="text-[8px] text-slate-500 block">máx 2/mês</span>
@@ -2779,8 +2775,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
                 {/* Regras e Governança Explicada */}
                 <div className="space-y-1 text-[10px] text-slate-400 leading-relaxed border-t border-slate-800/60 pt-2">
-                  <div className="flex items-center gap-1.5 font-bold text-emerald-400">
-                    <ShieldCheck className="w-3.5 h-3.5" />
+                  <div className="flex items-center gap-1.5 font-bold brand-text">
+                    <ShieldCheck className="w-3.5 h-3.5 brand-icon" />
                     <span>Regras de Reciprocidade & Permuta de Horários</span>
                   </div>
                   <p>• <strong>Reciprocidade:</strong> Apenas clientes com opt-in ativo na Rede Solidária podem solicitar e receber trocas.</p>
@@ -2795,8 +2791,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               <div className={`p-3.5 rounded border space-y-1.5 ${
                 isDark ? 'bg-slate-900/60 border-slate-800/80 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
               }`}>
-                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
-                  <ShieldCheck className="w-4 h-4" />
+                <div className="flex items-center gap-1.5 text-xs font-bold brand-text">
+                  <ShieldCheck className="w-4 h-4 brand-icon" />
                   <span>Privacidade e Segurança</span>
                 </div>
                 <p className="text-[11px] leading-relaxed">
@@ -2838,7 +2834,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-[#F1F5F9] text-[#1E293B]'
                 }`}
               >
-                <ChevronRight className="w-4 h-4 rotate-180 text-[#2B82C9]" />
+                <ChevronRight className="w-4 h-4 rotate-180 brand-icon" />
                 <span>Voltar</span>
               </button>
 
@@ -2860,7 +2856,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               }`}>
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="caixa-icon-halo w-9 h-9 rounded-full shrink-0">
-                    <Scissors className="w-4 h-4 text-[#2B82C9]" />
+                    <Scissors className="w-4 h-4 brand-icon" />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
@@ -2870,7 +2866,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       <span className="w-2 h-2 rounded-full bg-[#008B47] shrink-0" title="Online no Vagou" />
                     </div>
                     <p className="text-[10px] text-[#64748B] truncate flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
+                      <ShieldCheck className="w-3.5 h-3.5 brand-icon shrink-0" />
                       <span>Chat Oficial Vagou</span>
                     </p>
                   </div>
@@ -2886,7 +2882,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     <div key={msg.id} className={`caixa-card my-2 p-2.5 rounded-[4px] text-[10px] text-center flex items-center justify-center gap-1.5 ${
                       isDark ? 'bg-slate-900/90 border-slate-800 text-slate-400' : 'bg-white text-[#64748B]'
                     }`}>
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
+                      <ShieldCheck className="w-3.5 h-3.5 brand-icon shrink-0" />
                       <span>{msg.text}</span>
                     </div>
                   );
@@ -2898,14 +2894,14 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   <div key={msg.id} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
                     <div className={`max-w-[85%] p-3 rounded-[4px] text-xs ${
                       isUser
-                        ? 'bg-[#2B82C9] text-white font-medium shadow-xs'
+                        ? 'bg-[var(--brand-primary)] text-[var(--brand-primary-fg)] font-medium shadow-xs'
                         : isDark
                         ? 'bg-slate-800 text-slate-100 border border-slate-700 font-medium'
                         : 'caixa-card bg-white text-[#1E293B] font-medium'
                     }`}>
-                      <p className={isUser ? 'text-white' : ''}>{msg.text}</p>
+                      <p>{msg.text}</p>
                       <span className={`block text-[9px] mt-1 text-right font-mono-tabular ${
-                        isUser ? 'text-white/80' : 'text-[#64748B]'
+                        isUser ? 'opacity-80' : 'text-[#64748B]'
                       }`}>
                         {msg.timestamp}
                       </span>
@@ -2929,9 +2925,9 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               <button
                 type="submit"
                 disabled={!inputDrawerChatMessage.trim()}
-                className="py-2.5 px-3.5 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1 transition cursor-pointer active:scale-98"
+                className="py-2.5 px-3.5 rounded-[4px] brand-btn disabled:opacity-40 font-bold text-xs flex items-center justify-center gap-1 transition cursor-pointer active:scale-98"
               >
-                <Send className="w-3.5 h-3.5 text-white" />
+                <Send className="w-3.5 h-3.5" />
               </button>
             </form>
           </div>
@@ -2961,13 +2957,13 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-[#F1F5F9] text-[#1E293B]'
                 }`}
               >
-                <ChevronRight className="w-4 h-4 rotate-180 text-[#2B82C9]" />
+                <ChevronRight className="w-4 h-4 rotate-180 brand-icon" />
                 <span>Voltar</span>
               </button>
 
               <div className="flex items-center gap-2">
                 <div className="caixa-icon-halo w-8 h-8 rounded-full">
-                  <ArrowLeftRight className="w-4 h-4 text-[#2B82C9]" />
+                  <ArrowLeftRight className="w-4 h-4 brand-icon" />
                 </div>
                 <div className="text-right">
                   <h3 className="font-bold text-xs text-[#1E293B] dark:text-white">Solicitar Troca em Cascata</h3>
@@ -2984,8 +2980,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               }`}>
                 <span className="text-[10px] uppercase font-bold text-slate-400">Seu Horário Atual:</span>
                 <div className="flex items-center justify-between">
-                  <div className="font-bold text-emerald-400 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" />
+                  <div className="font-bold brand-text flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 brand-icon" />
                     <span>{swapTargetAppointment.dateTime || `${swapTargetAppointment.dayGroup} às ${swapTargetAppointment.time}`}</span>
                   </div>
                   <span className="text-[10px] font-mono text-slate-400">#{swapTargetAppointment.protocolCode}</span>
@@ -2999,8 +2995,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               <div className={`p-2.5 rounded border text-[11px] space-y-1.5 ${
                 isDark ? 'bg-slate-900/90 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
               }`}>
-                <div className="flex items-center gap-1.5 font-bold text-emerald-400">
-                  <Layers className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <div className="flex items-center gap-1.5 font-bold brand-text">
+                  <Layers className="w-3.5 h-3.5 brand-icon shrink-0" />
                   <span>Fila em Cascata Automática (B → C → D) & Travas de Segurança:</span>
                 </div>
                 <p className="text-[10px] leading-relaxed text-slate-300">
@@ -3010,11 +3006,11 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 {/* Banner de Travas de Permuta */}
                 <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/60 text-[9.5px]">
                   <div className="flex items-start gap-1">
-                    <Clock className="w-3 h-3 text-emerald-400 shrink-0 mt-0.5" />
+                    <Clock className="w-3 h-3 brand-icon shrink-0 mt-0.5" />
                     <span><strong>Antecedência $\ge$ 1h:</strong> Tempo hábil para o deslocamento do convidado.</span>
                   </div>
                   <div className="flex items-start gap-1">
-                    <Timer className="w-3 h-3 text-emerald-400 shrink-0 mt-0.5" />
+                    <Timer className="w-3 h-3 brand-icon shrink-0 mt-0.5" />
                     <span><strong>Duração $\le$ {parseDurationInMinutes(swapTargetAppointment.duration || '45 min')}min:</strong> Não extrapola seu tempo e protege a agenda do salão.</span>
                   </div>
                 </div>
@@ -3024,7 +3020,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               <div className="space-y-2">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
                   <span>Escolha até 3 Horários Alvo (Toque p/ definir fila):</span>
-                  <span className="text-[10px] font-semibold text-emerald-400">
+                  <span className="text-[10px] font-semibold brand-text">
                     {selectedSwapSlots.length}/3 selecionados
                   </span>
                 </label>
@@ -3068,21 +3064,21 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                                   : 'opacity-50 border-dashed border-slate-300 bg-slate-100 cursor-not-allowed text-slate-400'
                                 : isSelected
                                 ? isDark
-                                  ? 'border-emerald-500 bg-emerald-500/20 text-white ring-1 ring-emerald-500'
-                                  : 'border-emerald-500 bg-emerald-500/15 text-slate-900 ring-1 ring-emerald-500'
+                                  ? 'brand-border-active bg-[rgba(var(--brand-primary-rgb),0.18)] text-white ring-1 ring-[var(--brand-primary)]'
+                                  : 'brand-border-active bg-[rgba(var(--brand-primary-rgb),0.12)] text-slate-900 ring-1 ring-[var(--brand-primary)]'
                                 : isDark
                                 ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
                                 : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
                             }`}
                           >
                             {isSelected && (
-                              <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-emerald-500 text-white text-[9px] font-bold flex items-center justify-center shadow-xs">
+                              <span className="absolute top-1 right-1 w-4 h-4 rounded-full brand-tab-active text-[9px] font-bold flex items-center justify-center shadow-xs">
                                 {priorityIndex + 1}º
                               </span>
                             )}
 
                             <div className="flex items-center gap-1 font-mono font-bold text-xs">
-                              <Clock className="w-3 h-3 text-emerald-400 shrink-0" />
+                              <Clock className="w-3 h-3 brand-icon shrink-0" />
                               <span>{slotTime}</span>
                             </div>
 
@@ -3098,7 +3094,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                                 : !candidate.isLeadTimeValid
                                 ? 'text-rose-400'
                                 : isSelected
-                                ? 'text-emerald-400'
+                                ? 'brand-text'
                                 : 'text-slate-400'
                             }`}>
                               {isRejected 
@@ -3123,7 +3119,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
-                    <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                    <MessageSquare className="w-3.5 h-3.5 brand-icon" />
                     <span>Mensagem de Incentivo / Apelo Fraterno:</span>
                   </span>
                 </label>
@@ -3132,10 +3128,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   value={swapIncentiveMessage}
                   onChange={(e) => setSwapIncentiveMessage(e.target.value)}
                   placeholder="Explique seu imprevisto com carinho para motivar o colega a aceitar a troca (ex: 'Tive um imprevisto na escola do meu filho, se puder me ajudar ficarei muito grato!')..."
-                  className={`w-full p-2.5 rounded border text-xs font-medium outline-hidden leading-relaxed transition ${
+                  className={`w-full p-2.5 rounded border text-xs font-medium outline-hidden leading-relaxed transition brand-ring-focus ${
                     isDark 
-                      ? 'bg-slate-900 border-slate-800 text-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500' 
-                      : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
+                      ? 'bg-slate-900 border-slate-800 text-slate-200' 
+                      : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
                 />
                 <p className="text-[10px] text-slate-500 leading-tight">
@@ -3168,10 +3164,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     handleSendSwapProposal(swapTargetAppointment, selectedSwapSlots, swapIncentiveMessage);
                   }
                 }}
-                className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:hover:bg-emerald-500 text-white font-bold text-xs rounded transition uppercase tracking-wider font-['Poppins'] flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+                className="flex-1 py-2.5 brand-btn disabled:opacity-40 font-bold text-xs rounded transition uppercase tracking-wider font-['Poppins'] flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
               >
-                <Send className="w-3.5 h-3.5 text-white" />
-                <span className="text-white">
+                <Send className="w-3.5 h-3.5" />
+                <span>
                   Iniciar Fila ({selectedSwapSlots.length} Alvo{selectedSwapSlots.length > 1 ? 's' : ''})
                 </span>
               </button>
@@ -3188,8 +3184,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
           }`}>
             {governanceWarning.type === 'optInRequired' && (
               <>
-                <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto">
-                  <ArrowLeftRight className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-full brand-soft-badge flex items-center justify-center mx-auto">
+                  <ArrowLeftRight className="w-5 h-5 brand-icon" />
                 </div>
                 <div className="text-center space-y-1">
                   <h3 className="text-sm font-bold">Ativação de Reciprocidade Necessária</h3>
@@ -3218,7 +3214,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       localStorage.setItem('vagou_client_swap_governance', JSON.stringify(updated));
                       setGovernanceWarning({ isOpen: false, type: null });
                     }}
-                    className="flex-1 py-2 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition cursor-pointer shadow-md"
+                    className="flex-1 py-2 rounded brand-btn text-xs font-bold transition cursor-pointer shadow-md"
                   >
                     Ativar e Continuar
                   </button>

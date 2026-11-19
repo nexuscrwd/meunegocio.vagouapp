@@ -38,7 +38,7 @@ import {
   EXPLICIT_THEME_STORAGE_KEY,
   CUSTOMIZED_THEME_STORAGE_KEY 
 } from '../context/ThemeContext';
-import { DEFAULT_NEUTRAL_HEX } from '../utils/themePalette';
+import { DEFAULT_NEUTRAL_HEX, isCustomBrandHex, isLegacyMintOverrideHex } from '../utils/themePalette';
 import { getSalonLogo } from '../utils/salonLogos';
 import { DEFAULT_ROTA99_LOGO_DARK, DEFAULT_ROTA99_LOGO_LIGHT, DEFAULT_ROTA99_ICON } from '../utils/defaultSalonAssets';
 import { updateDynamicPwaAssets } from '../utils/pwaAssets';
@@ -153,7 +153,7 @@ const ServiceCardMedia: React.FC<{ service: CatalogServiceItem }> = ({ service }
               key={i}
               className={`transition-all duration-300 rounded-full ${
                 i === slideIdx 
-                  ? 'w-2 h-1 bg-emerald-400 shadow-xs' 
+                  ? 'w-2 h-1 brand-bar shadow-xs' 
                   : 'w-1 h-1 bg-white/40'
               }`}
             />
@@ -187,8 +187,8 @@ const ServiceCardMedia: React.FC<{ service: CatalogServiceItem }> = ({ service }
         loading="lazy"
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
-      <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-xs text-[8.5px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1 border border-emerald-500/30">
-        <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
+      <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-xs text-[8.5px] font-bold brand-text uppercase tracking-wider flex items-center gap-1 border border-[var(--brand-primary)]/40">
+        <Sparkles className="w-2.5 h-2.5 brand-icon" />
         <span>{service.category || 'Serviço'}</span>
       </div>
     </div>
@@ -629,17 +629,34 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         localSaved.salonLogoLight ||
         resolvedIcon;
       const resolvedName = initialSalonData.trade_name || salonName || localSaved.salonName || '';
-      const initIsCustomized = Boolean(
-        initialSalonData.branding?.themeExplicitlyCustomized || initialSalonData.default_theme === 'dark'
-      );
+      const rawInitColor = initialSalonData.primary_color || initialSalonData.branding?.primaryColor || localSaved.accentColor;
+      const initIsCustomized =
+        initialSalonData.branding?.themeExplicitlyCustomized === false
+          ? false
+          : Boolean(
+              initialSalonData.branding?.themeExplicitlyCustomized ||
+              initialSalonData.default_theme === 'dark' ||
+              isCustomBrandHex(rawInitColor)
+            );
       const resolvedColor = initIsCustomized
-        ? sanitizeAccentColor(
-            initialSalonData.primary_color ||
-            initialSalonData.branding?.primaryColor ||
-            localSaved.accentColor ||
-            DEFAULT_NEUTRAL_HEX
-          )
+        ? sanitizeAccentColor(rawInitColor || DEFAULT_NEUTRAL_HEX)
         : DEFAULT_NEUTRAL_HEX;
+
+      const pickInitBrandingOrCol = (brandingVal: any, colVal: any, localVal: any, filterLegacyMint = false): any => {
+        if (brandingVal !== undefined) {
+          const trimmed = typeof brandingVal === 'string' ? brandingVal.trim() : brandingVal;
+          return trimmed || undefined;
+        }
+        const trimmedCol = typeof colVal === 'string' ? colVal.trim() : colVal;
+        if (trimmedCol && !(filterLegacyMint && isLegacyMintOverrideHex(trimmedCol))) {
+          return trimmedCol;
+        }
+        const trimmedLocal = typeof localVal === 'string' ? localVal.trim() : localVal;
+        if (trimmedLocal && !(filterLegacyMint && isLegacyMintOverrideHex(trimmedLocal))) {
+          return trimmedLocal;
+        }
+        return undefined;
+      };
 
       const rawInitialDoc = (initialSalonData.document_number || '').replace(/\D/g, '');
       const isInitialCnpj14 = rawInitialDoc.length === 14;
@@ -706,42 +723,42 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           : 'light',
         showSlogan: initialSalonData.show_slogan !== undefined ? initialSalonData.show_slogan : (initialSalonData.branding?.showSlogan !== undefined ? initialSalonData.branding?.showSlogan : (localSaved.showSlogan !== false)),
         logoTextFallback: initialSalonData.logo_text_fallback || initialSalonData.branding?.logoTextFallback || localSaved.logoTextFallback || '',
-        logoTextColor: initialSalonData.logo_text_color || initialSalonData.branding?.logoTextColor || localSaved.logoTextColor || resolvedColor,
+        logoTextColor: pickInitBrandingOrCol(initialSalonData.branding?.logoTextColor, initialSalonData.logo_text_color, localSaved.logoTextColor, true) || resolvedColor,
         showHeroSlides: initialSalonData.show_hero_slides !== undefined ? initialSalonData.show_hero_slides : (initialSalonData.branding?.showHeroSlides !== undefined ? initialSalonData.branding?.showHeroSlides : (localSaved.showHeroSlides !== false)),
         
-        // Barra de Títulos das Seções (Section Header)
-        sectionHeaderBgColor: initialSalonData.section_header_bg_color || initialSalonData.branding?.sectionHeaderBgColor || localSaved.sectionHeaderBgColor || undefined,
-        sectionHeaderTextColor: initialSalonData.section_header_text_color || initialSalonData.branding?.sectionHeaderTextColor || localSaved.sectionHeaderTextColor || undefined,
-        sectionHeaderIconColor: initialSalonData.section_header_icon_color || initialSalonData.branding?.sectionHeaderIconColor || localSaved.sectionHeaderIconColor || undefined,
-        sectionHeaderBgStyle: initialSalonData.section_header_bg_style || initialSalonData.branding?.sectionHeaderBgStyle || localSaved.sectionHeaderBgStyle || 'solid',
-        sectionHeaderBorder: initialSalonData.section_header_border || initialSalonData.branding?.sectionHeaderBorder || localSaved.sectionHeaderBorder || 'bordered',
-        sectionHeaderBtnBgColor: initialSalonData.section_header_btn_bg_color || initialSalonData.branding?.sectionHeaderBtnBgColor || localSaved.sectionHeaderBtnBgColor || undefined,
-        sectionHeaderBtnActiveBgColor: initialSalonData.section_header_btn_active_bg_color || initialSalonData.branding?.sectionHeaderBtnActiveBgColor || localSaved.sectionHeaderBtnActiveBgColor || undefined,
-        sectionHeaderBtnBorder: initialSalonData.section_header_btn_border || initialSalonData.branding?.sectionHeaderBtnBorder || localSaved.sectionHeaderBtnBorder || undefined,
-        sectionHeaderBtnShadow: initialSalonData.section_header_btn_shadow || initialSalonData.branding?.sectionHeaderBtnShadow || localSaved.sectionHeaderBtnShadow || undefined,
-        sectionHeaderBtnBlur: initialSalonData.section_header_btn_blur || initialSalonData.branding?.sectionHeaderBtnBlur || localSaved.sectionHeaderBtnBlur || undefined,
-        sectionHeaderBtnFont: initialSalonData.section_header_btn_font || initialSalonData.branding?.sectionHeaderBtnFont || localSaved.sectionHeaderBtnFont || undefined,
+        // Barra de Títulos das Seções (Section Header — prioriza branding JSONB atualizado sobre colunas antigas)
+        sectionHeaderBgColor: pickInitBrandingOrCol(initialSalonData.branding?.sectionHeaderBgColor, initialSalonData.section_header_bg_color, localSaved.sectionHeaderBgColor, true),
+        sectionHeaderTextColor: pickInitBrandingOrCol(initialSalonData.branding?.sectionHeaderTextColor, initialSalonData.section_header_text_color, localSaved.sectionHeaderTextColor, true),
+        sectionHeaderIconColor: pickInitBrandingOrCol(initialSalonData.branding?.sectionHeaderIconColor, initialSalonData.section_header_icon_color, localSaved.sectionHeaderIconColor, true),
+        sectionHeaderBgStyle: initialSalonData.branding?.sectionHeaderBgStyle || initialSalonData.section_header_bg_style || localSaved.sectionHeaderBgStyle || 'solid',
+        sectionHeaderBorder: initialSalonData.branding?.sectionHeaderBorder || initialSalonData.section_header_border || localSaved.sectionHeaderBorder || 'bordered',
+        sectionHeaderBtnBgColor: pickInitBrandingOrCol(initialSalonData.branding?.sectionHeaderBtnBgColor, initialSalonData.section_header_btn_bg_color, localSaved.sectionHeaderBtnBgColor),
+        sectionHeaderBtnActiveBgColor: pickInitBrandingOrCol(initialSalonData.branding?.sectionHeaderBtnActiveBgColor, initialSalonData.section_header_btn_active_bg_color, localSaved.sectionHeaderBtnActiveBgColor),
+        sectionHeaderBtnBorder: initialSalonData.branding?.sectionHeaderBtnBorder || initialSalonData.section_header_btn_border || localSaved.sectionHeaderBtnBorder || undefined,
+        sectionHeaderBtnShadow: initialSalonData.branding?.sectionHeaderBtnShadow || initialSalonData.section_header_btn_shadow || localSaved.sectionHeaderBtnShadow || undefined,
+        sectionHeaderBtnBlur: initialSalonData.branding?.sectionHeaderBtnBlur || initialSalonData.section_header_btn_blur || localSaved.sectionHeaderBtnBlur || undefined,
+        sectionHeaderBtnFont: initialSalonData.branding?.sectionHeaderBtnFont || initialSalonData.section_header_btn_font || localSaved.sectionHeaderBtnFont || undefined,
 
-        // Barra de Navegação Inferior (BottomNav)
-        navStyle: initialSalonData.nav_style || initialSalonData.branding?.navStyle || localSaved.navStyle || 'minimal',
-        navShape: initialSalonData.nav_shape || initialSalonData.branding?.navShape || localSaved.navShape || 'square',
-        navBorder: initialSalonData.nav_border || initialSalonData.branding?.navBorder || localSaved.navBorder || 'bordered',
-        navIconBorder: initialSalonData.nav_icon_border || initialSalonData.branding?.navIconBorder || localSaved.navIconBorder || 'none',
-        navBgStyle: initialSalonData.nav_bg_style || initialSalonData.branding?.navBgStyle || (localSaved.navBgColor ? localSaved.navBgStyle : undefined) || 'solid',
+        // Barra de Navegação Inferior (BottomNav — prioriza branding JSONB atualizado sobre colunas antigas)
+        navStyle: initialSalonData.branding?.navStyle || initialSalonData.nav_style || localSaved.navStyle || 'minimal',
+        navShape: initialSalonData.branding?.navShape || initialSalonData.nav_shape || localSaved.navShape || 'square',
+        navBorder: initialSalonData.branding?.navBorder || initialSalonData.nav_border || localSaved.navBorder || 'bordered',
+        navIconBorder: initialSalonData.branding?.navIconBorder || initialSalonData.nav_icon_border || localSaved.navIconBorder || 'none',
+        navBgStyle: initialSalonData.branding?.navBgStyle || initialSalonData.nav_bg_style || (localSaved.navBgColor ? localSaved.navBgStyle : undefined) || 'solid',
         navBgColor: (() => {
-          const candidate = (initialSalonData.nav_bg_color || initialSalonData.branding?.navBgColor || localSaved.navBgColor || '').trim();
+          const candidate = pickInitBrandingOrCol(initialSalonData.branding?.navBgColor, initialSalonData.nav_bg_color, localSaved.navBgColor, true) || '';
           return isLegacyOrSystemDefaultColor(candidate) ? undefined : candidate;
         })(),
-        navBtnBgColor: initialSalonData.nav_btn_bg_color || initialSalonData.branding?.navBtnBgColor || localSaved.navBtnBgColor || undefined,
-        navBtnActiveBgColor: initialSalonData.nav_btn_active_bg_color || initialSalonData.branding?.navBtnActiveBgColor || localSaved.navBtnActiveBgColor || undefined,
+        navBtnBgColor: pickInitBrandingOrCol(initialSalonData.branding?.navBtnBgColor, initialSalonData.nav_btn_bg_color, localSaved.navBtnBgColor),
+        navBtnActiveBgColor: pickInitBrandingOrCol(initialSalonData.branding?.navBtnActiveBgColor, initialSalonData.nav_btn_active_bg_color, localSaved.navBtnActiveBgColor),
         navActiveColor: (() => {
-          const candidate = initialSalonData.nav_active_color || initialSalonData.branding?.navActiveColor || localSaved.navActiveColor || '';
+          const candidate = pickInitBrandingOrCol(initialSalonData.branding?.navActiveColor, initialSalonData.nav_active_color, localSaved.navActiveColor, true) || '';
           return isLegacyOrSystemDefaultColor(candidate) ? undefined : candidate;
         })(),
-        navTextColor: initialSalonData.nav_text_color || initialSalonData.branding?.navTextColor || localSaved.navTextColor || undefined,
-        navBtnShadow: initialSalonData.nav_btn_shadow || initialSalonData.branding?.navBtnShadow || localSaved.navBtnShadow || undefined,
-        navBtnBlur: initialSalonData.nav_btn_blur || initialSalonData.branding?.navBtnBlur || localSaved.navBtnBlur || undefined,
-        navBtnFont: initialSalonData.nav_btn_font || initialSalonData.branding?.navBtnFont || localSaved.navBtnFont || undefined,
+        navTextColor: pickInitBrandingOrCol(initialSalonData.branding?.navTextColor, initialSalonData.nav_text_color, localSaved.navTextColor),
+        navBtnShadow: initialSalonData.branding?.navBtnShadow || initialSalonData.nav_btn_shadow || localSaved.navBtnShadow || undefined,
+        navBtnBlur: initialSalonData.branding?.navBtnBlur || initialSalonData.nav_btn_blur || localSaved.navBtnBlur || undefined,
+        navBtnFont: initialSalonData.branding?.navBtnFont || initialSalonData.nav_btn_font || localSaved.navBtnFont || undefined,
 
         welcomeStyle: initialSalonData.welcome_style || initialSalonData.branding?.welcomeStyle || localSaved.welcomeStyle || 'atmospheric',
         bio: initialSalonData.bio || initialSalonData.branding?.bio || localSaved.bio || '',
@@ -1105,9 +1122,15 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     updatedSettings.slogan = salonRecord.slogan || salonRecord.branding?.slogan || '';
     updatedSettings.brandFont = salonRecord.brand_font || salonRecord.branding?.brandFont || 'Poppins';
 
-    const isExplicitlyCustomizedTheme = Boolean(
-      salonRecord.branding?.themeExplicitlyCustomized || salonRecord.default_theme === 'dark'
-    );
+    const rawDbAccent = salonRecord.primary_color || salonRecord.branding?.primaryColor;
+    const isExplicitlyCustomizedTheme =
+      salonRecord.branding?.themeExplicitlyCustomized === false
+        ? false
+        : Boolean(
+            salonRecord.branding?.themeExplicitlyCustomized ||
+            salonRecord.default_theme === 'dark' ||
+            isCustomBrandHex(rawDbAccent)
+          );
     const remoteTheme: 'dark' | 'light' = isExplicitlyCustomizedTheme
       ? ((salonRecord.default_theme || salonRecord.branding?.defaultTheme || 'light') as 'dark' | 'light')
       : 'light';
@@ -1120,47 +1143,60 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       setTheme(isExplicitlyCustomizedTheme ? remoteTheme : 'light', { isExplicitUserChoice: false });
       initialThemeSyncDoneRef.current = true;
     }
+
+    const pickRemoteBrandingOrCol = (brandingVal: any, colVal: any, filterLegacyMint = false): any => {
+      if (brandingVal !== undefined) {
+        const trimmed = typeof brandingVal === 'string' ? brandingVal.trim() : brandingVal;
+        return trimmed || undefined;
+      }
+      const trimmedCol = typeof colVal === 'string' ? colVal.trim() : colVal;
+      if (!trimmedCol) return undefined;
+      if (filterLegacyMint && isLegacyMintOverrideHex(trimmedCol)) return undefined;
+      return trimmedCol;
+    };
+
     if (salonRecord.show_slogan !== undefined || salonRecord.branding?.showSlogan !== undefined) {
-      updatedSettings.showSlogan = salonRecord.show_slogan !== undefined ? salonRecord.show_slogan : salonRecord.branding?.showSlogan;
+      updatedSettings.showSlogan = salonRecord.branding?.showSlogan !== undefined ? salonRecord.branding?.showSlogan : salonRecord.show_slogan;
     }
     if (salonRecord.logo_text_fallback !== undefined || salonRecord.branding?.logoTextFallback !== undefined) {
-      updatedSettings.logoTextFallback = salonRecord.logo_text_fallback || salonRecord.branding?.logoTextFallback || '';
+      updatedSettings.logoTextFallback = salonRecord.branding?.logoTextFallback ?? salonRecord.logo_text_fallback ?? '';
     }
-    if (salonRecord.logo_text_color || salonRecord.branding?.logoTextColor) {
-      updatedSettings.logoTextColor = salonRecord.logo_text_color || salonRecord.branding?.logoTextColor;
+    const resolvedLogoTextColor = pickRemoteBrandingOrCol(salonRecord.branding?.logoTextColor, salonRecord.logo_text_color, true);
+    if (resolvedLogoTextColor) {
+      updatedSettings.logoTextColor = resolvedLogoTextColor;
     }
     if (salonRecord.show_hero_slides !== undefined || salonRecord.branding?.showHeroSlides !== undefined) {
-      updatedSettings.showHeroSlides = salonRecord.show_hero_slides !== undefined ? salonRecord.show_hero_slides : salonRecord.branding?.showHeroSlides;
+      updatedSettings.showHeroSlides = salonRecord.branding?.showHeroSlides !== undefined ? salonRecord.branding?.showHeroSlides : salonRecord.show_hero_slides;
     }
 
-    updatedSettings.sectionHeaderBgColor = salonRecord.section_header_bg_color || salonRecord.branding?.sectionHeaderBgColor || undefined;
-    updatedSettings.sectionHeaderTextColor = salonRecord.section_header_text_color || salonRecord.branding?.sectionHeaderTextColor || undefined;
-    updatedSettings.sectionHeaderIconColor = salonRecord.section_header_icon_color || salonRecord.branding?.sectionHeaderIconColor || undefined;
-    updatedSettings.sectionHeaderBgStyle = salonRecord.section_header_bg_style || salonRecord.branding?.sectionHeaderBgStyle || 'solid';
-    updatedSettings.sectionHeaderBorder = salonRecord.section_header_border || salonRecord.branding?.sectionHeaderBorder || 'bordered';
-    updatedSettings.sectionHeaderBtnBgColor = salonRecord.section_header_btn_bg_color || salonRecord.branding?.sectionHeaderBtnBgColor || undefined;
-    updatedSettings.sectionHeaderBtnActiveBgColor = salonRecord.section_header_btn_active_bg_color || salonRecord.branding?.sectionHeaderBtnActiveBgColor || undefined;
-    updatedSettings.sectionHeaderBtnBorder = salonRecord.section_header_btn_border || salonRecord.branding?.sectionHeaderBtnBorder || undefined;
-    updatedSettings.sectionHeaderBtnShadow = salonRecord.section_header_btn_shadow || salonRecord.branding?.sectionHeaderBtnShadow || undefined;
-    updatedSettings.sectionHeaderBtnBlur = salonRecord.section_header_btn_blur || salonRecord.branding?.sectionHeaderBtnBlur || undefined;
-    updatedSettings.sectionHeaderBtnFont = salonRecord.section_header_btn_font || salonRecord.branding?.sectionHeaderBtnFont || undefined;
+    updatedSettings.sectionHeaderBgColor = pickRemoteBrandingOrCol(salonRecord.branding?.sectionHeaderBgColor, salonRecord.section_header_bg_color, true);
+    updatedSettings.sectionHeaderTextColor = pickRemoteBrandingOrCol(salonRecord.branding?.sectionHeaderTextColor, salonRecord.section_header_text_color, true);
+    updatedSettings.sectionHeaderIconColor = pickRemoteBrandingOrCol(salonRecord.branding?.sectionHeaderIconColor, salonRecord.section_header_icon_color, true);
+    updatedSettings.sectionHeaderBgStyle = salonRecord.branding?.sectionHeaderBgStyle || salonRecord.section_header_bg_style || 'solid';
+    updatedSettings.sectionHeaderBorder = salonRecord.branding?.sectionHeaderBorder || salonRecord.section_header_border || 'bordered';
+    updatedSettings.sectionHeaderBtnBgColor = pickRemoteBrandingOrCol(salonRecord.branding?.sectionHeaderBtnBgColor, salonRecord.section_header_btn_bg_color);
+    updatedSettings.sectionHeaderBtnActiveBgColor = pickRemoteBrandingOrCol(salonRecord.branding?.sectionHeaderBtnActiveBgColor, salonRecord.section_header_btn_active_bg_color);
+    updatedSettings.sectionHeaderBtnBorder = salonRecord.branding?.sectionHeaderBtnBorder || salonRecord.section_header_btn_border || undefined;
+    updatedSettings.sectionHeaderBtnShadow = salonRecord.branding?.sectionHeaderBtnShadow || salonRecord.section_header_btn_shadow || undefined;
+    updatedSettings.sectionHeaderBtnBlur = salonRecord.branding?.sectionHeaderBtnBlur || salonRecord.section_header_btn_blur || undefined;
+    updatedSettings.sectionHeaderBtnFont = salonRecord.branding?.sectionHeaderBtnFont || salonRecord.section_header_btn_font || undefined;
 
-    updatedSettings.navStyle = salonRecord.nav_style || salonRecord.branding?.navStyle || 'minimal';
-    updatedSettings.navShape = salonRecord.nav_shape || salonRecord.branding?.navShape || 'square';
-    updatedSettings.navBorder = salonRecord.nav_border || salonRecord.branding?.navBorder || 'bordered';
-    updatedSettings.navIconBorder = salonRecord.nav_icon_border || salonRecord.branding?.navIconBorder || 'none';
-    updatedSettings.navBgStyle = salonRecord.nav_bg_style || salonRecord.branding?.navBgStyle || 'solid';
-    const remoteNavBg = (salonRecord.nav_bg_color || salonRecord.branding?.navBgColor || '').trim();
+    updatedSettings.navStyle = salonRecord.branding?.navStyle || salonRecord.nav_style || 'minimal';
+    updatedSettings.navShape = salonRecord.branding?.navShape || salonRecord.nav_shape || 'square';
+    updatedSettings.navBorder = salonRecord.branding?.navBorder || salonRecord.nav_border || 'bordered';
+    updatedSettings.navIconBorder = salonRecord.branding?.navIconBorder || salonRecord.nav_icon_border || 'none';
+    updatedSettings.navBgStyle = salonRecord.branding?.navBgStyle || salonRecord.nav_bg_style || 'solid';
+    const remoteNavBg = pickRemoteBrandingOrCol(salonRecord.branding?.navBgColor, salonRecord.nav_bg_color, true) || '';
     updatedSettings.navBgColor = isLegacyOrSystemDefaultColor(remoteNavBg) ? undefined : remoteNavBg;
-    updatedSettings.navBtnBgColor = salonRecord.nav_btn_bg_color || salonRecord.branding?.navBtnBgColor || undefined;
-    updatedSettings.navBtnActiveBgColor = salonRecord.nav_btn_active_bg_color || salonRecord.branding?.navBtnActiveBgColor || undefined;
-    const remoteNavActive = (salonRecord.nav_active_color || salonRecord.branding?.navActiveColor || '').trim();
+    updatedSettings.navBtnBgColor = pickRemoteBrandingOrCol(salonRecord.branding?.navBtnBgColor, salonRecord.nav_btn_bg_color);
+    updatedSettings.navBtnActiveBgColor = pickRemoteBrandingOrCol(salonRecord.branding?.navBtnActiveBgColor, salonRecord.nav_btn_active_bg_color);
+    const remoteNavActive = pickRemoteBrandingOrCol(salonRecord.branding?.navActiveColor, salonRecord.nav_active_color, true) || '';
     updatedSettings.navActiveColor = isLegacyOrSystemDefaultColor(remoteNavActive) ? undefined : remoteNavActive;
-    updatedSettings.navTextColor = salonRecord.nav_text_color || salonRecord.branding?.navTextColor || undefined;
-    updatedSettings.navBtnShadow = salonRecord.nav_btn_shadow || salonRecord.branding?.navBtnShadow || undefined;
-    updatedSettings.navBtnBlur = salonRecord.nav_btn_blur || salonRecord.branding?.navBtnBlur || undefined;
-    updatedSettings.navBtnFont = salonRecord.nav_btn_font || salonRecord.branding?.navBtnFont || undefined;
-    updatedSettings.welcomeStyle = salonRecord.welcome_style || salonRecord.branding?.welcomeStyle || 'atmospheric';
+    updatedSettings.navTextColor = pickRemoteBrandingOrCol(salonRecord.branding?.navTextColor, salonRecord.nav_text_color);
+    updatedSettings.navBtnShadow = salonRecord.branding?.navBtnShadow || salonRecord.nav_btn_shadow || undefined;
+    updatedSettings.navBtnBlur = salonRecord.branding?.navBtnBlur || salonRecord.nav_btn_blur || undefined;
+    updatedSettings.navBtnFont = salonRecord.branding?.navBtnFont || salonRecord.nav_btn_font || undefined;
+    updatedSettings.welcomeStyle = salonRecord.branding?.welcomeStyle || salonRecord.welcome_style || 'atmospheric';
 
     if (salonRecord.bio || salonRecord.branding?.bio) {
       updatedSettings.bio = salonRecord.bio || salonRecord.branding?.bio;
@@ -3725,7 +3761,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               <ArrowLeft className="w-3.5 h-3.5 brand-icon" />
               <span>Voltar</span>
             </button>
-            <span className="text-xs font-bold uppercase tracking-wider text-[#008B47]">
+            <span className="text-xs font-bold uppercase tracking-wider brand-text">
               Comprovante Oficial
             </span>
           </div>
@@ -3773,7 +3809,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400">Estabelecimento:</span>
-                  <span className="font-bold text-emerald-500 truncate max-w-[200px]">
+                  <span className="font-bold brand-text truncate max-w-[200px]">
                     {confirmedBookingData.salonName}
                   </span>
                 </div>
@@ -3788,13 +3824,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 {confirmedBookingData.maxDepartureTime && (
                   <div className={`pt-2 border-t space-y-1.5 ${isDark ? 'border-slate-800/80' : 'border-slate-200'}`}>
                     {confirmedBookingData.originFormattedAddress && (
-                      <div className="text-[11px] font-extrabold text-emerald-400 truncate">
+                      <div className="text-[11px] font-extrabold brand-text truncate">
                         {confirmedBookingData.originFormattedAddress}
                       </div>
                     )}
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400 flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <MapPin className="w-3.5 h-3.5 brand-icon shrink-0" />
                         <span>Distância / Trajeto:</span>
                       </span>
                       <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
@@ -3805,10 +3841,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400 flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <Clock className="w-3.5 h-3.5 brand-icon shrink-0" />
                         <span>Horário Máx. de saída:</span>
                       </span>
-                      <span className="font-black text-emerald-400">
+                      <span className="font-black brand-text">
                         {confirmedBookingData.maxDepartureTime}
                       </span>
                     </div>
@@ -4014,7 +4050,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           salonLogo={activeLogo || adminSettings.salonIcon || ''}
           salonLogoLight={adminSettings.salonLogoLight || ''}
           salonLogoDark={adminSettings.salonLogoDark || ''}
-          primaryColor={adminSettings.accentColor || '#20C933'}
+          primaryColor={adminSettings.accentColor || DEFAULT_NEUTRAL_HEX}
           secondaryColor={adminSettings.secondaryColor || ''}
           themeMode={isDark ? 'dark' : 'light'}
           onAuthenticated={(user, role) => {

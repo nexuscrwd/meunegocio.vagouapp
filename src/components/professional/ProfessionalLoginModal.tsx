@@ -82,15 +82,15 @@ export const ProfessionalLoginModal: React.FC<ProfessionalLoginModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Ícone de Escudo */}
-        <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mb-3">
-          <KeyRound className="w-6 h-6 stroke-[2.2]" />
+        <div className="w-12 h-12 rounded-full brand-soft-badge border flex items-center justify-center mb-3">
+          <KeyRound className="w-6 h-6 stroke-[2.2] brand-icon" />
         </div>
 
         <h3 className="text-base font-bold font-['Poppins']">
           {title}
         </h3>
         {salonName && (
-          <p className="text-[11px] font-semibold text-emerald-500 -mt-0.5 mb-1">
+          <p className="text-[11px] font-semibold brand-text -mt-0.5 mb-1">
             {salonName}
           </p>
         )}
@@ -107,7 +107,7 @@ export const ProfessionalLoginModal: React.FC<ProfessionalLoginModalProps> = ({
                 key={i}
                 className={`w-4 h-4 rounded-full border-2 transition-all ${
                   hasChar
-                    ? 'bg-emerald-500 border-emerald-500 scale-110'
+                    ? 'brand-bar brand-border-active scale-110'
                     : isDark
                     ? 'border-slate-700 bg-slate-900'
                     : 'border-slate-300 bg-slate-100'
@@ -166,9 +166,9 @@ export const ProfessionalLoginModal: React.FC<ProfessionalLoginModalProps> = ({
             type="button"
             onClick={handleSubmit}
             disabled={pin.length === 0}
-            className="py-2.5 rounded text-xs font-black bg-[#20C933] hover:bg-[#1bb32d] active:scale-95 text-white transition disabled:opacity-40 cursor-pointer flex items-center justify-center"
+            className="py-2.5 rounded-[4px] text-xs font-black brand-btn active:scale-95 transition disabled:opacity-40 cursor-pointer flex items-center justify-center"
           >
-            <Check className="w-4 h-4 text-white stroke-[2.5]" />
+            <Check className="w-4 h-4 stroke-[2.5]" />
           </button>
         </div>
 

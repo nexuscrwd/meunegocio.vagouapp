@@ -36,6 +36,7 @@
 
     /* Tokens Semânticos de Marca (Cascata Dinâmica em Todo o App) */
     --brand-primary: #334155;
+    --brand-primary-rgb: 51, 65, 85;
     --brand-primary-hover: #1E293B;
     --brand-primary-fg: #FFFFFF;
     --brand-soft-bg: #F1F5F9;
@@ -120,6 +121,40 @@
   background-color: var(--brand-soft-bg) !important;
   border-color: var(--brand-soft-border) !important;
   color: var(--brand-soft-fg) !important;
+}
+
+.brand-btn-soft {
+  background-color: var(--brand-soft-bg) !important;
+  border-color: var(--brand-soft-border) !important;
+  color: var(--brand-soft-fg) !important;
+}
+.brand-btn-soft:hover {
+  background-color: rgba(var(--brand-primary-rgb), 0.18) !important;
+  border-color: var(--brand-primary) !important;
+}
+
+.brand-tab-active {
+  background-color: var(--brand-primary) !important;
+  border-color: var(--brand-primary) !important;
+  color: var(--brand-primary-fg) !important;
+}
+.brand-tab-active svg,
+.brand-tab-active span {
+  color: var(--brand-primary-fg) !important;
+}
+
+.brand-bar {
+  background-color: var(--brand-primary) !important;
+}
+
+.brand-toggle-on {
+  background-color: var(--brand-primary) !important;
+}
+
+.brand-ring-focus:focus,
+.brand-ring-focus:focus-within {
+  border-color: var(--brand-primary) !important;
+  box-shadow: 0 0 0 1px var(--brand-primary) !important;
 }
 
 .brand-border-active {

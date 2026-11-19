@@ -27,8 +27,8 @@ export const ClientEvolutionChart: React.FC<ClientEvolutionChartProps> = ({ data
       {/* Cabeçalho */}
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800/40">
         <div className="flex items-center gap-1.5">
-          <div className="w-6 h-6 rounded bg-blue-500/15 border border-blue-500/30 flex items-center justify-center">
-            <Users className="w-3.5 h-3.5 text-blue-400" />
+          <div className="w-6 h-6 rounded brand-soft-badge flex items-center justify-center">
+            <Users className="w-3.5 h-3.5 brand-icon" />
           </div>
           <div>
             <span className="text-xs font-bold font-['Poppins'] block leading-tight">Evolução de Clientes</span>
@@ -37,7 +37,7 @@ export const ClientEvolutionChart: React.FC<ClientEvolutionChartProps> = ({ data
         </div>
 
         <div className="text-right">
-          <span className="text-xs font-black font-mono block text-blue-500">
+          <span className="text-xs font-black font-mono block brand-text">
             {totalClients} clientes
           </span>
           <span className={`text-[9px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -62,7 +62,7 @@ export const ClientEvolutionChart: React.FC<ClientEvolutionChartProps> = ({ data
               {/* Quantidade no topo da barra */}
               <span className={`text-[9px] font-bold font-mono mb-1 ${
                 isPeak 
-                  ? 'text-emerald-500 font-black' 
+                  ? 'brand-text font-black' 
                   : isDark ? 'text-slate-400' : 'text-slate-500'
               }`}>
                 {item.clientsCount}
@@ -71,19 +71,15 @@ export const ClientEvolutionChart: React.FC<ClientEvolutionChartProps> = ({ data
               {/* Barra Vertical */}
               <div 
                 style={{ height: `${heightPercent}%` }}
-                className={`w-full max-w-[28px] rounded-t transition-all duration-500 ${
-                  isPeak
-                    ? 'status-green-bg'
-                    : isDark
-                    ? 'bg-blue-600/70 group-hover:bg-blue-500'
-                    : 'bg-blue-500/80 group-hover:bg-blue-600'
+                className={`w-full max-w-[28px] rounded-t transition-all duration-500 brand-bar ${
+                  isPeak ? 'opacity-100' : 'opacity-55 group-hover:opacity-80'
                 }`}
               />
 
               {/* Rótulo do Dia da Semana */}
               <span className={`text-[9px] font-bold mt-1.5 uppercase ${
                 isPeak 
-                  ? 'text-emerald-500' 
+                  ? 'brand-text' 
                   : isDark ? 'text-slate-400' : 'text-slate-600'
               }`}>
                 {item.dayLabel}
@@ -98,11 +94,11 @@ export const ClientEvolutionChart: React.FC<ClientEvolutionChartProps> = ({ data
         isDark ? 'text-slate-400' : 'text-slate-500'
       }`}>
         <span className="flex items-center gap-1">
-          <Calendar className="w-3 h-3 text-blue-400" />
+          <Calendar className="w-3 h-3 brand-icon" />
           <span>Média: <strong>{(totalClients / (data.length || 1)).toFixed(1)}</strong> clientes/dia</span>
         </span>
-        <span className="text-[9px] text-emerald-500 font-bold">
-          ★ Barra verde = Dia de pico
+        <span className="text-[9px] brand-text font-bold">
+          ★ Barra em destaque = Dia de pico
         </span>
       </div>
     </div>

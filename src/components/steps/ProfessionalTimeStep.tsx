@@ -149,12 +149,12 @@ export const ProfessionalTimeStep: React.FC<ProfessionalTimeStepProps> = ({
               }}
               className={`py-2.5 px-3 rounded-[4px] border font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer text-center ${
                 isSelected
-                  ? 'bg-emerald-500 border-emerald-500 text-white'
-                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white hover:border-emerald-500/50'
+                  ? 'brand-tab-active'
+                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white hover:border-[var(--brand-primary)]/50'
               }`}
             >
-              <ModeIcon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-white' : 'text-emerald-500'}`} />
-              <span className={`leading-tight ${isSelected ? 'text-white' : ''}`}>{opt.label}</span>
+              <ModeIcon className={`w-4 h-4 shrink-0 ${isSelected ? '' : 'brand-icon'}`} />
+              <span className="leading-tight">{opt.label}</span>
             </button>
           );
         })}
@@ -179,14 +179,14 @@ export const ProfessionalTimeStep: React.FC<ProfessionalTimeStepProps> = ({
       <div key={periodKey} className="space-y-1.5">
         <div className="flex items-center justify-between px-0.5">
           <div className="flex items-center gap-1.5">
-            <PeriodIcon className={`w-3.5 h-3.5 ${isPeriodBlocked ? 'text-slate-500' : 'text-emerald-500'}`} />
+            <PeriodIcon className={`w-3.5 h-3.5 ${isPeriodBlocked ? 'text-slate-500' : 'brand-icon'}`} />
             <span className={`text-[11px] font-bold uppercase tracking-wider font-['Poppins'] ${
               isPeriodBlocked ? 'text-slate-600 line-through dark:text-slate-400' : 'text-slate-800 dark:text-slate-200'
             }`}>
               {label}
             </span>
           </div>
-          <span className={`text-[10px] font-semibold ${availableCount > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+          <span className={`text-[10px] font-semibold ${availableCount > 0 ? 'brand-text' : 'text-rose-500'}`}>
             {isPeriodBlocked ? 'Período encerrado hoje' : `${availableCount} livres`}
           </span>
         </div>
@@ -215,14 +215,14 @@ export const ProfessionalTimeStep: React.FC<ProfessionalTimeStepProps> = ({
                   : `Agendar às ${slot.time}`}
                 className={`py-2 px-1 rounded-[4px] text-xs font-bold border transition flex items-center justify-center gap-1 cursor-pointer ${
                   isSelected
-                    ? 'bg-emerald-500 border-emerald-500 text-white font-black shadow-sm'
+                    ? 'brand-tab-active font-black shadow-sm'
                     : !isAvailable
                     ? 'bg-slate-100/60 dark:bg-slate-900/30 border-slate-200 dark:border-slate-900 text-slate-300 dark:text-slate-600 line-through opacity-45 cursor-not-allowed'
-                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-400'
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-[var(--brand-primary)]'
                 }`}
               >
-                <Clock className={`w-3 h-3 ${isSelected ? 'text-white' : isAvailable ? 'text-emerald-500' : 'text-slate-300 dark:text-slate-600'}`} />
-                <span className={isSelected ? 'text-white' : ''}>{slot.time}</span>
+                <Clock className={`w-3 h-3 ${isSelected ? '' : isAvailable ? 'brand-icon' : 'text-slate-300 dark:text-slate-600'}`} />
+                <span>{slot.time}</span>
               </button>
             );
           })}
@@ -242,18 +242,18 @@ export const ProfessionalTimeStep: React.FC<ProfessionalTimeStepProps> = ({
               onClick={() => { hapticLight(); onSetProfessional('any'); onSetTimeSlot(''); }}
               className={`min-w-[105px] flex-shrink-0 p-1.5 px-2 rounded-[4px] border text-left flex items-center gap-2 transition cursor-pointer ${
                 selectedProfessional === 'any'
-                  ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                  ? 'brand-tab-active shadow-xs'
                   : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
               }`}
             >
               <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center flex-shrink-0 ${
                 selectedProfessional === 'any'
-                  ? 'bg-white/20 text-white'
-                  : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                  ? 'bg-white/20'
+                  : 'brand-soft-badge'
               }`}>
-                <Sparkles className={`w-3.5 h-3.5 ${selectedProfessional === 'any' ? 'text-white' : 'text-emerald-500'}`} />
+                <Sparkles className={`w-3.5 h-3.5 ${selectedProfessional === 'any' ? '' : 'brand-icon'}`} />
               </div>
-              <span className={`text-[11px] font-bold truncate ${selectedProfessional === 'any' ? 'text-white' : ''}`}>
+              <span className="text-[11px] font-bold truncate">
                 Qualquer
               </span>
             </button>
@@ -268,7 +268,7 @@ export const ProfessionalTimeStep: React.FC<ProfessionalTimeStepProps> = ({
                   onClick={() => { hapticLight(); onSetProfessional(prof.name); onSetTimeSlot(''); }}
                   className={`min-w-[115px] max-w-[135px] flex-shrink-0 p-1.5 px-2 rounded-[4px] border text-left flex items-center gap-2 transition cursor-pointer ${
                     isSelected
-                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                      ? 'brand-tab-active shadow-xs'
                       : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
                   }`}
                 >
@@ -276,17 +276,17 @@ export const ProfessionalTimeStep: React.FC<ProfessionalTimeStepProps> = ({
                     <img src={profImg} alt={prof.name} className="w-6 h-6 rounded-[4px] object-cover flex-shrink-0" referrerPolicy="no-referrer" />
                   ) : (
                     <div className={`w-6 h-6 rounded-[4px] flex items-center justify-center shrink-0 ${
-                      isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                      isSelected ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                     }`}>
-                      <User className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : ''}`} />
+                      <User className="w-3.5 h-3.5" />
                     </div>
                   )}
                   <div className="min-w-0">
-                    <h5 className={`text-[11px] font-bold truncate leading-tight ${isSelected ? 'text-white' : 'text-slate-800 dark:text-slate-200'}`}>
+                    <h5 className={`text-[11px] font-bold truncate leading-tight ${isSelected ? '' : 'text-slate-800 dark:text-slate-200'}`}>
                       {prof.name}
                     </h5>
                     {prof.rating && (
-                      <div className={`flex items-center gap-0.5 text-[9px] leading-tight ${isSelected ? 'text-white/90' : 'text-amber-400'}`}>
+                      <div className={`flex items-center gap-0.5 text-[9px] leading-tight ${isSelected ? 'opacity-90' : 'text-amber-400'}`}>
                         <Star className="w-2.5 h-2.5 fill-current" />
                         <span>{prof.rating.toFixed(1)}</span>
                       </div>
@@ -303,9 +303,9 @@ export const ProfessionalTimeStep: React.FC<ProfessionalTimeStepProps> = ({
       <div className={`space-y-2.5 ${availableProfessionals.length > 1 ? `pt-2 border-t border-slate-200 dark:border-slate-800` : ''}`}>
         <div className="flex items-center justify-between gap-1.5 flex-wrap">
           <h4 className="text-[11px] font-bold font-['Poppins'] flex items-center gap-1 uppercase tracking-wider text-slate-900 dark:text-white">
-            <Clock className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+            <Clock className="w-3.5 h-3.5 brand-icon shrink-0" />
             <span>Horários ({shortDateFormatted})</span>
-            {isLoadingBusySlots && <Loader2 className="w-3 h-3 animate-spin text-emerald-500 ml-1" />}
+            {isLoadingBusySlots && <Loader2 className="w-3 h-3 animate-spin brand-icon ml-1" />}
           </h4>
 
           <div className={`flex items-center gap-0.5 p-0.5 rounded-[4px] border bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700`}>
@@ -326,11 +326,11 @@ export const ProfessionalTimeStep: React.FC<ProfessionalTimeStepProps> = ({
                     tab.disabled
                       ? 'text-slate-300 line-through cursor-not-allowed opacity-50 dark:text-slate-700'
                       : isActive
-                      ? 'bg-emerald-500 text-white font-extrabold cursor-pointer'
+                      ? 'brand-tab-active font-extrabold cursor-pointer'
                       : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white cursor-pointer'
                   }`}
                 >
-                  <span className={isActive && !tab.disabled ? 'text-white' : ''}>{tab.label}</span>
+                  <span>{tab.label}</span>
                 </button>
               );
             })}

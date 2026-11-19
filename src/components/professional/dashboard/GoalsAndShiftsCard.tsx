@@ -157,8 +157,8 @@ export const GoalsAndShiftsCard: React.FC<GoalsAndShiftsCardProps> = ({
         isDark ? 'border-slate-800/80' : 'border-slate-200'
       }`}>
         <div className="flex items-center gap-1.5 shrink-0">
-          <div className="w-5 h-5 rounded bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-            <Target className="w-3 h-3 text-emerald-500" />
+          <div className="w-5 h-5 rounded border flex items-center justify-center brand-soft-badge">
+            <Target className="w-3 h-3 brand-icon" />
           </div>
           <span className="text-xs font-bold font-['Poppins']">
             Evolução Caixa
@@ -181,7 +181,7 @@ export const GoalsAndShiftsCard: React.FC<GoalsAndShiftsCardProps> = ({
           </div>
 
           <div className="flex-1 flex flex-col items-center justify-center text-center py-0">
-            <span className="text-2xl font-black font-mono tracking-tight leading-none text-emerald-400 mb-1.5">
+            <span className="text-2xl font-black font-mono tracking-tight leading-none brand-text mb-1.5">
               {percentage}%
             </span>
             <span
@@ -198,7 +198,7 @@ export const GoalsAndShiftsCard: React.FC<GoalsAndShiftsCardProps> = ({
         <div className="flex flex-col h-full justify-between pl-2 border-l border-slate-800/40 min-w-0">
           <div className="w-full flex items-center justify-between mb-1 px-0.5">
             <div className="flex items-center gap-1">
-              <DollarSign className="w-2.5 h-2.5 text-emerald-400" />
+              <DollarSign className="w-2.5 h-2.5 brand-icon" />
               <span
                 className={`text-[9px] font-bold uppercase tracking-wider ${
                   isDark ? 'text-slate-400' : 'text-slate-500'
@@ -207,7 +207,7 @@ export const GoalsAndShiftsCard: React.FC<GoalsAndShiftsCardProps> = ({
                 Faturamento
               </span>
             </div>
-            <span className="text-[8.5px] font-bold font-mono text-emerald-400 truncate">
+            <span className="text-[8.5px] font-bold font-mono brand-text truncate">
               R$ {totalRevenue.toFixed(0)} hoje
             </span>
           </div>
@@ -220,14 +220,14 @@ export const GoalsAndShiftsCard: React.FC<GoalsAndShiftsCardProps> = ({
               return (
                 <div key={shift.label} className="flex-1 flex flex-col items-center h-full justify-end min-w-0">
                   {/* Faturamento no topo da barra */}
-                  <span className="text-[10px] font-bold font-mono text-emerald-400 mb-0.5 truncate">
+                  <span className="text-[10px] font-bold font-mono brand-text mb-0.5 truncate">
                     R$ {shift.revenue >= 1000 ? `${(shift.revenue / 1000).toFixed(1)}k` : shift.revenue.toFixed(0)}
                   </span>
 
                   {/* Barra Vertical */}
                   <div
                     style={{ height: `${heightPercent * 0.50}px` }}
-                    className="w-full max-w-[28px] rounded-t bg-emerald-500 transition-all duration-300"
+                    className="w-full max-w-[28px] rounded-t brand-bar transition-all duration-300"
                   />
 
                   {/* Título do Turno ao pé da barra */}

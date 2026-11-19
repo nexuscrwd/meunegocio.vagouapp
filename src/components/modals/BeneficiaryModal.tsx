@@ -81,9 +81,9 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
             <h3 className="text-sm font-extrabold font-['Poppins'] leading-snug">
               Para quem é o agendamento?
             </h3>
-            <p className="text-[11px] text-emerald-500 font-semibold flex items-start gap-1.5 mt-1 leading-snug">
-              <span className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5 rounded-[2px] bg-emerald-500/10 flex items-center justify-center">
-                <Plus className="w-3 h-3 text-emerald-500" />
+            <p className="text-[11px] brand-text font-semibold flex items-start gap-1.5 mt-1 leading-snug">
+              <span className="w-3.5 h-3.5 shrink-0 mt-0.5 rounded-[2px] brand-soft-badge flex items-center justify-center">
+                <Plus className="w-3 h-3 brand-icon" />
               </span>
               <span className="break-words">{selectedService.title}</span>
             </p>
@@ -107,12 +107,12 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
             }}
             className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
               !isDependentBooking
-                ? 'bg-emerald-500 border-emerald-500 text-white'
-                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-emerald-500/50'
+                ? 'brand-tab-active'
+                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-[var(--brand-primary)]/50'
             }`}
           >
-            <User className={`w-5 h-5 shrink-0 ${!isDependentBooking ? 'text-white' : 'text-emerald-500'}`} />
-            <span className={`leading-tight ${!isDependentBooking ? 'text-white' : ''}`}>Para Você</span>
+            <User className={`w-5 h-5 shrink-0 ${!isDependentBooking ? '' : 'brand-icon'}`} />
+            <span className="leading-tight">Para Você</span>
           </button>
 
           <button
@@ -120,12 +120,12 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
             onClick={() => { hapticLight(); onSetDependentBooking(true); }}
             className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
               isDependentBooking
-                ? 'bg-emerald-500 border-emerald-500 text-white'
-                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-emerald-500/50'
+                ? 'brand-tab-active'
+                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-[var(--brand-primary)]/50'
             }`}
           >
-            <Users className={`w-5 h-5 shrink-0 ${isDependentBooking ? 'text-white' : 'text-emerald-500'}`} />
-            <span className={`leading-tight ${isDependentBooking ? 'text-white' : ''}`}>Para Dependente</span>
+            <Users className={`w-5 h-5 shrink-0 ${isDependentBooking ? '' : 'brand-icon'}`} />
+            <span className="leading-tight">Para Dependente</span>
           </button>
         </div>
 
@@ -146,19 +146,19 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
                         onClick={() => onSelectDependent(dep)}
                         className={`w-full p-2.5 rounded-[4px] border text-left flex items-center justify-between gap-2 transition cursor-pointer ${
                           isSelected
-                            ? 'bg-emerald-500 border-emerald-500 text-white font-bold'
-                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white hover:border-emerald-500/50'
+                            ? 'brand-tab-active font-bold'
+                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white hover:border-[var(--brand-primary)]/50'
                         }`}
                       >
                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <User className={`w-4 h-4 shrink-0 ${isSelected ? 'text-white' : 'text-emerald-500'}`} />
-                          <span className={`text-xs font-bold break-words ${isSelected ? 'text-white' : ''}`}>
+                          <User className={`w-4 h-4 shrink-0 ${isSelected ? '' : 'brand-icon'}`} />
+                          <span className="text-xs font-bold break-words">
                             {dep.full_name}
                           </span>
                         </div>
                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[4px] shrink-0 ${
                           isSelected
-                            ? 'bg-white/20 text-white'
+                            ? 'bg-white/20'
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                         }`}>
                           {RELATIONSHIP_LABELS[dep.relationship] || 'Familiar'}
@@ -174,15 +174,15 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
               <button
                 type="button"
                 onClick={onStartCreateDependent}
-                className="w-full py-2.5 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                className="w-full py-2.5 px-3 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
               >
-                <Plus className="w-4 h-4 text-white shrink-0" />
-                <span className="text-white">Cadastrar Dependente</span>
+                <Plus className="w-4 h-4 shrink-0" />
+                <span>Cadastrar Dependente</span>
               </button>
             ) : (
               <form onSubmit={onSaveInlineDependent} className="space-y-2 pt-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-emerald-500">Novo Dependente (Conta Família)</span>
+                  <span className="text-[11px] font-bold brand-text">Novo Dependente (Conta Família)</span>
                   <button
                     type="button"
                     onClick={onCancelCreateDependent}
@@ -198,14 +198,14 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
                   value={newDepFullName}
                   onChange={(e) => setNewDepFullName(e.target.value)}
                   placeholder="Nome completo do dependente"
-                  className="w-full px-3 py-2 text-xs rounded-[4px] border outline-hidden bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white focus:border-emerald-500"
+                  className="w-full px-3 py-2 text-xs rounded-[4px] border outline-hidden bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white brand-ring-focus"
                 />
 
                 <div className="grid grid-cols-2 gap-2">
                   <select
                     value={newDepRelationship}
                     onChange={(e) => setNewDepRelationship(e.target.value as any)}
-                    className="w-full px-2.5 py-2 text-xs rounded-[4px] border outline-hidden bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white focus:border-emerald-500"
+                    className="w-full px-2.5 py-2 text-xs rounded-[4px] border outline-hidden bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white brand-ring-focus"
                   >
                     <option value="son">Filho(a)</option>
                     <option value="spouse">Cônjuge</option>
@@ -217,7 +217,7 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
                     type="date"
                     value={newDepBirthDate}
                     onChange={(e) => setNewDepBirthDate(e.target.value)}
-                    className="w-full px-2.5 py-2 text-xs rounded-[4px] border outline-hidden bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white focus:border-emerald-500"
+                    className="w-full px-2.5 py-2 text-xs rounded-[4px] border outline-hidden bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white brand-ring-focus"
                   />
                 </div>
 
@@ -226,16 +226,16 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
                   value={newDepNotes}
                   onChange={(e) => setNewDepNotes(e.target.value)}
                   placeholder="Observações (opcional)"
-                  className="w-full px-3 py-2 text-xs rounded-[4px] border outline-hidden bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white focus:border-emerald-500"
+                  className="w-full px-3 py-2 text-xs rounded-[4px] border outline-hidden bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white brand-ring-focus"
                 />
 
                 <button
                   type="submit"
                   disabled={isSavingInlineDependent || !newDepFullName.trim()}
-                  className="w-full py-2.5 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  className="w-full py-2.5 px-3 rounded-[4px] brand-btn disabled:opacity-50 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
-                  <Check className="w-4 h-4 text-white shrink-0" />
-                  <span className="text-white">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>
                     {isSavingInlineDependent ? 'Salvando...' : 'Salvar e Avançar'}
                   </span>
                 </button>

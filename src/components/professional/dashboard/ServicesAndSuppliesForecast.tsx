@@ -245,8 +245,8 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
       {/* 1. Cabeçalho Principal com Seletor Temporal */}
       <div className="w-full flex items-center justify-between pb-2 mb-2 border-b border-slate-800/40 gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
-          <div className="w-6 h-6 rounded bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
-            <Boxes className="w-3.5 h-3.5 text-emerald-400" />
+          <div className="w-6 h-6 rounded brand-soft-badge flex items-center justify-center shrink-0">
+            <Boxes className="w-3.5 h-3.5 brand-icon" />
           </div>
           <div className="min-w-0">
             <h3 className="text-xs font-bold font-['Poppins'] truncate">
@@ -271,7 +271,7 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
                 }}
                 className={`px-2 py-0.5 text-[10px] font-bold rounded capitalize transition cursor-pointer whitespace-nowrap ${
                   isSelected
-                    ? 'bg-emerald-500 text-white shadow-xs font-extrabold'
+                    ? 'brand-tab-active shadow-xs font-extrabold'
                     : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -293,14 +293,14 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
             }}
             className={`px-2.5 py-1 text-[11px] font-bold rounded flex items-center gap-1.5 transition cursor-pointer ${
               activeSubTab === 'servicos'
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-extrabold'
+                ? 'brand-soft-badge font-extrabold'
                 : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Scissors className="w-3 h-3" />
             <span>Serviços Previstos</span>
             <span className={`text-[10px] px-1 rounded font-mono ${
-              activeSubTab === 'servicos' ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-300'
+              activeSubTab === 'servicos' ? 'brand-tab-active' : 'bg-slate-800 text-slate-300'
             }`}>
               {totalForecastCount}
             </span>
@@ -314,7 +314,7 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
             }}
             className={`px-2.5 py-1 text-[11px] font-bold rounded flex items-center gap-1.5 transition cursor-pointer ${
               activeSubTab === 'insumos'
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-extrabold'
+                ? 'brand-soft-badge font-extrabold'
                 : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -345,8 +345,8 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
                 }`}
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-5 h-5 rounded bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                    <span className="text-[10px] font-bold text-emerald-400 font-mono">
+                  <div className="w-5 h-5 rounded brand-soft-badge flex items-center justify-center shrink-0">
+                    <span className="text-[10px] font-bold font-mono">
                       {stat.count}x
                     </span>
                   </div>
@@ -376,9 +376,9 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
           <div className={`p-2 rounded border flex items-start gap-2 mt-1 ${
             isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100/80 border-slate-200'
           }`}>
-            <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+            <Sparkles className="w-3.5 h-3.5 brand-icon shrink-0 mt-0.5" />
             <p className={`text-[11px] leading-snug ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-              Para {period === 'hoje' ? 'o dia de hoje' : period === 'semana' ? 'esta semana' : 'este mês'}, há <strong className="text-emerald-500">{totalForecastCount} serviços agendados</strong>. Verifique o almoxarifado para não faltar produtos durante o fluxo de atendimento.
+              Para {period === 'hoje' ? 'o dia de hoje' : period === 'semana' ? 'esta semana' : 'este mês'}, há <strong className="brand-text">{totalForecastCount} serviços agendados</strong>. Verifique o almoxarifado para não faltar produtos durante o fluxo de atendimento.
             </p>
           </div>
         </div>
@@ -424,9 +424,9 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
                         setRestockModalItem(item);
                         setRestockAmount(String(item.consumptionPerService * 5));
                       }}
-                      className="px-2 py-1 bg-emerald-500 text-white hover:bg-emerald-600 rounded text-[10px] font-bold flex items-center gap-1 shrink-0 transition cursor-pointer active:scale-95 shadow-xs whitespace-nowrap"
+                      className="px-2 py-1 brand-btn rounded text-[10px] font-bold flex items-center gap-1 shrink-0 transition cursor-pointer active:scale-95 shadow-xs whitespace-nowrap"
                     >
-                      <Plus className="w-2.5 h-2.5 text-white" />
+                      <Plus className="w-2.5 h-2.5" />
                       <span>Repor</span>
                     </button>
                   </div>
@@ -435,7 +435,7 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
                   <div className="mt-2">
                     <div className="flex items-center justify-between text-[10px] font-mono mb-1">
                       <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>
-                        Estoque Atual: <strong className={item.isDeficit ? 'text-rose-400' : 'text-emerald-500'}>
+                        Estoque Atual: <strong className={item.isDeficit ? 'text-rose-400' : 'brand-text'}>
                           {item.currentStock} {item.unit}
                         </strong>
                       </span>
@@ -450,7 +450,7 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
                     }`}>
                       <div
                         className={`h-full rounded-full transition-all duration-500 ${
-                          item.isDeficit ? 'bg-rose-500' : 'bg-emerald-500'
+                          item.isDeficit ? 'bg-rose-500' : 'brand-bar'
                         }`}
                         style={{ width: `${Math.min(100, (item.currentStock / Math.max(item.totalNeeded, item.currentStock, 1)) * 100)}%` }}
                       />
@@ -460,13 +460,13 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
                   {/* Autonomia de Atendimentos */}
                   <div className="mt-1.5 pt-1.5 border-t border-slate-800/40 flex items-center justify-between text-[10px]">
                     <span className={`flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                      <PackageCheck className="w-3 h-3 text-emerald-400" />
+                      <PackageCheck className="w-3 h-3 brand-icon" />
                       Autonomia da bancada:
                     </span>
                     <span className={`font-bold font-mono px-1.5 py-0.2 rounded ${
                       item.autonomyInServices <= 2 
                         ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                        : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'brand-soft-badge'
                     }`}>
                       Faz mais {item.autonomyInServices} atendimentos
                     </span>
@@ -486,7 +486,7 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
           }`}>
             <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-800/40">
               <div className="flex items-center gap-2">
-                <Boxes className="w-4 h-4 text-emerald-400" />
+                <Boxes className="w-4 h-4 brand-icon" />
                 <h4 className="text-xs font-bold uppercase tracking-wider">
                   Repor Insumo no Estoque
                 </h4>
@@ -517,7 +517,7 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
                 type="number"
                 value={restockAmount}
                 onChange={(e) => setRestockAmount(e.target.value)}
-                className={`flex-1 px-3 py-2 text-sm font-bold font-mono rounded border outline-none ${
+                className={`flex-1 px-3 py-2 text-sm font-bold font-mono rounded border outline-none brand-ring-focus ${
                   isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                 }`}
                 autoFocus
@@ -540,9 +540,9 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
               <button
                 type="button"
                 onClick={handleConfirmRestock}
-                className="py-2 rounded text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white transition flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                className="py-2 rounded text-xs font-bold brand-btn transition flex items-center justify-center gap-1 shadow-xs cursor-pointer"
               >
-                <Check className="w-3.5 h-3.5 text-white" />
+                <Check className="w-3.5 h-3.5" />
                 <span>Confirmar Reposição</span>
               </button>
             </div>

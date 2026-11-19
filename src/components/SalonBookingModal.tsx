@@ -120,7 +120,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   salonLogoLight,
   salonLogoDark,
   salonCoords = { lat: -23.5621, lng: -46.4795 },
-  primaryColor = '#00a033',
+  primaryColor,
   services,
   professionals,
   initialService,
@@ -1361,7 +1361,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       <div key={periodKey} className="space-y-2 pt-2 first:pt-0">
         <div className="flex items-center justify-between px-0.5">
           <div className="flex items-center gap-1.5">
-            <PeriodIcon className={`w-3.5 h-3.5 ${isPeriodBlocked ? 'text-[#DC2626]' : 'text-[#2B82C9]'}`} />
+            <PeriodIcon className={`w-3.5 h-3.5 ${isPeriodBlocked ? 'text-[#DC2626]' : 'brand-icon'}`} />
             <span className={`text-[11px] font-bold uppercase tracking-wider font-display ${
               isPeriodBlocked
                 ? 'text-[#DC2626] line-through'
@@ -1371,7 +1371,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             </span>
           </div>
           <span className={`text-[10px] font-mono-tabular font-bold ${
-            availableCount > 0 ? 'text-[#008B47]' : 'text-[#DC2626]'
+            availableCount > 0 ? 'brand-text' : 'text-[#DC2626]'
           }`}>
             {isPeriodBlocked ? 'Encerrado hoje' : `${availableCount} livres`}
           </span>
@@ -1412,26 +1412,26 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 }
                 className={`py-2 px-1 rounded-[4px] text-xs font-mono-tabular font-bold border transition flex items-center justify-center gap-1 cursor-pointer ${
                   isSelected
-                    ? 'bg-[#2B82C9] border-[#2B82C9] text-white font-bold shadow-sm'
+                    ? 'brand-tab-active font-bold shadow-sm'
                     : !isAvailable
                     ? slot.reason === 'inter_salon_conflict'
                       ? 'bg-amber-500/10 border-amber-500/40 text-amber-400 line-through opacity-75 cursor-not-allowed'
                       : 'bg-[#FEF2F2] border-[#FECACA] text-[#DC2626] line-through opacity-70 cursor-not-allowed'
                     : isDark
-                    ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-[#2B82C9]'
-                    : 'bg-[#F7F9FC] border-[#D5E0EC] text-[#1E293B] hover:border-[#2B82C9] hover:text-[#2B82C9]'
+                    ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-[var(--brand-primary)]'
+                    : 'bg-[#F7F9FC] border-[#D5E0EC] text-[#1E293B] hover:border-[var(--brand-primary)]'
                 }`}
               >
                 <Clock className={`w-3 h-3 ${
                   isSelected
-                    ? 'text-white'
+                    ? ''
                     : isAvailable
-                    ? 'text-[#2B82C9]'
+                    ? 'brand-icon'
                     : slot.reason === 'inter_salon_conflict'
                     ? 'text-amber-400'
                     : 'text-[#DC2626]'
                 }`} />
-                <span className={isSelected ? 'text-white' : ''}>{slot.time}</span>
+                <span>{slot.time}</span>
               </button>
             );
           })}
@@ -1472,10 +1472,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   }}
                   className={`flex-shrink-0 py-1.5 px-3 rounded-[4px] border text-left flex items-center gap-2 transition cursor-pointer ${
                     isSelected
-                      ? 'bg-[#2B82C9] border-[#2B82C9] text-white font-bold shadow-xs'
+                      ? 'brand-tab-active font-bold shadow-xs'
                       : isDark
                       ? 'bg-slate-900 border-slate-800 text-slate-300'
-                      : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#2B82C9]/40'
+                      : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[var(--brand-primary)]/40'
                   }`}
                 >
                   {profImg && !profImg.startsWith('data:image/svg+xml') ? (
@@ -1489,16 +1489,16 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     <div
                       className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
                         isSelected
-                          ? 'bg-white/20 text-white'
-                          : 'bg-[#EBF4FC] text-[#2B82C9]'
+                          ? 'bg-white/20'
+                          : 'brand-soft-badge'
                       }`}
                     >
-                      <User className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : ''}`} />
+                      <User className="w-3.5 h-3.5" />
                     </div>
                   )}
                   <span
                     className={`text-xs font-bold whitespace-nowrap leading-none ${
-                      isSelected ? 'text-white' : isDark ? 'text-slate-200' : 'text-[#5F6C7B]'
+                      isSelected ? '' : isDark ? 'text-slate-200' : 'text-[#5F6C7B]'
                     }`}
                   >
                     {firstName}
@@ -1507,7 +1507,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               );
             })}
             {isLoadingBusySlots && (
-              <Loader2 className="w-4 h-4 animate-spin text-[#2B82C9] shrink-0 ml-1" />
+              <Loader2 className="w-4 h-4 animate-spin brand-icon shrink-0 ml-1" />
             )}
           </div>
         </div>
@@ -1585,17 +1585,17 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     }}
                     className={`h-11 rounded-[4px] font-mono-tabular font-bold text-xs transition-all relative flex flex-col items-center justify-center cursor-pointer border ${
                       isSelected
-                        ? 'bg-[#2B82C9] border-[#2B82C9] text-white font-bold shadow-sm z-10'
+                        ? 'brand-tab-active font-bold shadow-sm z-10'
                         : isDayDisabled
                         ? 'bg-[#FEF2F2] border-[#FECACA] text-[#DC2626] cursor-not-allowed'
                         : isDark
-                        ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-[#2B82C9]'
-                        : 'bg-[#F7F9FC] border-[#D5E0EC] text-[#1E293B] hover:border-[#2B82C9]'
+                        ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-[var(--brand-primary)]'
+                        : 'bg-[#F7F9FC] border-[#D5E0EC] text-[#1E293B] hover:border-[var(--brand-primary)]'
                     }`}
                   >
-                    <span className={isSelected ? 'text-white' : ''}>{item.dayNumber}</span>
+                    <span>{item.dayNumber}</span>
                     {item.isToday && !isSelected && !isDayDisabled && (
-                      <span className="text-[8px] font-bold uppercase text-[#2B82C9]">Hoje</span>
+                      <span className="text-[8px] font-bold uppercase brand-text">Hoje</span>
                     )}
                     {item.isClosed && !isSelected && (
                       <span className="text-[7.5px] text-[#DC2626] font-bold">Fechado</span>
@@ -1625,13 +1625,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B]'
                 }`}
               >
-                <ArrowLeft className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
+                <ArrowLeft className="w-3.5 h-3.5 brand-icon shrink-0" />
                 <span>Voltar ao Calendário</span>
               </button>
 
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs font-mono-tabular font-bold bg-[#2B82C9] text-white">
-                <Calendar className="w-3.5 h-3.5 text-white shrink-0" />
-                <span className="text-white">{shortDateFormatted}</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] text-xs font-mono-tabular font-bold brand-tab-active">
+                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                <span>{shortDateFormatted}</span>
               </span>
             </div>
 
@@ -1661,13 +1661,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                       tab.disabled
                         ? 'bg-[#FEF2F2] border-[#FECACA] text-[#DC2626] line-through cursor-not-allowed opacity-70'
                         : isActive
-                        ? 'bg-[#2B82C9] border-[#2B82C9] text-white font-bold cursor-pointer shadow-xs'
+                        ? 'brand-tab-active font-bold cursor-pointer shadow-xs'
                         : isDark
                         ? 'bg-slate-900 border-slate-800 text-slate-400 cursor-pointer'
                         : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B] cursor-pointer'
                     }`}
                   >
-                    <span className={isActive && !tab.disabled ? 'text-white' : ''}>{tab.label}</span>
+                    <span>{tab.label}</span>
                   </button>
                 );
               })}
@@ -1702,12 +1702,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               hapticMedium();
               setIsSummaryModalOpen(true);
             }}
-            className="w-full py-2.5 px-4 font-bold text-xs uppercase tracking-wider rounded-[4px] transition flex items-center justify-center gap-1.5 font-display bg-[#008B47] hover:bg-[#00753B] text-white cursor-pointer active:scale-98"
+            className="w-full py-2.5 px-4 font-bold text-xs uppercase tracking-wider rounded-[4px] transition flex items-center justify-center gap-1.5 font-display brand-btn cursor-pointer active:scale-98"
           >
-            <span className="text-white">
+            <span>
               Revisar & Confirmar ({selectedTimeSlot})
             </span>
-            <ChevronRight className="w-3.5 h-3.5 text-white" />
+            <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
@@ -1742,7 +1742,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               : 'bg-[#FFFFFF] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B]'
           }`}
         >
-          <ArrowLeft className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
+          <ArrowLeft className="w-3.5 h-3.5 brand-icon shrink-0" />
           <span>Voltar</span>
         </button>
 
@@ -1781,12 +1781,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               }}
               className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
                 !isDependentBooking
-                  ? 'bg-[#2B82C9] border-[#2B82C9] text-white'
-                  : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#2B82C9]'
+                  ? 'brand-tab-active'
+                  : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[var(--brand-primary)]'
               }`}
             >
-              <User className={`w-5 h-5 shrink-0 ${!isDependentBooking ? 'text-white' : 'text-[#2B82C9]'}`} />
-              <span className={`leading-tight ${!isDependentBooking ? 'text-white' : ''}`}>Para Você</span>
+              <User className={`w-5 h-5 shrink-0 ${!isDependentBooking ? '' : 'brand-icon'}`} />
+              <span className="leading-tight">Para Você</span>
             </button>
 
             <button
@@ -1800,12 +1800,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               }}
               className={`p-3.5 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
                 isDependentBooking
-                  ? 'bg-[#2B82C9] border-[#2B82C9] text-white'
-                  : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#2B82C9]'
+                  ? 'brand-tab-active'
+                  : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[var(--brand-primary)]'
               }`}
             >
-              <Users className={`w-5 h-5 shrink-0 ${isDependentBooking ? 'text-white' : 'text-[#2B82C9]'}`} />
-              <span className={`leading-tight ${isDependentBooking ? 'text-white' : ''}`}>Dependente</span>
+              <Users className={`w-5 h-5 shrink-0 ${isDependentBooking ? '' : 'brand-icon'}`} />
+              <span className="leading-tight">Dependente</span>
             </button>
           </div>
 
@@ -1848,19 +1848,19 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                           }}
                           className={`w-full p-2.5 rounded-[4px] text-left flex items-center justify-between gap-2 transition cursor-pointer ${
                             isSelectedDep
-                              ? 'bg-[#2B82C9] text-white font-bold'
-                              : 'bg-[#F7F9FC] text-[#1E293B] hover:bg-[#EBF4FC]'
+                              ? 'brand-tab-active font-bold'
+                              : 'bg-[#F7F9FC] text-[#1E293B] hover:bg-slate-100'
                           }`}
                         >
                           <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <User className={`w-4 h-4 shrink-0 ${isSelectedDep ? 'text-white' : 'text-[#2B82C9]'}`} />
-                            <span className={`text-xs font-bold break-words ${isSelectedDep ? 'text-white' : ''}`}>
+                            <User className={`w-4 h-4 shrink-0 ${isSelectedDep ? '' : 'brand-icon'}`} />
+                            <span className="text-xs font-bold break-words">
                               {dep.full_name}
                             </span>
                           </div>
                           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[4px] shrink-0 ${
                             isSelectedDep
-                              ? 'bg-white/20 text-white'
+                              ? 'bg-white/20'
                               : 'bg-[#F1F5F9] text-[#5F6C7B]'
                           }`}>
                             {relLabel}
@@ -1880,15 +1880,15 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     hapticLight();
                     setIsCreatingDependentInline(true);
                   }}
-                  className="w-full py-2.5 px-3 rounded-[4px] bg-[#2B82C9] hover:bg-[#0D79B4] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  className="w-full py-2.5 px-3 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
-                  <Plus className="w-4 h-4 text-white shrink-0" />
-                  <span className="text-white">Cadastrar Dependente</span>
+                  <Plus className="w-4 h-4 shrink-0" />
+                  <span>Cadastrar Dependente</span>
                 </button>
               ) : (
                 <form onSubmit={handleSaveInlineDependent} className="space-y-2.5 pt-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-[#2B82C9]">Novo Dependente (Conta Família)</span>
+                    <span className="text-[11px] font-bold brand-text">Novo Dependente (Conta Família)</span>
                     <button
                       type="button"
                       onClick={() => setIsCreatingDependentInline(false)}
@@ -1938,10 +1938,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   <button
                     type="submit"
                     disabled={isSavingInlineDependent || !newDepFullName.trim()}
-                    className="w-full py-2.5 px-3 rounded-[4px] bg-[#008B47] hover:bg-[#00753B] disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    className="w-full py-2.5 px-3 rounded-[4px] brand-btn disabled:opacity-50 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                   >
-                    <Check className="w-4 h-4 text-white shrink-0" />
-                    <span className="text-white">
+                    <Check className="w-4 h-4 shrink-0" />
+                    <span>
                       {isSavingInlineDependent ? 'Salvando...' : 'Salvar e Continuar'}
                     </span>
                   </button>
@@ -2009,7 +2009,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     { key: 'rideshare', label: 'Aplicativo', Icon: Smartphone },
   ];
 
-  const renderModeIcon = (mode: TransportMode, className = 'w-3.5 h-3.5 text-[#2B82C9] shrink-0') => {
+  const renderModeIcon = (mode: TransportMode, className = 'w-3.5 h-3.5 brand-icon shrink-0') => {
     if (mode === 'walking') return <Footprints className={className} />;
     if (mode === 'bicycling') return <Bike className={className} />;
     if (mode === 'motorcycle') return <Navigation className={className} />;
@@ -2104,12 +2104,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               }}
               className={`py-2 px-1.5 rounded-[4px] border font-bold text-[11px] flex flex-col items-center justify-center gap-1 transition cursor-pointer text-center ${
                 isSelectedMode
-                  ? 'bg-[#2B82C9] border-[#2B82C9] text-white shadow-xs'
-                  : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#2B82C9]'
+                  ? 'brand-tab-active shadow-xs'
+                  : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[var(--brand-primary)]'
               }`}
             >
-              <ModeIcon className={`w-3.5 h-3.5 shrink-0 ${isSelectedMode ? 'text-white' : 'text-[#2B82C9]'}`} />
-              <span className={`leading-tight whitespace-nowrap ${isSelectedMode ? 'text-white' : ''}`}>{opt.label}</span>
+              <ModeIcon className={`w-3.5 h-3.5 shrink-0 ${isSelectedMode ? '' : 'brand-icon'}`} />
+              <span className="leading-tight whitespace-nowrap">{opt.label}</span>
             </button>
           );
         })}
@@ -2153,7 +2153,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               : 'bg-[#FFFFFF] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B]'
           }`}
         >
-          <ArrowLeft className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
+          <ArrowLeft className="w-3.5 h-3.5 brand-icon shrink-0" />
           <span>Voltar</span>
         </button>
 
@@ -2192,12 +2192,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   }}
                   className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
                     originType === 'gps'
-                      ? 'bg-[#2B82C9] border-[#2B82C9] text-white'
-                      : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#2B82C9]'
+                      ? 'brand-tab-active'
+                      : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[var(--brand-primary)]'
                   }`}
                 >
-                  <Navigation className={`w-4 h-4 shrink-0 ${originType === 'gps' ? 'text-white' : 'text-[#2B82C9]'}`} />
-                  <span className={`leading-tight whitespace-nowrap ${originType === 'gps' ? 'text-white' : ''}`}>Local Atual</span>
+                  <Navigation className={`w-4 h-4 shrink-0 ${originType === 'gps' ? '' : 'brand-icon'}`} />
+                  <span className="leading-tight whitespace-nowrap">Local Atual</span>
                 </button>
 
                 <button
@@ -2215,12 +2215,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   }}
                   className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
                     originType === 'home'
-                      ? 'bg-[#2B82C9] border-[#2B82C9] text-white'
-                      : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#2B82C9]'
+                      ? 'brand-tab-active'
+                      : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[var(--brand-primary)]'
                   }`}
                 >
-                  <Home className={`w-4 h-4 shrink-0 ${originType === 'home' ? 'text-white' : 'text-[#2B82C9]'}`} />
-                  <span className={`leading-tight whitespace-nowrap ${originType === 'home' ? 'text-white' : ''}`}>De Casa</span>
+                  <Home className={`w-4 h-4 shrink-0 ${originType === 'home' ? '' : 'brand-icon'}`} />
+                  <span className="leading-tight whitespace-nowrap">De Casa</span>
                 </button>
 
                 <button
@@ -2232,12 +2232,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   }}
                   className={`p-3 rounded-[4px] border font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer ${
                     originType === 'other'
-                      ? 'bg-[#2B82C9] border-[#2B82C9] text-white'
-                      : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#2B82C9]'
+                      ? 'brand-tab-active'
+                      : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[var(--brand-primary)]'
                   }`}
                 >
-                  <MapPin className={`w-4 h-4 shrink-0 ${originType === 'other' ? 'text-white' : 'text-[#2B82C9]'}`} />
-                  <span className={`leading-tight whitespace-nowrap ${originType === 'other' ? 'text-white' : ''}`}>Outro Local</span>
+                  <MapPin className={`w-4 h-4 shrink-0 ${originType === 'other' ? '' : 'brand-icon'}`} />
+                  <span className="leading-tight whitespace-nowrap">Outro Local</span>
                 </button>
               </div>
 
@@ -2246,16 +2246,16 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   <div className="pt-3 border-t border-[#EDF2F7] dark:border-slate-800 text-xs font-bold">
                     {isCalculatingRoute ? (
                       <div className="py-4 flex items-center justify-center">
-                        <Loader2 className="w-5 h-5 text-[#2B82C9] animate-spin" />
+                        <Loader2 className="w-5 h-5 brand-icon animate-spin" />
                       </div>
                     ) : (
                       <div className="space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-[#2B82C9] truncate">
-                          <Navigation className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
+                        <div className="flex items-center gap-1.5 brand-text truncate">
+                          <Navigation className="w-3.5 h-3.5 brand-icon shrink-0" />
                           <span className="truncate">{resolvedAddressLabel}</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-[#1E293B] dark:text-slate-200">
-                          <MapPin className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
+                          <MapPin className="w-3.5 h-3.5 brand-icon shrink-0" />
                           <span>Distância de {formattedDistanceComma} km</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-[#1E293B] dark:text-slate-200">
@@ -2263,8 +2263,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                           <span>Trajeto de {formattedEtaHoursAndMinutes}</span>
                         </div>
                         {propitiousSuggestion && !returnToRouteModalAfterOrigin && (
-                          <div className="flex items-center gap-1.5 text-[#008B47] pt-1">
-                            <Calendar className="w-3.5 h-3.5 text-[#008B47] shrink-0" />
+                          <div className="flex items-center gap-1.5 brand-text pt-1">
+                            <Calendar className="w-3.5 h-3.5 brand-icon shrink-0" />
                             <span>
                               Dia e horário mais propício: <strong className="font-mono-tabular">{propitiousSuggestion.shortDate} às {propitiousSuggestion.timeSlot}</strong>
                             </span>
@@ -2287,10 +2287,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                           handleCloseOriginModal();
                           setIsSummaryModalOpen(true);
                         }}
-                        className="w-full py-3 px-4 rounded-[4px] bg-[#008B47] hover:bg-[#00753B] text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                        className="w-full py-3 px-4 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
                       >
-                        <Check className="w-4 h-4 text-white shrink-0" />
-                        <span className="text-white uppercase font-bold tracking-wide font-mono-tabular">
+                        <Check className="w-4 h-4 shrink-0" />
+                        <span className="uppercase font-bold tracking-wide font-mono-tabular">
                           MAIS PRÓXIMO - {propitiousSuggestion.shortDate} {propitiousSuggestion.timeSlot}
                         </span>
                       </button>
@@ -2314,14 +2314,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                       className={`w-full py-2.5 px-4 rounded-[4px] font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50 ${
                         !returnToRouteModalAfterOrigin && propitiousSuggestion
                           ? 'bg-[#F1F5F9] hover:bg-[#E2E8F0] border border-[#E2E8F0] text-[#5F6C7B]'
-                          : 'bg-[#2B82C9] hover:bg-[#0D79B4] text-white'
+                          : 'brand-btn'
                       }`}
                     >
-                      <span className={
-                        !returnToRouteModalAfterOrigin && propitiousSuggestion
-                          ? ''
-                          : 'text-white'
-                      }>
+                      <span>
                         {returnToRouteModalAfterOrigin ? 'Confirmar Nova Origem' : 'ESCOLHER OUTRA DATA E HORÁRIO'}
                       </span>
                     </button>
@@ -2333,7 +2329,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             <div className="space-y-3 animate-in fade-in duration-150">
               <form onSubmit={handleCalculateCustomCep} className="flex items-center gap-2">
                 <div className="relative flex-1">
-                  <MapPin className="w-3.5 h-3.5 text-[#2B82C9] absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <MapPin className="w-3.5 h-3.5 brand-icon absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={customCepInput}
@@ -2365,14 +2361,14 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 <button
                   type="submit"
                   disabled={isCalculatingRoute || customCepInput.trim().length < 3}
-                  className="h-10 px-3.5 rounded-[4px] bg-[#2B82C9] hover:bg-[#0D79B4] disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0"
+                  className="h-10 px-3.5 rounded-[4px] brand-btn disabled:opacity-50 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0"
                 >
                   {isCalculatingRoute ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-white shrink-0" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                   ) : (
-                    <Search className="w-3.5 h-3.5 text-white shrink-0" />
+                    <Search className="w-3.5 h-3.5 shrink-0" />
                   )}
-                  <span className="text-white">Calcular</span>
+                  <span>Calcular</span>
                 </button>
               </form>
 
@@ -2397,9 +2393,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                           setHasCalculatedCustomCep(true);
                         });
                       }}
-                      className="w-full px-3 py-2 text-left text-xs flex items-start gap-2 transition cursor-pointer hover:bg-[#EBF4FC] text-[#1E293B]"
+                      className="w-full px-3 py-2 text-left text-xs flex items-start gap-2 transition cursor-pointer hover:bg-slate-100 text-[#1E293B]"
                     >
-                      <MapPin className="w-3.5 h-3.5 text-[#2B82C9] shrink-0 mt-0.5" />
+                      <MapPin className="w-3.5 h-3.5 brand-icon shrink-0 mt-0.5" />
                       <div className="min-w-0 flex-1">
                         <span className="font-bold block truncate">{place.title}</span>
                         <span className="text-[10.5px] block truncate text-[#5F6C7B]">
@@ -2413,11 +2409,11 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
 
               {isCalculatingRoute ? (
                 <div className="py-3 flex items-center justify-center">
-                  <Loader2 className="w-5 h-5 text-[#2B82C9] animate-spin" />
+                  <Loader2 className="w-5 h-5 brand-icon animate-spin" />
                 </div>
               ) : (
                 <p className={`text-xs leading-relaxed font-bold break-words ${
-                  hasCalculatedCustomCep ? 'text-[#2B82C9]' : 'text-[#5F6C7B]'
+                  hasCalculatedCustomCep ? 'brand-text' : 'text-[#5F6C7B]'
                 }`}>
                   {hasCalculatedCustomCep && resolvedAddressLabel
                     ? resolvedAddressLabel
@@ -2428,7 +2424,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               {hasCalculatedCustomCep && !isCalculatingRoute && (
                 <div className="pt-3 border-t border-[#EDF2F7] space-y-1.5 text-xs font-bold text-[#1E293B]">
                   <div className="flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
+                    <MapPin className="w-3.5 h-3.5 brand-icon shrink-0" />
                     <span>Distância de {formattedDistanceComma} km</span>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -2436,8 +2432,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     <span>Trajeto de {formattedEtaHoursAndMinutes}</span>
                   </div>
                   {propitiousSuggestion && !returnToRouteModalAfterOrigin && (
-                    <div className="flex items-center gap-1.5 text-[#008B47] pt-1">
-                      <Calendar className="w-3.5 h-3.5 text-[#008B47] shrink-0" />
+                    <div className="flex items-center gap-1.5 brand-text pt-1">
+                      <Calendar className="w-3.5 h-3.5 brand-icon shrink-0" />
                       <span>
                         Dia e horário mais propício: <strong className="font-mono-tabular">{propitiousSuggestion.shortDate} às {propitiousSuggestion.timeSlot}</strong>
                       </span>
@@ -2459,10 +2455,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                       handleCloseOriginModal();
                       setIsSummaryModalOpen(true);
                     }}
-                    className="w-full py-3 px-4 rounded-[4px] bg-[#008B47] hover:bg-[#00753B] text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                    className="w-full py-3 px-4 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
                   >
-                    <Check className="w-4 h-4 text-white shrink-0" />
-                    <span className="text-white uppercase font-bold tracking-wide font-mono-tabular">
+                    <Check className="w-4 h-4 shrink-0" />
+                    <span className="uppercase font-bold tracking-wide font-mono-tabular">
                       MAIS PRÓXIMO - {propitiousSuggestion.shortDate} {propitiousSuggestion.timeSlot}
                     </span>
                   </button>
@@ -2486,14 +2482,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   className={`w-full py-2.5 px-4 rounded-[4px] font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50 ${
                     !returnToRouteModalAfterOrigin && hasCalculatedCustomCep && propitiousSuggestion
                       ? 'bg-[#F1F5F9] hover:bg-[#E2E8F0] border border-[#E2E8F0] text-[#5F6C7B]'
-                      : 'bg-[#2B82C9] hover:bg-[#0D79B4] text-white'
+                      : 'brand-btn'
                   }`}
                 >
-                  <span className={
-                    !returnToRouteModalAfterOrigin && hasCalculatedCustomCep && propitiousSuggestion
-                      ? ''
-                      : 'text-white'
-                  }>
+                  <span>
                     {returnToRouteModalAfterOrigin ? 'Confirmar Nova Origem' : 'ESCOLHER OUTRA DATA E HORÁRIO'}
                   </span>
                 </button>
@@ -2525,12 +2517,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               : 'bg-[#FFFFFF] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B]'
           }`}
         >
-          <ArrowLeft className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
+          <ArrowLeft className="w-3.5 h-3.5 brand-icon shrink-0" />
           <span>Voltar</span>
         </button>
 
         <div className="flex items-center gap-1.5">
-          <CheckCircle2 className="w-4 h-4 text-[#008B47] shrink-0" />
+          <CheckCircle2 className="w-4 h-4 brand-icon shrink-0" />
           <h3 className="text-xs sm:text-sm font-extrabold font-display leading-snug">
             Resumo do Agendamento
           </h3>
@@ -2544,20 +2536,20 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           <div className="grid grid-cols-2 pb-3.5">
             <div className="flex flex-col items-center justify-center text-center min-w-0 px-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] flex items-center justify-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
+                <Calendar className="w-3.5 h-3.5 brand-icon shrink-0" />
                 <span>Data</span>
               </span>
-              <span className="text-xl sm:text-2xl font-mono-tabular font-black text-[#2B82C9] leading-tight mt-0.5">
+              <span className="text-xl sm:text-2xl font-mono-tabular font-black brand-text leading-tight mt-0.5">
                 {shortDateFormatted}
               </span>
             </div>
 
             <div className="flex flex-col items-center justify-center text-center min-w-0 px-2 border-l border-[#EDF2F7] dark:border-slate-800">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] flex items-center justify-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
+                <Clock className="w-3.5 h-3.5 brand-icon shrink-0" />
                 <span>Hora</span>
               </span>
-              <span className="text-xl sm:text-2xl font-mono-tabular font-black text-[#2B82C9] leading-tight mt-0.5">
+              <span className="text-xl sm:text-2xl font-mono-tabular font-black brand-text leading-tight mt-0.5">
                 {selectedTimeSlot}
               </span>
             </div>
@@ -2567,7 +2559,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           <div className="space-y-2.5 pt-3.5">
             <div className="flex justify-between items-start gap-2">
               <span className="flex items-center gap-1.5 text-[#5F6C7B] shrink-0">
-                <Scissors className="w-3.5 h-3.5 text-[#2B82C9]" /> Serviço:
+                <Scissors className="w-3.5 h-3.5 brand-icon" /> Serviço:
               </span>
               <span className="font-bold text-right break-words text-[#1E293B] dark:text-white">{selectedService.title}</span>
             </div>
@@ -2575,9 +2567,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             <div className="flex justify-between items-start gap-2">
               <span className="flex items-center gap-1.5 text-[#5F6C7B] shrink-0">
                 {isDependentBooking ? (
-                  <Users className="w-3.5 h-3.5 text-[#2B82C9]" />
+                  <Users className="w-3.5 h-3.5 brand-icon" />
                 ) : (
-                  <User className="w-3.5 h-3.5 text-[#2B82C9]" />
+                  <User className="w-3.5 h-3.5 brand-icon" />
                 )}
                 Beneficiário:
               </span>
@@ -2588,7 +2580,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   setReturnToSummaryAfterBeneficiary(true);
                   setIsBeneficiaryModalOpen(true);
                 }}
-                className="font-bold text-[#2B82C9] hover:underline cursor-pointer text-right break-words"
+                className="font-bold brand-text hover:underline cursor-pointer text-right break-words"
               >
                 {isDependentBooking && dependentName ? `${dependentName} (Dependente)` : 'Para Você (Titular)'}
               </button>
@@ -2596,7 +2588,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
 
             <div className="flex justify-between items-start gap-2">
               <span className="flex items-center gap-1.5 text-[#5F6C7B] shrink-0">
-                <User className="w-3.5 h-3.5 text-[#2B82C9]" /> Profissional:
+                <User className="w-3.5 h-3.5 brand-icon" /> Profissional:
               </span>
               <span className="font-bold text-right break-words text-[#1E293B] dark:text-white">
                 {selectedProfessional === 'any' ? resolvedProfessionalName : selectedProfessional}
@@ -2609,7 +2601,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             <div className="grid grid-cols-2 gap-3 pb-3 border-b border-[#EDF2F7] dark:border-slate-800">
               <div className="flex flex-col justify-start min-w-0 pr-1">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] flex items-center gap-1">
-                  <Home className="w-3 h-3 text-[#2B82C9] shrink-0" />
+                  <Home className="w-3 h-3 brand-icon shrink-0" />
                   <span>Saída</span>
                 </span>
                 <span className="text-[11px] font-bold leading-snug mt-1 break-words text-[#1E293B] dark:text-white">
@@ -2621,7 +2613,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
 
               <div className="flex flex-col justify-start min-w-0 pl-3 border-l border-[#EDF2F7] dark:border-slate-800">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] flex items-center gap-1">
-                  <MapPin className="w-3 h-3 text-[#2B82C9] shrink-0" />
+                  <MapPin className="w-3 h-3 brand-icon shrink-0" />
                   <span className="truncate">Destino ({salonName})</span>
                 </span>
                 <span className="text-[11px] font-bold leading-snug mt-1 break-words text-[#1E293B] dark:text-white">
@@ -2632,7 +2624,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
 
             <div className="flex justify-between items-center">
               <span className="font-bold text-[#5F6C7B]">Total a pagar no local:</span>
-              <span className="font-mono-tabular font-black text-base text-[#008B47]">
+              <span className="font-mono-tabular font-black text-base text-emerald-600 dark:text-emerald-400">
                 R$ {selectedService.price.toFixed(2).replace('.', ',')}
               </span>
             </div>
@@ -2649,7 +2641,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
 
         {/* Feedback de Pré-Salvamento */}
         {draftSavedFeedback && (
-          <div className="p-2.5 bg-[#008B47] text-white rounded-[4px] text-xs font-bold flex items-center gap-2">
+          <div className="p-2.5 bg-emerald-600 text-white rounded-[4px] text-xs font-bold flex items-center gap-2">
             <Check className="w-4 h-4 text-white shrink-0" />
             <span className="text-white">{draftSavedFeedback}</span>
           </div>
@@ -2667,7 +2659,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             className="py-2.5 px-2 rounded-[4px] border border-[#E2E8F0] bg-[#F1F5F9] text-[#5F6C7B] hover:text-[#1E293B] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
             title="Salva o rascunho para concluir depois (não trava a vaga)"
           >
-            <Bookmark className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
+            <Bookmark className="w-3.5 h-3.5 brand-icon shrink-0" />
             <span>Pré-Salvar</span>
           </button>
 
@@ -2679,7 +2671,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             }}
             className="py-2.5 px-2 rounded-[4px] border border-[#E2E8F0] bg-[#FFFFFF] text-[#5F6C7B] hover:text-[#1E293B] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
           >
-            <RotateCcw className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
+            <RotateCcw className="w-3.5 h-3.5 brand-icon shrink-0" />
             <span>Revisar</span>
           </button>
 
@@ -2705,11 +2697,11 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           className={`w-full py-3 px-4 font-bold text-xs uppercase tracking-wider rounded-[4px] transition flex items-center justify-center gap-2 font-display ${
             isSubmittingBooking
               ? 'bg-[#F1F5F9] text-[#5F6C7B] cursor-wait'
-              : 'bg-[#008B47] hover:bg-[#00753B] text-white cursor-pointer active:scale-98'
+              : 'brand-btn cursor-pointer active:scale-98'
           }`}
         >
-          <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
-          <span className="text-white">{isSubmittingBooking ? 'Confirmando...' : 'Confirmar Agendamento'}</span>
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>{isSubmittingBooking ? 'Confirmando...' : 'Confirmar Agendamento'}</span>
         </button>
       </div>
     </div>
@@ -2737,7 +2729,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               : 'bg-[#FFFFFF] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B]'
           }`}
         >
-          <ArrowLeft className="w-3.5 h-3.5 text-[#2B82C9] shrink-0" />
+          <ArrowLeft className="w-3.5 h-3.5 brand-icon shrink-0" />
           <span>Voltar</span>
         </button>
         <span className="text-xs font-bold font-display">Confirmação</span>
@@ -2746,14 +2738,14 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       <div className="flex-1 overflow-y-auto p-3.5 sm:p-4">
         <section className="caixa-card p-5 space-y-4">
           <div className="flex items-center gap-3 pb-3 border-b border-[#EDF2F7] dark:border-slate-800">
-            <div className="w-10 h-10 rounded-[4px] bg-[#008B47] flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-[4px] bg-emerald-600 flex items-center justify-center shrink-0">
               <Check className="w-5 h-5 text-white stroke-[2.5]" />
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-extrabold font-display leading-snug">
                 Agendamento Confirmado!
               </h3>
-              <p className="text-xs font-bold text-[#2B82C9] truncate mt-0.5">
+              <p className="text-xs font-bold brand-text truncate mt-0.5">
                 {selectedService.title} • {shortDateFormatted} às {selectedTimeSlot}
               </p>
             </div>
@@ -2770,10 +2762,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 onClose?.();
               }
             }}
-            className="w-full py-3 px-4 rounded-[4px] bg-[#2B82C9] hover:bg-[#0D79B4] text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
+            className="w-full py-3 px-4 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
           >
-            <Calendar className="w-4 h-4 text-white shrink-0" />
-            <span className="text-white uppercase tracking-wider">Ir para Agenda</span>
+            <Calendar className="w-4 h-4 shrink-0" />
+            <span className="uppercase tracking-wider">Ir para Agenda</span>
           </button>
         </section>
       </div>
@@ -2814,7 +2806,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 }`}
                 title="Voltar ao resumo da rota"
               >
-                <ArrowLeft className="w-3.5 h-3.5 text-emerald-500" />
+                <ArrowLeft className="w-3.5 h-3.5 brand-icon" />
               </button>
               <div className="min-w-0">
                 <h3 className="text-xs sm:text-sm font-extrabold font-['Poppins'] leading-snug truncate">
@@ -2845,7 +2837,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-700'
             }`}
           >
-            <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+            <MapPin className="w-3.5 h-3.5 brand-icon shrink-0" />
             <span className="text-xs font-bold truncate">
               {salonAddress || resolvedSalonAddressLabel || salonName}
             </span>
@@ -2866,14 +2858,14 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 }}
                 className={`py-2 px-2.5 rounded-[3px] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
                   embeddedMapTab === 'map'
-                    ? 'bg-emerald-500 text-white shadow-xs'
+                    ? 'brand-tab-active shadow-xs'
                     : isDark
                     ? 'text-slate-300 hover:text-white'
                     : 'text-slate-700 hover:text-slate-900'
                 }`}
               >
-                <MapPin className={`w-3.5 h-3.5 shrink-0 ${embeddedMapTab === 'map' ? 'text-white' : 'text-emerald-500'}`} />
-                <span className={embeddedMapTab === 'map' ? 'text-white' : ''}>Mapa</span>
+                <MapPin className={`w-3.5 h-3.5 shrink-0 ${embeddedMapTab === 'map' ? '' : 'brand-icon'}`} />
+                <span>Mapa</span>
               </button>
 
               <button
@@ -2884,14 +2876,14 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 }}
                 className={`py-2 px-2.5 rounded-[3px] text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
                   embeddedMapTab === 'itinerary'
-                    ? 'bg-emerald-500 text-white shadow-xs'
+                    ? 'brand-tab-active shadow-xs'
                     : isDark
                     ? 'text-slate-300 hover:text-white'
                     : 'text-slate-700 hover:text-slate-900'
                 }`}
               >
-                <Clock className={`w-3.5 h-3.5 shrink-0 ${embeddedMapTab === 'itinerary' ? 'text-white' : 'text-emerald-500'}`} />
-                <span className={embeddedMapTab === 'itinerary' ? 'text-white' : ''}>Itinerário</span>
+                <Clock className={`w-3.5 h-3.5 shrink-0 ${embeddedMapTab === 'itinerary' ? '' : 'brand-icon'}`} />
+                <span>Itinerário</span>
               </button>
             </div>
           </div>
@@ -2919,7 +2911,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   <span className={`text-[9.5px] uppercase font-bold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                     Saída Máx.
                   </span>
-                  <span className="text-sm font-mono tabular-nums font-black text-emerald-500 block mt-0.5">
+                  <span className="text-sm font-mono tabular-nums font-black brand-text block mt-0.5">
                     {maxDepartureTimeFormatted}
                   </span>
                 </div>
@@ -2937,7 +2929,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   <span className={`text-[9.5px] uppercase font-bold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                     Atendimento
                   </span>
-                  <span className="text-sm font-mono tabular-nums font-bold text-emerald-500 block mt-0.5">
+                  <span className="text-sm font-mono tabular-nums font-bold brand-text block mt-0.5">
                     {selectedTimeSlot}
                   </span>
                 </div>
@@ -2948,17 +2940,17 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 {/* Etapa 1: Alerta Pré-Partida */}
                 <div className="flex items-start gap-3 pb-3">
                   <div className="flex flex-col items-center">
-                    <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white shrink-0">
-                      <Clock className="w-3.5 h-3.5 text-white" />
+                    <div className="w-6 h-6 rounded-full brand-btn flex items-center justify-center shrink-0">
+                      <Clock className="w-3.5 h-3.5" />
                     </div>
-                    <div className="w-0.5 h-8 bg-emerald-500/60 mt-1" />
+                    <div className="w-0.5 h-8 bg-[var(--brand-primary)]/60 mt-1" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-extrabold text-emerald-500">
+                      <span className="text-xs font-extrabold brand-text">
                         1. Horário Limite de Saída
                       </span>
-                      <span className="text-[11px] font-mono tabular-nums font-black text-emerald-500">
+                      <span className="text-[11px] font-mono tabular-nums font-black brand-text">
                         {maxDepartureTimeFormatted}
                       </span>
                     </div>
@@ -2976,22 +2968,22 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                         <div
                           className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
                             idx === 0
-                              ? 'bg-emerald-500 text-white'
+                              ? 'brand-btn'
                               : isDark
                               ? 'bg-slate-800 text-slate-400'
                               : 'bg-slate-200 text-slate-600'
                           }`}
                         >
-                          <Navigation className={`w-3 h-3 ${idx === 0 ? 'text-white' : ''}`} />
+                          <Navigation className="w-3 h-3" />
                         </div>
-                        <div className="w-0.5 h-8 bg-emerald-500/40 mt-1" />
+                        <div className="w-0.5 h-8 bg-[var(--brand-primary)]/40 mt-1" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs font-bold leading-snug">
                             {step.instruction}
                           </span>
-                          <span className="text-[10.5px] font-mono tabular-nums text-emerald-500 font-bold shrink-0">
+                          <span className="text-[10.5px] font-mono tabular-nums brand-text font-bold shrink-0">
                             {step.distanceText}
                           </span>
                         </div>
@@ -3001,17 +2993,17 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 ) : (
                   <div className="flex items-start gap-3 pb-3">
                     <div className="flex flex-col items-center">
-                      <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white ring-4 ring-emerald-500/20 shrink-0">
-                        {renderModeIcon(transportMode, 'w-3.5 h-3.5 text-white shrink-0')}
+                      <div className="w-6 h-6 rounded-full brand-btn flex items-center justify-center ring-4 ring-[var(--brand-primary)]/20 shrink-0">
+                        {renderModeIcon(transportMode, 'w-3.5 h-3.5 shrink-0')}
                       </div>
-                      <div className="w-0.5 h-8 bg-emerald-500/60 mt-1" />
+                      <div className="w-0.5 h-8 bg-[var(--brand-primary)]/60 mt-1" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs font-extrabold">
                           2. Deslocamento ({TRANSPORT_MODE_META[transportMode].shortLabel})
                         </span>
-                        <span className="text-[11px] font-mono tabular-nums font-bold text-emerald-500">
+                        <span className="text-[11px] font-mono tabular-nums font-bold brand-text">
                           {formattedDistanceComma} km
                         </span>
                       </div>
@@ -3025,16 +3017,16 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 {/* Etapa Final: Destino & Atendimento */}
                 <div className="flex items-start gap-3">
                   <div className="flex flex-col items-center">
-                    <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white shrink-0">
-                      <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                    <div className="w-6 h-6 rounded-full brand-btn flex items-center justify-center shrink-0">
+                      <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                     </div>
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-extrabold text-emerald-500">
+                      <span className="text-xs font-extrabold brand-text">
                         Destino • {salonName}
                       </span>
-                      <span className="text-[11px] font-mono tabular-nums font-black text-emerald-500">
+                      <span className="text-[11px] font-mono tabular-nums font-black brand-text">
                         {selectedTimeSlot}
                       </span>
                     </div>
@@ -3065,10 +3057,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   setIsRouteModalOpen(false);
                   onClose?.();
                 }}
-                className="w-full py-2.5 px-4 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow-xs"
+                className="w-full py-2.5 px-4 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap shadow-xs"
               >
-                <Check className="w-4 h-4 text-white stroke-[2.5] shrink-0" />
-                <span className="text-white">Cheguei</span>
+                <Check className="w-4 h-4 stroke-[2.5] shrink-0" />
+                <span>Cheguei</span>
               </button>
             </div>
           )}
@@ -3098,7 +3090,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 }`}
                 title="Voltar"
               >
-                <ArrowLeft className="w-3.5 h-3.5 text-emerald-500" />
+                <ArrowLeft className="w-3.5 h-3.5 brand-icon" />
               </button>
               <h3 className="text-sm font-extrabold font-['Poppins'] leading-snug truncate">
                 Ir Agora • Rota & Deslocamento
@@ -3127,7 +3119,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             {/* Card de Rota e Horário Máx. de Saída */}
             <div className={`p-3.5 rounded-[4px] space-y-3 ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'}`}>
               <div className="flex items-start justify-between gap-2">
-                <span className="text-xs font-extrabold text-emerald-500 leading-snug break-words flex-1">
+                <span className="text-xs font-extrabold brand-text leading-snug break-words flex-1">
                   {resolvedAddressLabel}
                 </span>
                 <button
@@ -3139,28 +3131,28 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                     setReturnToRouteModalAfterOrigin(true);
                     setIsOriginModalOpen(true);
                   }}
-                  className="px-2.5 py-1.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold inline-flex items-center gap-1.5 shrink-0 transition cursor-pointer shadow-xs whitespace-nowrap"
+                  className="px-2.5 py-1.5 rounded-[4px] brand-btn text-[11px] font-bold inline-flex items-center gap-1.5 shrink-0 transition cursor-pointer shadow-xs whitespace-nowrap"
                 >
-                  <RotateCcw className="w-3.5 h-3.5 text-white shrink-0" />
-                  <span className="text-white">Alterar origem</span>
+                  <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                  <span>Alterar origem</span>
                 </button>
               </div>
 
               <div className="space-y-1.5 font-bold text-xs">
                 <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <MapPin className="w-4 h-4 brand-icon shrink-0" />
                   <span>Distância de {formattedDistanceComma} km</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  {renderModeIcon(transportMode, 'w-4 h-4 text-emerald-500 shrink-0')}
+                  {renderModeIcon(transportMode, 'w-4 h-4 brand-icon shrink-0')}
                   <span>
                     Trajeto de {formattedEtaHoursAndMinutes} ({TRANSPORT_MODE_META[transportMode].shortLabel})
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <Clock className="w-4 h-4 brand-icon shrink-0" />
                   <span>
-                    Horário Máx. de saída <strong className="text-emerald-500">{maxDepartureTimeFormatted}</strong>
+                    Horário Máx. de saída <strong className="brand-text">{maxDepartureTimeFormatted}</strong>
                   </span>
                 </div>
               </div>
@@ -3174,10 +3166,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                       hapticMedium();
                       setIsEmbeddedMapOpen(true);
                     }}
-                    className="w-full py-3 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer text-center shadow-xs"
+                    className="w-full py-3 px-3 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer text-center shadow-xs"
                   >
-                    {renderModeIcon(transportMode, 'w-4 h-4 text-white shrink-0')}
-                    <span className="text-white">
+                    {renderModeIcon(transportMode, 'w-4 h-4 shrink-0')}
+                    <span>
                       Mapa ({TRANSPORT_MODE_META[transportMode].shortLabel})
                     </span>
                   </button>
@@ -3191,12 +3183,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                         hapticMedium();
                         setIsEmbeddedMapOpen(true);
                       }}
-                      className="py-2.5 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer text-center shadow-xs"
+                      className="py-2.5 px-2.5 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer text-center shadow-xs"
                     >
                       <span className="w-6 h-6 rounded-[4px] bg-white/20 flex items-center justify-center shrink-0">
-                        <MapPin className="w-3.5 h-3.5 text-white shrink-0" />
+                        <MapPin className="w-3.5 h-3.5 shrink-0" />
                       </span>
-                      <span className="text-white whitespace-nowrap">Mapa</span>
+                      <span className="whitespace-nowrap">Mapa</span>
                     </button>
 
                     <a
@@ -3209,11 +3201,11 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                           : 'bg-slate-900 hover:bg-slate-800 text-white'
                       }`}
                     >
-                      <span className="w-6 h-6 rounded-[4px] bg-emerald-500 flex items-center justify-center shrink-0">
-                        <Navigation className="w-3.5 h-3.5 text-white shrink-0" />
+                      <span className="w-6 h-6 rounded-[4px] brand-btn flex items-center justify-center shrink-0">
+                        <Navigation className="w-3.5 h-3.5 shrink-0" />
                       </span>
                       <span className="text-white whitespace-nowrap">Waze</span>
-                      <ExternalLink className="w-3.5 h-3.5 text-emerald-400 shrink-0 ml-auto" />
+                      <ExternalLink className="w-3.5 h-3.5 brand-icon shrink-0 ml-auto" />
                     </a>
                   </div>
                 )}
@@ -3226,12 +3218,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                         hapticMedium();
                         setIsRideAppOptionsOpen((prev) => !prev);
                       }}
-                      className="w-full py-3 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer text-center shadow-xs"
+                      className="w-full py-3 px-3 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer text-center shadow-xs"
                     >
-                      <Smartphone className="w-4 h-4 text-white shrink-0" />
-                      <span className="text-white">Chamar App</span>
+                      <Smartphone className="w-4 h-4 shrink-0" />
+                      <span>Chamar App</span>
                       <ChevronRight
-                        className={`w-4 h-4 text-white shrink-0 transition-transform ${
+                        className={`w-4 h-4 shrink-0 transition-transform ${
                           isRideAppOptionsOpen ? 'rotate-90' : ''
                         }`}
                       />
@@ -3247,11 +3239,11 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                             href={transportLinks.uberUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="py-2.5 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center shadow-xs"
+                            className="py-2.5 px-2.5 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center shadow-xs"
                           >
-                            <Car className="w-4 h-4 text-white shrink-0" />
-                            <span className="text-white">Uber</span>
-                            <ExternalLink className="w-3.5 h-3.5 text-white shrink-0" />
+                            <Car className="w-4 h-4 shrink-0" />
+                            <span>Uber</span>
+                            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                           </a>
 
                           <a
@@ -3278,9 +3270,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                               : 'bg-slate-200 hover:bg-slate-300 text-slate-900'
                           }`}
                         >
-                          <Smartphone className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                          <Smartphone className="w-3.5 h-3.5 brand-icon shrink-0" />
                           <span>Outros Apps Instalados no Dispositivo</span>
-                          <ExternalLink className="w-3 h-3 text-emerald-500 shrink-0" />
+                          <ExternalLink className="w-3 h-3 brand-icon shrink-0" />
                         </a>
                       </div>
                     )}

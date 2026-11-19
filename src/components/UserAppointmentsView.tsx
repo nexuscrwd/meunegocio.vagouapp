@@ -567,7 +567,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
             }`}
             aria-label="Voltar para o salão"
           >
-            <ArrowLeft className="w-5 h-5 text-emerald-400" />
+            <ArrowLeft className="w-5 h-5 brand-icon" />
           </button>
           <div className="flex flex-col">
             <h1 className="text-base font-extrabold tracking-tight font-['Poppins']">Minha Agenda</h1>
@@ -582,11 +582,11 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
               hapticLight();
               setIsRouteSimulatorOpen(true);
             }}
-            className="px-2.5 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95"
+            className="px-2.5 py-1 rounded-[4px] brand-btn font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95"
             title="Simulador de Trajeto GPS (Teste)"
           >
-            <Navigation className="w-3.5 h-3.5 text-white" />
-            <span className="text-white">Trajeto</span>
+            <Navigation className="w-3.5 h-3.5" />
+            <span>Trajeto</span>
           </button>
           <span className={`text-[11px] font-bold px-2 py-1 rounded-[4px] ${
             isDark ? 'bg-slate-900 border border-slate-800' : 'bg-slate-100 border border-slate-200'
@@ -622,7 +622,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
             </div>
 
             <div>
-              <h3 className="text-sm font-extrabold text-emerald-400">{savedDraft.combinedServiceTitle}</h3>
+              <h3 className="text-sm font-extrabold brand-text">{savedDraft.combinedServiceTitle}</h3>
               <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 {savedDraft.isDependentBooking && savedDraft.dependentName
                   ? `Dependente: ${savedDraft.dependentName}`
@@ -645,10 +645,10 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                 hapticMedium();
                 onBack();
               }}
-              className="w-full py-2.5 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+              className="w-full py-2.5 px-3 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
             >
-              <Check className="w-4 h-4 text-white" />
-              <span className="text-white">Retomar e Confirmar Vaga</span>
+              <Check className="w-4 h-4" />
+              <span>Retomar e Confirmar Vaga</span>
             </button>
           </div>
         )}
@@ -672,9 +672,9 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                 hapticLight();
                 onBack();
               }}
-              className="px-5 py-2.5 rounded-[4px] bg-emerald-500 text-white font-bold text-xs hover:bg-emerald-600 transition cursor-pointer flex items-center gap-2 shadow-xs"
+              className="px-5 py-2.5 rounded-[4px] brand-btn font-bold text-xs transition cursor-pointer flex items-center gap-2 shadow-xs"
             >
-              <Scissors className="w-4 h-4 text-white" />
+              <Scissors className="w-4 h-4" />
               <span>Ver Serviços & Agendar</span>
             </button>
           </div>
@@ -762,7 +762,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                             </span>
                           )}
                         </div>
-                        <h3 className="text-sm font-extrabold leading-tight text-emerald-400 truncate">
+                        <h3 className="text-sm font-extrabold leading-tight brand-text truncate">
                           {item.serviceTitle || item.service || 'Serviço Personalizado'}
                         </h3>
                       </div>
@@ -796,7 +796,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                                   onError={() => setFailedAvatars((prev) => ({ ...prev, [proAvatar]: true }))}
                                 />
                               ) : (
-                                <User className="w-4 h-4 text-emerald-500 dark:text-emerald-400 stroke-[1.75]" />
+                                <User className="w-4 h-4 brand-icon stroke-[1.75]" />
                               )}
                             </div>
                             <div className="min-w-0">
@@ -815,7 +815,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                                   : 'bg-slate-100 border-slate-200 text-slate-500'
                               }`}
                             >
-                              <User className="w-4 h-4 text-emerald-500 dark:text-emerald-400 stroke-[1.75]" />
+                              <User className="w-4 h-4 brand-icon stroke-[1.75]" />
                             </div>
                             <div className="min-w-0">
                               <div className="text-[10px] text-slate-400 font-medium">Profissional</div>
@@ -834,7 +834,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                               : 'bg-slate-100 border-slate-200'
                           }`}
                         >
-                          <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <Calendar className="w-4 h-4 brand-icon shrink-0" />
                         </div>
                         <div className="min-w-0">
                           <div className="text-[10px] text-slate-400 font-medium">Data e Horário</div>
@@ -869,8 +869,8 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                   {item.swapRequest?.isClientSwap && item.swapRequest.status === 'pending_client_b' && (
                     <div className="pt-2.5 border-t border-slate-800/30 flex items-center justify-between gap-2 text-[11px]">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <ArrowLeftRight className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                        <span className="font-bold text-emerald-400 truncate">
+                        <ArrowLeftRight className="w-3.5 h-3.5 brand-icon shrink-0" />
+                        <span className="font-bold brand-text truncate">
                           Permuta:{' '}
                           {activeCascadeTargets.length > 0
                             ? activeCascadeTargets.map((t) => t.slotTime).join(' ➔ ')
@@ -881,7 +881,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                         <button
                           type="button"
                           onClick={() => handleAcceptSwapOnCard(item)}
-                          className="px-2 py-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[10px] cursor-pointer whitespace-nowrap"
+                          className="px-2 py-1 rounded-[4px] brand-btn font-bold text-[10px] cursor-pointer whitespace-nowrap"
                         >
                           Simular Aceite
                         </button>
@@ -960,14 +960,14 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                             setDepartureModalApt(item);
                           }
                         }}
-                        className="py-2 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs whitespace-nowrap"
+                        className="py-2 px-2.5 rounded-[4px] brand-btn font-extrabold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs whitespace-nowrap"
                       >
                         {item.service_location_type === 'home_delivery' ? (
-                          <MapIcon className="w-3.5 h-3.5 text-white shrink-0" />
+                          <MapIcon className="w-3.5 h-3.5 shrink-0" />
                         ) : (
-                          <Navigation className="w-3.5 h-3.5 text-white shrink-0" />
+                          <Navigation className="w-3.5 h-3.5 shrink-0" />
                         )}
-                        <span className="text-white">Ir</span>
+                        <span>Ir</span>
                       </button>
                     </div>
                   )}
@@ -988,7 +988,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
               {/* Topo Fixo do Modal */}
               <div className="px-4 py-3 border-b border-slate-800/30 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
-                  <ArrowLeftRight className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <ArrowLeftRight className="w-4 h-4 brand-icon shrink-0" />
                   <div className="min-w-0">
                     <h3 className="text-sm font-extrabold truncate">Remarcar Horário</h3>
                     <p className="text-[11px] text-slate-400 truncate">
@@ -1017,14 +1017,14 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                   }}
                   className={`py-2 px-2.5 rounded-[4px] font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
                     rescheduleMode === 'free'
-                      ? 'bg-emerald-500 text-white'
+                      ? 'brand-tab-active'
                       : isDark
                       ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
-                  <Clock className={`w-3.5 h-3.5 ${rescheduleMode === 'free' ? 'text-white' : 'text-emerald-400'}`} />
-                  <span className={rescheduleMode === 'free' ? 'text-white' : ''}>Horários Livres</span>
+                  <Clock className={`w-3.5 h-3.5 ${rescheduleMode === 'free' ? '' : 'brand-icon'}`} />
+                  <span>Horários Livres</span>
                 </button>
 
                 <button
@@ -1035,14 +1035,14 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                   }}
                   className={`py-2 px-2.5 rounded-[4px] font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
                     rescheduleMode === 'swap'
-                      ? 'bg-emerald-500 text-white'
+                      ? 'brand-tab-active'
                       : isDark
                       ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
-                  <ArrowLeftRight className={`w-3.5 h-3.5 ${rescheduleMode === 'swap' ? 'text-white' : 'text-emerald-400'}`} />
-                  <span className={rescheduleMode === 'swap' ? 'text-white' : ''}>Permuta (Ocupados)</span>
+                  <ArrowLeftRight className={`w-3.5 h-3.5 ${rescheduleMode === 'swap' ? '' : 'brand-icon'}`} />
+                  <span>Permuta (Ocupados)</span>
                 </button>
               </div>
 
@@ -1075,7 +1075,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                               setRescheduleModalApt(null);
                               onRescheduleAppointment(target);
                             }}
-                            className="text-emerald-400 font-bold hover:underline cursor-pointer"
+                            className="brand-text font-bold hover:underline cursor-pointer"
                           >
                             Outra data
                           </button>
@@ -1110,13 +1110,13 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                                 conflict
                                   ? 'bg-amber-500/10 text-amber-400/70 line-through cursor-not-allowed'
                                   : isSelected
-                                  ? 'bg-emerald-500 text-white cursor-pointer'
+                                  ? 'brand-tab-active cursor-pointer'
                                   : isDark
                                   ? 'bg-slate-800 text-slate-200 hover:bg-slate-700 cursor-pointer'
                                   : 'bg-slate-100 text-slate-800 hover:bg-slate-200 cursor-pointer'
                               }`}
                             >
-                              <span className={isSelected ? 'text-white' : ''}>{slot}</span>
+                              <span>{slot}</span>
                             </button>
                           );
                         })}
@@ -1128,7 +1128,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                         <span className="font-bold text-slate-400">
                           Selecione até 3 ocupados (Fila A ➔ B ➔ C)
                         </span>
-                        <span className="font-mono font-bold text-emerald-400">
+                        <span className="font-mono font-bold brand-text">
                           {selectedSwapSlots.length}/3
                         </span>
                       </div>
@@ -1178,23 +1178,23 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                                     conflict
                                       ? 'bg-amber-500/10 text-amber-400/70 line-through cursor-not-allowed'
                                       : isSelected
-                                      ? 'bg-emerald-500 text-white cursor-pointer'
+                                      ? 'brand-tab-active cursor-pointer'
                                       : isDark
                                       ? 'bg-slate-800 text-slate-200 hover:bg-slate-700 cursor-pointer'
                                       : 'bg-slate-100 text-slate-800 hover:bg-slate-200 cursor-pointer'
                                   }`}
                                 >
                                   <div className="flex items-center gap-1">
-                                    <span className={`font-mono text-xs font-extrabold ${isSelected ? 'text-white' : ''}`}>
+                                    <span className="font-mono text-xs font-extrabold">
                                       {candidate.time}
                                     </span>
                                     {isSelected && (
-                                      <span className="text-[10px] font-black text-white">
+                                      <span className="text-[10px] font-black">
                                         ({orderIndex + 1}º)
                                       </span>
                                     )}
                                   </div>
-                                  <span className={`text-[10px] truncate max-w-full ${isSelected ? 'text-white' : 'text-slate-400'}`}>
+                                  <span className={`text-[10px] truncate max-w-full ${isSelected ? 'opacity-90' : 'text-slate-400'}`}>
                                     {candidate.clientName}
                                   </span>
                                 </button>
@@ -1205,7 +1205,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                       })()}
 
                       {selectedSwapSlots.length > 0 && (
-                        <div className="text-[11px] font-bold text-emerald-400 flex items-center gap-1.5 pt-1">
+                        <div className="text-[11px] font-bold brand-text flex items-center gap-1.5 pt-1">
                           <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" />
                           <span>Ordem de disparo: {selectedSwapSlots.join(' ➔ ')}</span>
                         </div>
@@ -1250,12 +1250,12 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                     onClick={handleConfirmDirectReschedule}
                     className={`flex-1 py-2.5 px-4 rounded-[4px] font-extrabold text-xs flex items-center justify-center gap-1.5 transition whitespace-nowrap ${
                       selectedFreeSlot
-                        ? 'bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer'
+                        ? 'brand-btn cursor-pointer'
                         : 'bg-slate-800 text-slate-500 cursor-not-allowed'
                     }`}
                   >
-                    <Check className={`w-4 h-4 ${selectedFreeSlot ? 'text-white' : 'text-slate-500'}`} />
-                    <span className={selectedFreeSlot ? 'text-white' : 'text-slate-500'}>
+                    <Check className={`w-4 h-4 ${selectedFreeSlot ? '' : 'text-slate-500'}`} />
+                    <span className={selectedFreeSlot ? '' : 'text-slate-500'}>
                       {selectedFreeSlot ? `Confirmar às ${selectedFreeSlot}` : 'Escolha um horário livre'}
                     </span>
                   </button>
@@ -1266,12 +1266,12 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                     onClick={handleSendCascadeSwap}
                     className={`flex-1 py-2.5 px-4 rounded-[4px] font-extrabold text-xs flex items-center justify-center gap-1.5 transition whitespace-nowrap ${
                       selectedSwapSlots.length > 0
-                        ? 'bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer'
+                        ? 'brand-btn cursor-pointer'
                         : 'bg-slate-800 text-slate-500 cursor-not-allowed'
                     }`}
                   >
-                    <ArrowLeftRight className={`w-4 h-4 ${selectedSwapSlots.length > 0 ? 'text-white' : 'text-slate-500'}`} />
-                    <span className={selectedSwapSlots.length > 0 ? 'text-white' : 'text-slate-500'}>
+                    <ArrowLeftRight className={`w-4 h-4 ${selectedSwapSlots.length > 0 ? '' : 'text-slate-500'}`} />
+                    <span className={selectedSwapSlots.length > 0 ? '' : 'text-slate-500'}>
                       {selectedSwapSlots.length > 0
                         ? `Solicitar Permuta (${selectedSwapSlots.length})`
                         : 'Escolha até 3 horários'}
@@ -1335,9 +1335,9 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
         <div className={`rounded-[4px] p-3.5 border flex items-start gap-3 ${
           isDark ? 'bg-slate-900/40 border-slate-800/80 text-slate-400' : 'bg-slate-100/60 border-slate-200 text-slate-500'
         }`}>
-          <Info className="w-4.5 h-4.5 text-emerald-400 shrink-0 mt-0.5" />
+          <Info className="w-4.5 h-4.5 brand-icon shrink-0 mt-0.5" />
           <div className="text-[11px] leading-normal space-y-1">
-            <p className="font-bold text-emerald-400">Precisa reagendar ou realizar uma permuta?</p>
+            <p className="font-bold brand-text">Precisa reagendar ou realizar uma permuta?</p>
             <p>
               Toque em Remarcar para trocar para um horário livre imediatamente ou solicitar permuta em cascata com até 3 horários ocupados.
             </p>

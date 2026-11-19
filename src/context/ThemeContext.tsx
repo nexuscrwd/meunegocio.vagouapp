@@ -3,6 +3,7 @@ import {
   AppThemePalette,
   DEFAULT_NEUTRAL_HEX,
   LEGACY_UNCUSTOMIZED_HEXES,
+  hexToRgb,
   normalizeHex,
   resolveAppThemeTokens,
 } from '../utils/themePalette';
@@ -252,7 +253,9 @@ export const applyThemePaletteToDom = (
     root.style.setProperty('--neutral-dot-on-dark', '#E2E8F0');
 
     // Tokens Semânticos de Marca (--brand-*) para Cascata Completa
+    const primaryRgb = hexToRgb(palette.primary);
     root.style.setProperty('--brand-primary', palette.primary);
+    root.style.setProperty('--brand-primary-rgb', `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`);
     root.style.setProperty('--brand-primary-hover', palette.primaryHover);
     root.style.setProperty('--brand-primary-fg', palette.primaryFg);
     root.style.setProperty('--brand-soft-bg', palette.softBg);

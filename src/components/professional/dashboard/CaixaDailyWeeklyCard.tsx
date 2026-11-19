@@ -236,8 +236,8 @@ export const CaixaDailyWeeklyCard: React.FC<CaixaDailyWeeklyCardProps> = ({
       {/* 1. CABEÇALHO DO CAIXA: TÍTULO & ALTERNADOR DIA / SEMANA */}
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800/40 gap-2">
         <div className="flex items-center gap-1.5 shrink-0">
-          <div className="w-5 h-5 rounded bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-            <Wallet className="w-3 h-3 text-emerald-400" />
+          <div className="w-5 h-5 rounded brand-soft-badge flex items-center justify-center">
+            <Wallet className="w-3 h-3 brand-icon" />
           </div>
           <span className="text-xs font-bold font-['Poppins']">
             Caixa & Entradas
@@ -258,7 +258,7 @@ export const CaixaDailyWeeklyCard: React.FC<CaixaDailyWeeklyCardProps> = ({
             }}
             className={`px-2.5 py-0.5 text-[9.5px] font-bold rounded transition cursor-pointer ${
               viewScope === 'dia'
-                ? 'bg-emerald-500 text-white shadow-xs font-extrabold'
+                ? 'brand-tab-active shadow-xs font-extrabold'
                 : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-950'
             }`}
           >
@@ -272,7 +272,7 @@ export const CaixaDailyWeeklyCard: React.FC<CaixaDailyWeeklyCardProps> = ({
             }}
             className={`px-2.5 py-0.5 text-[9.5px] font-bold rounded transition cursor-pointer ${
               viewScope === 'semana'
-                ? 'bg-emerald-500 text-white shadow-xs font-extrabold'
+                ? 'brand-tab-active shadow-xs font-extrabold'
                 : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-950'
             }`}
           >
@@ -311,8 +311,8 @@ export const CaixaDailyWeeklyCard: React.FC<CaixaDailyWeeklyCardProps> = ({
                 </span>
                 <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
                   todayCashData.progressPercent >= 100
-                    ? 'bg-emerald-500 text-white'
-                    : isDark ? 'bg-slate-800 text-emerald-400' : 'bg-slate-200 text-emerald-700'
+                    ? 'brand-tab-active'
+                    : 'brand-soft-badge'
                 }`}>
                   {todayCashData.progressPercent}%
                 </span>
@@ -324,7 +324,7 @@ export const CaixaDailyWeeklyCard: React.FC<CaixaDailyWeeklyCardProps> = ({
           <div className="space-y-1">
             <div className={`w-full h-2 rounded-full overflow-hidden ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
               <div
-                className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                className="h-full brand-bar rounded-full transition-all duration-500"
                 style={{ width: `${todayCashData.progressPercent}%` }}
               />
             </div>
@@ -365,7 +365,7 @@ export const CaixaDailyWeeklyCard: React.FC<CaixaDailyWeeklyCardProps> = ({
               <div className="space-y-0.5 text-[9.5px] font-mono">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400 flex items-center gap-1">
-                    <QrCode className="w-2.5 h-2.5 text-emerald-400" /> PIX
+                    <QrCode className="w-2.5 h-2.5 brand-icon" /> PIX
                   </span>
                   <span className="font-bold text-white">R$ {todayCashData.pixAmount}</span>
                 </div>
@@ -414,8 +414,8 @@ export const CaixaDailyWeeklyCard: React.FC<CaixaDailyWeeklyCardProps> = ({
                 </span>
                 <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
                   weekCashData.progressPercent >= 100
-                    ? 'bg-emerald-500 text-white'
-                    : isDark ? 'bg-slate-800 text-emerald-400' : 'bg-slate-200 text-emerald-700'
+                    ? 'brand-tab-active'
+                    : 'brand-soft-badge'
                 }`}>
                   {weekCashData.progressPercent}%
                 </span>
@@ -427,7 +427,7 @@ export const CaixaDailyWeeklyCard: React.FC<CaixaDailyWeeklyCardProps> = ({
           <div className="space-y-1">
             <div className={`w-full h-2 rounded-full overflow-hidden ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
               <div
-                className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                className="h-full brand-bar rounded-full transition-all duration-500"
                 style={{ width: `${weekCashData.progressPercent}%` }}
               />
             </div>
@@ -448,18 +448,16 @@ export const CaixaDailyWeeklyCard: React.FC<CaixaDailyWeeklyCardProps> = ({
                     <span className="text-[8px] font-mono text-slate-400 leading-none">
                       {day.amount > 0 ? `${day.amount}` : '-'}
                     </span>
-                    <div className="w-full max-w-[20px] bg-slate-800 rounded-t h-full flex items-end overflow-hidden">
+                    <div className={`w-full max-w-[20px] rounded-t h-full flex items-end overflow-hidden ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
                       <div
-                        className={`w-full rounded-t transition-all duration-300 ${
-                          day.isToday
-                            ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]'
-                            : 'bg-emerald-500/60 hover:bg-emerald-500/80'
+                        className={`w-full rounded-t transition-all duration-300 brand-bar ${
+                          day.isToday ? 'opacity-100' : 'opacity-65 hover:opacity-90'
                         }`}
                         style={{ height: `${heightPercent}%` }}
                         title={`${day.dayLabel} (${day.dateStr}): R$ ${day.amount} (${day.count} clientes)`}
                       />
                     </div>
-                    <span className={`text-[8.5px] font-bold ${day.isToday ? 'text-emerald-400' : 'text-slate-400'}`}>
+                    <span className={`text-[8.5px] font-bold ${day.isToday ? 'brand-text' : 'text-slate-400'}`}>
                       {day.dayLabel}
                     </span>
                   </div>
@@ -474,7 +472,7 @@ export const CaixaDailyWeeklyCard: React.FC<CaixaDailyWeeklyCardProps> = ({
       {onNavigateToUtilitiesFinancial && (
         <div className="mt-2.5 pt-2 border-t border-slate-800/40 flex items-center justify-between">
           <div className="flex items-center gap-1 text-[10px] text-slate-400">
-            <Wrench className="w-3 h-3 text-emerald-400" />
+            <Wrench className="w-3 h-3 brand-icon" />
             <span>Despesas, DRE e Balanço Completo</span>
           </div>
           <button
@@ -483,7 +481,7 @@ export const CaixaDailyWeeklyCard: React.FC<CaixaDailyWeeklyCardProps> = ({
               hapticLight();
               onNavigateToUtilitiesFinancial();
             }}
-            className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-0.5 cursor-pointer hover:underline"
+            className="text-[10px] font-bold brand-text hover:opacity-80 flex items-center gap-0.5 cursor-pointer hover:underline"
           >
             <span>{actionLabel}</span>
             <ArrowUpRight className="w-3 h-3" />

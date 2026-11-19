@@ -15,6 +15,7 @@ import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
 import { PixCheckoutModal } from './PixCheckoutModal';
 import { LiveRouteDepartureModal, LiveTrackingDrawerModal } from '../live-tracking/LiveTrackingModal';
 import { syncAppointmentAcrossStorageAndDb, formatCurrentClockTime } from '../../hooks/useLiveRouteTracker';
+import { getSectionHeaderStyleData } from '../../utils/sectionHeaderStyle';
 
 export interface ProfessionalAgendaViewProps {
   appointments: BookingAppointment[];
@@ -943,15 +944,23 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
       {/* Cabeçalho da Seção: Título Sintético */}
-      <div className={`p-3 border-b shrink-0 flex items-center justify-between gap-2 ${
-        isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
-      }`}>
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="min-w-0">
-            <h2 className="text-xs font-bold font-['Poppins'] truncate">Agenda</h2>
+      {(() => {
+        const hdr = getSectionHeaderStyleData(adminSettings || {}, isDark);
+        return (
+          <div
+            className={`p-3 border-b shrink-0 flex items-center justify-between gap-2 ${hdr.containerClass}`}
+            style={hdr.containerStyle}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="min-w-0">
+                <h2 className="text-xs font-bold font-['Poppins'] truncate" style={hdr.titleStyle}>
+                  Agenda
+                </h2>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* 1. SEÇÃO FIXA NO TOPO: Calendário Mensal com Seleção do Dia do Mês */}
       <div className={`border-b shrink-0 px-3 py-2.5 ${
@@ -976,7 +985,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
 
-            <span className="text-xs font-bold font-['Poppins'] uppercase tracking-wider text-emerald-400 select-none">
+            <span className="text-xs font-bold font-['Poppins'] uppercase tracking-wider brand-text select-none">
               {MONTH_NAMES[calendarViewDate.getMonth()]} {calendarViewDate.getFullYear()}
             </span>
 
@@ -1000,15 +1009,15 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
               }}
               className={`px-2.5 py-1 rounded-[4px] text-[10px] font-bold border transition flex items-center gap-1.5 cursor-pointer active:scale-95 whitespace-nowrap shadow-xs ${
                 isCalendarCollapsed
-                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25 hover:border-emerald-400'
+                  ? 'brand-btn-soft'
                   : isDark
                   ? 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
                   : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
               }`}
             >
-              <Calendar className="w-3 h-3 text-emerald-400 shrink-0" />
+              <Calendar className="w-3 h-3 brand-icon shrink-0" />
               <span>{isCalendarCollapsed ? 'Expandir Dias' : 'Recolher Dias'}</span>
-              <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isCalendarCollapsed ? '-rotate-90 text-emerald-400' : 'rotate-0 text-slate-400'}`} />
+              <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isCalendarCollapsed ? '-rotate-90 brand-icon' : 'rotate-0 text-slate-400'}`} />
             </button>
           </div>
         </div>
@@ -1052,9 +1061,9 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                           ? 'opacity-25 cursor-not-allowed bg-slate-950/20 text-slate-600 border border-transparent'
                           : 'opacity-30 cursor-not-allowed bg-slate-100/50 text-slate-400 border border-transparent'
                         : isSel
-                        ? 'bg-emerald-500 text-white font-black shadow-xs cursor-pointer'
+                        ? 'brand-tab-active font-black shadow-xs cursor-pointer'
                         : isTod
-                        ? 'border border-emerald-500/80 text-emerald-400 font-bold bg-emerald-500/10 cursor-pointer hover:bg-emerald-500/20'
+                        ? 'brand-soft-badge font-bold cursor-pointer'
                         : isDark
                         ? 'bg-slate-900/70 hover:bg-slate-800 text-slate-300 cursor-pointer'
                         : 'bg-slate-100 hover:bg-slate-200 text-slate-800 cursor-pointer'
@@ -1063,7 +1072,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                     <span className={isPast ? 'text-slate-600' : ''}>{gridItem.date.getDate()}</span>
                     {hasAppointments && (
                       <span className={`w-1 h-1 rounded-full absolute bottom-0.5 ${
-                        isSel ? 'bg-white' : 'bg-emerald-400'
+                        isSel ? 'bg-current' : 'brand-bar'
                       }`} />
                     )}
                   </button>
@@ -1083,7 +1092,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
           isDark ? 'border-slate-800/60 bg-slate-900/40' : 'border-slate-200/70 bg-white'
         }`}>
           <div className="flex items-center gap-1.5 min-w-0">
-            <Calendar className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+            <Calendar className="w-3.5 h-3.5 brand-icon shrink-0" />
             <span className={`text-xs font-bold font-['Poppins'] truncate ${
               isDark ? 'text-white' : 'text-slate-900'
             }`}>
@@ -1117,7 +1126,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                 }}
                 className={`px-2.5 py-1 rounded-[4px] text-[10px] sm:text-[11px] font-bold border transition cursor-pointer whitespace-nowrap shrink-0 active:scale-98 ${
                   isTabActive
-                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-xs'
+                    ? 'brand-tab-active shadow-xs'
                     : isDark
                     ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
                     : 'bg-white border-slate-300 text-slate-600 hover:text-slate-900'
@@ -1147,7 +1156,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
               title="Grid de Horas (Minicards estilo Poupatempo)"
               className={`px-2 py-0.5 rounded-[3px] text-[10px] font-bold flex items-center gap-1 cursor-pointer transition ${
                 viewMode === 'grid'
-                  ? 'bg-emerald-500 text-white shadow-xs'
+                  ? 'brand-tab-active shadow-xs'
                   : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -1163,7 +1172,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
               title="Lista Detalhada de Horários"
               className={`px-2 py-0.5 rounded-[3px] text-[10px] font-bold flex items-center gap-1 cursor-pointer transition ${
                 viewMode === 'lista'
-                  ? 'bg-emerald-500 text-white shadow-xs'
+                  ? 'brand-tab-active shadow-xs'
                   : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -1436,7 +1445,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="font-mono text-sm sm:text-base font-black px-2 py-0.5 rounded-[3px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">
+                    <span className="font-mono text-sm sm:text-base font-black px-2 py-0.5 rounded-[3px] brand-soft-badge shrink-0">
                       {item.startTime}
                     </span>
                     <div className="min-w-0 truncate">
@@ -1499,11 +1508,11 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                           hapticLight();
                           setLiveTrackingViewerState({ appointment: app, initialTab: 'timeline' });
                         }}
-                        className="px-2 py-1 rounded-[3px] bg-emerald-500 hover:bg-emerald-600 text-white text-[9.5px] font-black uppercase flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                        className="px-2 py-1 rounded-[3px] brand-btn text-[9.5px] font-black uppercase flex items-center gap-1 cursor-pointer whitespace-nowrap"
                         title="Abrir Gaveta de Rastreamento Ao Vivo (Linha Shopee ⇄ Mapa 10s)"
                       >
-                        <Package className="w-3 h-3 text-white shrink-0" />
-                        <span className="text-white">Rastrear 10s</span>
+                        <Package className="w-3 h-3 shrink-0" />
+                        <span>Rastrear 10s</span>
                       </button>
                     )}
                     <span className={`text-[8.5px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-[3px] border whitespace-nowrap shrink-0 ${
@@ -1587,7 +1596,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
 
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-[4px] bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xs font-black shrink-0">
+                      <div className="w-8 h-8 rounded-[4px] brand-soft-badge flex items-center justify-center text-xs font-black shrink-0">
                         {selectedAppointment.is_dependent && selectedAppointment.dependent_name
                           ? selectedAppointment.dependent_name[0].toUpperCase()
                           : (selectedAppointment.customerName || selectedAppointment.clientName || 'C')[0].toUpperCase()}
@@ -1675,8 +1684,8 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                     isDark ? 'bg-slate-900' : 'bg-slate-100'
                   }`}>
                     <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                        <Navigation className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider brand-text flex items-center gap-1.5">
+                        <Navigation className="w-3.5 h-3.5 brand-icon" />
                         <span>Radar de Deslocamento Ao Vivo (10s)</span>
                       </span>
 
@@ -1693,7 +1702,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                         }}
                         className="px-2 py-0.5 rounded-[3px] bg-slate-800 hover:bg-slate-700 text-slate-200 text-[9.5px] font-bold flex items-center gap-1 cursor-pointer"
                       >
-                        <Home className="w-3 h-3 text-emerald-400" />
+                        <Home className="w-3 h-3 brand-icon" />
                         <span>
                           {selectedAppointment.service_location_type === 'home_delivery'
                             ? 'Atendimento Delivery'
@@ -1773,10 +1782,10 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                             initialTab: 'timeline',
                           });
                         }}
-                        className="py-2 px-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-extrabold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-98 whitespace-nowrap"
+                        className="py-2 px-2.5 rounded-[4px] brand-btn text-[11px] font-extrabold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-98 whitespace-nowrap"
                       >
-                        <Package className="w-3.5 h-3.5 text-white shrink-0" />
-                        <span className="text-white">Ver Linha Ruas</span>
+                        <Package className="w-3.5 h-3.5 shrink-0" />
+                        <span>Ver Linha Ruas</span>
                       </button>
 
                       <button
@@ -1788,9 +1797,9 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                             initialTab: 'map',
                           });
                         }}
-                        className="py-2 px-2.5 rounded-[4px] bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-98 whitespace-nowrap"
+                        className="py-2 px-2.5 rounded-[4px] brand-btn-soft text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-98 whitespace-nowrap"
                       >
-                        <MapIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <MapIcon className="w-3.5 h-3.5 brand-icon shrink-0" />
                         <span>Ver Mapa 10s</span>
                       </button>
                     </div>
@@ -1802,10 +1811,10 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                           hapticLight();
                           setProDeliveryDepartureApt(selectedAppointment);
                         }}
-                        className="w-full py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-extrabold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-98 whitespace-nowrap"
+                        className="w-full py-2 px-3 rounded-[4px] brand-btn text-[11px] font-extrabold flex items-center justify-center gap-1.5 cursor-pointer transition active:scale-98 whitespace-nowrap"
                       >
-                        <Navigation className="w-3.5 h-3.5 text-white shrink-0" />
-                        <span className="text-white">
+                        <Navigation className="w-3.5 h-3.5 shrink-0" />
+                        <span>
                           Iniciar Deslocamento até o Cliente (Traçar Rota)
                         </span>
                       </button>
@@ -1912,7 +1921,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                       <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 block">
                         {isConcluded ? 'Serviço Realizado' : 'Serviço Agendado'}
                       </span>
-                      <h3 className="text-sm font-bold font-['Poppins'] text-emerald-400 mt-0.5">
+                      <h3 className="text-sm font-bold font-['Poppins'] brand-text mt-0.5">
                         {selectedAppointment.serviceTitle || selectedAppointment.service || 'Serviço'}
                       </h3>
                     </div>
@@ -1920,7 +1929,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                       <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 block">
                         {isConcluded ? 'Valor Pago' : 'Valor'}
                       </span>
-                      <span className="text-sm font-black text-emerald-400 block">
+                      <span className="text-sm font-black text-emerald-500 block">
                         R$ {Number(selectedAppointment.totalPrice || 0).toFixed(2).replace('.', ',')}
                       </span>
                       {isConcluded && (
@@ -1937,7 +1946,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                         {isConcluded ? 'Tempo de Atendimento' : 'Duração Estimada'}
                       </span>
                       <span className="font-bold flex items-center gap-1 mt-0.5">
-                        <Clock className="w-3 h-3 text-emerald-400" />
+                        <Clock className="w-3 h-3 brand-icon" />
                         {selectedAppointment.duration || '40 min'}
                       </span>
                     </div>
@@ -1946,7 +1955,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                         {isConcluded ? 'Atendido por' : 'Profissional'}
                       </span>
                       <span className="font-bold flex items-center gap-1 mt-0.5">
-                        <User className="w-3 h-3 text-emerald-400" />
+                        <User className="w-3 h-3 brand-icon" />
                         {selectedAppointment.professionalName || selectedAppointment.professional || 'Profissional'}
                       </span>
                     </div>
@@ -1975,7 +1984,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                       <span className="text-[9px] uppercase tracking-wider text-slate-400 block">
                         {isConcluded ? 'Iniciado às' : 'Início'}
                       </span>
-                      <span className="text-xs font-mono font-black text-emerald-400 block mt-0.5">
+                      <span className="text-xs font-mono font-black brand-text block mt-0.5">
                         {selectedAppointment.time || '09:00'}
                       </span>
                     </div>
@@ -1997,7 +2006,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                       <span className="text-[9px] uppercase tracking-wider text-slate-400 block">
                         {isConcluded ? 'Finalizado às' : 'Término Previsto'}
                       </span>
-                      <span className="text-xs font-mono font-black text-emerald-400 block mt-0.5">
+                      <span className="text-xs font-mono font-black brand-text block mt-0.5">
                         {calculateEndTime(selectedAppointment.time || '09:00', selectedAppointment.duration || '40 min')}
                       </span>
                     </div>
@@ -2059,9 +2068,9 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                         <button
                           type="button"
                           onClick={() => setSelectedAppointment(null)}
-                          className="flex-1 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 active:scale-98 shadow-xs"
+                          className="flex-1 py-2 rounded-[4px] brand-btn text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 active:scale-98 shadow-xs"
                         >
-                          <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                          <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                           <span>Fechar Detalhes</span>
                         </button>
                       </div>
@@ -2083,9 +2092,9 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                         <button
                           type="button"
                           onClick={() => handleConfirmSwapRequest(selectedAppointment)}
-                          className="flex-1 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1 shadow-xs"
+                          className="flex-1 py-2 rounded-[4px] brand-btn text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1 shadow-xs"
                         >
-                          <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                          <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                           <span>Confirmar Troca</span>
                         </button>
                       </div>
@@ -2109,9 +2118,9 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                         <button
                           type="button"
                           onClick={() => handleStatusChange(selectedAppointment.protocolCode, 'CONFIRMADO')}
-                          className="flex-1 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1 shadow-xs"
+                          className="flex-1 py-2 rounded-[4px] brand-btn text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1 shadow-xs"
                         >
-                          <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                          <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                           <span>Aceitar Alteração</span>
                         </button>
                       </div>
@@ -2134,9 +2143,9 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                         <button
                           type="button"
                           onClick={() => handleStatusChange(selectedAppointment.protocolCode, 'CONFIRMADO')}
-                          className="flex-1 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1 shadow-xs"
+                          className="flex-1 py-2 rounded-[4px] brand-btn text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1 shadow-xs"
                         >
-                          <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                          <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                           <span>Confirmar</span>
                         </button>
                       </div>
@@ -2149,9 +2158,9 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                         <button
                           type="button"
                           onClick={() => handleUnblockSlot(selectedAppointment.protocolCode)}
-                          className="flex-1 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                          className="flex-1 py-2 rounded-[4px] brand-btn text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
                         >
-                          <Unlock className="w-3.5 h-3.5 text-white" />
+                          <Unlock className="w-3.5 h-3.5" />
                           <span>Desbloquear Horário</span>
                         </button>
                       </div>
@@ -2183,9 +2192,9 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                               setSelectedAppointment(null);
                               setPixCheckoutAppointment(finishedApp);
                             }}
-                            className="flex-1 py-2 px-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 active:scale-98 shadow-xs"
+                            className="flex-1 py-2 px-2 rounded-[4px] brand-btn text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 active:scale-98 shadow-xs"
                           >
-                            <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                             <span>Finalizar Serviço</span>
                           </button>
                         </div>
@@ -2228,9 +2237,9 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                               handleStatusChange(selectedAppointment.protocolCode, 'EM ATENDIMENTO');
                               setSelectedAppointment(null);
                             }}
-                            className="w-full py-2.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 active:scale-98 shadow-xs"
+                            className="w-full py-2.5 rounded-[4px] brand-btn text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 active:scale-98 shadow-xs"
                           >
-                            <Zap className="w-3.5 h-3.5 text-white fill-white" />
+                            <Zap className="w-3.5 h-3.5 fill-current" />
                             <span>Iniciar Atendimento</span>
                           </button>
                         </div>
@@ -2259,7 +2268,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                         <button
                           type="button"
                           onClick={() => setSelectedAppointment(null)}
-                          className="py-2 px-1 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-[10.5px] font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1 shadow-xs"
+                          className="py-2 px-1 rounded-[4px] brand-btn text-[10.5px] font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1 shadow-xs"
                         >
                           <span>Fechar</span>
                         </button>
@@ -2271,9 +2280,9 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                     <button
                       type="button"
                       onClick={() => handleStatusChange(selectedAppointment.protocolCode, 'CONFIRMADO')}
-                      className="w-full py-2 rounded-[4px] border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1"
+                      className="w-full py-2 rounded-[4px] brand-btn-soft text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1"
                     >
-                      <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+                      <RefreshCw className="w-3.5 h-3.5 brand-icon" />
                       <span>Reativar Agendamento</span>
                     </button>
                   );
@@ -2322,8 +2331,8 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                   onChange={(e) => setClientName(e.target.value)}
                   placeholder="Ex: Roberto Gomes"
                   required
-                  className={`w-full px-3 py-2 rounded-[4px] border text-xs font-medium outline-hidden ${
-                    isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs font-medium outline-hidden brand-ring-focus ${
+                    isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
                 />
               </div>
@@ -2337,8 +2346,8 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                   value={clientPhone}
                   onChange={(e) => setClientPhone(e.target.value)}
                   placeholder="(11) 99999-9999"
-                  className={`w-full px-3 py-2 rounded-[4px] border text-xs font-medium outline-hidden ${
-                    isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                  className={`w-full px-3 py-2 rounded-[4px] border text-xs font-medium outline-hidden brand-ring-focus ${
+                    isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
                 />
               </div>
@@ -2414,7 +2423,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer shadow-xs active:scale-98"
+                  className="flex-1 py-2 rounded-[4px] brand-btn font-bold text-xs uppercase tracking-wider transition cursor-pointer shadow-xs active:scale-98"
                 >
                   Confirmar
                 </button>
@@ -2435,7 +2444,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
             }`}>
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-[4px] bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-black shrink-0">
+                <div className="w-9 h-9 rounded-[4px] brand-soft-badge flex items-center justify-center font-black shrink-0">
                   {(activeChatAppointment.customerName || activeChatAppointment.clientName || 'C')[0].toUpperCase()}
                 </div>
                 <div className="min-w-0">
@@ -2446,7 +2455,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                     <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" title="Online no Vagou" />
                   </div>
                   <p className="text-[10px] text-slate-400 truncate flex items-center gap-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <ShieldCheck className="w-3.5 h-3.5 brand-icon shrink-0" />
                     <span>Chat Seguro Vagou • #{activeChatAppointment.protocolCode}</span>
                   </p>
                 </div>
@@ -2469,7 +2478,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                 if (msg.sender === 'system') {
                   return (
                     <div key={msg.id} className="my-2 p-2 rounded-[4px] bg-slate-900/90 border border-slate-800 text-[10px] text-slate-400 text-center flex items-center justify-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <ShieldCheck className="w-3.5 h-3.5 brand-icon shrink-0" />
                       <span>{msg.text}</span>
                     </div>
                   );
@@ -2481,14 +2490,14 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                   <div key={msg.id} className={`flex flex-col ${isProf ? 'items-end' : 'items-start'}`}>
                     <div className={`max-w-[85%] p-2.5 rounded-[4px] text-xs ${
                       isProf
-                        ? 'bg-emerald-500 text-white font-medium'
+                        ? 'brand-btn font-medium'
                         : isDark
                         ? 'bg-slate-800 text-slate-100 border border-slate-700 font-medium'
                         : 'bg-slate-100 text-slate-900 border border-slate-200 font-medium'
                     }`}>
                       <p>{msg.text}</p>
                       <span className={`block text-[9px] mt-1 text-right font-mono ${
-                        isProf ? 'text-white/80' : 'text-slate-400'
+                        isProf ? 'opacity-80' : 'text-slate-400'
                       }`}>
                         {msg.timestamp}
                       </span>
@@ -2516,8 +2525,8 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                   }}
                   className={`px-2 py-1 rounded-[4px] text-[10px] font-bold border transition cursor-pointer whitespace-nowrap ${
                     isDark 
-                      ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white hover:border-emerald-500/50'
-                      : 'bg-white border-slate-300 text-slate-700 hover:text-emerald-600 hover:border-emerald-500'
+                      ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white'
+                      : 'bg-white border-slate-300 text-slate-700 hover:text-slate-900'
                   }`}
                 >
                   {chip}
@@ -2534,18 +2543,18 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                 value={inputChatMessage}
                 onChange={(e) => setInputChatMessage(e.target.value)}
                 placeholder="Escreva sua mensagem no app..."
-                className={`flex-1 px-3 py-2 rounded-[4px] border text-xs font-medium outline-hidden transition ${
+                className={`flex-1 px-3 py-2 rounded-[4px] border text-xs font-medium outline-hidden transition brand-ring-focus ${
                   isDark 
-                    ? 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-500 focus:border-emerald-500' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500'
+                    ? 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-500' 
+                    : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400'
                 }`}
               />
               <button
                 type="submit"
                 disabled={!inputChatMessage.trim()}
-                className="py-2 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1 transition cursor-pointer active:scale-98"
+                className="py-2 px-3 rounded-[4px] brand-btn disabled:opacity-40 font-bold text-xs flex items-center justify-center gap-1 transition cursor-pointer active:scale-98"
               >
-                <Send className="w-3.5 h-3.5 text-white" />
+                <Send className="w-3.5 h-3.5" />
               </button>
             </form>
           </div>
@@ -2775,16 +2784,16 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                 </div>
               </div>
 
-              {/* Botão de Fechar Rápido (Fundo Verde = Texto Branco) */}
+              {/* Botão de Fechar Rápido */}
               <button
                 type="button"
                 onClick={() => {
                   hapticSuccess();
                   setSwapConfirmedModalData(null);
                 }}
-                className="w-full py-2.5 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs mt-2"
+                className="w-full py-2.5 px-3 rounded-[4px] brand-btn font-bold text-xs uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs mt-2"
               >
-                <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>Entendido</span>
               </button>
             </div>

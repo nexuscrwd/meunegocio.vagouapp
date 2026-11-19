@@ -291,7 +291,7 @@ export const WaterConsumptionManager: React.FC = () => {
 
                 <div className="flex items-baseline justify-between pt-0.5">
                   <div>
-                    <span className="text-2xl font-black font-mono text-emerald-400">
+                    <span className="text-2xl font-black font-mono text-rose-500">
                       R$ {forecastData.totalProjectedBill.toFixed(2).replace('.', ',')}
                     </span>
                     <span className="text-[10px] text-slate-400 block mt-0.5">
@@ -302,7 +302,7 @@ export const WaterConsumptionManager: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleSaveSimulatedReading}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
+                    className="px-3 py-1.5 rounded-[4px] brand-btn text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-xs active:scale-95"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>Salvar no Histórico</span>
@@ -366,7 +366,7 @@ export const WaterConsumptionManager: React.FC = () => {
 
                   <div className="flex items-center gap-3 shrink-0">
                     {r.costAmountReais && (
-                      <span className="text-xs font-black font-mono text-emerald-400">
+                      <span className="text-xs font-black font-mono text-rose-500">
                         R$ {r.costAmountReais.toFixed(2).replace('.', ',')}
                       </span>
                     )}

@@ -617,7 +617,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
               isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-[#F1F5F9] text-[#1E293B]'
             }`}
           >
-            <ChevronRight className="w-4 h-4 rotate-180 text-[#2B82C9]" />
+            <ChevronRight className="w-4 h-4 rotate-180 brand-icon" />
             <span>Voltar</span>
           </button>
 
@@ -642,7 +642,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
             isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
           }`}>
             <div className="caixa-icon-halo w-10 h-10 rounded-full shrink-0">
-              <Navigation className="w-5 h-5 text-[#2B82C9]" />
+              <Navigation className="w-5 h-5 brand-icon" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
@@ -682,7 +682,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                   htmlFor="vagou-sim-origin-field"
                   className="text-[11px] font-bold uppercase tracking-wider text-[#1E293B] dark:text-slate-200 flex items-center gap-1.5"
                 >
-                  <MapPin className="w-3.5 h-3.5 text-[#2B82C9]" />
+                  <MapPin className="w-3.5 h-3.5 brand-icon" />
                   <span>De onde você vai sair?</span>
                 </label>
 
@@ -692,15 +692,15 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                     type="button"
                     onClick={handleUseCurrentLocation}
                     disabled={isLocatingOrigin}
-                    className="px-2.5 py-1.5 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] text-white font-bold text-[10.5px] flex items-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 whitespace-nowrap"
+                    className="px-2.5 py-1.5 rounded-[4px] brand-btn font-bold text-[10.5px] flex items-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 whitespace-nowrap"
                     title="Detectar endereço via GPS do celular"
                   >
                     {isLocatingOrigin ? (
-                      <Loader2 className="w-3 h-3 text-white animate-spin" />
+                      <Loader2 className="w-3 h-3 animate-spin" />
                     ) : (
-                      <Compass className="w-3 h-3 text-white" />
+                      <Compass className="w-3 h-3" />
                     )}
-                    <span className="text-white">Local Atual</span>
+                    <span>Local Atual</span>
                   </button>
 
                   {/* Botão "De Casa" */}
@@ -709,12 +709,12 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                     onClick={() => applyHomeAddressToField('origin')}
                     className={`px-2.5 py-1.5 rounded-[4px] border font-bold text-[10.5px] flex items-center gap-1 transition cursor-pointer active:scale-95 whitespace-nowrap ${
                       isDark
-                        ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-[#2B82C9]'
-                        : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#2B82C9] hover:text-[#1E293B]'
+                        ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-[var(--brand-primary)]'
+                        : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[var(--brand-primary)] hover:text-[#1E293B]'
                     }`}
                     title="Usar endereço de casa salvo"
                   >
-                    <Home className="w-3 h-3 text-[#2B82C9]" />
+                    <Home className="w-3 h-3 brand-icon" />
                     <span>De Casa</span>
                   </button>
                 </div>
@@ -775,7 +775,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                   )}
                   <span className="pointer-events-none flex items-center">
                     {isLocatingOrigin || isSearchingOrigin ? (
-                      <Loader2 className="w-4 h-4 text-[#2B82C9] animate-spin" />
+                      <Loader2 className="w-4 h-4 brand-icon animate-spin" />
                     ) : (
                       <Search className="w-3.5 h-3.5 text-[#64748B]" />
                     )}
@@ -808,7 +808,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                           isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-[#F7F9FC] text-[#1E293B]'
                         }`}
                       >
-                        <MapPin className="w-3.5 h-3.5 text-[#2B82C9] shrink-0 mt-0.5" />
+                        <MapPin className="w-3.5 h-3.5 brand-icon shrink-0 mt-0.5" />
                         <div className="min-w-0 flex-1">
                           <span className="font-bold block truncate">{place.title}</span>
                           <span
@@ -835,7 +835,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                   htmlFor="vagou-sim-dest-field"
                   className="text-[11px] font-bold uppercase tracking-wider text-[#1E293B] dark:text-slate-200 flex items-center gap-1.5"
                 >
-                  <Navigation className="w-3.5 h-3.5 text-[#2B82C9]" />
+                  <Navigation className="w-3.5 h-3.5 brand-icon" />
                   <span>Para onde você vai?</span>
                 </label>
 
@@ -845,12 +845,12 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                   onClick={() => applyHomeAddressToField('dest')}
                   className={`px-2.5 py-1.5 rounded-[4px] border font-bold text-[10.5px] flex items-center gap-1 transition cursor-pointer active:scale-95 whitespace-nowrap ${
                     isDark
-                      ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-[#2B82C9]'
-                      : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#2B82C9] hover:text-[#1E293B]'
+                      ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-[var(--brand-primary)]'
+                      : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[var(--brand-primary)] hover:text-[#1E293B]'
                   }`}
                   title="Ir para o endereço de casa salvo"
                 >
-                  <Home className="w-3 h-3 text-[#2B82C9]" />
+                  <Home className="w-3 h-3 brand-icon" />
                   <span>Para Casa</span>
                 </button>
               </div>
@@ -908,7 +908,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                   )}
                   <span className="pointer-events-none flex items-center">
                     {isSearchingDest ? (
-                      <Loader2 className="w-4 h-4 text-[#2B82C9] animate-spin" />
+                      <Loader2 className="w-4 h-4 brand-icon animate-spin" />
                     ) : (
                       <Search className="w-3.5 h-3.5 text-[#64748B]" />
                     )}
@@ -939,7 +939,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                           isDark ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-[#F7F9FC] text-[#1E293B]'
                         }`}
                       >
-                        <MapPin className="w-3.5 h-3.5 text-[#2B82C9] shrink-0 mt-0.5" />
+                        <MapPin className="w-3.5 h-3.5 brand-icon shrink-0 mt-0.5" />
                         <div className="min-w-0 flex-1">
                           <span className="font-bold block truncate">{place.title}</span>
                           <span
@@ -983,16 +983,16 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                       }}
                       className={`p-2.5 rounded-[4px] border flex flex-col items-center justify-center gap-1 transition cursor-pointer ${
                         isSel
-                          ? 'bg-[#2B82C9] border-[#2B82C9] text-white font-bold shadow-xs'
+                          ? 'brand-tab-active font-bold shadow-xs'
                           : isDark
                           ? 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
                           : 'bg-[#F1F5F9] border-[#E2E8F0] text-[#5F6C7B] hover:border-[#CBD5E1]'
                       }`}
                     >
                       <IconComponent
-                        className={`w-4 h-4 ${isSel ? 'text-white' : 'text-[#2B82C9]'}`}
+                        className={`w-4 h-4 ${isSel ? '' : 'brand-icon'}`}
                       />
-                      <span className={`text-[10px] ${isSel ? 'text-white font-bold' : ''}`}>{m.label}</span>
+                      <span className={`text-[10px] ${isSel ? 'font-bold' : ''}`}>{m.label}</span>
                     </button>
                   );
                 })}
@@ -1010,17 +1010,17 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
               type="button"
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="w-full py-3 px-4 rounded-[4px] bg-[#2B82C9] hover:bg-[#1F6FB0] active:scale-98 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer shadow-xs disabled:opacity-50"
+              className="w-full py-3 px-4 rounded-[4px] brand-btn active:scale-98 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer shadow-xs disabled:opacity-50"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-4 h-4 text-white animate-spin" />
-                  <span className="text-white">Calculando Trajeto...</span>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Calculando Trajeto...</span>
                 </>
               ) : (
                 <>
-                  <Navigation className="w-4 h-4 text-white fill-white" />
-                  <span className="text-white">Ir (Iniciar Navegação)</span>
+                  <Navigation className="w-4 h-4" />
+                  <span>Ir (Iniciar Navegação)</span>
                 </>
               )}
             </button>

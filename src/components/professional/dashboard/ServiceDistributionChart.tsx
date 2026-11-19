@@ -23,8 +23,8 @@ export const ServiceDistributionChart: React.FC<ServiceDistributionChartProps> =
       {/* Cabeçalho */}
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800/40">
         <div className="flex items-center gap-1.5">
-          <div className="w-6 h-6 rounded bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-            <Scissors className="w-3.5 h-3.5 text-emerald-400" />
+          <div className="w-6 h-6 rounded brand-soft-badge flex items-center justify-center">
+            <Scissors className="w-3.5 h-3.5 brand-icon" />
           </div>
           <div>
             <span className="text-xs font-bold font-['Poppins'] block leading-tight">Serviços Mais Realizados</span>
@@ -44,7 +44,7 @@ export const ServiceDistributionChart: React.FC<ServiceDistributionChartProps> =
                 <div className="flex items-center gap-1.5 truncate pr-2">
                   <span className={`text-[10px] font-bold w-4 text-center shrink-0 ${
                     idx === 0 
-                      ? 'text-emerald-500 font-black' 
+                      ? 'brand-text font-black' 
                       : isDark ? 'text-slate-500' : 'text-slate-400'
                   }`}>
                     {idx + 1}º
@@ -72,9 +72,9 @@ export const ServiceDistributionChart: React.FC<ServiceDistributionChartProps> =
                   style={{ width: `${Math.max(6, item.percentage)}%` }}
                   className={`h-full rounded-full transition-all duration-500 ${
                     idx === 0
-                      ? 'status-green-bg'
+                      ? 'brand-bar'
                       : idx === 1
-                      ? 'status-blue-bg'
+                      ? 'brand-bar opacity-70'
                       : isDark ? 'bg-slate-600' : 'bg-slate-400'
                   }`}
                 />

@@ -80,8 +80,8 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
       {/* Cabeçalho com Título & Seletor de Período (Diária / Semanal / Mensal) */}
       <div className="w-full flex items-center justify-between pb-2 mb-1 border-b border-slate-800/40 gap-2">
         <div className="flex items-center gap-1.5 shrink-0">
-          <div className="w-6 h-6 rounded bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-            <Target className="w-3.5 h-3.5 text-emerald-400" />
+          <div className="w-6 h-6 rounded brand-soft-badge flex items-center justify-center">
+            <Target className="w-3.5 h-3.5 brand-icon" />
           </div>
           <span className="text-xs font-bold font-['Poppins']">Velocímetro de Metas</span>
         </div>
@@ -102,7 +102,7 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
                 }}
                 className={`px-2 py-0.5 text-[10px] font-bold rounded capitalize transition cursor-pointer whitespace-nowrap ${
                   isSelected
-                    ? 'bg-emerald-500 text-white shadow-xs font-extrabold'
+                    ? 'brand-tab-active shadow-xs font-extrabold'
                     : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -123,12 +123,12 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
 
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
           percentage >= 100 
-            ? 'status-green-bg text-white font-extrabold' 
+            ? 'bg-emerald-600 text-white font-extrabold' 
             : percentage >= 70 
-            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold'
+            ? 'brand-soft-badge font-bold'
             : isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'
         }`}>
-          {percentage >= 100 ? 'Meta Batida! 🎉' : `${percentage}% alcançado`}
+          {percentage >= 100 ? 'Meta Batida!' : `${percentage}% alcançado`}
         </span>
       </div>
 
@@ -138,14 +138,6 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
           viewBox="0 0 190 105"
           className="w-full h-full overflow-visible"
         >
-          {/* Definição de gradiente esmeralda */}
-          <defs>
-            <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#059669" />
-              <stop offset="100%" stopColor="#10b981" />
-            </linearGradient>
-          </defs>
-
           {/* Arco de Fundo Neutro (Meia-Lua) */}
           <path
             d="M 23 95 A 72 72 0 0 1 167 95"
@@ -155,11 +147,11 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
             strokeLinecap="round"
           />
 
-          {/* Arco de Preenchimento da Meta */}
+          {/* Arco de Preenchimento da Meta na cor do tema */}
           <path
             d="M 23 95 A 72 72 0 0 1 167 95"
             fill="none"
-            stroke="url(#gaugeGradient)"
+            stroke="var(--brand-primary)"
             strokeWidth={strokeWidth}
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
@@ -170,7 +162,7 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
 
         {/* Texto Centralizado na Base da Meia-Lua */}
         <div className="absolute bottom-1 left-0 right-0 flex flex-col items-center justify-center text-center">
-          <span className="text-2xl font-black font-['Poppins'] tracking-tight leading-none text-emerald-500">
+          <span className="text-2xl font-black font-['Poppins'] tracking-tight leading-none brand-text">
             {percentage}%
           </span>
           <span className={`text-[9px] uppercase tracking-wider font-bold mt-0.5 ${
@@ -190,7 +182,7 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
         {percentage >= 100 ? (
           <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
         ) : (
-          <TrendingUp className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+          <TrendingUp className="w-4 h-4 brand-icon shrink-0 mt-0.5" />
         )}
 
         <div className="text-[11px] leading-snug">
@@ -209,13 +201,13 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
           ) : (
             <p className={isDark ? 'text-slate-300' : 'text-slate-700'}>
               {period === 'diaria' && (
-                <>Faltam <strong className="text-emerald-500">R$ {remainingAmount.toFixed(2).replace('.', ',')}</strong> hoje. Na sua média, falta só <strong className="text-emerald-500">{cutsNeeded} {cutsNeeded === 1 ? 'corte' : 'cortes'}</strong> para fechar a diária.</>
+                <>Faltam <strong className="brand-text">R$ {remainingAmount.toFixed(2).replace('.', ',')}</strong> hoje. Na sua média, falta só <strong className="brand-text">{cutsNeeded} {cutsNeeded === 1 ? 'corte' : 'cortes'}</strong> para fechar a diária.</>
               )}
               {period === 'semanal' && (
-                <>Faltam <strong className="text-emerald-500">R$ {remainingAmount.toFixed(2).replace('.', ',')}</strong> na semana. Na sua média, são <strong className="text-emerald-500">{cutsNeeded} {cutsNeeded === 1 ? 'corte' : 'cortes'}</strong> nos próximos atendimentos.</>
+                <>Faltam <strong className="brand-text">R$ {remainingAmount.toFixed(2).replace('.', ',')}</strong> na semana. Na sua média, são <strong className="brand-text">{cutsNeeded} {cutsNeeded === 1 ? 'corte' : 'cortes'}</strong> nos próximos atendimentos.</>
               )}
               {period === 'mensal' && (
-                <>Faltam <strong className="text-emerald-500">R$ {remainingAmount.toFixed(2).replace('.', ',')}</strong> para o mês. Na sua média, são só <strong className="text-emerald-500">{cutsNeeded} cortes</strong> (~{cutsPerDay}/dia nos próximos {remainingDays} dias).</>
+                <>Faltam <strong className="brand-text">R$ {remainingAmount.toFixed(2).replace('.', ',')}</strong> para o mês. Na sua média, são só <strong className="brand-text">{cutsNeeded} cortes</strong> (~{cutsPerDay}/dia nos próximos {remainingDays} dias).</>
               )}
             </p>
           )}

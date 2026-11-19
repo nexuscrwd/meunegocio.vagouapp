@@ -3380,6 +3380,39 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       ...(settings.bio !== undefined ? { bio: settings.bio || '' } : {}),
     };
 
+    // Sincroniza também as colunas físicas de topo de public.salons (evita colunas legadas verde-menta congeladas)
+    payload.theme_preset_id = resolvedThemePreset;
+    if (settings.brandFont !== undefined) payload.brand_font = settings.brandFont || 'Plus Jakarta Sans';
+    if (settings.welcomeStyle !== undefined) payload.welcome_style = settings.welcomeStyle || 'atmospheric';
+    if (settings.showSlogan !== undefined) payload.show_slogan = settings.showSlogan;
+    if (settings.showHeroSlides !== undefined) payload.show_hero_slides = settings.showHeroSlides;
+    if (settings.logoTextFallback !== undefined) payload.logo_text_fallback = settings.logoTextFallback || null;
+    if (settings.logoTextColor !== undefined) payload.logo_text_color = settings.logoTextColor || null;
+    if (settings.sectionHeaderBgColor !== undefined) payload.section_header_bg_color = settings.sectionHeaderBgColor || null;
+    if (settings.sectionHeaderTextColor !== undefined) payload.section_header_text_color = settings.sectionHeaderTextColor || null;
+    if (settings.sectionHeaderIconColor !== undefined) payload.section_header_icon_color = settings.sectionHeaderIconColor || null;
+    if (settings.sectionHeaderBgStyle !== undefined) payload.section_header_bg_style = settings.sectionHeaderBgStyle || 'solid';
+    if (settings.sectionHeaderBorder !== undefined) payload.section_header_border = settings.sectionHeaderBorder || 'bordered';
+    if (settings.sectionHeaderBtnBgColor !== undefined) payload.section_header_btn_bg_color = settings.sectionHeaderBtnBgColor || null;
+    if (settings.sectionHeaderBtnActiveBgColor !== undefined) payload.section_header_btn_active_bg_color = settings.sectionHeaderBtnActiveBgColor || null;
+    if (settings.sectionHeaderBtnBorder !== undefined) payload.section_header_btn_border = settings.sectionHeaderBtnBorder || null;
+    if (settings.sectionHeaderBtnShadow !== undefined) payload.section_header_btn_shadow = settings.sectionHeaderBtnShadow || null;
+    if (settings.sectionHeaderBtnBlur !== undefined) payload.section_header_btn_blur = settings.sectionHeaderBtnBlur || null;
+    if (settings.sectionHeaderBtnFont !== undefined) payload.section_header_btn_font = settings.sectionHeaderBtnFont || null;
+    if (settings.navStyle !== undefined) payload.nav_style = settings.navStyle || 'minimal';
+    if (settings.navShape !== undefined) payload.nav_shape = settings.navShape || 'square';
+    if (settings.navBorder !== undefined) payload.nav_border = settings.navBorder || 'bordered';
+    if (settings.navIconBorder !== undefined) payload.nav_icon_border = settings.navIconBorder || 'none';
+    if (settings.navBgStyle !== undefined) payload.nav_bg_style = settings.navBgStyle || 'solid';
+    if (settings.navBgColor !== undefined) payload.nav_bg_color = settings.navBgColor || null;
+    if (settings.navBtnBgColor !== undefined) payload.nav_btn_bg_color = settings.navBtnBgColor || null;
+    if (settings.navBtnActiveBgColor !== undefined) payload.nav_btn_active_bg_color = settings.navBtnActiveBgColor || null;
+    if (settings.navActiveColor !== undefined) payload.nav_active_color = settings.navActiveColor || null;
+    if (settings.navTextColor !== undefined) payload.nav_text_color = settings.navTextColor || null;
+    if (settings.navBtnShadow !== undefined) payload.nav_btn_shadow = settings.navBtnShadow || null;
+    if (settings.navBtnBlur !== undefined) payload.nav_btn_blur = settings.navBtnBlur || null;
+    if (settings.navBtnFont !== undefined) payload.nav_btn_font = settings.navBtnFont || null;
+
     const workingSalonsPayload: Record<string, any> = { ...payload };
     let data: any = null;
     let error: any = null;

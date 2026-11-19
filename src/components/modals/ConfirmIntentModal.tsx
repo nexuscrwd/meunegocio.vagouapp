@@ -32,8 +32,7 @@ export const ConfirmIntentModal: React.FC<ConfirmIntentModalProps> = ({
   primaryColor,
   onConfirm,
 }) => {
-  const { isDark, accentColor } = useTheme();
-  const effectiveColor = primaryColor || accentColor || '#20C933';
+  const { isDark } = useTheme();
 
   if (!isOpen || !pendingService) return null;
 
@@ -68,10 +67,10 @@ export const ConfirmIntentModal: React.FC<ConfirmIntentModalProps> = ({
               />
             ) : (
               <div
-                style={{ backgroundColor: effectiveColor }}
-                className="w-8 h-8 rounded-[4px] flex items-center justify-center shrink-0 text-white mt-0.5"
+                style={primaryColor ? { backgroundColor: primaryColor } : undefined}
+                className="w-8 h-8 rounded-[4px] flex items-center justify-center shrink-0 brand-btn mt-0.5"
               >
-                <Calendar className="w-4 h-4 text-white" />
+                <Calendar className="w-4 h-4" />
               </div>
             )}
             <div className="min-w-0 flex-1">
@@ -107,11 +106,11 @@ export const ConfirmIntentModal: React.FC<ConfirmIntentModalProps> = ({
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold leading-snug break-words">{pendingService.title}</p>
             <span className={`inline-flex items-center gap-1 text-[10px] font-medium mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-              <Clock className="w-3 h-3 text-emerald-500 shrink-0" />
+              <Clock className="w-3 h-3 brand-icon shrink-0" />
               <span>{pendingService.duration}</span>
             </span>
           </div>
-          <span className="text-sm font-black text-emerald-500 shrink-0">
+          <span className="text-sm font-black brand-text shrink-0">
             R$ {pendingService.price.toFixed(0)}
           </span>
         </div>
@@ -132,11 +131,11 @@ export const ConfirmIntentModal: React.FC<ConfirmIntentModalProps> = ({
           <button
             type="button"
             onClick={() => { hapticMedium(); onConfirm(); }}
-            style={{ backgroundColor: effectiveColor }}
-            className="py-3 px-3 rounded-[4px] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition hover:brightness-110 cursor-pointer text-center"
+            style={primaryColor ? { backgroundColor: primaryColor } : undefined}
+            className="py-3 px-3 rounded-[4px] brand-btn font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer text-center"
           >
-            <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
-            <span className="text-white">Sim, agendar</span>
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>Sim, agendar</span>
           </button>
         </div>
       </div>

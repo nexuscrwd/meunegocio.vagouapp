@@ -127,11 +127,11 @@ const OperationalEquipmentCard: React.FC<OperationalEquipmentCardProps> = ({
       {/* Topo do Card: Identificação + Porcentagem de Carga */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-            <Wrench className="w-4 h-4" />
+          <div className="w-8 h-8 rounded-[4px] brand-soft-badge border flex items-center justify-center shrink-0">
+            <Wrench className="w-4 h-4 brand-icon" />
           </div>
           <div className="min-w-0">
-            <h4 className="text-xs font-bold font-['Poppins'] text-white truncate">
+            <h4 className={`text-xs font-bold font-['Poppins'] truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
               {eq.name}
             </h4>
             <span className="text-[9.5px] text-slate-400">
@@ -142,9 +142,9 @@ const OperationalEquipmentCard: React.FC<OperationalEquipmentCardProps> = ({
 
         <div className="flex items-center gap-2 shrink-0">
           {/* Badge de Porcentagem da Carga */}
-          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-950 border border-slate-800 text-slate-300 text-[9.5px] font-mono font-bold">
-            <PieChart className="w-3 h-3 text-emerald-400" />
-            <span className="text-emerald-400">{sharePercent.toFixed(1).replace('.', ',')}%</span>
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-slate-950 border border-slate-800 text-slate-300 text-[9.5px] font-mono font-bold">
+            <PieChart className="w-3 h-3 brand-icon" />
+            <span className="brand-text">{sharePercent.toFixed(1).replace('.', ',')}%</span>
             <span className="text-slate-400 text-[8.5px]">da carga</span>
           </div>
 
@@ -162,7 +162,7 @@ const OperationalEquipmentCard: React.FC<OperationalEquipmentCardProps> = ({
       {/* Barra de Progresso da Carga Total */}
       <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden border border-slate-800/80">
         <div 
-          className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+          className="h-full brand-bar rounded-full transition-all duration-300"
           style={{ width: `${Math.min(100, Math.max(2, sharePercent))}%` }}
         />
       </div>
@@ -197,7 +197,7 @@ const OperationalEquipmentCard: React.FC<OperationalEquipmentCardProps> = ({
                 onClick={() => handleToggleUnit('W')}
                 className={`px-2 py-0.5 text-[8.5px] font-bold rounded transition cursor-pointer ${
                   unit === 'W'
-                    ? 'bg-emerald-500 text-white shadow-xs'
+                    ? 'brand-btn shadow-xs'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -208,7 +208,7 @@ const OperationalEquipmentCard: React.FC<OperationalEquipmentCardProps> = ({
                 onClick={() => handleToggleUnit('kW')}
                 className={`px-2 py-0.5 text-[8.5px] font-bold rounded transition cursor-pointer ${
                   unit === 'kW'
-                    ? 'bg-emerald-500 text-white shadow-xs'
+                    ? 'brand-btn shadow-xs'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -249,10 +249,10 @@ const OperationalEquipmentCard: React.FC<OperationalEquipmentCardProps> = ({
       }`}>
         <div className="flex items-center justify-between pr-2 border-r border-slate-800/70">
           <span className="text-[8px] uppercase font-bold text-slate-400 flex items-center gap-1">
-            <Coins className="w-3 h-3 text-emerald-400" />
+            <Coins className="w-3 h-3 text-rose-500" />
             <span>Custo / Hora</span>
           </span>
-          <span className="text-xs font-mono font-bold text-emerald-400">
+          <span className="text-xs font-mono font-bold text-rose-500">
             R$ {costPerHour.toFixed(2).replace('.', ',')}
           </span>
         </div>
@@ -261,7 +261,7 @@ const OperationalEquipmentCard: React.FC<OperationalEquipmentCardProps> = ({
           <span className="text-[8px] uppercase font-bold text-slate-400">
             Custo / Mês
           </span>
-          <span className="text-xs font-mono font-bold text-slate-200">
+          <span className="text-xs font-mono font-bold text-rose-500">
             R$ {(dailyKwh * 30 * effectiveKwhRate).toFixed(2).replace('.', ',')}
           </span>
         </div>
@@ -406,9 +406,9 @@ export const OperationalEquipmentsManager: React.FC = () => {
       {/* Header com Ação */}
       <div className="flex items-center justify-between px-1">
         <div>
-          <h3 className="text-xs font-bold font-['Poppins'] text-white flex items-center gap-1.5">
+          <h3 className={`text-xs font-bold font-['Poppins'] flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
             <span>Operação</span>
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-[4px] brand-soft-badge border">
               {equipments.length} Ativos
             </span>
           </h3>
@@ -423,7 +423,7 @@ export const OperationalEquipmentsManager: React.FC = () => {
             hapticLight();
             setShowAddForm(!showAddForm);
           }}
-          className="px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer shadow-xs active:scale-95"
+          className="px-2.5 py-1.5 rounded-[4px] brand-btn text-xs font-bold flex items-center gap-1 transition cursor-pointer shadow-xs active:scale-95"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>Cadastrar</span>
@@ -431,16 +431,16 @@ export const OperationalEquipmentsManager: React.FC = () => {
       </div>
 
       {/* Card Resumo de Carga Total Estimada */}
-      <div className={`p-3 rounded-xl border ${
+      <div className={`p-3 rounded-[4px] border ${
         isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
       }`}>
         <div className="flex items-center justify-between pb-2 border-b border-slate-800/70 mb-2.5">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-              <Zap className="w-3.5 h-3.5" />
+            <div className="w-7 h-7 rounded-[4px] brand-soft-badge border flex items-center justify-center">
+              <Zap className="w-3.5 h-3.5 brand-icon" />
             </div>
             <div>
-              <h4 className="text-xs font-bold font-['Poppins'] text-white">
+              <h4 className={`text-xs font-bold font-['Poppins'] ${isDark ? 'text-white' : 'text-slate-900'}`}>
                 Carga Total Estimada da Operação
               </h4>
               <p className="text-[9.5px] text-slate-400">
@@ -450,7 +450,7 @@ export const OperationalEquipmentsManager: React.FC = () => {
           </div>
           <div className="text-right">
             <span className="text-[8.5px] uppercase font-bold text-slate-400 block">Custo Estimado/Mês</span>
-            <span className="text-sm font-mono font-black text-emerald-400">
+            <span className="text-sm font-mono font-black text-rose-500">
               R$ {totals.totalMonthlyCost.toFixed(2).replace('.', ',')}
             </span>
           </div>
@@ -487,8 +487,8 @@ export const OperationalEquipmentsManager: React.FC = () => {
           }`}
         >
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold font-['Poppins'] text-emerald-400 flex items-center gap-1.5">
-              <Wrench className="w-4 h-4" />
+            <h4 className="text-xs font-bold font-['Poppins'] brand-text flex items-center gap-1.5">
+              <Wrench className="w-4 h-4 brand-icon" />
               <span>Novo Equipamento Operacional</span>
             </h4>
             <span className="text-[10px] text-slate-400">Preencha os dados de consumo</span>
@@ -546,7 +546,7 @@ export const OperationalEquipmentsManager: React.FC = () => {
                     }}
                     className={`px-1.5 py-0.2 text-[8px] font-bold rounded transition cursor-pointer ${
                       formUnit === 'W'
-                        ? 'bg-emerald-500 text-white shadow-xs'
+                        ? 'brand-btn shadow-xs'
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
@@ -562,7 +562,7 @@ export const OperationalEquipmentsManager: React.FC = () => {
                     }}
                     className={`px-1.5 py-0.2 text-[8px] font-bold rounded transition cursor-pointer ${
                       formUnit === 'kW'
-                        ? 'bg-emerald-500 text-white shadow-xs'
+                        ? 'brand-btn shadow-xs'
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
@@ -631,7 +631,7 @@ export const OperationalEquipmentsManager: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer shadow-xs active:scale-95"
+              className="px-3.5 py-1.5 rounded-[4px] brand-btn text-xs font-bold flex items-center gap-1 transition cursor-pointer shadow-xs active:scale-95"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>Salvar Equipamento</span>

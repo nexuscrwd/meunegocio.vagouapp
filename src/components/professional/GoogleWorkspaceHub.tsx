@@ -504,8 +504,8 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
       {/* TELA DE LOGIN GOOGLE WORKSPACE QUANDO DESCONECTADO */}
       {needsAuth ? (
         <div className="py-6 px-4 flex flex-col items-center text-center space-y-4">
-          <div className="w-12 h-12 rounded-[4px] bg-emerald-500 text-white flex items-center justify-center">
-            <Chrome className="w-6 h-6 text-white" />
+          <div className="w-12 h-12 rounded-[4px] brand-btn flex items-center justify-center">
+            <Chrome className="w-6 h-6" />
           </div>
 
           <div className="space-y-1 max-w-md">
@@ -593,14 +593,14 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                   }}
                   className={`py-2 px-2 rounded-[4px] text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-1.5 transition cursor-pointer ${
                     isActive
-                      ? 'bg-emerald-500 text-white'
+                      ? 'brand-tab-active'
                       : isDark
                         ? 'bg-slate-900 text-slate-300 hover:bg-slate-800'
                         : 'bg-white text-slate-700 hover:bg-slate-100'
                   }`}
                 >
-                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : ''}`} />
-                  <span className={`whitespace-nowrap text-[11px] ${isActive ? 'text-white' : ''}`}>
+                  <Icon className="w-3.5 h-3.5 shrink-0" />
+                  <span className="whitespace-nowrap text-[11px]">
                     {t.label}
                   </span>
                 </button>
@@ -612,7 +612,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
           {activeTab === 'gmail' && (
             <div className="space-y-4">
               <form onSubmit={requestSendGmail} className="space-y-2">
-                <div className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                <div className="text-xs font-bold uppercase tracking-wider brand-text">
                   Novo E-mail Rápido
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -650,10 +650,10 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                   />
                   <button
                     type="submit"
-                    className="px-3.5 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0"
+                    className="px-3.5 py-2 rounded-[4px] brand-btn text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0"
                   >
-                    <Send className="w-3.5 h-3.5 text-white" />
-                    <span className="text-white whitespace-nowrap">Enviar</span>
+                    <Send className="w-3.5 h-3.5" />
+                    <span className="whitespace-nowrap">Enviar</span>
                   </button>
                 </div>
               </form>
@@ -664,7 +664,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                 </div>
                 {isLoadingGmail ? (
                   <div className="py-6 flex justify-center">
-                    <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
+                    <Loader2 className="w-5 h-5 animate-spin brand-icon" />
                   </div>
                 ) : gmailList.length === 0 ? (
                   <p className="text-xs text-slate-400 py-3">Nenhum e-mail encontrado.</p>
@@ -717,7 +717,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                     href={CHAT_CONFIG_CONSOLE_URL}
                     target="_blank"
                     rel="noreferrer"
-                    className="underline font-bold text-emerald-400 inline-flex items-center gap-1"
+                    className="underline font-bold brand-text inline-flex items-center gap-1"
                   >
                     <span>Google Cloud Console (Chat API)</span>
                     <ExternalLink className="w-3 h-3" />
@@ -733,7 +733,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                     href={CHAT_CONFIG_CONSOLE_URL}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] font-bold underline text-emerald-400"
+                    className="inline-flex items-center gap-1 text-[11px] font-bold underline brand-text"
                   >
                     <span>Configurar Google Chat App no Console</span>
                     <ExternalLink className="w-3 h-3" />
@@ -743,7 +743,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
 
               {isLoadingChat ? (
                 <div className="py-6 flex justify-center">
-                  <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
+                  <Loader2 className="w-5 h-5 animate-spin brand-icon" />
                 </div>
               ) : (
                 <>
@@ -761,7 +761,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                           }}
                           className={`px-3 py-1.5 rounded-[4px] text-xs font-bold whitespace-nowrap cursor-pointer ${
                             active
-                              ? 'bg-emerald-500 text-white'
+                              ? 'brand-tab-active'
                               : isDark
                                 ? 'bg-slate-900 text-slate-300'
                                 : 'bg-white text-slate-700'
@@ -786,10 +786,10 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                       />
                       <button
                         type="submit"
-                        className="px-3.5 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                        className="px-3.5 py-2 rounded-[4px] brand-btn text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                       >
-                        <Send className="w-3.5 h-3.5 text-white" />
-                        <span className="text-white whitespace-nowrap">Enviar</span>
+                        <Send className="w-3.5 h-3.5" />
+                        <span className="whitespace-nowrap">Enviar</span>
                       </button>
                     </form>
                   )}
@@ -802,7 +802,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                           isDark ? 'bg-slate-900' : 'bg-white shadow-xs'
                         }`}
                       >
-                        <div className="font-bold text-emerald-400 text-[11px]">{m.senderName}</div>
+                        <div className="font-bold brand-text text-[11px]">{m.senderName}</div>
                         <div className="mt-0.5">{m.text}</div>
                       </div>
                     ))}
@@ -828,16 +828,16 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                 <button
                   type="button"
                   onClick={requestCreateDriveReport}
-                  className="px-3.5 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="px-3.5 py-2 rounded-[4px] brand-btn text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <Plus className="w-3.5 h-3.5 text-white" />
-                  <span className="text-white whitespace-nowrap">Salvar Relatório no Drive</span>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span className="whitespace-nowrap">Salvar Relatório no Drive</span>
                 </button>
               </div>
 
               {isLoadingDrive ? (
                 <div className="py-6 flex justify-center">
-                  <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
+                  <Loader2 className="w-5 h-5 animate-spin brand-icon" />
                 </div>
               ) : driveFiles.length === 0 ? (
                 <p className="text-xs text-slate-400 py-3">Nenhum arquivo encontrado no Drive.</p>
@@ -860,7 +860,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                             href={file.webViewLink}
                             target="_blank"
                             rel="noreferrer"
-                            className="p-1.5 rounded-[4px] text-emerald-400 hover:bg-emerald-500/10"
+                            className="p-1.5 rounded-[4px] brand-icon hover:bg-[var(--brand-soft-bg)]"
                             title="Abrir no Drive"
                           >
                             <ExternalLink className="w-4 h-4" />
@@ -904,10 +904,10 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                 <button
                   type="button"
                   onClick={requestExportToSheets}
-                  className="px-3.5 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  className="px-3.5 py-2 rounded-[4px] brand-btn text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Plus className="w-3.5 h-3.5 text-white" />
-                  <span className="text-white whitespace-nowrap">Exportar Agenda p/ Sheets</span>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span className="whitespace-nowrap">Exportar Agenda p/ Sheets</span>
                 </button>
               </div>
 
@@ -922,7 +922,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                         onClick={() => handleSelectSheetTab(s.title)}
                         className={`px-2.5 py-1 rounded-[4px] text-[11px] font-bold whitespace-nowrap cursor-pointer ${
                           active
-                            ? 'bg-emerald-500 text-white'
+                            ? 'brand-tab-active'
                             : isDark
                               ? 'bg-slate-900 text-slate-300'
                               : 'bg-white text-slate-700'
@@ -937,7 +937,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
 
               {isLoadingSheets ? (
                 <div className="py-6 flex justify-center">
-                  <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
+                  <Loader2 className="w-5 h-5 animate-spin brand-icon" />
                 </div>
               ) : sheetRows.length === 0 ? (
                 <p className="text-xs text-slate-400 py-3">Sem células preenchidas nesta aba.</p>
@@ -950,7 +950,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                           key={rIdx}
                           className={
                             rIdx === 0
-                              ? 'font-bold text-emerald-400 border-b border-slate-800'
+                              ? 'font-bold brand-text border-b border-slate-800'
                               : 'border-b border-slate-800/40'
                           }
                         >
@@ -986,7 +986,7 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                         }}
                         className={`px-3 py-1.5 rounded-[4px] text-xs font-bold whitespace-nowrap cursor-pointer ${
                           active
-                            ? 'bg-emerald-500 text-white'
+                            ? 'brand-tab-active'
                             : isDark
                               ? 'bg-slate-900 text-slate-300'
                               : 'bg-white text-slate-700'
@@ -1011,16 +1011,16 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                 />
                 <button
                   type="submit"
-                  className="px-3.5 py-2 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  className="px-3.5 py-2 rounded-[4px] brand-btn text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Plus className="w-3.5 h-3.5 text-white" />
-                  <span className="text-white whitespace-nowrap">Criar</span>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span className="whitespace-nowrap">Criar</span>
                 </button>
               </form>
 
               {isLoadingTasks ? (
                 <div className="py-6 flex justify-center">
-                  <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
+                  <Loader2 className="w-5 h-5 animate-spin brand-icon" />
                 </div>
               ) : tasks.length === 0 ? (
                 <p className="text-xs text-slate-400 py-3">Nenhuma tarefa nesta lista.</p>
@@ -1043,13 +1043,13 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                           <div
                             className={`w-4 h-4 rounded-[4px] flex items-center justify-center shrink-0 ${
                               isDone
-                                ? 'bg-emerald-500 text-white'
+                                ? 'brand-btn'
                                 : isDark
                                   ? 'border border-slate-700'
                                   : 'border border-slate-300'
                             }`}
                           >
-                            {isDone && <Check className="w-3 h-3 text-white" />}
+                            {isDone && <Check className="w-3 h-3" />}
                           </div>
                           <span
                             className={`text-xs truncate ${
@@ -1123,11 +1123,11 @@ export const GoogleWorkspaceHub: React.FC<GoogleWorkspaceHubProps> = ({
                 className={`px-3.5 py-2 rounded-[4px] text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
                   pendingConfirmation.isDanger
                     ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                    : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                    : 'brand-btn'
                 }`}
               >
-                {isExecutingConfirmation && <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />}
-                <span className="text-white whitespace-nowrap">{pendingConfirmation.confirmLabel}</span>
+                {isExecutingConfirmation && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span className="whitespace-nowrap">{pendingConfirmation.confirmLabel}</span>
               </button>
             </div>
           </div>

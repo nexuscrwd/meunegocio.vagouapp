@@ -29,7 +29,6 @@ export const LEGACY_UNCUSTOMIZED_HEXES = new Set([
   '#2b82c9',
   '#10b981',
   '#20c933',
-  '#059669',
   '#065f46',
   '#047857',
   '#d1fae5',
@@ -43,11 +42,34 @@ export const LEGACY_UNCUSTOMIZED_HEXES = new Set([
   '#f4f4f5',
   '#18181b',
   '#27272a',
-  '#0f172a',
-  '#1e293b',
   '#334155',
   '#475569',
 ]);
+
+// Cores verde-menta/esmeralda legadas que ficaram congeladas nas colunas de topo antigas de public.salons
+export const LEGACY_MINT_COLUMN_HEXES = new Set([
+  '#ecfdf5',
+  '#d1fae5',
+  '#dcfce7',
+  '#f0fdf4',
+  '#a7f3d0',
+  '#065f46',
+  '#047857',
+  '#059669',
+  '#10b981',
+  '#20c933',
+]);
+
+export function isLegacyMintOverrideHex(raw?: string | null): boolean {
+  if (!raw) return false;
+  return LEGACY_MINT_COLUMN_HEXES.has(raw.trim().toLowerCase());
+}
+
+export function isCustomBrandHex(raw?: string | null): boolean {
+  const norm = normalizeHex(raw);
+  if (!norm) return false;
+  return !LEGACY_UNCUSTOMIZED_HEXES.has(norm.toLowerCase());
+}
 
 export function normalizeHex(raw?: string | null): string | null {
   if (!raw) return null;

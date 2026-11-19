@@ -394,18 +394,10 @@ const MapGlassBottomSwipeMenu: React.FC<MapGlassBottomSwipeMenuProps> = ({
           </div>
 
           <div className="px-2 flex flex-col items-center justify-center" title="Tempo Restante">
-            <span
-              className={`text-[9px] font-extrabold uppercase tracking-wider leading-none mb-1 ${
-                isDark ? 'text-emerald-300' : 'text-emerald-700'
-              }`}
-            >
+            <span className="text-[9px] font-extrabold uppercase tracking-wider leading-none mb-1 brand-text">
               Temp. Restante
             </span>
-            <span
-              className={`text-sm sm:text-base font-black font-mono tabular-nums leading-none ${
-                isDark ? 'text-emerald-400' : 'text-emerald-600'
-              }`}
-            >
+            <span className="text-sm sm:text-base font-black font-mono tabular-nums leading-none brand-text">
               {formatCountdownHhMm(etaMinutes)}
             </span>
           </div>
@@ -438,16 +430,16 @@ const MapGlassBottomSwipeMenu: React.FC<MapGlassBottomSwipeMenuProps> = ({
               <button
                 type="button"
                 onClick={onShareWithSalon}
-                className="w-full h-10 px-3.5 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white font-extrabold text-xs font-['Poppins'] flex items-center justify-between gap-2 transition cursor-pointer shadow-sm"
+                className="w-full h-10 px-3.5 rounded-[4px] brand-btn active:scale-[0.99] font-extrabold text-xs font-['Poppins'] flex items-center justify-between gap-2 transition cursor-pointer shadow-sm"
                 title="Permitir que o salão/barbearia acompanhe sua chegada em tempo real"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   {isSharedFeedback || isSharingWithSalon ? (
-                    <CheckCircle2 className="w-4 h-4 text-white stroke-[2.5] shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 stroke-[2.5] shrink-0" />
                   ) : (
-                    <Share2 className="w-4 h-4 text-white shrink-0" />
+                    <Share2 className="w-4 h-4 shrink-0" />
                   )}
-                  <span className="text-white truncate">
+                  <span className="truncate">
                     {isSharedFeedback
                       ? 'Chegada compartilhada com o salão!'
                       : isSharingWithSalon
@@ -455,7 +447,7 @@ const MapGlassBottomSwipeMenu: React.FC<MapGlassBottomSwipeMenuProps> = ({
                       : 'Compartilhar com o Salão'}
                   </span>
                 </div>
-                <span className="px-1.5 py-0.5 rounded-[3px] bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider shrink-0">
+                <span className="px-1.5 py-0.5 rounded-[3px] bg-black/15 text-[9px] font-black uppercase tracking-wider shrink-0">
                   {isSharingWithSalon || isSharedFeedback ? 'Ao Vivo' : 'Avisar'}
                 </span>
               </button>
@@ -523,24 +515,24 @@ const MapGlassBottomSwipeMenu: React.FC<MapGlassBottomSwipeMenuProps> = ({
               }}
               className={`w-full h-8 px-3 rounded-[4px] flex items-center justify-between text-[11px] font-bold transition cursor-pointer ${
                 showGroundingRadar
-                  ? 'bg-emerald-500 text-white'
+                  ? 'brand-tab-active'
                   : isDark
-                  ? 'bg-slate-900/80 hover:bg-slate-800 text-emerald-400'
+                  ? 'bg-slate-900/80 hover:bg-slate-800 brand-text'
                   : 'bg-white/85 hover:bg-white text-slate-800'
               }`}
             >
               <span className="flex items-center gap-1.5">
                 <Compass
                   className={`w-3.5 h-3.5 shrink-0 ${
-                    showGroundingRadar ? 'text-white' : 'text-emerald-400'
+                    showGroundingRadar ? '' : 'brand-icon'
                   }`}
                 />
-                <span className={showGroundingRadar ? 'text-white' : ''}>
+                <span>
                   Radar Maps & Busca da Região (Estacionamento / Trânsito)
                 </span>
               </span>
               {showGroundingRadar ? (
-                <ChevronDown className="w-3.5 h-3.5 text-white shrink-0" />
+                <ChevronDown className="w-3.5 h-3.5 shrink-0" />
               ) : (
                 <ChevronUp className="w-3.5 h-3.5 shrink-0" />
               )}
@@ -1178,12 +1170,12 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                 }`}
                 title="Voltar"
               >
-                <ArrowLeft className="w-4 h-4 text-emerald-500" />
+                <ArrowLeft className="w-4 h-4 brand-icon" />
               </button>
 
               <div className="flex items-center gap-2 min-w-0">
-                <div className="w-8 h-8 rounded-[4px] bg-emerald-500 flex items-center justify-center text-white shrink-0 shadow-xs">
-                  <Navigation className="w-4 h-4 text-white" />
+                <div className="w-8 h-8 rounded-[4px] brand-tab-active flex items-center justify-center shrink-0 shadow-xs">
+                  <Navigation className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-xs font-extrabold uppercase tracking-wider font-['Poppins'] truncate">
@@ -1217,7 +1209,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                   }}
                   className={`w-7 h-6.5 rounded-[3px] flex items-center justify-center transition cursor-pointer ${
                     activeViewTab === 'map'
-                      ? 'bg-emerald-500 text-white shadow-xs'
+                      ? 'brand-tab-active shadow-xs'
                       : isDark
                       ? 'text-slate-300 hover:text-white'
                       : 'text-slate-700 hover:text-slate-900'
@@ -1226,7 +1218,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                 >
                   <MapIcon
                     className={`w-3.5 h-3.5 ${
-                      activeViewTab === 'map' ? 'text-white' : 'text-emerald-500'
+                      activeViewTab === 'map' ? '' : 'brand-icon'
                     }`}
                   />
                 </button>
@@ -1239,7 +1231,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                   }}
                   className={`w-7 h-6.5 rounded-[3px] flex items-center justify-center transition cursor-pointer ${
                     activeViewTab === 'timeline'
-                      ? 'bg-emerald-500 text-white shadow-xs'
+                      ? 'brand-tab-active shadow-xs'
                       : isDark
                       ? 'text-slate-300 hover:text-white'
                       : 'text-slate-700 hover:text-slate-900'
@@ -1248,7 +1240,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                 >
                   <ListOrdered
                     className={`w-3.5 h-3.5 ${
-                      activeViewTab === 'timeline' ? 'text-white' : 'text-emerald-500'
+                      activeViewTab === 'timeline' ? '' : 'brand-icon'
                     }`}
                   />
                 </button>
@@ -1418,14 +1410,14 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                 {/* Ponto Inicial */}
                 <div className="flex items-start gap-3 pb-3">
                   <div className="flex flex-col items-center">
-                    <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white shrink-0">
-                      <Check className="w-3 h-3 text-white stroke-[3]" />
+                    <div className="w-5 h-5 rounded-full brand-tab-active flex items-center justify-center shrink-0">
+                      <Check className="w-3 h-3 stroke-[3]" />
                     </div>
-                    <div className="w-0.5 h-6 bg-emerald-500/50 mt-1" />
+                    <div className="w-0.5 h-6 bg-[rgba(var(--brand-primary-rgb),0.5)] mt-1" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-emerald-500">
+                      <span className="text-xs font-bold brand-text">
                         Saída • {clientOriginAddress}
                       </span>
                       <span
@@ -1451,12 +1443,12 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                     <div key={`${cp.street}-${index}`} className="flex items-start gap-3 pb-3">
                       <div className="flex flex-col items-center">
                         {isPassed ? (
-                          <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white shrink-0">
-                            <Check className="w-3 h-3 text-white stroke-[3]" />
+                          <div className="w-5 h-5 rounded-full brand-tab-active flex items-center justify-center shrink-0">
+                            <Check className="w-3 h-3 stroke-[3]" />
                           </div>
                         ) : isCurrent ? (
-                          <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white ring-4 ring-emerald-500/20 shrink-0">
-                            <Navigation className="w-2.5 h-2.5 text-white" />
+                          <div className="w-5 h-5 rounded-full brand-tab-active flex items-center justify-center ring-4 ring-[rgba(var(--brand-primary-rgb),0.22)] shrink-0">
+                            <Navigation className="w-2.5 h-2.5" />
                           </div>
                         ) : (
                           <div
@@ -1475,7 +1467,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                           <div
                             className={`w-0.5 h-8 mt-1 ${
                               isPassed
-                                ? 'bg-emerald-500/60'
+                                ? 'bg-[rgba(var(--brand-primary-rgb),0.6)]'
                                 : isDark
                                 ? 'bg-slate-800'
                                 : 'bg-slate-200'
@@ -1511,7 +1503,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                         </div>
 
                         {isCurrent && (
-                          <div className="flex items-center gap-2 text-[10.5px] text-emerald-500 font-semibold">
+                          <div className="flex items-center gap-2 text-[10.5px] brand-text font-semibold">
                             <span>Em deslocamento • Atualizado há {10 - secondsUntilNextPing}s</span>
                           </div>
                         )}
@@ -1552,7 +1544,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                       >
                         Chegada: {destinationLabel}
                       </span>
-                      <span className="text-[10px] font-mono tabular-nums text-emerald-500 font-bold">
+                      <span className="text-[10px] font-mono tabular-nums brand-text font-bold">
                         Atendimento às {appointment.time || '10:00'}
                       </span>
                     </div>
@@ -1613,8 +1605,8 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
           }`}
         >
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-[4px] bg-emerald-500 flex items-center justify-center text-white shrink-0">
-              <Navigation className="w-3.5 h-3.5 text-white" />
+            <div className="w-7 h-7 rounded-[4px] brand-tab-active flex items-center justify-center shrink-0">
+              <Navigation className="w-3.5 h-3.5" />
             </div>
             <div className="min-w-0">
               <h3 className="text-xs font-extrabold uppercase tracking-wider font-['Poppins'] truncate">
@@ -1655,13 +1647,13 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="px-2 py-0.5 rounded-[3px] bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-white shrink-0" />
-                    <span className="text-white font-mono tabular-nums">
+                  <span className="px-2 py-0.5 rounded-[3px] brand-tab-active text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                    <Clock className="w-3 h-3 shrink-0" />
+                    <span className="font-mono tabular-nums">
                       Alerta Pré-Partida (ETA + {prepBuffer}m)
                     </span>
                   </span>
-                  <span className="text-[11px] font-mono tabular-nums font-bold text-emerald-500 shrink-0">
+                  <span className="text-[11px] font-mono tabular-nums font-bold brand-text shrink-0">
                     ~{metrics.etaMinutes} min de rota
                   </span>
                 </div>
@@ -1702,13 +1694,13 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                 <button
                   type="button"
                   onClick={handleStartInAppMapRoute}
-                  className="py-3 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs transition cursor-pointer flex flex-col items-center justify-center gap-1 active:scale-98 shadow-sm"
+                  className="py-3 px-3 rounded-[4px] brand-btn font-bold text-xs transition cursor-pointer flex flex-col items-center justify-center gap-1 active:scale-98 shadow-sm"
                 >
-                  <span className="text-white flex items-center gap-1">
-                    <Navigation className="w-3.5 h-3.5 text-white" />
+                  <span className="flex items-center gap-1">
+                    <Navigation className="w-3.5 h-3.5" />
                     Sim, estou saindo
                   </span>
-                  <span className="text-[9.5px] font-normal text-white">
+                  <span className="text-[9.5px] font-normal opacity-90">
                     Abrir Mapa e Itinerário
                   </span>
                 </button>
@@ -1734,7 +1726,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                   }`}
                 >
                   O trajeto até <strong>{appointment.salonName}</strong> leva cerca de{' '}
-                  <strong className="text-emerald-500 font-mono tabular-nums">
+                  <strong className="brand-text font-mono tabular-nums">
                     {metrics.etaMinutes} min
                   </strong>
                   . Você ainda vai comparecer hoje?
@@ -1745,13 +1737,13 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                 <button
                   type="button"
                   onClick={handleConfirmHurry}
-                  className="w-full py-2.5 px-3 rounded-[4px] bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs transition cursor-pointer flex items-center justify-between active:scale-98"
+                  className="w-full py-2.5 px-3 rounded-[4px] brand-btn font-bold text-xs transition cursor-pointer flex items-center justify-between active:scale-98"
                 >
-                  <span className="flex items-center gap-2 text-white">
-                    <CheckCircle2 className="w-4 h-4 text-white" />
-                    <span className="text-white">Sim, vou comparecer (Saindo em instantes)</span>
+                  <span className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Sim, vou comparecer (Saindo em instantes)</span>
                   </span>
-                  <ChevronRight className="w-4 h-4 text-white" />
+                  <ChevronRight className="w-4 h-4" />
                 </button>
 
                 <button
@@ -1821,13 +1813,13 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                     }}
                     className={`px-2.5 py-1 rounded-[4px] text-[10.5px] font-semibold transition cursor-pointer ${
                       cancelReason === preset
-                        ? 'bg-emerald-500 text-white font-bold'
+                        ? 'brand-tab-active font-bold'
                         : isDark
                         ? 'bg-slate-900 text-slate-300 hover:bg-slate-800'
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
                   >
-                    <span className={cancelReason === preset ? 'text-white' : ''}>{preset}</span>
+                    <span>{preset}</span>
                   </button>
                 ))}
               </div>
@@ -2235,8 +2227,8 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
           }`}
         >
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-8 h-8 rounded-[4px] bg-emerald-500 flex items-center justify-center text-white shrink-0 shadow-xs">
-              <Navigation className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-[4px] brand-tab-active flex items-center justify-center shrink-0 shadow-xs">
+              <Navigation className="w-4 h-4" />
             </div>
             <div className="min-w-0">
               <h3 className="text-xs font-extrabold uppercase tracking-wider font-['Poppins'] truncate">
@@ -2269,7 +2261,7 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                 }}
                 className={`w-7 h-6.5 rounded-[3px] flex items-center justify-center transition cursor-pointer ${
                   activeTab === 'map'
-                    ? 'bg-emerald-500 text-white shadow-xs'
+                    ? 'brand-tab-active shadow-xs'
                     : isDark
                     ? 'text-slate-300 hover:text-white'
                     : 'text-slate-700 hover:text-slate-900'
@@ -2278,7 +2270,7 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
               >
                 <MapIcon
                   className={`w-3.5 h-3.5 ${
-                    activeTab === 'map' ? 'text-white' : 'text-emerald-500'
+                    activeTab === 'map' ? '' : 'brand-icon'
                   }`}
                 />
               </button>
@@ -2291,7 +2283,7 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                 }}
                 className={`w-7 h-6.5 rounded-[3px] flex items-center justify-center transition cursor-pointer ${
                   activeTab === 'timeline'
-                    ? 'bg-emerald-500 text-white shadow-xs'
+                    ? 'brand-tab-active shadow-xs'
                     : isDark
                     ? 'text-slate-300 hover:text-white'
                     : 'text-slate-700 hover:text-slate-900'
@@ -2300,7 +2292,7 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
               >
                 <ListOrdered
                   className={`w-3.5 h-3.5 ${
-                    activeTab === 'timeline' ? 'text-white' : 'text-emerald-500'
+                    activeTab === 'timeline' ? '' : 'brand-icon'
                   }`}
                 />
               </button>
@@ -2464,14 +2456,14 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
               {/* Ponto Inicial */}
               <div className="flex items-start gap-3 pb-3">
                 <div className="flex flex-col items-center">
-                  <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white shrink-0">
-                    <Check className="w-3 h-3 text-white stroke-[3]" />
+                  <div className="w-5 h-5 rounded-full brand-tab-active flex items-center justify-center shrink-0">
+                    <Check className="w-3 h-3 stroke-[3]" />
                   </div>
-                  <div className="w-0.5 h-6 bg-emerald-500/50 mt-1" />
+                  <div className="w-0.5 h-6 bg-[rgba(var(--brand-primary-rgb),0.5)] mt-1" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-emerald-500">
+                    <span className="text-xs font-bold brand-text">
                       Saída • {clientOriginAddress}
                     </span>
                     <span
@@ -2494,12 +2486,12 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                   <div key={`${cp.street}-${index}`} className="flex items-start gap-3 pb-3">
                     <div className="flex flex-col items-center">
                       {isPassed ? (
-                        <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white shrink-0">
-                          <Check className="w-3 h-3 text-white stroke-[3]" />
+                        <div className="w-5 h-5 rounded-full brand-tab-active flex items-center justify-center shrink-0">
+                          <Check className="w-3 h-3 stroke-[3]" />
                         </div>
                       ) : isCurrent ? (
-                        <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white ring-4 ring-emerald-500/20 shrink-0">
-                          <Navigation className="w-2.5 h-2.5 text-white" />
+                        <div className="w-5 h-5 rounded-full brand-tab-active flex items-center justify-center ring-4 ring-[rgba(var(--brand-primary-rgb),0.22)] shrink-0">
+                          <Navigation className="w-2.5 h-2.5" />
                         </div>
                       ) : (
                         <div
@@ -2518,7 +2510,7 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                         <div
                           className={`w-0.5 h-8 mt-1 ${
                             isPassed
-                              ? 'bg-emerald-500/60'
+                              ? 'bg-[rgba(var(--brand-primary-rgb),0.6)]'
                               : isDark
                               ? 'bg-slate-800'
                               : 'bg-slate-200'
@@ -2554,7 +2546,7 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                       </div>
 
                       {isCurrent && (
-                        <div className="flex items-center gap-2 text-[10.5px] text-emerald-500 font-semibold">
+                        <div className="flex items-center gap-2 text-[10.5px] brand-text font-semibold">
                           <span>Em deslocamento • Atualizado há {10 - secondsUntilNextPing}s</span>
                         </div>
                       )}
@@ -2595,7 +2587,7 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                     >
                       Chegada: {destinationLabel}
                     </span>
-                    <span className="text-[10px] font-mono tabular-nums text-emerald-500 font-bold">
+                    <span className="text-[10px] font-mono tabular-nums brand-text font-bold">
                       ETA {formatCurrentClockTime(appointment.eta_minutes ?? 12)}
                     </span>
                   </div>

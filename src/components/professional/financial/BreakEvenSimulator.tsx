@@ -140,7 +140,7 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
       }`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <Target className="w-4 h-4 text-emerald-400 shrink-0" />
+            <Target className="w-4 h-4 brand-icon shrink-0" />
             <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
               Termômetro de Ponto de Equilíbrio
             </h3>
@@ -148,7 +148,7 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
 
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
             isBreakEvenReached
-              ? 'bg-emerald-500 text-white shadow-2xs'
+              ? 'bg-emerald-600 text-white shadow-2xs'
               : 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-extrabold'
           }`}>
             {isBreakEvenReached ? 'Zona de Lucro Real' : 'Em Cobertura de Custos'}
@@ -159,7 +159,7 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
         <div className="space-y-1">
           <div className="flex items-center justify-between text-xs font-mono">
             <span className="text-slate-400 text-[10px]">Coletado: R$ {currentRealizedRevenue.toFixed(2).replace('.', ',')}</span>
-            <span className="text-slate-100 font-bold text-[11px]">Custo Mês: R$ {totalExpenses.toFixed(2).replace('.', ',')}</span>
+            <span className="text-rose-500 font-bold text-[11px]">Custo Mês: R$ {totalExpenses.toFixed(2).replace('.', ',')}</span>
           </div>
 
           <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-800">
@@ -202,7 +202,7 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
       }`}>
         <div className="flex items-center justify-between pb-2 border-b border-slate-800">
           <div className="flex items-center gap-2">
-            <Calculator className="w-4 h-4 text-emerald-400" />
+            <Calculator className="w-4 h-4 brand-icon" />
             <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
               Parâmetros de Meta & Capacidade
             </h3>
@@ -225,8 +225,8 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
                 hapticLight();
                 setTargetProfitStr(formatBrazilianNumber(e.target.value));
               }}
-              className={`w-full px-2.5 py-1.5 text-xs font-mono font-bold rounded border outline-none ${
-                isDark ? 'bg-slate-950 border-slate-800 text-emerald-400 focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-emerald-600 focus:border-emerald-500'
+              className={`w-full px-2.5 py-1.5 text-xs font-mono font-bold rounded border outline-none brand-ring-focus brand-text ${
+                isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-300'
               }`}
             />
           </div>
@@ -245,8 +245,8 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
                 hapticLight();
                 setWorkDaysStr(formatBrazilianNumber(e.target.value));
               }}
-              className={`w-full px-2.5 py-1.5 text-xs font-mono font-bold rounded border outline-none ${
-                isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+              className={`w-full px-2.5 py-1.5 text-xs font-mono font-bold rounded border outline-none brand-ring-focus ${
+                isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
               }`}
             />
           </div>
@@ -265,8 +265,8 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
                 hapticLight();
                 setDailyClientsStr(formatBrazilianNumber(e.target.value));
               }}
-              className={`w-full px-2.5 py-1.5 text-xs font-mono font-bold rounded border outline-none ${
-                isDark ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+              className={`w-full px-2.5 py-1.5 text-xs font-mono font-bold rounded border outline-none brand-ring-focus ${
+                isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
               }`}
             />
           </div>
@@ -275,15 +275,15 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
 
       {/* 3. Resultado do Ticket Médio Alvo Recomendado */}
       <div className="grid grid-cols-2 gap-2">
-        <div className={`p-3 rounded border flex flex-col justify-between ${
-          isDark ? 'bg-slate-900/90 border-emerald-500/40' : 'bg-white border-emerald-300 shadow-2xs'
+        <div className={`p-3 rounded border flex flex-col justify-between brand-border-active ${
+          isDark ? 'bg-slate-900/90' : 'bg-white shadow-2xs'
         }`}>
           <div className="flex items-center justify-between">
-            <span className="text-[9.5px] font-bold uppercase tracking-wider text-emerald-400">Ticket Médio Alvo</span>
-            <Target className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-[9.5px] font-bold uppercase tracking-wider brand-text">Ticket Médio Alvo</span>
+            <Target className="w-3.5 h-3.5 brand-icon" />
           </div>
           <div className="mt-1">
-            <span className="text-lg font-black font-mono text-emerald-400">
+            <span className="text-lg font-black font-mono brand-text">
               R$ {targetAverageTicket.toFixed(2).replace('.', ',')}
             </span>
             <p className="text-[9.5px] text-slate-400 mt-0.5">Por atendimento para bater meta</p>
@@ -295,10 +295,10 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
         }`}>
           <div className="flex items-center justify-between">
             <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400">Meta Diária</span>
-            <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+            <Calendar className="w-3.5 h-3.5 brand-icon" />
           </div>
           <div className="mt-1">
-            <span className="text-lg font-black font-mono text-cyan-400">
+            <span className="text-lg font-black font-mono brand-text">
               R$ {targetDailyRevenue.toFixed(2).replace('.', ',')}
             </span>
             <p className="text-[9.5px] text-slate-400 mt-0.5">Faturamento por dia trabalhado</p>
@@ -312,7 +312,7 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
       }`}>
         <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
           <span className="text-xs font-bold flex items-center gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+            <TrendingUp className="w-3.5 h-3.5 brand-icon" />
             Análise do Ticket Médio Atual
           </span>
           <span className="text-[10px] font-mono text-slate-400">
@@ -322,14 +322,14 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
 
         <div className="flex items-center justify-between text-xs py-1">
           <span className="text-slate-400">Ticket Médio Praticado:</span>
-          <span className="font-mono font-bold text-white">
+          <span className={`font-mono font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
             R$ {currentAverageTicket.toFixed(2).replace('.', ',')}
           </span>
         </div>
 
         <div className="flex items-center justify-between text-xs py-1 border-t border-slate-800/40">
           <span className="text-slate-400">Ticket Médio Alvo Recomendado:</span>
-          <span className="font-mono font-bold text-emerald-400">
+          <span className="font-mono font-bold brand-text">
             R$ {targetAverageTicket.toFixed(2).replace('.', ',')}
           </span>
         </div>
@@ -337,7 +337,7 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
         <div className="flex items-center justify-between text-xs py-1 border-t border-slate-800/40">
           <span className="text-slate-400">Diferença Necessária:</span>
           <span className={`font-mono font-bold ${
-            currentAverageTicket >= targetAverageTicket ? 'text-emerald-400' : 'text-rose-400'
+            currentAverageTicket >= targetAverageTicket ? 'text-emerald-500' : 'text-rose-500'
           }`}>
             {currentAverageTicket >= targetAverageTicket ? '+' : ''}
             R$ {(currentAverageTicket - targetAverageTicket).toFixed(2).replace('.', ',')}
@@ -351,12 +351,12 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
       }`}>
         <div className="flex items-center justify-between border-b border-slate-800 pb-2">
           <div className="flex items-center gap-1.5">
-            <Sliders className="w-4 h-4 text-emerald-400" />
+            <Sliders className="w-4 h-4 brand-icon" />
             <h3 className="text-xs font-bold uppercase tracking-wider font-['Poppins']">
               Simulador Interativo ("E se...?")
             </h3>
           </div>
-          <span className="text-[10px] font-mono text-emerald-400 font-bold">
+          <span className="text-[10px] font-mono brand-text font-bold">
             Simulação Dinâmica
           </span>
         </div>
@@ -364,7 +364,7 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs">
             <span className="text-slate-400 font-medium">Se o seu Ticket Médio for:</span>
-            <span className="font-mono font-black text-sm text-emerald-400">
+            <span className="font-mono font-black text-sm brand-text">
               R$ {simulatedTicket},00
             </span>
           </div>
@@ -379,12 +379,13 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
               hapticLight();
               setSimulatedTicket(parseInt(e.target.value, 10));
             }}
-            className="w-full accent-emerald-500 cursor-pointer h-1.5 bg-slate-950 rounded-lg"
+            style={{ accentColor: 'var(--brand-primary)' }}
+            className="w-full cursor-pointer h-1.5 bg-slate-950 rounded-lg"
           />
 
           <div className="p-2.5 rounded bg-slate-950/80 border border-slate-800 text-xs space-y-1 mt-2">
             <p className="text-slate-300">
-              Com um ticket de <strong className="text-emerald-400">R$ {simulatedTicket},00</strong>, você precisará de:
+              Com um ticket de <strong className="brand-text">R$ {simulatedTicket},00</strong>, você precisará de:
             </p>
             <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
               <div className="p-1.5 rounded bg-slate-900 border border-slate-800 text-center">
@@ -394,7 +395,7 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
 
               <div className="p-1.5 rounded bg-slate-900 border border-slate-800 text-center">
                 <span className="text-[9px] text-slate-400 block uppercase">Atend./Dia ({workDays}d)</span>
-                <strong className="text-emerald-400 text-xs">{simulatedDailyClientsNeeded} clientes/dia</strong>
+                <strong className="brand-text text-xs">{simulatedDailyClientsNeeded} clientes/dia</strong>
               </div>
             </div>
           </div>

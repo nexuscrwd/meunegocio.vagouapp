@@ -222,7 +222,7 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
                 }}
                 className={`px-2 py-0.5 text-[10px] font-bold rounded capitalize transition cursor-pointer whitespace-nowrap ${
                   isSelected
-                    ? 'bg-emerald-500 text-white shadow-xs font-extrabold'
+                    ? 'brand-tab-active shadow-xs font-extrabold'
                     : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -244,7 +244,7 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
             }}
             className={`px-2.5 py-1 text-[11px] font-bold rounded flex items-center gap-1.5 transition cursor-pointer ${
               activeTab === 'auditoria'
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-extrabold'
+                ? 'brand-soft-badge font-extrabold'
                 : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -260,7 +260,7 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
             }}
             className={`px-2.5 py-1 text-[11px] font-bold rounded flex items-center gap-1.5 transition cursor-pointer ${
               activeTab === 'aparelhos'
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-extrabold'
+                ? 'brand-soft-badge font-extrabold'
                 : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -275,9 +275,9 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
             hapticLight();
             setIsReadingModalOpen(true);
           }}
-          className="px-2 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[10px] font-bold flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-xs whitespace-nowrap"
+          className="px-2 py-1 brand-btn rounded text-[10px] font-bold flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-xs whitespace-nowrap"
         >
-          <Pencil className="w-2.5 h-2.5 text-white" />
+          <Pencil className="w-2.5 h-2.5" />
           <span>Registrar Relógio</span>
         </button>
       </div>
@@ -307,7 +307,7 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
                 <span className="text-sm font-black font-mono tracking-tight text-amber-400">
                   {totalPeriodRealKwh.toFixed(0)} <span className="text-[10px] font-normal">kWh</span>
                 </span>
-                <span className="text-xs font-bold font-mono text-emerald-500">
+                <span className="text-xs font-bold font-mono text-rose-500">
                   R$ {realEnergyCost.toFixed(2).replace('.', ',')}
                 </span>
               </div>
@@ -339,7 +339,7 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
                 <span className="text-sm font-black font-mono tracking-tight text-blue-400">
                   {totalPeriodRealWaterM3.toFixed(1)} <span className="text-[10px] font-normal">m³</span>
                 </span>
-                <span className="text-xs font-bold font-mono text-emerald-500">
+                <span className="text-xs font-bold font-mono text-rose-500">
                   R$ {realWaterCost.toFixed(2).replace('.', ',')}
                 </span>
               </div>
@@ -438,9 +438,9 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
                 hapticLight();
                 setIsApplianceModalOpen(true);
               }}
-              className="px-2 py-0.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+              className="px-2 py-0.5 brand-btn rounded text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
             >
-              <Plus className="w-2.5 h-2.5 text-white" />
+              <Plus className="w-2.5 h-2.5" />
               <span>Adicionar Aparelho</span>
             </button>
           </div>
@@ -473,7 +473,7 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[10px] font-mono font-bold text-emerald-500">
+                  <span className="text-[10px] font-mono font-bold brand-text">
                     {app.category === 'energia'
                       ? `~${(((app.powerWatts / 1000) * app.dailyHoursOrUsages * 30)).toFixed(0)} kWh/mês`
                       : `~${((app.dailyHoursOrUsages * 45) / 1000).toFixed(1)} m³/mês`}
@@ -511,7 +511,7 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
           }`}>
             <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-800/40">
               <div className="flex items-center gap-2">
-                <Gauge className="w-4 h-4 text-emerald-400" />
+                <Gauge className="w-4 h-4 brand-icon" />
                 <h4 className="text-xs font-bold uppercase tracking-wider">
                   Registrar Leitura dos Relógios
                 </h4>
@@ -539,7 +539,7 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
                   type="number"
                   value={newElecReading}
                   onChange={(e) => setNewElecReading(e.target.value)}
-                  className={`flex-1 px-3 py-2 text-sm font-bold font-mono rounded border outline-none ${
+                  className={`flex-1 px-3 py-2 text-sm font-bold font-mono rounded border outline-none brand-ring-focus ${
                     isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
                   placeholder="Ex: 14890"
@@ -560,7 +560,7 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
                   type="number"
                   value={newWaterReading}
                   onChange={(e) => setNewWaterReading(e.target.value)}
-                  className={`flex-1 px-3 py-2 text-sm font-bold font-mono rounded border outline-none ${
+                  className={`flex-1 px-3 py-2 text-sm font-bold font-mono rounded border outline-none brand-ring-focus ${
                     isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
                   placeholder="Ex: 343"
@@ -584,9 +584,9 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
               <button
                 type="button"
                 onClick={handleSaveReading}
-                className="py-2 rounded text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white transition flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                className="py-2 rounded text-xs font-bold brand-btn transition flex items-center justify-center gap-1 shadow-xs cursor-pointer"
               >
-                <Check className="w-3.5 h-3.5 text-white" />
+                <Check className="w-3.5 h-3.5" />
                 <span>Salvar Leitura</span>
               </button>
             </div>
@@ -602,7 +602,7 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
           }`}>
             <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-800/40">
               <div className="flex items-center gap-2">
-                <Plus className="w-4 h-4 text-emerald-400" />
+                <Plus className="w-4 h-4 brand-icon" />
                 <h4 className="text-xs font-bold uppercase tracking-wider">
                   Adicionar Aparelho ao Salão
                 </h4>
@@ -626,7 +626,7 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
                   value={newAppName}
                   onChange={(e) => setNewAppName(e.target.value)}
                   placeholder="Ex: Secador Parlux 3800"
-                  className={`w-full px-3 py-2 text-xs font-bold rounded border outline-none ${
+                  className={`w-full px-3 py-2 text-xs font-bold rounded border outline-none brand-ring-focus ${
                     isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
                   autoFocus
@@ -643,7 +643,7 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
                     value={newAppPower}
                     onChange={(e) => setNewAppPower(e.target.value)}
                     placeholder="2400"
-                    className={`w-full px-3 py-2 text-xs font-mono font-bold rounded border outline-none ${
+                    className={`w-full px-3 py-2 text-xs font-mono font-bold rounded border outline-none brand-ring-focus ${
                       isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                     }`}
                   />
@@ -659,7 +659,7 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
                     value={newAppHours}
                     onChange={(e) => setNewAppHours(e.target.value)}
                     placeholder="3.5"
-                    className={`w-full px-3 py-2 text-xs font-mono font-bold rounded border outline-none ${
+                    className={`w-full px-3 py-2 text-xs font-mono font-bold rounded border outline-none brand-ring-focus ${
                       isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                     }`}
                   />
@@ -680,9 +680,9 @@ export const UtilitiesEfficiencySection: React.FC<UtilitiesEfficiencySectionProp
               <button
                 type="button"
                 onClick={handleAddAppliance}
-                className="py-2 rounded text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white transition flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                className="py-2 rounded text-xs font-bold brand-btn transition flex items-center justify-center gap-1 shadow-xs cursor-pointer"
               >
-                <Check className="w-3.5 h-3.5 text-white" />
+                <Check className="w-3.5 h-3.5" />
                 <span>Salvar Aparelho</span>
               </button>
             </div>

@@ -132,8 +132,8 @@ export const WeeklyGoalsAndDaysCard: React.FC<WeeklyGoalsAndDaysCardProps> = ({
       {/* Topo do Card: Título Focado na Semana Atual */}
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800/40 gap-2">
         <div className="flex items-center gap-1.5 shrink-0">
-          <div className="w-5 h-5 rounded bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-            <Calendar className="w-3 h-3 text-emerald-400" />
+          <div className="w-5 h-5 rounded brand-soft-badge flex items-center justify-center">
+            <Calendar className="w-3 h-3 brand-icon" />
           </div>
           <span className="text-xs font-bold font-['Poppins']">
             Progresso & Ganhos Semanais
@@ -156,7 +156,7 @@ export const WeeklyGoalsAndDaysCard: React.FC<WeeklyGoalsAndDaysCardProps> = ({
           </div>
 
           <div className="flex-1 flex flex-col items-center justify-center text-center py-0">
-            <span className="text-2xl font-black font-mono tracking-tight leading-none text-emerald-400 mb-1.5">
+            <span className="text-2xl font-black font-mono tracking-tight leading-none brand-text mb-1.5">
               {percentage}%
             </span>
             <span
@@ -173,7 +173,7 @@ export const WeeklyGoalsAndDaysCard: React.FC<WeeklyGoalsAndDaysCardProps> = ({
         <div className="flex flex-col h-full justify-between pl-2 border-l border-slate-800/40 min-w-0">
           <div className="w-full flex items-center justify-between mb-1 px-0.5">
             <div className="flex items-center gap-1">
-              <TrendingUp className="w-2.5 h-2.5 text-emerald-400" />
+              <TrendingUp className="w-2.5 h-2.5 brand-icon" />
               <span
                 className={`text-[9px] font-bold uppercase tracking-wider ${
                   isDark ? 'text-slate-400' : 'text-slate-500'
@@ -182,7 +182,7 @@ export const WeeklyGoalsAndDaysCard: React.FC<WeeklyGoalsAndDaysCardProps> = ({
                 Faturamento
               </span>
             </div>
-            <span className="text-[8.5px] font-bold font-mono text-emerald-400 truncate">
+            <span className="text-[8.5px] font-bold font-mono brand-text truncate">
               R$ {totalWeeklyRevenue.toFixed(0)} sem
             </span>
           </div>
@@ -195,8 +195,8 @@ export const WeeklyGoalsAndDaysCard: React.FC<WeeklyGoalsAndDaysCardProps> = ({
               return (
                 <div key={day.label} className="flex-1 flex flex-col items-center h-full justify-end min-w-0">
                   {/* Valor do dia no topo da barra */}
-                  <span className={`text-[7.5px] font-bold font-mono mb-0.5 truncate ${
-                    day.isToday ? 'text-emerald-300 font-black' : 'text-emerald-400'
+                  <span className={`text-[7.5px] font-bold font-mono mb-0.5 truncate brand-text ${
+                    day.isToday ? 'font-black' : 'opacity-85'
                   }`}>
                     {day.revenue >= 1000 ? `${(day.revenue / 1000).toFixed(1)}k` : day.revenue.toFixed(0)}
                   </span>
@@ -204,10 +204,8 @@ export const WeeklyGoalsAndDaysCard: React.FC<WeeklyGoalsAndDaysCardProps> = ({
                   {/* Barra Vertical */}
                   <div
                     style={{ height: `${heightPercent * 0.48}px` }}
-                    className={`w-full max-w-[12px] rounded-t transition-all duration-300 ${
-                      day.isToday 
-                        ? 'bg-emerald-400 ring-1 ring-emerald-300' 
-                        : 'bg-emerald-500'
+                    className={`w-full max-w-[12px] rounded-t transition-all duration-300 brand-bar ${
+                      day.isToday ? 'opacity-100' : 'opacity-75'
                     }`}
                   />
 
@@ -215,7 +213,7 @@ export const WeeklyGoalsAndDaysCard: React.FC<WeeklyGoalsAndDaysCardProps> = ({
                   <span
                     className={`text-[8px] font-semibold mt-0.5 truncate ${
                       day.isToday
-                        ? 'text-emerald-400 font-extrabold'
+                        ? 'brand-text font-extrabold'
                         : isDark
                         ? 'text-slate-400'
                         : 'text-slate-600'

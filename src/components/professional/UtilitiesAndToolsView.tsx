@@ -181,7 +181,7 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
       id: 'financeiro' as const,
       name: 'Financeiro',
       icon: DollarSign,
-      iconColor: 'text-emerald-400',
+      iconColor: 'brand-icon',
     },
     {
       id: 'consumo_hub' as const,
@@ -215,7 +215,7 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
       id: 'consumo_equip_operacionais' as const,
       name: 'Operação',
       icon: Wrench,
-      iconColor: 'text-emerald-400',
+      iconColor: 'brand-icon',
     },
     {
       id: 'consumo_equip_infra' as const,
@@ -339,7 +339,7 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
             title={activeSubTab !== 'hub' ? 'Voltar' : 'Voltar ao Painel'}
             aria-label="Voltar"
           >
-            <ArrowLeft className="w-4 h-4 text-emerald-500" />
+            <ArrowLeft className="w-4 h-4 brand-icon" />
           </button>
 
           <div className="flex items-center gap-1.5 min-w-0">
@@ -382,7 +382,7 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
                   : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800'
               }`}
             >
-              <Layers className="w-3.5 h-3.5 text-emerald-400" />
+              <Layers className="w-3.5 h-3.5 brand-icon" />
               <span className="hidden sm:inline">Todas as Ferramentas</span>
               <span className="sm:hidden">Menu</span>
             </button>
