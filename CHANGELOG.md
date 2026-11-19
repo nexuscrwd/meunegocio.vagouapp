@@ -11,6 +11,25 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-19] — Remoção do Logotipo e Status em Ícone nas Abas Concluídos e Cancelados (`bol-204`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[UI / UX]`
+- **Motivo / Solicitação:** Usuário selecionou via Focus Mode o logotipo do salão e a badge de status nos cards das abas **Concluídos** e **Cancelados** (`UserAppointmentsView`) e solicitou remover o logotipo nessas duas abas e substituir as legendas **Concluído** / **Cancelado** apenas por ícones para ganhar espaço horizontal.
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Condicionado o bloco do logotipo do estabelecimento a `!isHistoryTab` (mantido apenas na aba **Ativo**), liberando largura total para o nome do salão e título do serviço nas abas de histórico.
+  - Adicionado parâmetro `compactHistoryIcon` em `getStatusBadge`, exibindo exclusivamente `<CheckCircle />` (Concluído) e `<XCircle />` (Cancelado) nos cards das abas **Concluídos** e **Cancelados**.
+
+### [2026-11-19] — Ícone Permanente no Botão de Seleção dos Cards em Concluídos e Cancelados (`bol-203`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / UI]`
+- **Motivo / Solicitação:** Usuário selecionou via Focus Mode o botão de seleção nos cards das abas **Concluídos** e **Cancelados** (`UserAppointmentsView`) informando que faltava o ícone dentro dele.
+- **Arquivos Impactados:**
+  - `src/components/UserAppointmentsView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Renderizado o ícone `<Check />` de forma permanente dentro do botão seletor (`opacity-45` quando desmarcado e `stroke-[2.5]` com `brand-tab-active` quando selecionado), eliminando o visual de botão vazio.
+
 ### [2026-11-19] — Moldura Quadrada na Foto do Perfil em Meus Dados Pessoais (`bol-202`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[UI / UX]`
 - **Motivo / Solicitação:** Usuário selecionou via Focus Mode a moldura da foto de perfil em **Meus Dados Pessoais** (`UserDashboard`) e informou que a moldura deve ser quadrada.

@@ -16,7 +16,8 @@ import {
   ArrowLeftRight,
   X,
   Trash2,
-  Map as MapIcon
+  Map as MapIcon,
+  XCircle
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { BookingAppointment, SwapTargetQueueItem } from '../types';
@@ -569,7 +570,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
     );
   };
 
-  const getStatusBadge = (status?: string) => {
+  const getStatusBadge = (status?: string, compactHistoryIcon?: boolean) => {
     const s = (status || 'CONFIRMADO').toUpperCase();
     
     switch (s) {
@@ -599,20 +600,32 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
       case 'CONCLUÍDO':
       case 'CONCLUIDO':
         return (
-          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-[4px] text-xs font-bold border whitespace-nowrap ${
-            isDark 
-              ? 'bg-slate-800 border-slate-700 text-slate-300' 
-              : 'bg-slate-200 border-slate-300 text-slate-700'
-          }`}>
+          <span
+            title="Concluído"
+            aria-label="Concluído"
+            className={`inline-flex items-center justify-center rounded-[4px] border whitespace-nowrap ${
+              compactHistoryIcon ? 'w-6 h-6' : 'gap-1.5 px-3 py-1 text-xs font-bold'
+            } ${
+              isDark 
+                ? 'bg-slate-800 border-slate-700 text-slate-300' 
+                : 'bg-slate-200 border-slate-300 text-slate-700'
+            }`}
+          >
             <CheckCircle className="w-3.5 h-3.5" />
-            Concluído
+            {!compactHistoryIcon && 'Concluído'}
           </span>
         );
       case 'CANCELADO':
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[4px] text-xs font-bold bg-rose-500 border border-rose-400 text-white whitespace-nowrap">
-            Cancelado
+          <span
+            title="Cancelado"
+            aria-label="Cancelado"
+            className={`inline-flex items-center justify-center rounded-[4px] border bg-rose-500 border-rose-400 text-white whitespace-nowrap ${
+              compactHistoryIcon ? 'w-6 h-6' : 'gap-1.5 px-3 py-1 text-xs font-bold'
+            }`}
+          >
+            {compactHistoryIcon ? <XCircle className="w-3.5 h-3.5" /> : 'Cancelado'}
           </span>
         );
     }
@@ -919,39 +932,43 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                         : `bg-white border-slate-200 shadow-xs ${isActiveClickable ? 'hover:border-[var(--brand-primary)] hover:shadow-sm' : 'hover:shadow-sm'}`
                   }`}
                 >
-                  {/* TOPO: Cabeçalho do Card (Logo + Nome da Empresa e Serviço + Status no lado oposto) */}
+                  {/* TOPO: Cabeçalho do Card (Logo em Ativo + Nome da Empresa e Serviço + Status no lado oposto) */}
                   <div className="flex items-start justify-between gap-2 border-b border-slate-800/20 pb-3">
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <div
-                        className={`h-10 min-w-[68px] px-2.5 rounded-[4px] border flex items-center justify-center shadow-2xs overflow-hidden shrink-0 ${
-                          isDark
-                            ? 'bg-slate-800/90 border-slate-700 text-white'
-                            : 'bg-slate-100 border-slate-200 text-slate-700'
-                        }`}
-                      >
-                        {hasValidCompanyLogo ? (
-                          <img
-                            src={companyLogo}
-                            alt={companyName}
-                            className="max-h-7 max-w-[80px] object-contain"
-                            referrerPolicy="no-referrer"
-                            onError={() => setFailedLogos((prev) => ({ ...prev, [companyLogo]: true }))}
-                          />
-                        ) : (
-                          <span
-                            className={`font-display font-extrabold text-xs tracking-wider uppercase select-none ${
-                              isDark ? 'text-white' : 'text-slate-700'
-                            }`}
-                          >
-                            Logo
-                          </span>
-                        )}
-                      </div>
+                      {!isHistoryTab && (
+                        <div
+                          className={`h-10 min-w-[68px] px-2.5 rounded-[4px] border flex items-center justify-center shadow-2xs overflow-hidden shrink-0 ${
+                            isDark
+                              ? 'bg-slate-800/90 border-slate-700 text-white'
+                              : 'bg-slate-100 border-slate-200 text-slate-700'
+                          }`}
+                        >
+                          {hasValidCompanyLogo ? (
+                            <img
+                              src={companyLogo}
+                              alt={companyName}
+                              className="max-h-7 max-w-[80px] object-contain"
+                              referrerPolicy="no-referrer"
+                              onError={() => setFailedLogos((prev) => ({ ...prev, [companyLogo]: true }))}
+                            />
+                          ) : (
+                            <span
+                              className={`font-display font-extrabold text-xs tracking-wider uppercase select-none ${
+                                isDark ? 'text-white' : 'text-slate-700'
+                              }`}
+                            >
+                              Logo
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       <div className="space-y-0.5 min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                           <span
-                            className={`text-xs font-extrabold tracking-tight truncate max-w-[180px] sm:max-w-[260px] ${
+                            className={`text-xs font-extrabold tracking-tight truncate ${
+                              isHistoryTab ? 'max-w-full' : 'max-w-[180px] sm:max-w-[260px]'
+                            } ${
                               isDark ? 'text-white' : 'text-slate-900'
                             }`}
                           >
@@ -965,7 +982,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {getStatusBadge(item.status)}
+                      {getStatusBadge(item.status, isHistoryTab)}
                       {isHistoryTab && (
                         <button
                           type="button"
@@ -980,7 +997,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                                 : 'bg-slate-100 border-slate-300 text-slate-400 hover:border-[var(--brand-primary)]'
                           }`}
                         >
-                          {isItemSelected && <Check className="w-3.5 h-3.5" />}
+                          <Check className={`w-3.5 h-3.5 ${isItemSelected ? 'stroke-[2.5]' : 'opacity-45'}`} />
                         </button>
                       )}
                     </div>
