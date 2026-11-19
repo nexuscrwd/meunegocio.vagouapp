@@ -684,7 +684,7 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                 </div>
                 <div className="mt-1.5">
-                  <span className="text-[28px] sm:text-3xl leading-none font-black font-mono tracking-tighter text-emerald-400 block">
+                  <span className="text-[25px] text-center leading-none font-black font-mono tracking-tighter text-emerald-400 block">
                     R$ {totalRealizedRevenue.toFixed(2).replace('.', ',')}
                   </span>
                 </div>
@@ -699,7 +699,7 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
                   <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
                 </div>
                 <div className="mt-1.5">
-                  <span className="text-[28px] sm:text-3xl leading-none font-black font-mono tracking-tighter text-amber-400 block">
+                  <span className="text-[25px] text-center leading-none font-black font-mono tracking-tighter text-amber-400 block">
                     R$ {totalForecastRevenue.toFixed(2).replace('.', ',')}
                   </span>
                 </div>
@@ -714,7 +714,7 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
                   <ArrowUpRight className="w-3.5 h-3.5 text-cyan-400" />
                 </div>
                 <div className="mt-1.5">
-                  <span className={`text-[28px] sm:text-3xl leading-none font-black font-mono tracking-tighter block ${
+                  <span className={`text-[25px] text-center leading-none font-black font-mono tracking-tighter block ${
                     isDark ? 'text-slate-100' : 'text-slate-900'
                   }`}>
                     R$ {averageTicket.toFixed(2).replace('.', ',')}
@@ -730,7 +730,7 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
                   <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Lucro Líquido</span>
                 </div>
                 <div className="mt-1.5">
-                  <span className="text-[28px] sm:text-3xl leading-none font-black font-mono tracking-tighter text-emerald-400 block">
+                  <span className="text-[25px] text-center leading-none font-black font-mono tracking-tighter text-emerald-400 block">
                     R$ {salonNetProfit.toFixed(2).replace('.', ',')}
                   </span>
                 </div>
