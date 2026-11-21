@@ -11,6 +11,12 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-21] — Regras de Criação de Nome de Usuário Sincronizadas com `admvapp` (`bol-211`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / Auth / Validation UX]`
+- **Motivo / Solicitação:** No fluxo de criação de conta (`TriadeUserRegisterForm.tsx` — Fase 2 de 5), o campo de nome de usuário estava removendo sufixos especiais (`@`, `#`, `&`) durante a comparação (`cleanUsername.replace(/^[@#&]+|[@#&]+$/g, '')`), fazendo com que `João` (sem caractere especial) fosse aceito como disponível e considerado igual a `João@` na confirmação. Solicitação de aplicação estrita das regras oficiais do `admvapp`.
+- **Arquivos Impactados:**
+  - `src/components/auth/TriadeUserRegisterForm.tsx`: Sincronizada a validação de `username` com o repositório oficial `admvapp`, exigindo obrigatoriamente **mínimo de 3 caracteres**, **1 letra maiúscula (`A-Z`)**, **1 letra minúscula (`a-z`)** e **1 caractere especial (`@`, `#`, `$`, `!`, `&`, etc.)**, preservando o sufixo especial na comparação exata de confirmação (`cleanUsername === cleanConfirmUsername`), exibindo os 3 indicadores visuais em tempo real (`• 1 Maiúscula (A-Z)`, `• 1 Minúscula (a-z)`, `• 1 Especial (@, #, $, !)`) e bloqueando a consulta de disponibilidade e o avanço enquanto o formato não for válido.
+
 ### [2026-11-21] — Login 100% Direto no Navegador/PWA (`meunegocio.vagouapp.com`), Correção Bcrypt de `Elisa@` & Desbloqueio de RLS Recursivo (`bol-210`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Fix / Auth / Cloudflare Pages & PWA]`
 - **Motivo / Solicitação:** Em produção no Cloudflare Pages (`meunegocio.vagouapp.com`), `Elisa@`, `Anderson` (`Anderson@` / `Anderson#`) e demais usuários não logavam pelo navegador/PWA porque: (1) `admvapp` havia gravado `password_hash` de `Elisa@` em texto puro (`Ae311015@`) na tabela `system_admins`, fazendo `crypt()` falhar em `verify_admin_login`; (2) o Cloudflare Pages é estático e retorna `HTTP 405` em `POST /api/auth/login` e `POST /api/auth/resolve-accounts`, exigindo resolução e autenticação 100% diretas via Supabase no navegador; e (3) a policy RLS de `public.clients` entrava em recursão infinita com `public.salon_clients`.

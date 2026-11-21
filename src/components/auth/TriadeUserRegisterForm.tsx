@@ -243,15 +243,25 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     phoneDigits === confirmPhoneDigits;
 
   const cleanName = name.trim();
-  const cleanUsername = username.trim().replace(/^[@#&]+|[@#&]+$/g, '');
-  const cleanConfirmUsername = confirmUsername.trim().replace(/^[@#&]+|[@#&]+$/g, '');
+  const cleanUsername = username.trim().replace(/^@+/, '');
+  const cleanConfirmUsername = confirmUsername.trim().replace(/^@+/, '');
+  const userRules = {
+    hasUpper: /[A-ZÀ-Ý]/.test(cleanUsername),
+    hasLower: /[a-zà-ÿ]/.test(cleanUsername),
+    hasSpecial: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(cleanUsername),
+  };
+  const isUsernameFormatValid =
+    cleanUsername.length >= 3 &&
+    userRules.hasUpper &&
+    userRules.hasLower &&
+    userRules.hasSpecial;
   const isUsernameConfirmed =
-    cleanUsername.length >= 2 &&
-    cleanConfirmUsername.length >= 2 &&
-    cleanUsername.toLowerCase() === cleanConfirmUsername.toLowerCase();
+    isUsernameFormatValid &&
+    cleanConfirmUsername.length >= 3 &&
+    cleanUsername === cleanConfirmUsername;
 
   useEffect(() => {
-    if (cleanUsername.length < 2) {
+    if (!isUsernameFormatValid) {
       setIsCheckingUsername(false);
       setUsernameAvailable(null);
       return;
@@ -268,8 +278,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
 
     const timer = setTimeout(async () => {
       try {
-        const targetLower = username.trim().toLowerCase();
-        const targetStripped = cleanUsername.toLowerCase();
+        const targetLower = cleanUsername.toLowerCase();
         const [sysAdminsRes, profilesRes, globalPrefRes] = await Promise.all([
           (supabase.from('system_admins' as any) as any).select('username').limit(200),
           (supabase.from('profiles' as any) as any).select('username').limit(500),
@@ -284,10 +293,9 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
         const matchesUsername = (rows: any[] | null | undefined): boolean => {
           if (!Array.isArray(rows)) return false;
           return rows.some((r) => {
-            const rawU = String(r?.username || '').trim().toLowerCase();
+            const rawU = String(r?.username || '').trim().replace(/^@+/, '').toLowerCase();
             if (!rawU) return false;
-            const strippedU = rawU.replace(/^[@#&]+|[@#&]+$/g, '');
-            return rawU === targetLower || rawU === targetStripped || strippedU === targetStripped;
+            return rawU === targetLower;
           });
         };
 
@@ -312,7 +320,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [cleanUsername]);
+  }, [cleanUsername, isUsernameFormatValid]);
 
   useEffect(() => {
     if (step !== 'address_summary' || !shouldReverseLookupRef.current) {
@@ -446,7 +454,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
 
   const isNameValid =
     cleanName.length >= 2 &&
-    cleanUsername.length >= 2 &&
+    isUsernameFormatValid &&
     isUsernameConfirmed &&
     !isCheckingUsername &&
     usernameAvailable !== false;
@@ -580,6 +588,16 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     e.preventDefault();
     setFeedback(null);
 
+    if (!isUsernameFormatValid) {
+      setFeedback({
+        type: 'error',
+        message:
+          'O nome de usuário deve conter ao menos 1 letra maiúscula, 1 letra minúscula e 1 caractere especial (Ex: João@, Ana#1).',
+      });
+      setStep('name');
+      return;
+    }
+
     if (!isPasswordStepValid) {
       setFeedback({
         type: 'error',
@@ -593,8 +611,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     try {
       const cleanPass = password.trim();
       const authPassSafe = cleanPass.length >= 6 ? cleanPass : `${cleanPass}#Vagou1`;
-      const rawTypedUsername = username.trim().replace(/^@+/, '');
-      const normalizedUsername = rawTypedUsername || `@${cleanUsername.toLowerCase().replace(/^@+/, '')}`;
+      const normalizedUsername = cleanUsername;
       const effectiveNum = addressNumber.trim() || 'S/N';
       const fullAddressString = `${street.trim()}, ${effectiveNum}${
         complement.trim() ? ` (${complement.trim()})` : ''
@@ -991,7 +1008,17 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
             <label className="block text-xs font-semibold text-slate-300 mb-1">
               Nome de Usuário
             </label>
-            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-[4px] px-3 py-2.5 focus-within:border-emerald-500 transition">
+            <div
+              className={`flex items-center bg-slate-950 border rounded-[4px] px-3 py-2.5 transition ${
+                isUsernameFormatValid && !isCheckingUsername && usernameAvailable === false
+                  ? 'border-rose-500 focus-within:border-rose-500'
+                  : cleanUsername.length > 0 && !isUsernameFormatValid
+                    ? 'border-amber-500/60 focus-within:border-amber-500'
+                    : isUsernameFormatValid && !isCheckingUsername && usernameAvailable === true
+                      ? 'border-emerald-500/60 focus-within:border-emerald-500'
+                      : 'border-slate-800 focus-within:border-emerald-500'
+              }`}
+            >
               <AtSign className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
               <input
                 type="text"
@@ -1000,25 +1027,60 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                   setUsername(e.target.value.replace(/\s+/g, ''));
                   setFeedback(null);
                 }}
-                placeholder="Escolha seu nome de usuário"
+                placeholder="Ex: João@"
                 className="bg-transparent text-sm text-white outline-none w-full placeholder:text-slate-500"
               />
               {isCheckingUsername && (
                 <Loader2 className="w-4 h-4 animate-spin text-emerald-400 shrink-0 ml-2" />
               )}
-              {!isCheckingUsername && cleanUsername.length >= 3 && usernameAvailable === true && (
+              {!isCheckingUsername && isUsernameFormatValid && usernameAvailable === true && (
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 ml-2" />
               )}
-              {!isCheckingUsername && cleanUsername.length >= 3 && usernameAvailable === false && (
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 ml-2" />
-              )}
+              {!isCheckingUsername &&
+                cleanUsername.length > 0 &&
+                (!isUsernameFormatValid || usernameAvailable === false) && (
+                  <AlertCircle
+                    className={`w-4 h-4 shrink-0 ml-2 ${
+                      usernameAvailable === false ? 'text-rose-400' : 'text-amber-400'
+                    }`}
+                  />
+                )}
             </div>
-            {cleanUsername.length >= 3 && !isCheckingUsername && usernameAvailable === false && (
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-[4px] font-medium transition whitespace-nowrap ${
+                  userRules.hasUpper
+                    ? 'bg-emerald-500/20 text-emerald-400'
+                    : 'bg-slate-800 text-slate-400'
+                }`}
+              >
+                • 1 Maiúscula (A-Z)
+              </span>
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-[4px] font-medium transition whitespace-nowrap ${
+                  userRules.hasLower
+                    ? 'bg-emerald-500/20 text-emerald-400'
+                    : 'bg-slate-800 text-slate-400'
+                }`}
+              >
+                • 1 Minúscula (a-z)
+              </span>
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-[4px] font-medium transition whitespace-nowrap ${
+                  userRules.hasSpecial
+                    ? 'bg-emerald-500/20 text-emerald-400'
+                    : 'bg-slate-800 text-slate-400'
+                }`}
+              >
+                • 1 Especial (@, #, $, !)
+              </span>
+            </div>
+            {isUsernameFormatValid && !isCheckingUsername && usernameAvailable === false && (
               <p className="text-[11px] text-rose-400 font-medium mt-1">
                 Este nome de usuário já existe. Escolha outro.
               </p>
             )}
-            {cleanUsername.length >= 3 && !isCheckingUsername && usernameAvailable === true && (
+            {isUsernameFormatValid && !isCheckingUsername && usernameAvailable === true && (
               <p className="text-[11px] text-emerald-400 font-medium mt-1">
                 Nome de usuário disponível.
               </p>
@@ -1038,7 +1100,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                   setConfirmUsername(e.target.value.replace(/\s+/g, ''));
                   setFeedback(null);
                 }}
-                placeholder="Repita seu nome de usuário"
+                placeholder="Repita seu nome de usuário (Ex: João@)"
                 className="bg-transparent text-sm text-white outline-none w-full placeholder:text-slate-500"
               />
               {cleanConfirmUsername.length >= 2 && isUsernameConfirmed && (
@@ -1048,11 +1110,18 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 ml-2" />
               )}
             </div>
-            {cleanConfirmUsername.length >= 2 && !isUsernameConfirmed && (
+            {cleanConfirmUsername.length >= 2 && cleanUsername !== cleanConfirmUsername && (
               <p className="text-[11px] text-rose-400 font-medium mt-1">
                 Os nomes de usuário digitados não coincidem.
               </p>
             )}
+            {cleanConfirmUsername.length >= 2 &&
+              cleanUsername === cleanConfirmUsername &&
+              !isUsernameFormatValid && (
+                <p className="text-[11px] text-amber-400 font-medium mt-1">
+                  O usuário deve ter 1 maiúscula, 1 minúscula e 1 caractere especial (Ex: João@).
+                </p>
+              )}
           </div>
 
           <div className="sticky bottom-0 z-20 pt-2 bg-slate-900 grid grid-cols-2 gap-2">
