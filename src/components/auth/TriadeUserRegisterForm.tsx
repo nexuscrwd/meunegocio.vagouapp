@@ -268,10 +268,15 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
 
     const timer = setTimeout(async () => {
       try {
-        const targetLower = cleanUsername.toLowerCase();
-        const [sysAdminsRes, clientsRes] = await Promise.all([
+        const targetLower = username.trim().toLowerCase();
+        const targetStripped = cleanUsername.toLowerCase();
+        const [sysAdminsRes, profilesRes, globalPrefRes] = await Promise.all([
           (supabase.from('system_admins' as any) as any).select('username').limit(200),
-          (supabase.from('clients') as any).select('username').limit(500),
+          (supabase.from('profiles' as any) as any).select('username').limit(500),
+          (supabase.from('admin_preferences' as any) as any)
+            .select('preferences')
+            .eq('id', 'global')
+            .maybeSingle(),
         ]);
 
         if (cancelled) return;
@@ -282,13 +287,14 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
             const rawU = String(r?.username || '').trim().toLowerCase();
             if (!rawU) return false;
             const strippedU = rawU.replace(/^[@#&]+|[@#&]+$/g, '');
-            return rawU === targetLower || strippedU === targetLower;
+            return rawU === targetLower || rawU === targetStripped || strippedU === targetStripped;
           });
         };
 
         const alreadyExists =
           matchesUsername(sysAdminsRes?.data) ||
-          matchesUsername(clientsRes?.data);
+          matchesUsername(profilesRes?.data) ||
+          matchesUsername(globalPrefRes?.data?.preferences?.auth_directory);
 
         setUsernameAvailable(!alreadyExists);
       } catch {
@@ -587,7 +593,8 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     try {
       const cleanPass = password.trim();
       const authPassSafe = cleanPass.length >= 6 ? cleanPass : `${cleanPass}#Vagou1`;
-      const normalizedUsername = `@${cleanUsername.toLowerCase().replace(/^@+/, '')}`;
+      const rawTypedUsername = username.trim().replace(/^@+/, '');
+      const normalizedUsername = rawTypedUsername || `@${cleanUsername.toLowerCase().replace(/^@+/, '')}`;
       const effectiveNum = addressNumber.trim() || 'S/N';
       const fullAddressString = `${street.trim()}, ${effectiveNum}${
         complement.trim() ? ` (${complement.trim()})` : ''
@@ -641,35 +648,68 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
         } catch {}
 
         try {
+          await (supabase.from('profiles' as any) as any)
+            .update({
+              full_name: cleanName,
+              username: normalizedUsername,
+              phone: phone.trim(),
+              address: addressObj.street,
+              street_number: addressObj.number,
+              complement: addressObj.complement,
+              neighborhood: addressObj.neighborhood,
+              city: addressObj.city,
+              state: addressObj.uf,
+              cep: addressObj.cep,
+              formatted_address: fullAddressString,
+            })
+            .eq('id', userId);
+        } catch {}
+
+        try {
           const { data: existingClient } = await (supabase.from('clients') as any)
             .select('id, user_id')
             .ilike('email', cleanEmail)
             .limit(1)
             .maybeSingle();
 
+          let resolvedClientId = existingClient?.id ? String(existingClient.id) : '';
+
           if (existingClient?.id) {
             userId = String(existingClient.user_id || existingClient.id);
             await (supabase.from('clients') as any)
               .update({
-                name: cleanName,
+                full_name: cleanName,
                 phone: phone.trim(),
-                username: normalizedUsername,
-                password_hash: cleanPass,
+                address: addressObj.street,
+                street_number: addressObj.number,
+                complement: addressObj.complement,
+                neighborhood: addressObj.neighborhood,
+                city: addressObj.city,
+                state: addressObj.uf,
+                cep: addressObj.cep,
+                formatted_address: fullAddressString,
               })
               .eq('id', existingClient.id);
           } else {
             const { data: insertedClient } = await (supabase.from('clients') as any)
               .insert({
                 user_id: userId,
-                name: cleanName,
+                full_name: cleanName,
                 email: cleanEmail,
                 phone: phone.trim(),
-                username: normalizedUsername,
-                password_hash: cleanPass,
+                address: addressObj.street,
+                street_number: addressObj.number,
+                complement: addressObj.complement,
+                neighborhood: addressObj.neighborhood,
+                city: addressObj.city,
+                state: addressObj.uf,
+                cep: addressObj.cep,
+                formatted_address: fullAddressString,
               })
               .select('id, user_id')
               .maybeSingle();
             if (insertedClient?.id) {
+              resolvedClientId = String(insertedClient.id);
               userId = String(insertedClient.user_id || insertedClient.id);
             }
           }
@@ -679,23 +719,22 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
             const selectedSecQ =
               OFFICIAL_SECURITY_QUESTIONS.find((q) => q.code === securityQuestionCode) ||
               OFFICIAL_SECURITY_QUESTIONS[0];
-            try {
-              await (supabase.from('user_security_answers' as any) as any).upsert(
-                {
-                  client_id: userId,
-                  user_id: userId,
-                  question_code: selectedSecQ.code,
-                  question_text: selectedSecQ.questionText,
-                  answer_normalized: normalizedSecAnswer,
-                },
-                { onConflict: 'client_id,question_code' }
-              );
-            } catch {}
+            if (resolvedClientId) {
+              try {
+                await (supabase.from('user_security_answers' as any) as any).upsert(
+                  {
+                    client_id: resolvedClientId,
+                    question_code: selectedSecQ.code,
+                    answer_hash: normalizedSecAnswer,
+                  },
+                  { onConflict: 'client_id,question_code' }
+                );
+              } catch {}
+            }
             try {
               await (supabase.from('clients') as any)
                 .update({
                   security_question_code: selectedSecQ.code,
-                  security_answer_normalized: normalizedSecAnswer,
                 })
                 .ilike('email', cleanEmail);
             } catch {}

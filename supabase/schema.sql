@@ -1505,7 +1505,29 @@ BEGIN
 END;
 $$;
 
--- 6.4. Verificação de Login Administrativo (compatível com admvapp)
+-- 6.4. Trigger Automático de Hash Bcrypt em system_admins + Verificação de Login Administrativo (compatível com admvapp e texto puro)
+CREATE OR REPLACE FUNCTION public.fn_system_admins_ensure_bcrypt()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+BEGIN
+  IF NEW.password_hash IS NOT NULL
+     AND btrim(NEW.password_hash) <> ''
+     AND NEW.password_hash !~ '^\$2[abxy]\$\d{2}\$'
+  THEN
+    NEW.password_hash := crypt(btrim(NEW.password_hash), gen_salt('bf', 10));
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_system_admins_ensure_bcrypt ON public.system_admins;
+CREATE TRIGGER trg_system_admins_ensure_bcrypt
+  BEFORE INSERT OR UPDATE OF password_hash ON public.system_admins
+  FOR EACH ROW EXECUTE FUNCTION public.fn_system_admins_ensure_bcrypt();
+
 CREATE OR REPLACE FUNCTION public.verify_admin_login(p_identifier TEXT, p_password TEXT)
 RETURNS TABLE (
   id UUID,
@@ -1522,20 +1544,214 @@ SECURITY DEFINER
 SET search_path = public, extensions
 AS $$
 DECLARE
-  v_clean TEXT := lower(btrim(COALESCE(p_identifier, '')));
+  v_clean TEXT := regexp_replace(lower(btrim(COALESCE(p_identifier, ''))), '^@+', '');
+  v_clean_no_sym TEXT := regexp_replace(v_clean, '^[@#&]+|[@#&]+$', '', 'g');
+  v_digits TEXT := regexp_replace(COALESCE(p_identifier, ''), '\D', '', 'g');
 BEGIN
   RETURN QUERY
   SELECT sa.id, sa.user_id, sa.full_name, sa.username, sa.email, sa.role, sa.access_level, sa.avatar_url
   FROM public.system_admins sa
   WHERE sa.is_active = TRUE
-    AND (lower(sa.email) = v_clean OR lower(sa.username) = v_clean)
-    AND sa.password_hash = crypt(p_password, sa.password_hash)
+    AND (
+      lower(btrim(sa.email)) = v_clean
+      OR lower(btrim(sa.username)) = v_clean
+      OR regexp_replace(lower(btrim(sa.username)), '^@+', '') = v_clean
+      OR (length(v_clean_no_sym) >= 2 AND regexp_replace(lower(btrim(sa.username)), '^[@#&]+|[@#&]+$', '', 'g') = v_clean_no_sym)
+      OR (length(v_digits) = 11 AND sa.cpf_digits = v_digits)
+      OR (
+        length(v_digits) >= 8
+        AND length(regexp_replace(COALESCE(sa.phone_whatsapp, ''), '\D', '', 'g')) >= 8
+        AND right(regexp_replace(COALESCE(sa.phone_whatsapp, ''), '\D', '', 'g'), 8) = right(v_digits, 8)
+      )
+    )
+    AND (
+      CASE
+        WHEN sa.password_hash ~ '^\$2[abxy]\$\d{2}\$' THEN sa.password_hash = crypt(p_password, sa.password_hash)
+        ELSE sa.password_hash = p_password
+      END
+    )
+  ORDER BY
+    CASE
+      WHEN lower(btrim(sa.email)) = v_clean OR lower(btrim(sa.username)) = v_clean THEN 0
+      ELSE 1
+    END ASC
   LIMIT 1;
 END;
 $$;
 
+GRANT EXECUTE ON FUNCTION public.verify_admin_login(TEXT, TEXT) TO anon, authenticated, service_role;
+
+-- 6.5. Resolução Direta de Identidade Tríade no Navegador/PWA (sem expor password_hash)
+CREATE OR REPLACE FUNCTION public.resolve_triade_login_account(p_identifier TEXT)
+RETURNS TABLE (
+  id UUID,
+  user_id UUID,
+  full_name TEXT,
+  username TEXT,
+  email TEXT,
+  phone TEXT,
+  cpf TEXT,
+  role TEXT,
+  source_table TEXT,
+  is_superadmin BOOLEAN,
+  avatar_url TEXT,
+  match_priority INTEGER
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_clean TEXT := lower(btrim(COALESCE(p_identifier, '')));
+  v_clean_no_lead TEXT := regexp_replace(v_clean, '^@+', '');
+  v_clean_no_sym TEXT := regexp_replace(v_clean, '^[@#&]+|[@#&]+$', '', 'g');
+  v_digits TEXT := regexp_replace(COALESCE(p_identifier, ''), '\D', '', 'g');
+BEGIN
+  IF v_clean = '' THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH candidates AS (
+    SELECT
+      COALESCE(sa.user_id, sa.id) AS id,
+      COALESCE(sa.user_id, sa.id) AS user_id,
+      sa.full_name,
+      sa.username,
+      sa.email,
+      COALESCE(sa.phone_whatsapp, '') AS phone,
+      COALESCE(sa.cpf, '') AS cpf,
+      sa.role,
+      'system_admins'::TEXT AS source_table,
+      TRUE AS is_superadmin,
+      COALESCE(sa.avatar_url, '') AS avatar_url,
+      CASE
+        WHEN lower(btrim(sa.email)) = v_clean OR lower(btrim(sa.username)) = v_clean OR lower(btrim(sa.username)) = v_clean_no_lead THEN 1
+        WHEN (length(v_digits) = 11 AND sa.cpf_digits = v_digits)
+          OR (length(v_digits) >= 8 AND right(regexp_replace(COALESCE(sa.phone_whatsapp, ''), '\D', '', 'g'), 8) = right(v_digits, 8)) THEN 2
+        WHEN length(v_clean_no_sym) >= 2 AND regexp_replace(lower(btrim(sa.username)), '^[@#&]+|[@#&]+$', '', 'g') = v_clean_no_sym THEN 3
+        WHEN lower(btrim(sa.full_name)) = v_clean THEN 4
+        ELSE 99
+      END AS match_priority
+    FROM public.system_admins sa
+    WHERE sa.is_active = TRUE
+
+    UNION ALL
+
+    SELECT
+      pr.id,
+      pr.id AS user_id,
+      pr.full_name,
+      COALESCE(pr.username, '') AS username,
+      pr.email,
+      COALESCE(pr.phone, '') AS phone,
+      COALESCE(pr.cpf, '') AS cpf,
+      pr.role,
+      CASE WHEN pr.role = 'super_admin' THEN 'system_admins' ELSE 'clients' END AS source_table,
+      (pr.role = 'super_admin') AS is_superadmin,
+      COALESCE(pr.avatar_url, '') AS avatar_url,
+      CASE
+        WHEN lower(btrim(pr.email)) = v_clean OR lower(btrim(COALESCE(pr.username, ''))) = v_clean OR lower(btrim(COALESCE(pr.username, ''))) = v_clean_no_lead THEN 1
+        WHEN (length(v_digits) = 11 AND pr.cpf_digits = v_digits)
+          OR (length(v_digits) >= 8 AND length(regexp_replace(COALESCE(pr.phone, ''), '\D', '', 'g')) >= 8 AND right(regexp_replace(COALESCE(pr.phone, ''), '\D', '', 'g'), 8) = right(v_digits, 8)) THEN 2
+        WHEN length(v_clean_no_sym) >= 2 AND regexp_replace(lower(btrim(COALESCE(pr.username, ''))), '^[@#&]+|[@#&]+$', '', 'g') = v_clean_no_sym THEN 3
+        WHEN lower(btrim(pr.full_name)) = v_clean THEN 4
+        ELSE 99
+      END AS match_priority
+    FROM public.profiles pr
+    WHERE pr.is_active = TRUE
+
+    UNION ALL
+
+    SELECT
+      c.id,
+      COALESCE(c.user_id, c.id) AS user_id,
+      c.full_name,
+      ''::TEXT AS username,
+      COALESCE(c.email, '') AS email,
+      COALESCE(c.phone, '') AS phone,
+      COALESCE(c.cpf, '') AS cpf,
+      'client'::TEXT AS role,
+      'clients'::TEXT AS source_table,
+      FALSE AS is_superadmin,
+      COALESCE(c.avatar_url, '') AS avatar_url,
+      CASE
+        WHEN lower(btrim(COALESCE(c.email, ''))) = v_clean THEN 1
+        WHEN (length(v_digits) = 11 AND c.cpf_digits = v_digits)
+          OR (length(v_digits) >= 8 AND length(regexp_replace(COALESCE(c.phone, ''), '\D', '', 'g')) >= 8 AND right(regexp_replace(COALESCE(c.phone, ''), '\D', '', 'g'), 8) = right(v_digits, 8)) THEN 2
+        WHEN lower(btrim(c.full_name)) = v_clean THEN 4
+        ELSE 99
+      END AS match_priority
+    FROM public.clients c
+    WHERE c.is_active = TRUE
+
+    UNION ALL
+
+    SELECT
+      p.id,
+      COALESCE(p.user_id, p.id) AS user_id,
+      p.full_name,
+      ''::TEXT AS username,
+      COALESCE(p.email, '') AS email,
+      COALESCE(p.phone, '') AS phone,
+      COALESCE(p.cpf, '') AS cpf,
+      p.role,
+      'professionals'::TEXT AS source_table,
+      FALSE AS is_superadmin,
+      COALESCE(p.avatar_url, '') AS avatar_url,
+      CASE
+        WHEN lower(btrim(COALESCE(p.email, ''))) = v_clean THEN 1
+        WHEN (length(v_digits) = 11 AND p.cpf_digits = v_digits)
+          OR (length(v_digits) >= 8 AND length(regexp_replace(COALESCE(p.phone, ''), '\D', '', 'g')) >= 8 AND right(regexp_replace(COALESCE(p.phone, ''), '\D', '', 'g'), 8) = right(v_digits, 8)) THEN 2
+        WHEN lower(btrim(p.full_name)) = v_clean THEN 4
+        ELSE 99
+      END AS match_priority
+    FROM public.professionals p
+    WHERE p.is_active = TRUE
+  )
+  SELECT
+    cand.id,
+    cand.user_id,
+    cand.full_name,
+    cand.username,
+    cand.email,
+    cand.phone,
+    cand.cpf,
+    cand.role,
+    cand.source_table,
+    cand.is_superadmin,
+    cand.avatar_url,
+    cand.match_priority
+  FROM candidates cand
+  WHERE cand.match_priority < 99
+  ORDER BY cand.match_priority ASC, cand.is_superadmin DESC
+  LIMIT 10;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.resolve_triade_login_account(TEXT) TO anon, authenticated, service_role;
+
+-- 6.6. Helper Anti-Recursão de RLS para public.clients
+CREATE OR REPLACE FUNCTION public.is_my_client_id(p_client_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.clients c
+    WHERE c.id = p_client_id
+      AND c.user_id = auth.uid()
+  );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_my_client_id(UUID) TO anon, authenticated, service_role;
+
 -- =====================================================================================================
--- 7. ROW LEVEL SECURITY (RLS ESTRITO POR TENANT & JWT)
+-- 7. ROW LEVEL SECURITY (RLS ESTRITO POR TENANT & JWT — SEM RECURSÃO EM CLIENTS)
 -- =====================================================================================================
 DO $$
 DECLARE
@@ -1580,11 +1796,11 @@ CREATE POLICY "security_questions_public_read" ON public.security_questions
 CREATE POLICY "user_security_answers_owner_or_admin" ON public.user_security_answers
   FOR ALL USING (
     public.is_super_admin()
-    OR EXISTS (SELECT 1 FROM public.clients c WHERE c.id = client_id AND c.user_id = auth.uid())
+    OR public.is_my_client_id(client_id)
   )
   WITH CHECK (
     public.is_super_admin()
-    OR EXISTS (SELECT 1 FROM public.clients c WHERE c.id = client_id AND c.user_id = auth.uid())
+    OR public.is_my_client_id(client_id)
   );
 
 -- SALONS & UI SETTINGS (vitrine ativa legível publicamente; mutações restritas a gestor/admin)
@@ -1641,18 +1857,18 @@ CREATE POLICY "clients_self_or_admin_write" ON public.clients
 CREATE POLICY "salon_clients_member_access" ON public.salon_clients
   FOR ALL USING (
     public.is_salon_member(salon_id)
-    OR EXISTS (SELECT 1 FROM public.clients c WHERE c.id = client_id AND c.user_id = auth.uid())
+    OR public.is_my_client_id(client_id)
   )
   WITH CHECK (public.is_salon_member(salon_id));
 
 CREATE POLICY "dependents_owner_or_admin" ON public.dependents
   FOR ALL USING (
     public.is_super_admin()
-    OR EXISTS (SELECT 1 FROM public.clients c WHERE c.id = parent_client_id AND c.user_id = auth.uid())
+    OR public.is_my_client_id(parent_client_id)
   )
   WITH CHECK (
     public.is_super_admin()
-    OR EXISTS (SELECT 1 FROM public.clients c WHERE c.id = parent_client_id AND c.user_id = auth.uid())
+    OR public.is_my_client_id(parent_client_id)
   );
 
 -- APPOINTMENTS
@@ -1660,7 +1876,7 @@ CREATE POLICY "appointments_tenant_or_owner_select" ON public.appointments
   FOR SELECT USING (
     client_user_id = auth.uid()
     OR public.is_salon_member(salon_id)
-    OR EXISTS (SELECT 1 FROM public.clients c WHERE c.id = client_id AND c.user_id = auth.uid())
+    OR public.is_my_client_id(client_id)
   );
 CREATE POLICY "appointments_authenticated_insert" ON public.appointments
   FOR INSERT WITH CHECK (

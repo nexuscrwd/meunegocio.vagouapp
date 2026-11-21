@@ -121,34 +121,45 @@ export async function checkUserSalonMembership(
     let isSuperadminMaster =
       typeof window !== 'undefined' && localStorage.getItem('vagou_is_superadmin') === 'true';
 
+    const matchSuperadminRecord = (sa: any, cleanUserNoAt: string): boolean => {
+      if (!sa || sa.is_active === false) return false;
+      const saId = String(sa.id || '').trim();
+      const saUserId = String(sa.user_id || '').trim();
+      const saEmail = String(sa.email || '').trim().toLowerCase();
+      const saUser = String(sa.username || '').trim().toLowerCase();
+      const saUserNoAt = saUser.replace(/^[@#&]+|[@#&]+$/g, '');
+      const saCpf = String(sa.cpf || '').replace(/\D/g, '');
+
+      if ((saId && candidateIds.has(saId)) || (saUserId && candidateIds.has(saUserId))) {
+        return true;
+      }
+      if (
+        cleanEmail &&
+        (saEmail === cleanEmail ||
+          saUser === cleanEmail ||
+          (cleanUserNoAt && saUserNoAt === cleanUserNoAt && !/[#&]$/.test(cleanEmail)))
+      ) {
+        return true;
+      }
+      if (userCpfDigits && userCpfDigits.length === 11 && saCpf === userCpfDigits) {
+        return true;
+      }
+      return false;
+    };
+
     try {
       const { data: sysAdmins } = await (supabase.from('system_admins' as any) as any)
-        .select('id, username, email, cpf, phone_whatsapp, role, access_level, is_active')
+        .select('id, user_id, username, email, cpf, phone_whatsapp, role, is_active')
         .limit(50);
 
       if (Array.isArray(sysAdmins)) {
         const cleanUserNoAt = cleanEmail.replace(/^[@#&]+|[@#&]+$/g, '');
-        const matchedAdmin = sysAdmins.find((sa: any) => {
-          if (sa.is_active === false) return false;
-          const saId = String(sa.id || '').trim();
-          const saEmail = String(sa.email || '').trim().toLowerCase();
-          const saUser = String(sa.username || '').trim().toLowerCase();
-          const saUserNoAt = saUser.replace(/^[@#&]+|[@#&]+$/g, '');
-          const saCpf = String(sa.cpf || '').replace(/\D/g, '');
-
-          if (saId && candidateIds.has(saId)) return true;
-          if (cleanEmail && (saEmail === cleanEmail || saUser === cleanEmail || (cleanUserNoAt && saUserNoAt === cleanUserNoAt))) {
-            return true;
-          }
-          if (userCpfDigits && userCpfDigits.length === 11 && saCpf === userCpfDigits) {
-            return true;
-          }
-          return false;
-        });
+        const matchedAdmin = sysAdmins.find((sa: any) => matchSuperadminRecord(sa, cleanUserNoAt));
 
         if (matchedAdmin) {
           isSuperadminMaster = true;
           if (matchedAdmin.id) candidateIds.add(String(matchedAdmin.id));
+          if (matchedAdmin.user_id) candidateIds.add(String(matchedAdmin.user_id));
           if (matchedAdmin.email) resolvedClientEmail = String(matchedAdmin.email).trim().toLowerCase();
           if (matchedAdmin.cpf && !userCpfDigits) {
             userCpfDigits = String(matchedAdmin.cpf).replace(/\D/g, '');
@@ -156,6 +167,32 @@ export async function checkUserSalonMembership(
         }
       }
     } catch {}
+
+    if (!isSuperadminMaster) {
+      try {
+        const { data: globalPref } = await (supabase.from('admin_preferences' as any) as any)
+          .select('preferences')
+          .eq('id', 'global')
+          .maybeSingle();
+        const authDirectory = globalPref?.preferences?.auth_directory;
+        if (Array.isArray(authDirectory)) {
+          const cleanUserNoAt = cleanEmail.replace(/^[@#&]+|[@#&]+$/g, '');
+          const matchedDirAdmin = authDirectory.find(
+            (r: any) =>
+              (r?.isSuperadmin || r?.sourceTable === 'system_admins') &&
+              matchSuperadminRecord(r, cleanUserNoAt)
+          );
+          if (matchedDirAdmin) {
+            isSuperadminMaster = true;
+            if (matchedDirAdmin.id) candidateIds.add(String(matchedDirAdmin.id));
+            if (matchedDirAdmin.user_id) candidateIds.add(String(matchedDirAdmin.user_id));
+            if (matchedDirAdmin.email) {
+              resolvedClientEmail = String(matchedDirAdmin.email).trim().toLowerCase();
+            }
+          }
+        }
+      } catch {}
+    }
 
     if (userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId.trim())) {
       try {
