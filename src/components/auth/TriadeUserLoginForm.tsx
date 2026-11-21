@@ -215,7 +215,23 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
     setIsLoading(true);
 
-    try {
+    try {const { data: adm } = await (supabase as any).rpc('verify_admin_login', {
+  p_identifier: rawId,
+  p_password: cleanPass,
+});
+if (adm?.[0]) {
+  const a = adm[0];
+  let session;
+  const { data: s } = await supabase!.auth.signInWithPassword({ email: a.email, password: cleanPass });
+  if (s?.session) session = { access_token: s.session.access_token, refresh_token: s.session.refresh_token };
+  setIsLoading(false);
+  onSuccess?.({
+    identifier: rawId, id: String(a.user_id || a.id), name: a.full_name, username: a.username,
+    email: a.email, avatarUrl: a.avatar_url || '', accountType: 'owner', session,
+    matchedAccount: { ...a, sourceTable: 'system_admins', isSuperadmin: true },
+  });
+  return;
+}
       const cleanUsername = rawId.replace(/^@+/, '').toLowerCase();
       const matchedList = await findMatchingTriadeAccounts(rawId);
 
