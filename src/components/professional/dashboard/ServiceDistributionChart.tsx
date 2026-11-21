@@ -20,7 +20,7 @@ export const ServiceDistributionChart: React.FC<ServiceDistributionChartProps> =
     <div className={`p-3.5 rounded-lg border flex flex-col select-none ${
       isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 shadow-xs text-slate-900'
     }`}>
-      {/* Cabeçalho */}
+
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800/40">
         <div className="flex items-center gap-1.5">
           <div className="w-6 h-6 rounded brand-soft-badge flex items-center justify-center">
@@ -33,7 +33,6 @@ export const ServiceDistributionChart: React.FC<ServiceDistributionChartProps> =
         </div>
       </div>
 
-      {/* Lista de Barras Horizontais */}
       <div className="space-y-2.5">
         {services.length === 0 ? (
           <p className="text-xs text-slate-400 text-center py-3">Nenhum atendimento registrado no período.</p>
@@ -43,8 +42,8 @@ export const ServiceDistributionChart: React.FC<ServiceDistributionChartProps> =
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5 truncate pr-2">
                   <span className={`text-[10px] font-bold w-4 text-center shrink-0 ${
-                    idx === 0 
-                      ? 'brand-text font-black' 
+                    idx === 0
+                      ? 'brand-text font-black'
                       : isDark ? 'text-slate-500' : 'text-slate-400'
                   }`}>
                     {idx + 1}º
@@ -64,7 +63,6 @@ export const ServiceDistributionChart: React.FC<ServiceDistributionChartProps> =
                 </div>
               </div>
 
-              {/* Barra de Progresso Horizontal */}
               <div className={`w-full h-2 rounded-full overflow-hidden ${
                 isDark ? 'bg-slate-800' : 'bg-slate-100'
               }`}>

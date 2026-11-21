@@ -32,7 +32,7 @@ import { useTheme, EXPLICIT_THEME_STORAGE_KEY } from '../../context/ThemeContext
 import { SalonAdminSettings } from '../../types';
 import { hapticLight, hapticSuccess } from '../../utils/haptics';
 import { updateDynamicPwaAssets } from '../../utils/pwaAssets';
-import { compressImageFile } from '../../utils/imageCompressor';
+import { uploadBinaryMediaAsset } from '../../services/mediaUploadService';
 import { getSectionHeaderStyleData } from '../../utils/sectionHeaderStyle';
 import { UnifiedButtonEditor } from './UnifiedButtonEditor';
 import { DefaultThemeConfirmModal } from './DefaultThemeConfirmModal';
@@ -87,7 +87,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
     setActiveStudioTab(initialTab ?? null);
   }, [initialTab]);
 
-  // Estado local espelhado das configurações
   const [salonName] = useState(adminSettings.salonName || '');
   const [pwaName, setPwaName] = useState(adminSettings.pwaName || adminSettings.salonName || '');
   const [slogan, setSlogan] = useState(adminSettings.slogan || '');
@@ -111,7 +110,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
     Boolean(adminSettings.themeExplicitlyCustomized ?? themeExplicitlyCustomized)
   );
 
-  // Controles estruturais & barras
   const [showSlogan, setShowSlogan] = useState<boolean>(adminSettings.showSlogan !== false);
   const [showHomeTab, setShowHomeTab] = useState<boolean>(adminSettings.showHomeTab !== false);
   const [showHeroSlides, setShowHeroSlides] = useState<boolean>(adminSettings.showHeroSlides !== false);
@@ -229,7 +227,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
     ]
   );
 
-  // Aplica Tema Rápido em Cascata Total (sobrescreve ajustes manuais de barras e seções para garantir uniformidade no app inteiro)
   const applyQuickThemeCascade = async (rawHex: string) => {
     const cleanHex = normalizeHex(rawHex) || DEFAULT_NEUTRAL_HEX;
     const presetId = resolveThemePresetId(cleanHex, true);
@@ -239,7 +236,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
     setHexDraft(cleanHex);
     setIsCustomized(true);
 
-    // Limpa todos os overrides manuais anteriores para cascata 100% uniforme
     setSectionHeaderBgColor('');
     setSectionHeaderTextColor('');
     setSectionHeaderIconColor('');
@@ -286,7 +282,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
     setTimeout(() => setSavedSuccess(false), 2000);
   };
 
-  // Restauração completa ao Default Neutro (cinza, branco & escuro suave) com opção de manter apenas o logotipo
   const handleConfirmDefaultReset = async (keepLogos: boolean) => {
     resetToDefaultPalette();
     setDefaultTheme('light');
@@ -409,26 +404,35 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
   ) => {
     if (!file || (!file.type.startsWith('image/') && !file.name.endsWith('.svg'))) return;
     try {
+      const salonId = localStorage.getItem('vagou_salon_db_id') || undefined;
       if (target === 'icon') {
-        const compressed = await compressImageFile(file, {
+        const uploaded = await uploadBinaryMediaAsset(file, {
+          bucket: 'branding',
+          ownerType: 'salon_favicon',
+          salonId,
+          title: 'Ícone PWA do Salão',
           maxWidth: 256,
           maxHeight: 256,
           quality: 0.9,
           mimeType: 'image/png',
         });
-        setSalonIcon(compressed);
+        setSalonIcon(uploaded.publicUrl);
       } else {
-        const compressed = await compressImageFile(file, {
+        const uploaded = await uploadBinaryMediaAsset(file, {
+          bucket: 'branding',
+          ownerType: 'salon_logo',
+          salonId,
+          title: target === 'light' ? 'Logotipo Claro' : 'Logotipo Escuro',
           maxWidth: 640,
           maxHeight: 180,
           quality: 0.88,
         });
-        if (target === 'light') setSalonLogoLight(compressed);
-        else setSalonLogoDark(compressed);
+        if (target === 'light') setSalonLogoLight(uploaded.publicUrl);
+        else setSalonLogoDark(uploaded.publicUrl);
       }
       hapticSuccess();
-    } catch (err) {
-      console.error('Erro ao processar imagem:', err);
+    } catch (err: any) {
+      setSaveError(err?.message || 'Erro ao enviar imagem binária para o Storage.');
     }
   };
 
@@ -630,7 +634,7 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
         color: isDark ? '#F8FAFC' : '#0F172A',
       }}
     >
-      {/* Topo Fixo do Estúdio com Botão Default Sempre Visível */}
+
       <div className="shrink-0 sticky top-0 z-30">
         <div className={sectionHeaderStyleData.containerClass} style={sectionHeaderStyleData.containerStyle}>
           <div className="flex items-center gap-2 min-w-0">
@@ -687,7 +691,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
         </div>
       </div>
 
-      {/* Menu Exclusivo de CardButtons da Seção Visual & Layout */}
       {activeStudioTab === null ? (
         <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-3.5 pb-20">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-w-2xl mx-auto">
@@ -736,12 +739,12 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
         </div>
       ) : (
         <>
-          {/* Área Rolável da Seção Selecionada */}
+
           <form onSubmit={handleSaveAll} className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-3.5 space-y-4 pb-24">
-            {/* ================= ABA 1: TEMA & CORES ================= */}
+
             {activeStudioTab === 'tema' && (
           <div className="space-y-4">
-            {/* Prévia Ao Vivo do App Inteiro */}
+
             <div
               className="rounded-[4px] border overflow-hidden shadow-xs"
               style={{
@@ -749,7 +752,7 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
                 borderColor: previewPalette.cardBorder,
               }}
             >
-              {/* Topo Simulado */}
+
               <div
                 className="px-3 py-2 flex items-center justify-between border-b"
                 style={{
@@ -773,7 +776,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
                 </span>
               </div>
 
-              {/* Conteúdo + Ação Simulada */}
               <div className="p-3 flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <span className="text-[10px] font-bold block" style={{ color: previewPalette.sectionText }}>
@@ -794,7 +796,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
                 </span>
               </div>
 
-              {/* Barra Inferior Simulada */}
               <div
                 className={`px-2.5 py-1.5 border-t grid gap-1.5 ${showHomeTab ? 'grid-cols-4' : 'grid-cols-3'}`}
                 style={{
@@ -834,7 +835,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
               </div>
             </div>
 
-            {/* Modo Base (Claro / Escuro) */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-[11px] font-extrabold uppercase tracking-wider opacity-80">
@@ -883,7 +883,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
               </div>
             </div>
 
-            {/* Temas Rápidos (1 Toque -> Altera App Inteiro) */}
             <div className={`space-y-2.5 pt-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <div className="flex items-center justify-between">
                 <h3 className="text-[11px] font-extrabold uppercase tracking-wider opacity-80">
@@ -941,7 +940,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
               </div>
             </div>
 
-            {/* Cor Personalizada (#HEX) sem placeholder colidindo e com rótulo à esquerda do picker */}
             <div className={`space-y-2 pt-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <div className="flex items-center justify-between gap-2">
                 <label className="text-[11px] font-extrabold uppercase tracking-wider opacity-80">
@@ -991,10 +989,9 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
           </div>
         )}
 
-        {/* ================= SEÇÃO: LOGO (3 ABAS INTERNAS) ================= */}
         {activeStudioTab === 'marca' && (
           <div className="space-y-4">
-            {/* Abas Internas da Seção Logo */}
+
             <div className="grid grid-cols-3 gap-1.5">
               {[
                 { id: 'logos' as const, label: 'Logo Claro/Escuro', icon: ImageIcon },
@@ -1027,10 +1024,9 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
               })}
             </div>
 
-            {/* ABA 1: LOGO TEMA CLARO E ESCURO */}
             {logoSubTab === 'logos' && (
               <div className="space-y-3.5">
-                {/* Logo Tema Claro */}
+
                 <div className="space-y-2 pb-3 border-b border-slate-200 dark:border-slate-800">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold flex items-center gap-1.5">
@@ -1078,7 +1074,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
                   </div>
                 </div>
 
-                {/* Logo Tema Escuro */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold flex items-center gap-1.5">
@@ -1128,7 +1123,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
               </div>
             )}
 
-            {/* ABA 2: ÍCONE DO APP E NAVEGADOR */}
             {logoSubTab === 'icone' && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -1227,7 +1221,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
               </div>
             )}
 
-            {/* ABA 3: PROVISÓRIO (TEXTO PROVISÓRIO NA AUSÊNCIA DE LOGO) */}
             {logoSubTab === 'provisorio' && (
               <div className="space-y-3">
                 <div className="space-y-1">
@@ -1273,7 +1266,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
                   />
                 </div>
 
-                {/* Fonte da Marca */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold block">Fonte da Marca</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -1313,10 +1305,9 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
           </div>
         )}
 
-        {/* ================= ABA 3: ESTRUTURA & BARRAS ================= */}
         {activeStudioTab === 'estrutura' && (
           <div className="space-y-4">
-            {/* Vitrine: Slogan, Slides & Faixa de Boas-Vindas */}
+
             <div className="space-y-2.5">
               <h3 className="text-[11px] font-extrabold uppercase tracking-wider opacity-80">
                 Vitrine & Início
@@ -1426,7 +1417,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
               )}
             </div>
 
-            {/* Barra de Títulos das Seções */}
             <div className={`space-y-2.5 pt-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <h3 className="text-[11px] font-extrabold uppercase tracking-wider opacity-80">
                 Barra de Títulos das Seções
@@ -1506,7 +1496,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
               })}
             </div>
 
-            {/* Barra de Navegação Inferior (BottomNav) */}
             <div className={`space-y-2.5 pt-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <h3 className="text-[11px] font-extrabold uppercase tracking-wider opacity-80">
                 Barra Inferior (Rodapé)
@@ -1668,7 +1657,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
         )}
       </form>
 
-          {/* Rodapé Fixo de Ação */}
           <div
             className={`p-3 border-t shrink-0 sticky bottom-0 z-20 space-y-2 ${
               isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
@@ -1712,7 +1700,6 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
         </>
       )}
 
-      {/* Modal In-App de Confirmação Default */}
       <DefaultThemeConfirmModal
         isOpen={isDefaultModalOpen}
         isDark={isDark}

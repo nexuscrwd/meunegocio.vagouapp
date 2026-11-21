@@ -110,7 +110,7 @@ export const SecurityQuestionProfileCard: React.FC<SecurityQuestionProfileCardPr
           const isConfigured = Boolean(activeCode && activeAnswer);
 
           if (!isConfigured) {
-            // Se houve reset administrativo no admvapp (ambos vazios no banco), limpa eventual cache local antigo deste usuário
+
             try {
               const cached = JSON.parse(localStorage.getItem('vagou_user_security_answers') || '[]');
               if (Array.isArray(cached) && cached.length > 0) {
@@ -138,11 +138,10 @@ export const SecurityQuestionProfileCard: React.FC<SecurityQuestionProfileCardPr
           }
           return;
         } catch {
-          // Fallback local caso offline
+
         }
       }
 
-      // Fallback em cache local
       try {
         const cached = JSON.parse(localStorage.getItem('vagou_user_security_answers') || '[]');
         const foundLocal = Array.isArray(cached)
@@ -251,7 +250,6 @@ export const SecurityQuestionProfileCard: React.FC<SecurityQuestionProfileCardPr
         }
       }
 
-      // Atualiza cache local sincronizado
       try {
         const cached = JSON.parse(localStorage.getItem('vagou_user_security_answers') || '[]');
         const list = Array.isArray(cached) ? cached : [];

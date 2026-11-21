@@ -1,7 +1,7 @@
-# 🏛️ ECOSYSTEM_CONTRACT.md — Contrato Soberano da Tríade VagouApp (v5.0)
+# 🏛️ ECOSYSTEM_CONTRACT.md — Contrato Soberano da Tríade VagouApp (v6.0)
 
 > **FONTE ÚNICA DA VERDADE (`mnvapp` ⇄ `admvapp` ⇄ `pvapp`)**  
-> Este documento rege o contrato arquitetural, visual e relacional entre as **três aplicações React + TypeScript + Tailwind CSS v4** que compartilham o mesmo banco de dados **Supabase (PostgreSQL v5.0)**.
+> Este documento rege o contrato arquitetural, visual, de mídia binária, Push/Realtime e relacional entre as **três aplicações React + TypeScript + Tailwind CSS v4** que compartilham o banco **Supabase Clean Rebuild v6.0**.
 
 ---
 
@@ -13,7 +13,7 @@
 
 ---
 
-## 🗺️ 2. Diagrama de Convergência em Tempo Real (Supabase v5.0)
+## 🗺️ 2. Arquitetura Unificada v6.0 (Zero Base64 • Zero Tabelas Espelho • Web Push Nativo)
 
 ```
 ┌───────────────────────────┐   ┌───────────────────────────────┐   ┌───────────────────────────┐
@@ -25,71 +25,73 @@
               └─────────────────────────────────┼─────────────────────────────────┘
                                                 ▼
 ┌───────────────────────────────────────────────────────────────────────────────────────────────┐
-│                      BANCO COMPARTILHADO SUPABASE POSTGRESQL (SQL v5.0)                       │
-│  • 23 Tabelas Unificadas (Zero DROP CASCADE • Zero Mocks • Realtime Habilitado)               │
-│  • Triggers Bidirecionais: services ⇄ salon_services | dependents ⇄ client_family_members     │
-│  • Sincronismo Financeiro: billing_fee_value ⇄ fee_per_booking (Padrão R$ 2,50 / R$ 89,90)    │
-│  • Motor Anti-Colisão Geotemporal: check_client_inter_salon_collision + Trigger P0001         │
-│  • RPCs Corporativas & GIS: verify_admin_login | register_triade_user | get_offers_in_radius  │
+│                     BANCO COMPARTILHADO SUPABASE POSTGRESQL (SQL v6.0)                        │
+│  • 23 Tabelas Normalizadas (ZERO salon_services, client_family_members, platform_admins)      │
+│  • Storage Binário + public.media_assets + CHECK anti-Base64 (^data: bloqueado no Postgres)   │
+│  • Auth JWT Nativo (app_metadata.role) + RLS Estrito por Tenant (zero service_role no client) │
+│  • Triggers Nativos: Auditoria, CRM/Caixa, Anti-Colisão Geotemporal, CPF Sync, Orphan Cleanup │
+│  • Web Push Nativo (VAPID + Service Worker) + Fila Transacional notification_outbox           │
+│  • Supabase Realtime Unificado (REPLICA IDENTITY FULL em todas as tabelas operacionais)       │
 └───────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🎨 3. Contrato de Identidade Visual & Tokens Default (`bol-162`)
+## 🖼️ 3. Política Estrita de Mídia Binária (Zero Base64)
 
-Quando um estabelecimento é criado sem customização própria (ou utiliza o tema padrão do ecossistema), **toda a Tríade (`mnvapp`, `admvapp` e `pvapp`)** deve respeitar o esquema **Claro & Neutro Independente** na tabela `salons` e `salon_ui_settings`:
-
-| Propriedade / Coluna | Valor Default Oficial | Regra de Contraste |
-| :--- | :--- | :--- |
-| `default_theme` / `theme_preset_id` | `'light'` / `'neutral-light'` | Tom claro e neutro obrigatório por padrão na inicialização. |
-| **Fundo Geral da Tela (`canvas`)** | `#F8FAFC` (moldura `#EEF2F6`) | Cards em `#FFFFFF` com borda `#E2E8F0` e tipografia `#1E293B` / `#64748B`. |
-| `nav_bg_color` / `nav_bg_style` | `'#F1F5F9'` / `'solid'` | Barra inferior clara com botão ativo branco (`#FFFFFF`, borda `#CBD5E1`, ícone/texto `#0F172A`). |
-| `section_header_bg_color` | `'#FFFFFF'` (`'solid'`) | Texto `#1E293B` e ícone `#475569` com borda `#E2E8F0`. |
-| `primary_color` / `secondary_color` | `'#334155'` / `'#1E293B'` | **REGRA INEGOCIÁVEL:** Qualquer botão/badge sólido escuro (`#334155`) ou verde semântico (`#10B981`, `#20C933`, `bg-emerald-500/600`) exige obrigatoriamente texto e ícone **`#FFFFFF` (`text-white`)**. |
-| **Raio de Borda Global** | `4px` (`rounded-[4px]`) | Proibido aninhar caixas com bordas dentro de caixas com bordas (*Zero Box-in-Box*). |
+1. **Bloqueio no Banco:** Todas as colunas de mídia possuem `CHECK (public.is_valid_media_url(...))` rejeitando strings que iniciam com `data:`.
+2. **4 Buckets Oficiais no Supabase Storage:**
+   - `avatars` — fotos de perfil de clientes, profissionais e administradores.
+   - `branding` — logotipos (claro/escuro), favicons PWA e banners.
+   - `services` — fotos, slides e vídeos de serviços e ofertas relâmpago.
+   - `salon-media` — fachada, interior e galeria institucional.
+3. **Catálogo Relacional (`public.media_assets`):** Todo upload binário (via `POST /api/media/upload` ou Storage direto) registra metadados (`bucket`, `storage_path`, `public_url`, `mime_type`, `size_bytes`, `owner_type`, `owner_id`, `salon_id`).
+4. **Limpeza Automática de Órfãos:** Excluir ou substituir um registro em `media_assets` dispara `trg_cleanup_storage_orphans`, enfileirando o arquivo em `storage_cleanup_queue` para remoção no Storage.
 
 ---
 
-## 🗄️ 4. Contrato das 23 Tabelas Unificadas (SQL v5.0)
+## 🗄️ 4. Contrato das 23 Tabelas Normalizadas (SQL v6.0)
 
-Arquivo mestre de referência: `supabase/migrations/20261111_master_convergence_v5_0.sql` (espelhado em `supabase/schema.sql`).
+Arquivo mestre: `supabase/migrations/20261121_vagou_v6_0_clean_reset.sql` (espelhado em `supabase/schema.sql`).
 
 ### 4.1. Núcleo de Identidade, Segurança e Governança
-1. `profiles`: Perfil global vinculado a `auth.users` com endereço e geolocalização sincronizados por CPF.
-2. `system_admins`: Administradores corporativos do `admvapp` autenticados via `verify_admin_login` (`pgcrypto` bcrypt).
-3. `admin_access_logs`: Trilha imutável de auditoria administrativa do `admvapp`.
-4. `security_questions`: Catálogo oficial das 3 perguntas de segurança para recuperação de acesso (único seed permitido em produção).
-5. `user_security_answers`: Respostas normalizadas vinculadas a `clients` (quando zeradas junto a `clients.security_question_code = NULL` via suporte do `admvapp`, o `mnvapp` libera recadastro imediato da pergunta secreta em *Meus Dados Pessoais*).
+1. `profiles` — Perfil global vinculado a `auth.users` com propagação automática por CPF (`trg_propagate_cpf_identity`).
+2. `system_admins` — Administradores do `admvapp` autenticados via Supabase Auth JWT + `verify_admin_login` (`pgcrypto` bcrypt) e provisionamento inicial auto-travante (`bootstrap_initial_super_admin`).
+3. `admin_preferences` — Preferências globais visuais e institucionais do painel Admin (`id = 'global'`).
+4. `admin_access_logs` — Trilha imutável de auditoria administrativa.
+5. `security_questions` — 3 perguntas oficiais de segurança (`sq_1`, `sq_2`, `sq_3`).
+6. `user_security_answers` — Respostas normalizadas vinculadas a `clients`.
 
 ### 4.2. Estabelecimentos, White-Label & Equipe
-6. `salons`: Cadastro mestre do parceiro, geolocalização, branding white-label e plano financeiro (`billing_plan`, `fee_per_booking` ⇄ `billing_fee_value = 2.50`, `monthly_subscription_fee = 89.90`, `billing_due_day = 10`).
-7. `salon_ui_settings`: Preferências visuais granulares da vitrine (`BottomNav`, `SectionHeader`, tipografia e tema).
-8. `salon_members`: Vínculo multi-tenant `salon_id ⇄ user_id`.
-9. `salon_users`: Credenciais operacionais de gerentes e recepcionistas do salão.
-10. `professionals`: Profissionais da equipe, comissões, especialidades e escalas individuais (`schedule_config`).
+7. `salons` — Cadastro mestre do parceiro, geolocalização, branding URL-only e cobrança (`fee_per_booking`, `monthly_subscription_fee`, `billing_due_day`).
+8. `salon_ui_settings` — Preferências visuais granulares da vitrine (`BottomNav`, `SectionHeader`, tema e tipografia).
+9. `salon_members` — Vínculo multi-tenant `salon_id ⇄ user_id` (`owner`, `manager`, `professional`, `receptionist`).
+10. `professionals` — Profissionais da equipe, comissões, especialidades e escalas (`schedule_config`).
 
-### 4.3. Catálogo Bidirecional & Radar
-11. `services` ⇄ 12. `salon_services`: Espelhadas em tempo real por triggers bidirecionais (`trg_sync_services_to_salon_services` e `trg_sync_salon_services_to_services`), garantindo que edições no `mnvapp` ou no `admvapp` reflitam instantaneamente em ambos.
-13. `service_offers`: Vagas relâmpago publicadas no Radar com expiração (`expires_at`) e mídia em 3 níveis.
+### 4.3. Catálogo, Radar & Mídia Binária
+11. `services` — Catálogo único de serviços do salão (elimina `salon_services`).
+12. `service_offers` — Vagas relâmpago publicadas no Radar (`pvapp`) com RPC `get_offers_in_radius`.
+13. `media_assets` — Catálogo relacional de ativos binários no Supabase Storage (substitui `salon_media_items`).
+14. `storage_cleanup_queue` — Fila automática de remoção de objetos órfãos no Storage.
 
-### 4.4. Clientes, Carteira & Conta Família Bidirecional
-14. `clients`: Base global de consumidores (CPF, WhatsApp, coordenadas de partida e perguntas de segurança).
-15. `salon_clients`: Carteira CRM de clientes por estabelecimento (`total_appointments`, `total_spent`, `last_visit_at`).
-16. `dependents` ⇄ 17. `client_family_members`: Espelhadas automaticamente por triggers (`trg_sync_dependents_to_family_members` e `trg_sync_family_members_to_dependents`) com atualização automática de `clients.dependents_count`.
+### 4.4. Clientes, Carteira CRM & Conta Família
+15. `clients` — Base global de consumidores (CPF, WhatsApp, coordenadas de partida e perguntas de segurança).
+16. `salon_clients` — Carteira CRM por salão (`total_appointments`, `total_spent`, `last_visit_at`) mantida por trigger.
+17. `dependents` — Dependentes da Conta Família (elimina `client_family_members`), com `trg_sync_dependents_count`.
 
-### 4.5. Agendamentos, Mídia, Utilidades e Financeiro
-18. `appointments`: Agendamentos reais ordenados por `date_str ASC, start_time ASC`, com baixa financeira (`is_paid` ⇄ `payment_status`), pausa de agenda (`is_blocked_slot`), permuta em cascata (`swap_state`), telemetria RTLS (`tracking_status`, `client_lat/lng`, `eta_minutes`, `route_polyline`) e proteção anti-colisão geotemporal.
-19. `salon_media_items` & 20. `salon_media_slots`: Galeria institucional e os 5 slots oficiais de mídia do Radar.
-21. `salon_utilities_records`: Gestão de medidores de água/energia, estoque (`supply_items` ⇄ `inventory_items`) e DRE (`dre_records` ⇄ `financial_dre`).
-22. `billing_invoices`: Faturas mensais corporativas VagouApp por salão.
-23. `financial_transactions`: Fluxo de caixa detalhado do estabelecimento (receitas e despesas).
+### 4.5. Agendamentos, Push, Utilidades & Financeiro
+18. `appointments` — Agendamentos com anti-colisão geotemporal (`trg_prevent_inter_salon_collision`), baixa financeira automática, permutas e telemetria RTLS.
+19. `push_subscriptions` — Assinaturas Web Push VAPID (`endpoint`, `p256dh`, `auth`) por usuário/cliente/salão.
+20. `notification_outbox` — Fila transacional de notificações Push populada por triggers SQL (`trg_enqueue_appointment_push`).
+21. `salon_utilities_records` — Energia, água, equipamentos, DRE e estoque/insumos por salão.
+22. `billing_invoices` — Faturas mensais corporativas VagouApp por salão.
+23. `financial_transactions` — Fluxo de caixa (receitas geradas automaticamente na conclusão do agendamento + despesas).
 
 ---
 
 ## 🔄 5. Protocolo Obrigatório de Sincronização (7º Mandamento)
 
-Qualquer alteração de schema, coluna, RPC, status ou token default realizada em um repositório exige:
-1. Atualização de `supabase/migrations/` com script **100% idempotente** (`CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`, **proibido `DROP TABLE CASCADE`**).
+Qualquer evolução após a v6.0 exige:
+1. Migração incremental idempotente em `supabase/migrations/`.
 2. Registro rastreável no `CHANGELOG.md`.
-3. Emissão imediata do **`# 🏛️ COMUNICADO TÉCNICO INTER-PROJETOS`** para os outros dois repositórios da Tríade.
+3. Emissão obrigatória do **`# 🏛️ COMUNICADO TÉCNICO INTER-PROJETOS`** para os outros dois repositórios da Tríade (ver `ADMVAPP_V6_SYNC_BLUEPRINT.md`).

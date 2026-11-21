@@ -21,7 +21,6 @@ export interface ServiceOffer {
   lng: number;
   featured?: boolean;
 
-  // Extensões de mídia e urgência
   mediaLevel?: 1 | 2 | 3;
   videoUrl?: string;
   galleryImages?: string[];
@@ -71,13 +70,11 @@ export interface BookingAppointment {
   dateIso?: string;
   createdAt?: string;
 
-  // Vagou Family / Dependentes (Multi-Perfis)
   is_dependent?: boolean;
   dependent_id?: string;
   dependent_name?: string;
   client_user_id?: string;
 
-  // Gestão Financeira & Caixa
   paymentMethod?: PaymentMethod;
   isPaid?: boolean;
   paidAt?: string;
@@ -85,11 +82,9 @@ export interface BookingAppointment {
   commissionAmount?: number;
   platformFee?: number;
 
-  // Bloqueio de Horário
   isBlockedSlot?: boolean;
   blockReason?: string;
 
-  // Remanejamento e Troca de Horário entre Clientes (Proposta A <-> B)
   swapRequest?: {
     isClientSwap: boolean;
     message?: string;
@@ -108,14 +103,13 @@ export interface BookingAppointment {
     };
     status: 'pending_client_b' | 'pending_salon_confirmation' | 'confirmed' | 'rejected' | 'completed';
     rejectedSlots?: string[];
-    // Fila em Cascata Automática (A -> B -> C -> D)
+
     cascadeTargets?: SwapTargetQueueItem[];
     currentCascadeIndex?: number;
     timeoutSecondsPerTarget?: number;
     lastTargetUpdatedAt?: number;
   };
 
-  // Radar Bidirecional de Deslocamento Ao Vivo ("Estou a Caminho" — bol-020)
   service_location_type?: ServiceLocationType;
   transport_mode?: TransportMode;
   tracking_status?: LiveTrackingStatus;
@@ -179,12 +173,12 @@ export interface SwapTargetQueueItem {
 }
 
 export interface ClientSwapGovernance {
-  optIn: boolean; // Optante para participar da rede solidária de trocas
-  monthlyQuota: number; // Padrão 2 trocas por mês
-  usedThisMonth: number; // Trocas solicitadas no mês corrente
-  activeRejections: number; // Recusas ativas explícitas (limite 5)
-  consecutiveTimeouts: number; // Vácuos consecutivos (limite 3 -> desativa optIn)
-  isBannedFromRequesting: boolean; // Suspenso se activeRejections >= 5
+  optIn: boolean;
+  monthlyQuota: number;
+  usedThisMonth: number;
+  activeRejections: number;
+  consecutiveTimeouts: number;
+  isBannedFromRequesting: boolean;
 }
 
 export type UserPersona = 'cliente' | 'pro' | 'profissional' | 'admin';
@@ -196,19 +190,18 @@ export interface FamilyMember {
   id: string;
   name: string;
   relationship: FamilyRelationship;
-  birthDate?: string; // YYYY-MM-DD para cálculo de faixa etária e maioridade
+  birthDate?: string;
   avatarUrl?: string;
   avatarEmoji?: string;
   gender?: 'M' | 'F' | 'O';
-  notes?: string; // Preferências de corte, alergias, estilo favorito
+  notes?: string;
   autonomyLevel: FamilyAutonomyLevel;
-  phone?: string; // Celular do jovem quando atingir autonomia
+  phone?: string;
   email?: string;
-  emancipatedUserId?: string; // ID da conta emancipada quando virar independente
+  emancipatedUserId?: string;
   createdAt?: string;
 }
 
-// Dependente da Conta Família (Padrão Unificado Tríade VagouApp / admvapp)
 export interface UserFamilyDependent {
   id: string;
   parent_client_id?: string;
@@ -280,64 +273,60 @@ export interface SalonAdminSettings {
   secondaryColor?: string;
   themePresetId?: string;
   themeExplicitlyCustomized?: boolean;
-  salonLogo?: string; // Logo padrão / fallback
-  salonLogoLight?: string; // Logo horizontal para o tema claro (fundo claro)
-  salonLogoDark?: string; // Logo horizontal para o tema escuro (fundo escuro)
-  salonIcon?: string; // Ícone quadrado (1:1) para o PWA (instalação no celular)
+  salonLogo?: string;
+  salonLogoLight?: string;
+  salonLogoDark?: string;
+  salonIcon?: string;
   facadePhotoUrl?: string;
   interiorPhotoUrl?: string;
-  pwaName?: string;   // Nome curto/completo exibido na tela inicial do celular
-  slogan?: string;    // Assinatura curta da marca (até 60 caracteres) exibida abaixo do nome do salão
-  showSlogan?: boolean; // Ocultar ou exibir slogan do cabeçalho (padrão true)
-  logoTextFallback?: string; // Texto provisório do cabeçalho na ausência de logotipo
-  logoTextColor?: string; // Cor personalizada da fonte do texto provisório
-  showHomeTab?: boolean; // Ocultar ou exibir a tela inicial e o botão Início no menu inferior (padrão true)
-  showHeroSlides?: boolean; // Ocultar ou exibir slide da página principal (padrão true)
-  brandFont?: 'Poppins' | 'Cormorant Garamond' | 'Oswald' | 'Plus Jakarta Sans' | string; // Fonte de destaque do Nome/Cabeçalho
-  defaultTheme?: 'dark' | 'light'; // Layout claro ou escuro permanente
-  navStyle?: 'minimal' | 'solid' | 'boxed'; // Estilo visual da barra de navegação inferior (BottomNav)
-  navShape?: 'square' | 'circle'; // Formato dos botões da navegação inferior (quadrado vs circular)
-  navBorder?: 'bordered' | 'none'; // Botão com borda ou sem borda (box externo)
-  navIconBorder?: 'bordered' | 'none'; // Ícone com borda ou sem borda (box interno do ícone)
-  navBgStyle?: 'solid' | 'glass' | 'transparent'; // Fundo do rodapé: sólido, alpha-vidro jateado, alpha 100% (transparente)
-  navBgColor?: string; // Cor personalizada do fundo do rodapé
-  navBtnBgColor?: string; // Cor personalizada do fundo dos botões (inativos / base)
-  navBtnActiveBgColor?: string; // Cor personalizada do fundo do botão quando ativo
-  navActiveColor?: string; // Cor personalizada de destaque da navegação inferior (ícone e texto ativos)
-  navTextColor?: string; // Cor personalizada do texto e ícones (inativos / base)
-  navBtnShadow?: 'none' | 'subtle' | 'medium' | 'glow'; // Efeito de sombra nos botões da barra de navegação
-  navBtnBlur?: 'none' | 'sm' | 'md' | 'lg'; // Efeito de blur/desfoque nos botões da barra de navegação
-  navBtnFont?: 'Poppins' | 'Inter' | 'Plus Jakarta Sans' | 'Oswald' | 'Cormorant Garamond' | string; // Fonte dos botões da navegação
-  welcomeStyle?: 'atmospheric' | 'glass'; // Estilo da faixa de boas-vindas na seção Início
+  pwaName?: string;
+  slogan?: string;
+  showSlogan?: boolean;
+  logoTextFallback?: string;
+  logoTextColor?: string;
+  showHomeTab?: boolean;
+  showHeroSlides?: boolean;
+  brandFont?: 'Poppins' | 'Cormorant Garamond' | 'Oswald' | 'Plus Jakarta Sans' | string;
+  defaultTheme?: 'dark' | 'light';
+  navStyle?: 'minimal' | 'solid' | 'boxed';
+  navShape?: 'square' | 'circle';
+  navBorder?: 'bordered' | 'none';
+  navIconBorder?: 'bordered' | 'none';
+  navBgStyle?: 'solid' | 'glass' | 'transparent';
+  navBgColor?: string;
+  navBtnBgColor?: string;
+  navBtnActiveBgColor?: string;
+  navActiveColor?: string;
+  navTextColor?: string;
+  navBtnShadow?: 'none' | 'subtle' | 'medium' | 'glow';
+  navBtnBlur?: 'none' | 'sm' | 'md' | 'lg';
+  navBtnFont?: 'Poppins' | 'Inter' | 'Plus Jakarta Sans' | 'Oswald' | 'Cormorant Garamond' | string;
+  welcomeStyle?: 'atmospheric' | 'glass';
 
-  // Personalização da Barra de Título das Seções (Subcabeçalhos) & Botões
-  sectionHeaderBgColor?: string; // Cor de fundo da barra de título das seções
-  sectionHeaderTextColor?: string; // Cor do texto do título das seções
-  sectionHeaderIconColor?: string; // Cor dos ícones de destaque das seções
-  sectionHeaderBgStyle?: 'solid' | 'glass' | 'transparent'; // Estilo do fundo da barra de título
-  sectionHeaderBorder?: 'bordered' | 'none'; // Borda inferior da barra de título
-  sectionHeaderBtnBgColor?: string; // Cor do fundo dos botões/crachás da barra de títulos
-  sectionHeaderBtnActiveBgColor?: string; // Cor do fundo do botão/crachá ativo da barra de títulos
-  sectionHeaderBtnBorder?: 'bordered' | 'none'; // Borda dos botões/crachás da barra de títulos
-  sectionHeaderBtnShadow?: 'none' | 'subtle' | 'medium' | 'glow'; // Efeito de sombra nos botões/crachás
-  sectionHeaderBtnBlur?: 'none' | 'sm' | 'md' | 'lg'; // Efeito de blur/desfoque nos botões/crachás
-  sectionHeaderBtnFont?: 'Poppins' | 'Inter' | 'Plus Jakarta Sans' | 'Oswald' | 'Cormorant Garamond' | string; // Fonte dos botões da barra de títulos
+  sectionHeaderBgColor?: string;
+  sectionHeaderTextColor?: string;
+  sectionHeaderIconColor?: string;
+  sectionHeaderBgStyle?: 'solid' | 'glass' | 'transparent';
+  sectionHeaderBorder?: 'bordered' | 'none';
+  sectionHeaderBtnBgColor?: string;
+  sectionHeaderBtnActiveBgColor?: string;
+  sectionHeaderBtnBorder?: 'bordered' | 'none';
+  sectionHeaderBtnShadow?: 'none' | 'subtle' | 'medium' | 'glow';
+  sectionHeaderBtnBlur?: 'none' | 'sm' | 'md' | 'lg';
+  sectionHeaderBtnFont?: 'Poppins' | 'Inter' | 'Plus Jakarta Sans' | 'Oswald' | 'Cormorant Garamond' | string;
 
-  bio?: string;       // História/apresentação do espaço (preenchida pós-cadastro no painel do salão)
-  websiteUrl?: string; // Site oficial do estabelecimento
-  instagramUrl?: string; // @instagram ou URL
-  facebookUrl?: string; // Facebook página ou URL
-  mapsUrl?: string; // Link ou referência do Google Maps
+  bio?: string;
+  websiteUrl?: string;
+  instagramUrl?: string;
+  facebookUrl?: string;
+  mapsUrl?: string;
 
-  // Dados Cadastrais e Fiscais (Exclusivos para CNPJ 14 dígitos; vazios '' quando Autônomo)
   razaoSocial?: string;
   cnpj?: string;
 
-  // Chaves PIX do Estabelecimento (Principal + Múltiplas Chaves JSONB)
   pixKey?: string;
   pixKeys?: SalonPixKeyItem[];
 
-  // Localização Detalhada
   cep?: string;
   logradouro?: string;
   numero?: string;
@@ -346,7 +335,6 @@ export interface SalonAdminSettings {
   cidade?: string;
   uf?: string;
 
-  // Atendimento Inteligente & Espaço
   operatingSchedule?: OperatingSchedule;
   operatingHoursJson?: Record<string, any>;
   holidays?: Array<{ id: string; date: string; name: string }>;
@@ -366,14 +354,12 @@ export interface SalonAdminSettings {
   closeTime?: string;
   closedOnHolidays?: boolean;
 
-  // Responsável Legal / Titular Pessoal (clients.cpf & salons.owner_cpf)
   ownerCpf?: string;
   legalManagerName?: string;
   legalManagerCpf?: string;
   legalManagerPhone?: string;
   legalManagerEmail?: string;
 
-  // Formato Operacional & Atendimento
   operatingModel?: 'solo' | 'team' | 'home_delivery' | 'hybrid';
   homeDeliverySettings?: {
     enabled: boolean;
@@ -383,28 +369,17 @@ export interface SalonAdminSettings {
     isFreeForCondo?: boolean;
   };
 
-  // Governança e Moderação Centralizada (adm.vagouapp.com / admvapp)
   status?: 'active' | 'pending' | 'incomplete' | 'suspended';
   isVerified?: boolean;
   moderationNotes?: string;
 }
 
-export interface ServiceCategoryItem {
-  id: string;
-  name: string;
-  description?: string;
-  iconKey?: string;
-  color?: string;
-  sortOrder?: number;
-  isCustom?: boolean;
-}
-
 export interface ProfessionalDayScheduleSlot {
-  dayKey: string; // 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab' | 'dom'
-  morningStart: string; // ex: '08:00'
-  morningEnd: string;   // ex: '12:00'
-  afternoonStart: string; // ex: '13:00'
-  afternoonEnd: string;   // ex: '18:00'
+  dayKey: string;
+  morningStart: string;
+  morningEnd: string;
+  afternoonStart: string;
+  afternoonEnd: string;
   isOpen?: boolean;
   openTime?: string;
   closeTime?: string;
@@ -453,7 +428,7 @@ export interface CatalogServiceItem {
   videoDurationSeconds?: number;
   displayMode?: 'static' | 'slideshow' | 'video';
   aspectRatio?: string;
-  professionalId?: string; // Multi-tenant RBAC: vincula o serviço a um profissional específico
+  professionalId?: string;
 }
 
 export type ProfessionalRole = 'admin' | 'professional' | 'receptionist' | 'superadmin';
@@ -462,19 +437,19 @@ export interface FinancialExpense {
   id: string;
   description: string;
   amount: number;
-  dueDate: string; // YYYY-MM-DD
-  category: 'fixed' | 'variable'; // Fixo ou Variável
+  dueDate: string;
+  category: 'fixed' | 'variable';
   status: 'paid' | 'pending' | 'overdue';
-  scope: 'salon' | 'personal'; // Salão Todo ou Custo Pessoal
+  scope: 'salon' | 'personal';
   createdAt: string;
 }
 
 export interface ProfessionalWorkSchedule {
   shiftType: 'manha' | 'tarde' | 'integral' | 'sabados' | 'personalizado';
   shiftLabel?: string;
-  days: string[]; // e.g. ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom']
-  startTime: string; // e.g. '08:00'
-  endTime: string; // e.g. '18:00'
+  days: string[];
+  startTime: string;
+  endTime: string;
   dailySchedules?: Record<string, ProfessionalDayScheduleSlot>;
 }
 
@@ -492,13 +467,12 @@ export interface ProfessionalTeamMember {
   phone?: string;
   email?: string;
   specialties: string[];
-  commissionRate?: number; // Percentual de repasse (ex: 50 para 50%)
+  commissionRate?: number;
   workSchedule?: ProfessionalWorkSchedule;
   isActive: boolean;
   joinedAt: string;
 }
 
-// Utilitários de feedback tátil e fallbacks determinísticos
 export const hapticLight = () => {
   if (typeof window !== 'undefined' && 'vibrate' in navigator) {
     try { navigator.vibrate(10); } catch {}
@@ -516,10 +490,3 @@ export const hapticSuccess = () => {
     try { navigator.vibrate([15, 50, 20]); } catch {}
   }
 };
-
-export const getSalonLogo = (_salonName?: string, logoUrl?: string): string => {
-  if (logoUrl) return logoUrl;
-  return 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=200&q=80';
-};
-
-

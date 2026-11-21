@@ -10,9 +10,6 @@ import {
   Loader2,
   Chrome,
 } from 'lucide-react';
-import { getApps, getApp, initializeApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import firebaseConfig from '../../../firebase-applet-config.json';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { SalonAuthHeader } from './SalonAuthHeader';
 
@@ -137,10 +134,9 @@ export async function findMatchingTriadeAccounts(rawInput: string): Promise<any[
   };
 
   try {
-    const [sysAdminsRes, clientsRes, salonUsersRes, prosRes] = await Promise.all([
+    const [sysAdminsRes, clientsRes, prosRes] = await Promise.all([
       (supabase.from('system_admins' as any) as any).select('*').limit(100),
       (supabase.from('clients') as any).select('*').limit(400),
-      (supabase.from('salon_users' as any) as any).select('*').limit(200),
       (supabase.from('professionals') as any).select('*').limit(200),
     ]);
 
@@ -155,12 +151,6 @@ export async function findMatchingTriadeAccounts(rawInput: string): Promise<any[
         if (matchesRecord(r, 'clients')) results.push(normalizeRecord(r, 'clients'));
       }
     }
-    if (Array.isArray(salonUsersRes?.data)) {
-      for (const r of salonUsersRes.data) {
-        if (matchesRecord(r, 'salon_users'))
-          results.push(normalizeRecord(r, 'salon_users'));
-      }
-    }
     if (Array.isArray(prosRes?.data)) {
       for (const r of prosRes.data) {
         if (matchesRecord(r, 'professionals'))
@@ -172,12 +162,6 @@ export async function findMatchingTriadeAccounts(rawInput: string): Promise<any[
   return results;
 }
 
-/**
- * 🏛️ Entrada Cinematográfica em Vidro Jateado — Login Unificado VagouApp (BOL-167)
- * - Sempre renderiza em atmosfera escura cinematográfica (Glassmorphism Dark)
- * - Campos translúcidos sem bordas aninhadas
- * - Botão primário "Entrar" em verde oficial #20C933 com texto e ícone brancos
- */
 export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
   onSuccess,
   onSwitchToRegister,
@@ -235,7 +219,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
       const cleanUsername = rawId.replace(/^@+/, '').toLowerCase();
       const matchedList = await findMatchingTriadeAccounts(rawId);
 
-      // 1. Verifica correspondência direta na base unificada da Tríade (username, e-mail ou celular + senha)
       if (matchedList.length > 0) {
         const matchedByHash = matchedList.find(
           (c: any) =>
@@ -271,7 +254,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
           return;
         }
 
-        // Se todas as contas localizadas têm password_hash diferente da digitada, barra com erro de senha
         const allHaveDifferentHash = matchedList.every(
           (c: any) =>
             c.password_hash !== null &&
@@ -298,7 +280,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
           : `${cleanUsername.replace(/[^a-z0-9]/g, '')}@vagouapp.com`)
       ).toLowerCase();
 
-      // 2. Autentica no Supabase Auth caso aplicável
       let authSession: any = undefined;
       let authUserId = matchedClient?.user_id || matchedClient?.id;
 
@@ -337,7 +318,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         }
       }
 
-      // Se encontrou conta em clients sem password_hash gravado, salva a senha atual
       if (
         matchedClient?.id &&
         matchedClient?.sourceTable === 'clients' &&
@@ -385,71 +365,33 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
     }
   };
 
-  // Login com Conta Google (OAuth nativo do Supabase ou Popup em ambiente iframe)
   const handleGoogleAccountLogin = async () => {
     setFeedback(null);
+    if (!supabase) {
+      setFeedback({
+        type: 'error',
+        message: 'Serviço de autenticação Supabase indisponível no momento.',
+      });
+      return;
+    }
     setIsGoogleLoading(true);
     try {
-      const isInIframe = typeof window !== 'undefined' && window.self !== window.top;
-      if (supabase && !isInIframe) {
-        const { error: oauthErr } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            redirectTo: window.location.origin,
-          },
-        });
-        if (!oauthErr) {
-          return;
-        }
+      const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+          queryParams: { prompt: 'select_account' },
+        },
+      });
+      if (oauthErr) {
+        throw oauthErr;
       }
-
-      const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-      const auth = getAuth(app);
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
-
-      const result = await signInWithPopup(auth, provider);
-      const gUser = result.user;
-      const email = (gUser.email || '').trim().toLowerCase();
-      const displayName =
-        gUser.displayName || (email ? email.split('@')[0] : 'Usuário Google');
-      const photoUrl = gUser.photoURL || '';
-
-      const matchedList = email ? await findMatchingTriadeAccounts(email) : [];
-      const matchedAccount = matchedList[0] || undefined;
-
-      const resolvedAccountType: 'owner' | 'professional' | 'client' =
-        matchedAccount?.isSuperadmin || matchedAccount?.sourceTable === 'salon_users'
-          ? 'owner'
-          : matchedAccount?.sourceTable === 'professionals'
-            ? 'professional'
-            : 'client';
-
-      const resolvedPayload: TriadeUserLoginPayload = {
-        identifier: email || gUser.uid,
-        id: matchedAccount?.user_id || matchedAccount?.id || gUser.uid,
-        name: matchedAccount?.name || displayName,
-        username:
-          matchedAccount?.username || (email ? email.split('@')[0] : displayName),
-        email,
-        phone: matchedAccount?.phone || gUser.phoneNumber || '',
-        cpf: matchedAccount?.cpf || '',
-        avatarUrl: matchedAccount?.avatar_url || photoUrl,
-        matchedAccount,
-        accountType: resolvedAccountType,
-      };
-
-      setFeedback({ type: 'success', message: 'Conectado com Conta Google!' });
-      setIsGoogleLoading(false);
-      onSuccess?.(resolvedPayload);
     } catch (err: any) {
       setIsGoogleLoading(false);
-      if (err?.code !== 'auth/popup-closed-by-user') {
-        setFeedback({
-          type: 'error',
-          message: 'Não foi possível autenticar com sua Conta Google.',
-        });
-      }
+      setFeedback({
+        type: 'error',
+        message: err?.message || 'Não foi possível autenticar com sua Conta Google.',
+      });
     }
   };
 
@@ -461,7 +403,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
           : ''
       }`}
     >
-      {/* Topo White-Label Limpo direto sobre o vidro jateado */}
+
       {showHeader && (
         <SalonAuthHeader
           salonName={salonName}
@@ -555,7 +497,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
             )}
           </button>
 
-          {/* Separador sutil "ou" */}
           <div className="flex items-center gap-3 py-0.5">
             <div className="flex-1 h-px bg-white/10" />
             <span className="text-[11px] font-semibold text-slate-400">ou</span>
@@ -576,7 +517,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
             <span className="text-white font-bold">Conta Google</span>
           </button>
 
-          {/* Rodapé interno separado por border-t border-white/10 */}
           <div className="pt-4 mt-2 border-t border-white/10 flex items-center justify-between gap-4">
             {onOpenRecovery && (
               <button

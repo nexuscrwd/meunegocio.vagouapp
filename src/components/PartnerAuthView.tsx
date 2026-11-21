@@ -1,12 +1,6 @@
 import React, { useEffect } from 'react';
 import { SalonClientAuthModal } from './SalonClientAuthModal';
 
-/**
- * Atributo sandbox obrigatório para qualquer <iframe> apontando para adm.vagouapp.com (BOL-164)
- */
-export const ADM_VAGOU_IFRAME_SANDBOX =
-  'allow-top-navigation allow-top-navigation-by-user-activation allow-popups allow-forms allow-scripts allow-same-origin';
-
 export interface PartnerAuthSuccessData {
   salonName: string;
   slug: string;

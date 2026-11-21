@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { 
-  ArrowLeft, Zap, 
+import {
+  ArrowLeft,
   Calendar,
-  ChevronLeft, ChevronRight, ArrowRight,
+  ChevronLeft, ChevronRight,
   Check, MessageCircle, MessageSquare,
-  Scissors, Sparkles, LayoutDashboard, LayoutGrid,
-  Store, Car, MapPin, Clock, Users, Wifi, Coffee, Wind,
-  LogOut, EyeOff, User, Loader2, Bookmark, X,
+  Scissors, Sparkles, LayoutGrid,
+  Store, Car, MapPin, Clock, Users,
+  User, Loader2, Bookmark, X,
   Bike, Bus, Smartphone, Navigation, ExternalLink,
   Phone, Mail, Globe, Instagram, Facebook
 } from 'lucide-react';
@@ -20,27 +20,23 @@ import {
   TransportMode,
   TRANSPORT_MODE_META,
   buildTransportDeepLinks,
-  formatMaxDepartureTime,
 } from '../utils/bookingSlots';
 import { ProfessionalDashboardView } from './professional/ProfessionalDashboardView';
 import { ProfessionalAgendaView } from './professional/ProfessionalAgendaView';
-import { ProfessionalSpaceManager, DEFAULT_SPACE_AMENITIES, resolveSpaceAmenityIcon } from './professional/ProfessionalSpaceManager';
-import { FinancialManagerView } from './professional/FinancialManagerView';
+import { DEFAULT_SPACE_AMENITIES, resolveSpaceAmenityIcon } from './professional/ProfessionalSpaceManager';
 import { CaixaManagerView } from './professional/CaixaManagerView';
 import { SalonCustomizationHub } from './professional/SalonCustomizationHub';
 import { UtilitiesAndToolsView } from './professional/UtilitiesAndToolsView';
-import { useSalonRole, SalonRole } from '../hooks/useSalonRole';
+import { SalonRole } from '../hooks/useSalonRole';
 import { useOwnerAccess } from '../hooks/useOwnerAccess';
-import { 
-  useTheme, 
-  sanitizeAccentColor, 
-  isLegacyOrSystemDefaultColor, 
+import {
+  useTheme,
+  sanitizeAccentColor,
+  isLegacyOrSystemDefaultColor,
   EXPLICIT_THEME_STORAGE_KEY,
-  CUSTOMIZED_THEME_STORAGE_KEY 
+  CUSTOMIZED_THEME_STORAGE_KEY
 } from '../context/ThemeContext';
 import { DEFAULT_NEUTRAL_HEX, isCustomBrandHex, isLegacyMintOverrideHex } from '../utils/themePalette';
-import { getSalonLogo } from '../utils/salonLogos';
-import { DEFAULT_ROTA99_LOGO_DARK, DEFAULT_ROTA99_LOGO_LIGHT, DEFAULT_ROTA99_ICON } from '../utils/defaultSalonAssets';
 import { updateDynamicPwaAssets } from '../utils/pwaAssets';
 import { BottomNav } from './BottomNav';
 import { MobileHeader, UserRole as HeaderUserRole } from './MobileHeader';
@@ -58,14 +54,12 @@ import {
   fetchSalonServices,
   fetchSalonProfessionals,
   fetchSalonAppointments,
-  upsertSalonService,
   fetchCompleteSalonData,
   updateSalonSettingsInDb,
   syncAllServicesToDb,
   syncAllProfessionalsToDb,
   fetchUserProfileFromDb,
   isValidAvatarUrlString,
-  checkUserSalonMembership,
   ensureClientRow,
   findExistingClientRow,
   mapDbAppointmentToBookingAppointment,
@@ -73,8 +67,7 @@ import {
   upsertAppointmentInDb,
   removeBlockedSlotInDb,
   subscribeToAppointments,
-  subscribeToSalonRealtime,
-  ensureSalonRow
+  subscribeToSalonRealtime
 } from '../lib/supabase';
 import { formatDurationFromMinutes, parseDurationToMinutes } from '../utils/duration';
 
@@ -97,16 +90,14 @@ export interface SalonProfileViewProps {
 
 import { getDefaultThematicCoverForCategory } from '../utils/serviceGalleryPresets';
 
-// Catálogo inicial de serviços padrão (vazio por padrão, integrado ao Supabase)
 const INITIAL_CATALOG_SERVICES: CatalogServiceItem[] = [];
 
-// Componente de Mídia do Card de Serviço (Vídeo 5s, Slideshow de até 5 fotos ou Foto Estática)
 const ServiceCardMedia: React.FC<{ service: CatalogServiceItem }> = ({ service }) => {
   const displayMode = service.displayMode || (service.mediaType === 'video' || service.videoUrl ? 'video' : 'static');
-  const photos = service.photos && service.photos.length > 0 
-    ? service.photos 
+  const photos = service.photos && service.photos.length > 0
+    ? service.photos
     : (service.image ? [service.image] : []);
-  
+
   const [slideIdx, setSlideIdx] = useState(0);
 
   useEffect(() => {
@@ -146,14 +137,13 @@ const ServiceCardMedia: React.FC<{ service: CatalogServiceItem }> = ({ service }
           />
         ))}
 
-        {/* Indicadores de pontinhos discretos do Slide */}
         <div className="absolute bottom-11 right-2 z-10 flex items-center gap-1 pointer-events-none">
           {photos.map((_, i) => (
             <span
               key={i}
               className={`transition-all duration-300 rounded-full ${
-                i === slideIdx 
-                  ? 'w-2 h-1 brand-bar shadow-xs' 
+                i === slideIdx
+                  ? 'w-2 h-1 brand-bar shadow-xs'
                   : 'w-1 h-1 bg-white/40'
               }`}
             />
@@ -175,7 +165,6 @@ const ServiceCardMedia: React.FC<{ service: CatalogServiceItem }> = ({ service }
     );
   }
 
-  // Capa Temática Curada da Categoria (Alta Qualidade) quando o serviço não tiver foto própria
   const thematicCover = getDefaultThematicCoverForCategory(service.category, service.title);
   return (
     <div className="w-full h-full relative overflow-hidden bg-slate-950 group/cover">
@@ -195,10 +184,8 @@ const ServiceCardMedia: React.FC<{ service: CatalogServiceItem }> = ({ service }
   );
 };
 
-// Equipe inicial padrão (vazia por padrão)
 const INITIAL_PROFESSIONALS: SalonProfessionalItem[] = [];
 
-// Agendamentos iniciais padrão para a agenda do profissional (vazio por padrão)
 const INITIAL_APPOINTMENTS: BookingAppointment[] = [];
 
 export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
@@ -207,21 +194,16 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   initialSalonData,
   userRole,
   offers,
-  onBack,
   onDirectBook,
-  isFavorite = false,
-  onToggleFavorite,
   userName = 'Usuário',
   userAvatarUrl = '',
   onNavigateToUserAppointments,
   onNavigateToUserDashboard,
-  onBackToAuth,
 }) => {
   const {
     isDark,
     theme,
     setTheme,
-    accentColor,
     setAccentColor: setAccentColorContext,
     resetToDefaultPalette,
     resolvedPalette,
@@ -279,7 +261,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
   }, [userAvatarUrl]);
 
-  // Sincronizar Avatar do Usuário com o Supabase (Tríade Sync) sem jamais re-logar usuário desconectado
   React.useEffect(() => {
     let isMounted = true;
 
@@ -320,7 +301,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         return;
       }
 
-      // Verifica se há sessão ativa real no localStorage antes de sincronizar
       const savedEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
       const savedName = localStorage.getItem('vagou_user_name') || '';
       const savedCpf = localStorage.getItem('vagou_user_cpf') || '';
@@ -349,10 +329,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       if (!isSupabaseConfigured || !supabase) return;
 
       try {
-        // 1. fetchUserProfileFromDb (Clients, Professionals, Auth, Profiles)
+
         const profile = await fetchUserProfileFromDb({ email: savedEmail, name: savedName, cpf: savedCpf });
 
-        // Confirma que o usuário não deslogou enquanto a query estava em andamento
         const stillLogged = Boolean(
           localStorage.getItem('vagou_user_email') ||
           localStorage.getItem('vagou_client_session') ||
@@ -396,7 +375,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     };
   }, []);
 
-  // 1. Papel Soberano recebido via prop do App + Hook useOwnerAccess (Validação cruzada por CPF, E-mail e user_id no Supabase)
   const ownerAccess = useOwnerAccess({
     salonId: initialSalonData?.id || (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_db_id') : ''),
     salonSlug: activeSubdomain || initialSalonData?.slug || (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') : ''),
@@ -428,11 +406,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const isSalonLoggedIn = isOwnerOrManager || isProfessional;
   const currentPersona: UserPersona = (isSalonLoggedIn && !isPublicPreviewMode) ? 'pro' : 'cliente';
   const isGerMode = isSalonLoggedIn && !isPublicPreviewMode;
-  const isUserProRole = isSalonLoggedIn;
   const isActiveProAdmin = isOwnerOrManager;
 
-  // Roteamento Inteligente Pós-Login (BOL-167):
-  // Se o usuário autenticado for Proprietário ou Profissional daquele salão e não tiver ativado manualmente a visão de cliente, abre direto o Painel Meu Negócio
   useEffect(() => {
     if (isSalonLoggedIn) {
       try {
@@ -446,7 +421,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
   }, [isSalonLoggedIn]);
 
-  // Verificação estrita de sessão ativa do usuário/cliente (sem considerar nomes soltos sem sessão)
   const checkHasActiveSession = useCallback((): boolean => {
     try {
       if ((activeRole !== 'guest' && activeRole !== 'loading') || isSalonLoggedIn) {
@@ -479,7 +453,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
   }, [activeRole, isSalonLoggedIn]);
 
-  // Identificação do estado de login do usuário (Exibe o ícone de avatar se logado; botão "Entrar" se não logado)
   const [isUserLoggedInState, setIsUserLoggedInState] = useState<boolean>(() => checkHasActiveSession());
 
   useEffect(() => {
@@ -502,10 +475,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     };
   }, [checkHasActiveSession, userName, isSalonLoggedIn, currentPersona, activeRole]);
 
-  // Modo de visualização quando logado: 'ger' (Gerenciamento) ou 'pub' (Público / Visão do Cliente)
-  const viewMode = isGerMode ? 'ger' : 'pub';
-
-  // Identificação do Profissional Logado / Ativo no modo Pro
   const [activeProId, setActiveProId] = useState<string>(() => {
     try {
       return localStorage.getItem('vagou_active_pro_id') || 'prof_admin_1';
@@ -514,7 +483,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
   });
 
-  // Lista dinâmica de membros da equipe para identificação de perfil (Admin vs Membro)
   const [teamMembersList, setTeamMembersList] = useState<ProfessionalTeamMember[]>(() => {
     try {
       const saved = localStorage.getItem('vagou_salon_team_members') || localStorage.getItem('vagou_team_members');
@@ -557,7 +525,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     ];
   });
 
-  // Atualização em tempo real de membros de equipe caso alterados no TeamManager
   useEffect(() => {
     const handleStorageChange = () => {
       try {
@@ -574,10 +541,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  const activeProMember = useMemo(() => {
-    return teamMembersList.find(m => m.id === activeProId) || teamMembersList.find(m => m.role === 'admin') || teamMembersList[0];
-  }, [teamMembersList, activeProId]);
-
   const handleSelectActiveProId = (id: string) => {
     setActiveProId(id);
     try {
@@ -590,7 +553,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     } catch {}
   };
 
-  // Alternador de Navegação Interna
   const handleSelectPersona = (_persona?: UserPersona) => {
     setActiveTab('home');
   };
@@ -602,9 +564,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     return false;
   });
 
-  // Configurações do Salão editáveis pelo gestor (Zero FOUC em subdomínios *.vagouapp.com)
   const [adminSettings, setAdminSettings] = useState<SalonAdminSettings>(() => {
-    // Leitura prévia resiliente do cache local para mesclagem sem perda de dados
+
     let localSaved: Partial<SalonAdminSettings> = {};
     try {
       const savedStr = localStorage.getItem('vagou_salon_admin_settings');
@@ -726,8 +687,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         logoTextColor: pickInitBrandingOrCol(initialSalonData.branding?.logoTextColor, initialSalonData.logo_text_color, localSaved.logoTextColor, true) || resolvedColor,
         showHomeTab: initialSalonData.branding?.showHomeTab !== undefined ? initialSalonData.branding.showHomeTab : (initialSalonData.show_home_tab !== undefined ? initialSalonData.show_home_tab : (localSaved.showHomeTab !== false)),
         showHeroSlides: initialSalonData.show_hero_slides !== undefined ? initialSalonData.show_hero_slides : (initialSalonData.branding?.showHeroSlides !== undefined ? initialSalonData.branding?.showHeroSlides : (localSaved.showHeroSlides !== false)),
-        
-        // Barra de Títulos das Seções (Section Header — prioriza branding JSONB atualizado sobre colunas antigas)
+
         sectionHeaderBgColor: pickInitBrandingOrCol(initialSalonData.branding?.sectionHeaderBgColor, initialSalonData.section_header_bg_color, localSaved.sectionHeaderBgColor, true),
         sectionHeaderTextColor: pickInitBrandingOrCol(initialSalonData.branding?.sectionHeaderTextColor, initialSalonData.section_header_text_color, localSaved.sectionHeaderTextColor, true),
         sectionHeaderIconColor: pickInitBrandingOrCol(initialSalonData.branding?.sectionHeaderIconColor, initialSalonData.section_header_icon_color, localSaved.sectionHeaderIconColor, true),
@@ -740,7 +700,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         sectionHeaderBtnBlur: initialSalonData.branding?.sectionHeaderBtnBlur || initialSalonData.section_header_btn_blur || localSaved.sectionHeaderBtnBlur || undefined,
         sectionHeaderBtnFont: initialSalonData.branding?.sectionHeaderBtnFont || initialSalonData.section_header_btn_font || localSaved.sectionHeaderBtnFont || undefined,
 
-        // Barra de Navegação Inferior (BottomNav — prioriza branding JSONB atualizado sobre colunas antigas)
         navStyle: initialSalonData.branding?.navStyle || initialSalonData.nav_style || localSaved.navStyle || 'minimal',
         navShape: initialSalonData.branding?.navShape || initialSalonData.nav_shape || localSaved.navShape || 'square',
         navBorder: initialSalonData.branding?.navBorder || initialSalonData.nav_border || localSaved.navBorder || 'bordered',
@@ -780,7 +739,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       } catch {}
     }
 
-    const fullAddr = partnerInfo 
+    const fullAddr = partnerInfo
       ? `${partnerInfo.logradouro || ''}, ${partnerInfo.numero || ''}${partnerInfo.complemento ? ' - ' + partnerInfo.complemento : ''} - ${partnerInfo.bairro || ''}, ${partnerInfo.cidade || ''}/${partnerInfo.uf || ''}`.replace(/^, /, '').trim()
       : '';
 
@@ -798,10 +757,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       openingHours: 'Seg a Sáb: 09:00 às 20:00',
       isOpenNow: true,
       accentColor: effectiveColor,
-      salonLogoDark: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_logo_dark') || (partnerInfo ? '' : DEFAULT_ROTA99_LOGO_DARK)),
-      salonLogoLight: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_logo_light') || (partnerInfo ? '' : DEFAULT_ROTA99_LOGO_LIGHT)),
-      salonLogo: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_logo_dark') || (partnerInfo ? '' : DEFAULT_ROTA99_LOGO_DARK)),
-      salonIcon: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_icon') || (partnerInfo ? '' : DEFAULT_ROTA99_ICON)),
+      salonLogoDark: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_logo_dark') || ''),
+      salonLogoLight: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_logo_light') || ''),
+      salonLogo: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_logo_dark') || ''),
+      salonIcon: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_icon') || (partnerInfo ? '' : '/icon-512.png')),
       pwaName: effectiveSalonName,
       slogan: '',
       showSlogan: true,
@@ -865,13 +824,12 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           };
         }
       } catch {
-        // ignore
+
       }
     }
     return defaults;
   });
 
-  // Por padrão o tom é SEMPRE claro ('light'); só aplica outro tema se o usuário alternou explicitamente (v3)
   const initialThemeSyncDoneRef = useRef(false);
   useEffect(() => {
     if (!initialThemeSyncDoneRef.current) {
@@ -883,9 +841,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
   }, [setTheme]);
 
-  // Cor de destaque / tema ativa e prioritária do estabelecimento
-  const effectiveAccentColor = sanitizeAccentColor(adminSettings.accentColor || accentColor);
-
   const effectiveSalonCacheSlug = (
     activeSubdomain ||
     initialSalonData?.slug ||
@@ -894,7 +849,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     ''
   ).trim().toLowerCase();
 
-  // Lista dinâmica de serviços isolada por salão (sem vazar serviços demo em salões reais do Supabase)
   const [catalogServicesList, setCatalogServicesList] = useState<CatalogServiceItem[]>(() => {
     const isRealTenant = Boolean(hasActiveSubdomain || initialSalonData?.id);
     try {
@@ -913,12 +867,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         }
       }
     } catch {
-      // ignore
+
     }
     return isRealTenant ? [] : INITIAL_CATALOG_SERVICES;
   });
 
-  // Lista dinâmica de profissionais da equipe isolada por salão
   const [professionalsList, setProfessionalsList] = useState<SalonProfessionalItem[]>(() => {
     const isRealTenant = Boolean(hasActiveSubdomain || initialSalonData?.id);
     try {
@@ -953,7 +906,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         }
       }
     } catch {
-      // ignore
+
     }
     if (isRealTenant) {
       const ownerDisplayName = initialSalonData?.trade_name || salonName || 'Profissional';
@@ -971,7 +924,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     return INITIAL_PROFESSIONALS;
   });
 
-  // Lista dinâmica de agendamentos da agenda do profissional
   const [appointmentsList, setAppointmentsList] = useState<BookingAppointment[]>(() => {
     try {
       const saved = localStorage.getItem('vagou_user_appointments');
@@ -980,12 +932,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {
-      // ignore
+
     }
     return INITIAL_APPOINTMENTS;
   });
 
-  // Estado do ID do salão no Supabase para sincronização em tempo real
   const [currentSalonDbId, setCurrentSalonDbId] = useState<string>(() => {
     return initialSalonData?.id || localStorage.getItem('vagou_salon_db_id') || '';
   });
@@ -1104,7 +1055,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       }
     } catch {}
 
-    // Ícone quadrado dedicado do salão (sem herdar logo larga horizontal para não distorcer ícone PWA)
     const resolvedSalonIcon =
       salonRecord.favicon_url ||
       salonRecord.branding?.salonIcon ||
@@ -1403,7 +1353,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
   }, [salonName]);
 
-  // Carregar dados reais do Supabase (Identidade Visual, Configurações, Serviços e Equipe) + Assinatura Realtime
   useEffect(() => {
     let isMounted = true;
     let unsubscribeSalonApts = () => {};
@@ -1554,7 +1503,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     };
   }, [salonName, activeSubdomain, initialSalonData?.id, applySalonRecordSettings, applyServicesList, applyProfessionalsList]);
 
-  // Escuta de eventos para atualização instantânea do catálogo de serviços no CRUD
   useEffect(() => {
     const handleCatalogUpdated = (e: any) => {
       if (e?.detail && Array.isArray(e.detail)) {
@@ -1565,7 +1513,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     return () => window.removeEventListener('vagou:catalog-updated', handleCatalogUpdated);
   }, []);
 
-  // Handlers para persistência e sincronização em tempo real no Supabase
   const handleUpdateServices = async (
     newServices: CatalogServiceItem[],
     categoriesOverride?: string[]
@@ -1577,7 +1524,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       }
       localStorage.setItem('vagou_custom_catalog_services', JSON.stringify(newServices));
     } catch {
-      // ignore
+
     }
 
     window.dispatchEvent(new CustomEvent('vagou:catalog-updated', { detail: newServices }));
@@ -1600,7 +1547,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       }
       localStorage.setItem('vagou_custom_professionals', JSON.stringify(newPros));
     } catch {
-      // ignore
+
     }
 
     const salonId = currentSalonDbId || localStorage.getItem('vagou_salon_db_id') || activeSubdomain || adminSettings.salonSlug || '';
@@ -1696,7 +1643,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           activeSubdomain || merged.salonSlug
         );
       } catch {
-        // ignore
+
       }
       return merged;
     });
@@ -1722,7 +1669,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   }, [adminSettings.pwaName, adminSettings.salonName, adminSettings.salonIcon, adminSettings.salonLogoDark, adminSettings.salonLogoLight, adminSettings.salonLogo, adminSettings.accentColor, adminSettings.slogan, adminSettings.salonSlug, activeSubdomain, theme, salonName]);
 
   const handleUpdateAppointments = async (newApts: BookingAppointment[]) => {
-    // 1. Identificar agendamentos ou bloqueios removidos (ex: slots despausados)
+
     const removedApts = appointmentsList.filter(
       (oldApt) =>
         !newApts.some(
@@ -1732,25 +1679,21 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         )
     );
 
-    // 2. Atualizar estado local e cache no localStorage imediatamente
     setAppointmentsList(newApts);
     try {
       localStorage.setItem('vagou_user_appointments', JSON.stringify(newApts));
     } catch {
-      // ignore
+
     }
 
-    // 3. Notificar todos os componentes do app via CustomEvent
     window.dispatchEvent(new CustomEvent('vagou:appointments-updated', { detail: { appointments: newApts } }));
 
-    // 4. Sincronizar exclusões de bloqueios/pausas no Supabase
     for (const rem of removedApts) {
       if (rem.protocolCode) {
         await removeBlockedSlotInDb(rem.protocolCode);
       }
     }
 
-    // 5. Sincronizar inserções/atualizações no Supabase
     const salonId = currentSalonDbId || localStorage.getItem('vagou_salon_db_id');
     if (salonId) {
       for (const apt of newApts) {
@@ -1766,7 +1709,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   };
 
   const handleSalonLogout = async () => {
-    // 1. Limpeza SÍNCRONA imediata de todas as chaves de sessão no localStorage e sessionStorage
+
     try {
       const authKeysToRemove = [
         'vagou_auth_user_id',
@@ -1791,7 +1734,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       ];
       authKeysToRemove.forEach((key) => localStorage.removeItem(key));
 
-      // Remove tokens de sessão do Supabase Auth armazenados no navegador (sb-*-auth-token)
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
         if (k && (k.startsWith('sb-') || k.includes('supabase.auth.token'))) {
@@ -1803,10 +1745,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       sessionStorage.removeItem('vagou_client_auth_modal_mode');
       sessionStorage.removeItem('vagou_register_wizard_draft');
     } catch {
-      // ignore
+
     }
 
-    // 2. Atualização imediata de estados da interface
     setCurrentUserName('Usuário');
     setCurrentUserAvatarUrl('');
     setIsUserLoggedInState(false);
@@ -1815,28 +1756,18 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     setIsPublicPreviewMode(true);
     setActiveTab(adminSettings.showHomeTab !== false ? 'home' : 'servicos');
 
-    // 3. Disparo de eventos para todos os hooks (useSalonRole, useOwnerAccess, App, ProfileDrawer)
     window.dispatchEvent(new CustomEvent('vagou:auth-updated', { detail: { loggedOut: true } }));
     window.dispatchEvent(new CustomEvent('vagou:profile-updated', { detail: { name: '', avatarUrl: '' } }));
 
-    // 4. Encerramento assíncrono no Supabase Auth e Firebase Auth sem travar a UI
     if (supabase) {
       try {
         await supabase.auth.signOut({ scope: 'local' });
       } catch {}
     }
-    try {
-      const { getApps, getApp } = await import('firebase/app');
-      const { getAuth, signOut } = await import('firebase/auth');
-      if (getApps().length > 0) {
-        await signOut(getAuth(getApp()));
-      }
-    } catch {}
 
     window.dispatchEvent(new CustomEvent('vagou:auth-updated', { detail: { loggedOut: true } }));
   };
 
-  // Solicitação de acesso a Gerenciar Estabelecimento (Protegido por RBAC)
   const handleRequestManage = useCallback(() => {
     if (!isSalonLoggedIn) {
       setIsClientAuthModalOpen(true);
@@ -1855,7 +1786,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const [previewTestTab, setPreviewTestTab] = useState<'home' | 'servicos' | 'vagas' | 'espaco'>(() => (adminSettings.showHomeTab !== false ? 'home' : 'servicos'));
   const [isPauseSlotsModalOpen, setIsPauseSlotsModalOpen] = useState(false);
 
-  // Monitora se há horários pausados hoje para exibir indicador na barra inferior
   const hasPausedSlotsToday = useMemo(() => {
     const today = new Date();
     const todayIso = today.toISOString().split('T')[0];
@@ -1871,9 +1801,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     });
   }, [appointmentsList]);
 
-  // Reset de abas de gestão seguro: NÃO reseta enquanto role === 'loading'
   useEffect(() => {
-    if (isRoleLoading) return; // Aguarda a resolução final do papel no banco
+    if (isRoleLoading) return;
 
     const managementTabs = ['caixa', 'financeiro', 'equipe', 'personalizar', 'utilidades', 'dados', 'visual', 'preferencias', 'layout'];
     if (managementTabs.includes(activeTab) && !isOwnerOrManager) {
@@ -1881,7 +1810,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
   }, [activeTab, isOwnerOrManager, isRoleLoading, showHomeTab]);
 
-  // Se a Tela Inicial estiver oculta no modo público/cliente, redireciona automaticamente para Serviços
   useEffect(() => {
     if (!isGerMode && !showHomeTab && activeTab === 'home') {
       setActiveTab('servicos');
@@ -1911,15 +1839,12 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     return () => window.removeEventListener('vagou:booking-draft-updated', handleDraftUpdated);
   }, []);
 
-  // Sub-abas e efeito swipe horizontal para a Seção Espaço (0: Equipe, 1: Estrutura, 2: Localização)
   const [espacoSlideIndex, setEspacoSlideIndex] = useState<number>(0);
   const [espacoSwipeDirection, setEspacoSwipeDirection] = useState<number>(1);
 
-  // Paginação e efeito swap para o catálogo enquadrado de serviços (4 por visualização)
   const [servicePage, setServicePage] = useState<number>(0);
-  const [swapDirection, setSwapDirection] = useState<number>(1);
+  const [, setSwapDirection] = useState<number>(1);
 
-  // Estado para agendamento confirmado exibido dentro da seção do salão
   const [confirmedBookingData, setConfirmedBookingData] = useState<{
     protocolCode: string;
     serviceTitle: string;
@@ -1939,7 +1864,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     salonLng?: number;
   } | null>(null);
 
-  // Sincronização da tabela de horários com o modal
   const [selectedTimeSlotForBooking, setSelectedTimeSlotForBooking] = useState<string | null>(null);
 
   const todayIso = useMemo(() => {
@@ -1950,11 +1874,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
   const [selectedCalendarDateIso, setSelectedCalendarDateIso] = useState<string>(todayIso);
 
-  // Filtrar ofertas desse salão
   const salonOffers = useMemo(() => offers.filter((o) => o.salonName === salonName), [offers, salonName]);
   const primaryOffer = salonOffers[0] || offers[0];
 
-  // Informações consolidadas do salão conectadas ao estado dinâmico
   const hasCustomLogo = Boolean(adminSettings.salonLogoDark || adminSettings.salonLogoLight || adminSettings.salonLogo);
   const activeLogo = hasCustomLogo
     ? (isDark
@@ -1972,7 +1894,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       ? "'Plus Jakarta Sans', sans-serif"
       : "'Poppins', sans-serif";
 
-  // Auto-enriquecimento via ViaCEP caso o registro do salão tenha logradouro+cidade+UF (ou CEP) sem bairro/CEP completos
   useEffect(() => {
     let isCancelled = false;
     const rawCep = (adminSettings.cep || initialSalonData?.cep || '').replace(/\D/g, '');
@@ -2018,7 +1939,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           }
         }
       } catch {
-        // ignore network errors
+
       }
     };
 
@@ -2074,7 +1995,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
     return {
       name: adminSettings.salonName || salonName,
-      avatar: adminSettings.salonIcon || activeLogo || (hasActiveSubdomain ? '' : DEFAULT_ROTA99_ICON),
+      avatar: adminSettings.salonIcon || activeLogo || (hasActiveSubdomain ? '' : '/icon-512.png'),
       coverImage: primaryOffer?.galleryImages?.[0] || primaryOffer?.imageUrl || 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=1200&q=80',
       rating: primaryOffer?.rating || 4.9,
       reviewsCount: primaryOffer?.reviewsCount || 84,
@@ -2100,12 +2021,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
   const spaceTabLabel = salonInfo.isHomeCare ? 'Atendimento' : 'Espaço';
   const SpaceIcon = salonInfo.isHomeCare ? Car : Store;
 
-  // Ícone da aba Serviços no modo cliente representando o layout em grade da seção
   const ServicesIcon = LayoutGrid;
 
-  // Navegação direta entre abas tanto no modo público quanto no modo gerenciamento (sem efeito swap vertical)
   const handleSelectTab = useCallback((tab: 'home' | 'servicos' | 'vagas' | 'espaco' | 'equipe' | 'financeiro' | 'caixa' | 'personalizar' | 'utilidades' | 'dados' | 'visual' | 'preferencias' | 'layout' | 'pausar') => {
-    // Ação do Botão Pausar Agendamentos (Abre Modal de Emergência)
+
     if (tab === 'pausar') {
       if (!isOwnerOrManager && !isProfessional) {
         setIsClientAuthModalOpen(true);
@@ -2116,7 +2035,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       return;
     }
 
-    // Abas de gestão só para owner e manager
     if (tab === 'caixa' || tab === 'financeiro' || tab === 'utilidades' || tab === 'personalizar' || tab === 'equipe' || tab === 'dados' || tab === 'visual' || tab === 'preferencias' || tab === 'layout') {
       if (!isOwnerOrManager) {
         setIsClientAuthModalOpen(true);
@@ -2173,7 +2091,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     setActiveTab(tab);
   }, [isGerMode, isOwnerOrManager, isUserLoggedInState, checkHasActiveSession, showHomeTab]);
 
-  // Retorna diretamente para a tela de Opções do Menu (ProfileDrawer) sem fechar o menu por completo
   const handleBackToMenu = useCallback(() => {
     hapticLight();
     setActiveTab(isGerMode || showHomeTab ? 'home' : 'servicos');
@@ -2181,15 +2098,12 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     setIsProfileDrawerOpen(true);
   }, [isGerMode, showHomeTab]);
 
-  // Catálogo completo de serviços conectado ao estado dinâmico gerenciável
   const filteredCatalogServices = useMemo(() => {
     let base = catalogServicesList;
     if (selectedPublicProfessional !== 'any') {
       const activeProf = professionalsList.find(p => p.name === selectedPublicProfessional);
       if (activeProf && activeProf.id) {
-        // Filter by professionalId if it exists in the service
-        // Since many legacy services might not have professionalId, we only filter those that do have it.
-        // Wait, if we want strict multi-tenant:
+
         base = base.filter(srv => !srv.professionalId || srv.professionalId === activeProf.id);
       }
     }
@@ -2208,7 +2122,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       setSelectedCalendarDateIso(dateIso);
     }
 
-    // Bloqueio obrigatório: cliente pode navegar na vitrine, mas ao clicar em agendar deve fazer login ou cadastro
     if (!isGerMode && !isUserLoggedInState && !checkHasActiveSession()) {
       pendingBookingAuthRef.current = true;
       setIsClientAuthModalOpen(true);
@@ -2219,7 +2132,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     setActiveTab('vagas');
   };
 
-  // Slides de portfólio para o Slider da Página Inicial (Apresentação publicitária elegante e limpa)
   const portfolioSlides = useMemo(() => [
     {
       id: 'slide-servicos',
@@ -2247,7 +2159,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     },
   ], [primaryOffer?.imageUrl, salonInfo.coverImage]);
 
-  // Autoplay suave para o slider da página inicial
   useEffect(() => {
     const timer = setInterval(() => {
       setActiveSlideIndex((prev) => (prev + 1) % portfolioSlides.length);
@@ -2307,7 +2218,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           return { success: false, error: 'Faça login ou cadastre-se para realizar o agendamento.' };
         }
 
-        // Garante linha REAL do cliente em public.clients (nunca usa ID não verificado em client_id)
         let clientRow: any = await findExistingClientRow({
           clientId: storedClientId || null,
           userId: session?.user?.id || rawClientSession?.id || null,
@@ -2352,7 +2262,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           : (clientRow?.name || storedName || currentUserName || 'Cliente');
         const finalPhone = (bookingData.clientPhone || clientRow?.phone || storedPhone || 'Não informado').trim();
 
-        // Determina horário de início e fim
         const [h, m] = bookingData.timeSlot.split(':').map(Number);
         const startTimeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
         const endMinutes = (h * 60 + m) + 45;
@@ -2360,7 +2269,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         const endM = endMinutes % 60;
         const endTimeStr = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`;
 
-        // Localiza salon_id do banco com fallback resiliente
         let targetSalonId = currentSalonDbId || initialSalonData?.id || localStorage.getItem('vagou_salon_db_id');
         if (!targetSalonId || targetSalonId === 'temp') {
           const activeSlug = activeSubdomain || localStorage.getItem('vagou_salon_slug') || adminSettings.salonSlug || '';
@@ -2405,7 +2313,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           .select()
           .single();
 
-        // Fallback resiliente caso o banco remoto ainda não possua todas as colunas extras de bol-020
         if (insertErr && (insertErr.code === 'PGRST204' || insertErr.code === '42703' || insertErr.message?.includes('column'))) {
           const fallbackPayload = { ...activePayload };
           delete fallbackPayload.is_dependent;
@@ -2424,7 +2331,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           insertErr = retry.error;
         }
 
-        // Blindagem definitiva contra FK appointments_client_id_fkey (23503)
         if (insertErr && (insertErr.code === '23503' || String(insertErr.message || '').includes('appointments_client_id_fkey'))) {
           const fkSafePayload = { ...activePayload, client_id: null };
           const fkRetry = await (supabase.from('appointments') as any)
@@ -2436,7 +2342,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
         if (insertErr) {
           console.warn('Aviso de inserção de agendamento:', insertErr);
-          // Se for erro de RLS Policy (42501), assegura resiliência total gravando em localStorage sem travar a interface
+
           if (insertErr.code === '42501' || insertErr.message?.includes('row-level security')) {
             console.warn('⚠️ Supabase RLS Policy bloqueou gravação remota (42501). Salvando em modo offline resiliente.');
           } else {
@@ -2459,7 +2365,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         });
       }
 
-      // Salvar nos agendamentos do usuário para visualização em Minha Agenda (com dados BOL-020 + Dependente)
       try {
         const savedList = JSON.parse(localStorage.getItem('vagou_user_appointments') || '[]');
         const newRecord: BookingAppointment = {
@@ -2496,7 +2401,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         localStorage.setItem('vagou_user_appointments', JSON.stringify(updatedApts));
         setAppointmentsList(updatedApts);
       } catch {
-        // ignore
+
       }
 
       return { success: true };
@@ -2505,7 +2410,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     }
   };
 
-  // Paginação e controle de swap para a seção de serviços (4 por visualização em grid enquadrado 2x2)
   const SERVICES_PER_PAGE = 4;
   const totalServicePages = Math.ceil(catalogServices.length / SERVICES_PER_PAGE);
 
@@ -2530,7 +2434,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
     return catalogServices.slice(start, start + SERVICES_PER_PAGE);
   }, [catalogServices, servicePage]);
 
-  // Controles de swipe/swap para os três blocos da Seção Espaço (0: Estrutura, 1: Estúdio 3D, 2: Localização & Radar)
   const handleNextEspacoSlide = () => {
     setEspacoSwipeDirection(1);
     setEspacoSlideIndex((prev) => (prev + 1) % 3);
@@ -2555,7 +2458,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
   return (
     <div className={`w-full h-full flex flex-col overflow-hidden ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-[var(--brand-canvas-bg)] text-[#333E48]'} font-sans transition-colors duration-200`}>
-      {/* 1. CABEÇALHO DO APLICATIVO DO SALÃO (Padrão Institucional Mobile-First) */}
+
       <MobileHeader
         currentUser={{
           name: isUserLoggedInState && currentUserName ? currentUserName : 'Visitante',
@@ -2660,9 +2563,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         }}
       />
 
-      {/* 2. ÁREA DE CONTEÚDO */}
       {isGerMode ? (
-        /* MODO GERENCIAMENTO: TELAS DEDICADAS COM NAVEGAÇÃO EXCLUSIVAMENTE POR BOTÕES (COM BARRA DE ROLAGEM VERTICAL) */
+
         <main className="flex-1 min-h-0 w-full relative app-vertical-scroll flex flex-col">
           {activeTab === 'home' && (
             <div className="w-full h-full flex-1 min-h-0 overflow-hidden flex flex-col justify-between animate-in fade-in duration-150">
@@ -2786,16 +2688,16 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           )}
         </main>
       ) : (
-        /* MODO PÚBLICO / CLIENTE: NAVEGAÇÃO POR ABAS DEDICADAS COM BARRA DE ROLAGEM VERTICAL */
+
         <main className="flex-1 min-h-0 w-full flex flex-col app-vertical-scroll relative">
-          {/* SEÇÃO 1: INÍCIO */}
+
           {activeTab === 'home' && showHomeTab && (
             <section
               id="section-home"
               data-tab-id="home"
               className="w-full h-full flex-1 min-h-0 overflow-hidden flex flex-col justify-between animate-in fade-in duration-150"
             >
-              {/* SLIDER / CARROSSEL PUBLICITÁRIO OU PAINEL DIRETO */}
+
               {adminSettings.showHeroSlides !== false ? (
                 <div className={`relative w-full h-full flex-1 min-h-0 overflow-hidden select-none touch-pan-y ${
                   isDark ? 'bg-slate-900 border-b border-slate-800' : 'bg-slate-200 border-b border-slate-300'
@@ -2822,7 +2724,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                           transition={{ duration: 0.35, ease: 'easeOut' }}
                           className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"
                         >
-                          {/* Imagem de Fundo Fullscreen */}
+
                           <img
                             src={slide.image}
                             alt={slide.title}
@@ -2830,13 +2732,11 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                             referrerPolicy="no-referrer"
                           />
 
-                          {/* Degradês Publicitários de Alta Qualidade para Leitura Impecável */}
                           <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/75 to-slate-950/35" />
                           <div className="absolute inset-0 bg-gradient-to-b from-slate-950/70 via-transparent to-slate-950/90" />
 
-                          {/* Conteúdo Publicitário Integrado */}
                           <div className="absolute inset-0 p-4 sm:p-6 flex flex-col justify-between z-10 max-w-[90%] sm:max-w-[78%]">
-                            {/* Topo do Slide: Título Principal e Tagline */}
+
                             <div className="pt-2 sm:pt-4 space-y-1.5">
                               <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight leading-tight drop-shadow-md font-['Poppins']">
                                 {slide.title}
@@ -2846,7 +2746,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                               </p>
                             </div>
 
-                            {/* Base do Slide: Indicador de pontos minimalista */}
                             <div className="flex items-center gap-1.5 pb-2 sm:pb-3">
                               {portfolioSlides.map((_, dotIdx) => (
                                 <div
@@ -2868,8 +2767,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                 </div>
               ) : (
                 <div className={`relative w-full h-full flex-1 min-h-0 overflow-y-auto no-scrollbar p-4 sm:p-6 flex flex-col justify-between ${
-                  isDark 
-                    ? 'bg-gradient-to-b from-slate-900 via-slate-950 to-slate-950 text-slate-100 border-b border-slate-800' 
+                  isDark
+                    ? 'bg-gradient-to-b from-slate-900 via-slate-950 to-slate-950 text-slate-100 border-b border-slate-800'
                     : 'bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900 border-b border-slate-200'
                 }`}>
                   <div className="space-y-4 max-w-lg mx-auto w-full pt-4">
@@ -2878,7 +2777,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         <Sparkles className="w-3.5 h-3.5" />
                         <span>{adminSettings.category || 'Atendimento Oficial'}</span>
                       </div>
-                      <h2 
+                      <h2
                         className={`text-2xl sm:text-3xl font-black tracking-tight leading-tight font-['Poppins'] ${
                           isDark ? 'text-white' : 'text-slate-900'
                         }`}
@@ -2893,7 +2792,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                       )}
                     </div>
 
-                    {/* Atalhos Rápidos para Agendamento e Serviços */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
                       <button
                         type="button"
@@ -2914,8 +2812,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                           handleSelectTab('vagas');
                         }}
                         className={`p-3 rounded-[4px] border font-bold text-xs flex items-center justify-between transition active:scale-95 cursor-pointer font-['Poppins'] ${
-                          isDark 
-                            ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-[var(--brand-primary)]' 
+                          isDark
+                            ? 'bg-slate-900 border-slate-800 text-slate-200 hover:border-[var(--brand-primary)]'
                             : 'bg-white border-slate-200 text-slate-800 hover:border-[var(--brand-primary)] shadow-xs'
                         }`}
                       >
@@ -2949,14 +2847,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             </section>
           )}
 
-          {/* SEÇÃO 2: SERVIÇOS */}
           {activeTab === 'servicos' && (
             <section
               id="section-servicos"
               data-tab-id="servicos"
               className="w-full h-full flex-1 min-h-0 overflow-hidden flex flex-col justify-between animate-in fade-in duration-150"
             >
-          {/* Subcabeçalho de Título da Seção: Serviços */}
+
           <div className={sectionHeaderStyleData.containerClass} style={sectionHeaderStyleData.containerStyle}>
             <div className="flex items-center gap-2">
               <LayoutGrid className="w-4 h-4 shrink-0" style={sectionHeaderStyleData.iconStyle} />
@@ -2968,14 +2865,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             </div>
           </div>
 
-          {/* PASSO 1: Seleção de Profissional (Visível Apenas se Múltiplos Profissionais) */}
           {hasMultipleProfessionals && (
             <div className={`w-full shrink-0 border-b ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-[#F7F9FC] border-[#EDF2F7]'} p-3 flex flex-col gap-2`}>
               <h3 className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-[#5F6C7B]'}`}>
                 1. Com quem deseja agendar?
               </h3>
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar snap-x snap-mandatory">
-                {/* Qualquer Profissional Livre */}
+
                 <button
                   type="button"
                   onClick={() => setSelectedPublicProfessional('any')}
@@ -2993,7 +2889,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   </span>
                 </button>
 
-                {/* Lista de Profissionais */}
                 {professionalsList.map(prof => {
                   const isSelected = selectedPublicProfessional === prof.name;
                   return (
@@ -3026,7 +2921,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             </div>
           )}
 
-              {/* Grid de Serviços Fullwidth */}
               <div className="relative overflow-hidden select-none w-full flex-1 min-h-0 flex flex-col justify-between">
                 {catalogServices.length === 0 ? (
                   <div className={`w-full flex-1 flex flex-col items-center justify-center p-6 text-center space-y-3 ${
@@ -3066,14 +2960,12 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         className="caixa-tile group relative overflow-hidden transition-all duration-200 cursor-pointer bg-slate-950 h-full w-full rounded-[4px]"
                         title={`${srv.title} - R$ ${srv.price}`}
                       >
-                        {/* Imagem, Slideshow de até 5 fotos ou Vídeo de 5s */}
+
                         <div className="relative w-full h-full overflow-hidden bg-slate-950 rounded-[4px]">
                           <ServiceCardMedia service={srv} />
 
-                          {/* Gradiente Cinematográfico Escuro para Máximo Contraste */}
                           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/45 to-black/25 group-hover:via-slate-950/65 transition-colors duration-300 pointer-events-none" />
 
-                          {/* Topo do Card: Badge de Categoria */}
                           <div className="absolute top-2 left-2 right-2 z-10 pointer-events-none flex items-center justify-between gap-1">
                             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-black/75 backdrop-blur-md border border-white/15 text-white text-[9px] font-bold uppercase tracking-wider shadow-xs">
                               <span
@@ -3084,7 +2976,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                             </span>
                           </div>
 
-                          {/* Base do Card: Título + Preço */}
                           <div className="absolute inset-x-0 bottom-0 p-2.5 sm:p-3 z-10 flex flex-col justify-end pointer-events-none">
                             <h3 className="text-xs sm:text-[13px] font-bold text-white tracking-tight leading-tight line-clamp-1 font-display drop-shadow-xs">
                               {srv.title}
@@ -3109,7 +3000,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   </div>
                 )}
 
-                {/* Barra de Paginação e Navegação */}
                 {totalServicePages > 1 && (
                   <div
                     className={`w-full px-4 py-2 flex items-center justify-between border-t transition-colors select-none shrink-0 ${
@@ -3118,7 +3008,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         : 'bg-[#FFFFFF] border-[#EDF2F7] text-[#1E293B]'
                     }`}
                   >
-                    {/* Indicador de Página e Total */}
+
                     <div className="flex items-center gap-2">
                       <div
                         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] border text-xs font-bold font-mono-tabular ${
@@ -3140,9 +3030,8 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                       </span>
                     </div>
 
-                    {/* Controles de Navegação com Setas */}
                     <div className="flex items-center gap-2">
-                      {/* Botão Anterior */}
+
                       <button
                         type="button"
                         onClick={handlePrevServicePage}
@@ -3156,7 +3045,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         <ChevronLeft className="w-4 h-4" />
                       </button>
 
-                      {/* Indicadores */}
                       <div className="flex items-center gap-1 px-1">
                         {Array.from({ length: totalServicePages }).map((_, dotIdx) => (
                           <button
@@ -3179,7 +3067,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         ))}
                       </div>
 
-                      {/* Botão Próximo */}
                       <button
                         type="button"
                         onClick={handleNextServicePage}
@@ -3199,14 +3086,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             </section>
           )}
 
-          {/* SEÇÃO 3: AGENDAR (SEÇÃO EM TELA INTEIRA SOBRE #F7F9FC COM BOTÃO VOLTAR) */}
           {activeTab === 'vagas' && (
             <section
               id="section-vagas"
               data-tab-id="vagas"
               className="w-full h-full flex-1 min-h-0 overflow-hidden flex flex-col justify-start bg-[var(--brand-canvas-bg)] dark:bg-slate-950 animate-in fade-in duration-150"
             >
-              {/* Subcabeçalho de Título da Seção: Agendar com Botão Voltar */}
+
               <div className={sectionHeaderStyleData.containerClass} style={sectionHeaderStyleData.containerStyle}>
                 <div className="flex items-center gap-2">
                   <button
@@ -3273,14 +3159,13 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
             </section>
           )}
 
-          {/* SEÇÃO 4: ESPAÇO, LOCALIZAÇÃO & EQUIPE */}
           {(activeTab === 'espaco' || activeTab === 'equipe') && (
             <section
               id="section-espaco"
               data-tab-id="espaco"
               className="w-full h-full flex-1 min-h-0 overflow-hidden flex flex-col justify-start animate-in fade-in duration-150"
             >
-          {/* Subcabeçalho de Título da Seção: Espaço */}
+
           <div className={sectionHeaderStyleData.containerClass} style={sectionHeaderStyleData.containerStyle}>
             <div className="flex items-center gap-2">
               <Store className="w-4 h-4 shrink-0" style={sectionHeaderStyleData.iconStyle} />
@@ -3296,9 +3181,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           </div>
 
               <div className="px-3.5 sm:px-4 py-2.5 space-y-2.5 flex-1 min-h-0 flex flex-col justify-start overflow-y-auto bg-[var(--brand-canvas-bg)] dark:bg-slate-950">
-                {/* Abas de Navegação Interna da Seção Espaço (1. Estrutura | 2. Contatos | 3. Localização) */}
+
                 <div className="grid grid-cols-3 gap-1.5 w-full shrink-0">
-                  {/* Aba 1: Estrutura */}
+
                   <button
                     type="button"
                     onClick={() => {
@@ -3323,7 +3208,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     </span>
                   </button>
 
-                  {/* Aba 2: Contatos */}
                   <button
                     type="button"
                     onClick={() => {
@@ -3348,7 +3232,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                     </span>
                   </button>
 
-                  {/* Aba 3: Localização */}
                   <button
                     type="button"
                     onClick={() => {
@@ -3374,10 +3257,9 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                   </button>
                 </div>
 
-                {/* Container de Conteúdo das Abas de Espaço */}
                 <div className="relative overflow-hidden select-none flex-1 min-h-0 flex flex-col justify-between">
                   <AnimatePresence mode="wait" custom={espacoSwipeDirection}>
-                    {/* SLIDE 0: ESTRUTURA DO ESPAÇO */}
+
                     {espacoSlideIndex === 0 && (
                       <motion.div
                         key="slide-espaco-estrutura"
@@ -3398,7 +3280,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         }}
                         className="cursor-grab active:cursor-grabbing touch-pan-y flex-1 min-h-0 flex flex-col"
                       >
-                        {/* ABA 1: CARDS DE ESTRUTURA DO ESPAÇO & COMODIDADES (DIRETO NA SUPERFÍCIE - SEM CAIXA DENTRO DE CAIXA) */}
+
                         <div className="grid grid-cols-2 auto-rows-fr gap-2.5 flex-1 min-h-0 py-0.5">
                           {salonInfo.amenities.map((amenity, idx) => (
                             <div
@@ -3419,7 +3301,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                       </motion.div>
                     )}
 
-                    {/* SLIDE 1: CONTATOS (CARDS DIRETOS NA SUPERFÍCIE - SEM CAIXA DENTRO DE CAIXA) */}
                     {espacoSlideIndex === 1 && (
                       <motion.div
                         key="slide-espaco-contatos"
@@ -3441,7 +3322,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         className="cursor-grab active:cursor-grabbing touch-pan-y flex-1 min-h-0 flex flex-col"
                       >
                         <div className="grid grid-cols-2 grid-rows-3 gap-2 flex-1 min-h-0 py-0.5">
-                          {/* WhatsApp */}
+
                           <a
                             href={
                               adminSettings.salonPhone
@@ -3468,7 +3349,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                             </span>
                           </a>
 
-                          {/* Telefone Fixo */}
                           <a
                             href={
                               adminSettings.phoneLandline
@@ -3493,7 +3373,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                             </span>
                           </a>
 
-                          {/* E-mail */}
                           <a
                             href={adminSettings.email ? `mailto:${adminSettings.email}` : '#'}
                             className={`caixa-tile p-2.5 flex flex-col items-center justify-center text-center gap-1 relative group ${
@@ -3514,7 +3393,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                             </span>
                           </a>
 
-                          {/* Instagram */}
                           <a
                             href={
                               adminSettings.instagramUrl
@@ -3543,7 +3421,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                             </span>
                           </a>
 
-                          {/* Facebook */}
                           <a
                             href={
                               adminSettings.facebookUrl
@@ -3572,7 +3449,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                             </span>
                           </a>
 
-                          {/* Site Oficial */}
                           <a
                             href={
                               adminSettings.websiteUrl
@@ -3604,7 +3480,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                       </motion.div>
                     )}
 
-                    {/* SLIDE 2: LOCALIZAÇÃO, ENDEREÇO COMPLETO & MAPA OCUPANDO A MAIOR PARTE DA SEÇÃO */}
                     {espacoSlideIndex === 2 && (
                       <motion.div
                         key="slide-espaco-mapa"
@@ -3615,7 +3490,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                         transition={{ duration: 0.22, ease: 'easeOut' }}
                         className="flex-1 min-h-0 flex flex-col gap-2"
                       >
-                        {/* Bloco Superior Compacto: Endereço Completo (Endereço, número, Complemento, Bairro, Cidade-UF e CEP) + Horário */}
+
                         <div className="caixa-card p-3 space-y-1.5 shrink-0">
                           <div className="flex items-start gap-2 text-xs">
                             <MapPin className="w-4 h-4 brand-icon shrink-0 mt-0.5" />
@@ -3633,7 +3508,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                           </div>
                         </div>
 
-                        {/* Mapa Interativo com Marcador do Salão, Arrasto de 1 Dedo, Zoom de 2 Dedos, KM/Tempo e Ações (No App, Google Maps, Waze) */}
                         <SalonSpaceInteractiveMap
                           salonName={salonInfo.name}
                           salonAvatar={salonInfo.avatar}
@@ -3662,7 +3536,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         </main>
       )}
 
-      {/* Banner Flutuante de Pré-Agendamento Pausado (Retomada em 1 Toque) */}
       {!isGerMode && activeBookingDraft && (
         <div className={`shrink-0 z-30 px-3 py-2 border-t flex items-center justify-between gap-2 transition-colors ${
           isDark ? 'bg-slate-900 border-amber-500/40 text-white' : 'bg-amber-50 border-amber-300 text-slate-900'
@@ -3715,7 +3588,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         </div>
       )}
 
-      {/* Barra de Navegação Inferior Nativa do Estabelecimento (4 Abas: Início/Painel, Serviços/Gestão, Agendar/Agenda, Espaço/Gerenciar) */}
       {(() => {
         const isEditingMode = isGerMode && [
           'personalizar', 'preferencias', 'dados', 'visual', 'layout', 'servicos', 'espaco', 'equipe'
@@ -3774,7 +3646,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         );
       })()}
 
-      {/* 2. SEÇÃO EM TELA INTEIRA DE AGENDAMENTO CONFIRMADO (SOBRE #F7F9FC) */}
       {confirmedBookingData && (
         <div className={`fixed inset-0 z-50 w-full max-w-[430px] mx-auto flex flex-col justify-between overflow-y-auto animate-in fade-in duration-200 ${
           isDark ? 'bg-slate-950 text-slate-100' : 'bg-[var(--brand-canvas-bg)] text-[#333E48]'
@@ -3794,7 +3665,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           </div>
 
           <div className="p-4 flex-1 flex flex-col items-center justify-center text-center space-y-4">
-            {/* Ícone de Sucesso */}
+
             <div className="w-14 h-14 rounded-[4px] brand-tab-active flex items-center justify-center shadow-xs">
               <Check className="w-8 h-8 stroke-[3]" />
             </div>
@@ -3808,7 +3679,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               </p>
             </div>
 
-            {/* Card com Detalhes do Voucher (.caixa-card sem box dentro de box) */}
             <div className={`w-full p-4 text-left space-y-3 ${
               isDark ? 'bg-slate-900 border border-slate-800 rounded-[4px]' : 'caixa-card'
             }`}>
@@ -3876,7 +3746,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
                       </span>
                     </div>
 
-                    {/* Botões Diretos de Navegação / App no Comprovante Confirmado */}
                     {(() => {
                       const mode = confirmedBookingData.uiTransportMode || 'car';
                       const links = buildTransportDeepLinks({
@@ -3985,7 +3854,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               </div>
             </div>
 
-            {/* Ações do Agendamento Concluído */}
             <div className="w-full space-y-2 pt-1">
               <button
                 type="button"
@@ -3997,7 +3865,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
               </button>
             </div>
 
-            {/* Chat no App com o Estabelecimento */}
             <button
               type="button"
               onClick={() => {
@@ -4014,7 +3881,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         </div>
       )}
 
-      {/* Drawer do Perfil do Usuário com Menus, Dados Privados, Agenda e Configurações */}
       <ProfileDrawer
         isOpen={isProfileDrawerOpen}
         initialSubTab={profileDrawerInitialTab}
@@ -4064,7 +3930,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         onNavigateToUserDashboard={onNavigateToUserDashboard}
       />
 
-      {/* Modal de Autenticação/Cadastro Seguro do Cliente (100% White-Label Nativo do Salão) */}
       {isClientAuthModalOpen && (
         <SalonClientAuthModal
           isOpen={isClientAuthModalOpen}
@@ -4109,7 +3974,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         />
       )}
 
-      {/* Modal de Pausa Emergencial de Agendamentos */}
       <PauseSlotsModal
         isOpen={isPauseSlotsModalOpen}
         onClose={() => setIsPauseSlotsModalOpen(false)}
@@ -4123,7 +3987,6 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         }
       />
 
-      {/* Modal Popup Informativo de Alternância de Perfil (Modo Cliente ⇄ Modo Salão) */}
       <ProfileModeSwitchModal
         isOpen={modeSwitchModalState.isOpen}
         targetMode={modeSwitchModalState.targetMode}

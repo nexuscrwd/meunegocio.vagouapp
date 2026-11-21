@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { 
-  Plus, Edit2, Trash2, Scissors, Check, X, 
+import {
+  Plus, Trash2, Scissors, Check, X,
   Sparkles, Clock, Image as ImageIcon,
   AlertCircle, Video, Upload, Film, FolderPlus,
   Images, Play, Camera, Eye, Tag
@@ -49,7 +49,6 @@ const INITIAL_SAVED_IMAGES: SavedMediaItem[] = SERVICE_GALLERY_PRESETS.map((p, i
 
 const INITIAL_SAVED_VIDEOS: SavedMediaItem[] = [];
 
-// Funções utilitárias para máscara e conversão monetária BRL (edição livre de dígitos)
 function formatCurrencyBRL(val: number | string): string {
   const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/\./g, '').replace(',', '.')) || 0;
   return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -68,7 +67,6 @@ function maskCurrencyBRLInput(rawValue: string): string {
   return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// Funções utilitárias para duração estruturada em HH e MM
 function parseDurationToHoursMinutes(durationStr?: string): { hours: string; minutes: string } {
   const totalMinutes = parseDurationToMinutes(durationStr, 40);
   const h = Math.floor(totalMinutes / 60);
@@ -98,7 +96,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
   const { isDark } = useTheme();
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
 
-  // Categorias cadastradas com sincronização em Banco (adminSettings.serviceCategories) + LocalStorage
   const [categoryList, setCategoryList] = useState<string[]>(() => {
     const fromSettings = Array.isArray(adminSettings?.serviceCategories) ? adminSettings.serviceCategories : [];
     let fromStorage: string[] = [];
@@ -109,7 +106,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         if (Array.isArray(parsed)) fromStorage = parsed;
       }
     } catch {
-      // ignore
+
     }
     const fromServices = services.map((s) => s.category?.trim()).filter(Boolean);
     return Array.from(new Set([...DEFAULT_CATEGORIES, ...fromSettings, ...fromStorage, ...fromServices]));
@@ -122,18 +119,14 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     setCategoryList((prev) => Array.from(new Set([...prev, ...fromSettings, ...fromServices])));
   }, [adminSettings?.serviceCategories, services]);
 
-  // Modal de Adicionar / Editar Serviço (Passo a Passo)
   const [isModalOpen, setIsModalOpen] = useState<boolean>(isAddingNewFromQuickAction);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
-  
-  // Controle de criação rápida de categoria dentro do fluxo de criação do serviço
+
   const [isCreatingCategoryInline, setIsCreatingCategoryInline] = useState<boolean>(false);
   const [newCategoryName, setNewCategoryName] = useState<string>('');
 
-  // Pré-visualização do anúncio no portal / modo público
   const [previewService, setPreviewService] = useState<CatalogServiceItem | null>(null);
 
-  // Campos do formulário básico
   const [formCategory, setFormCategory] = useState<string>('Cabelo');
   const [formTitle, setFormTitle] = useState<string>('');
   const [formPrice, setFormPrice] = useState<string>('50,00');
@@ -143,9 +136,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
   const [formPhotoCover, setFormPhotoCover] = useState<string>('');
   const minutesInputRef = useRef<HTMLInputElement | null>(null);
 
-  // -------------------------------------------------------------
-  // GERENCIADOR DE MÍDIA DESACOPLADO (POR SERVIÇO)
-  // -------------------------------------------------------------
   const [mediaModalService, setMediaModalService] = useState<CatalogServiceItem | null>(null);
   const [mediaDisplayMode, setMediaDisplayMode] = useState<'static' | 'slideshow' | 'video'>('static');
   const [mediaPhotos, setMediaPhotos] = useState<string[]>([]);
@@ -153,7 +143,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
   const [mediaVideoDuration, setMediaVideoDuration] = useState<number>(5);
   const [videoDurationWarning, setVideoDurationWarning] = useState<string | null>(null);
 
-  // Biblioteca de Mídias Salvas com persistência no LocalStorage e hidratação do Supabase (salon_media_items)
   const [savedMediaList, setSavedMediaList] = useState<SavedMediaItem[]>(() => {
     try {
       const stored = localStorage.getItem('vagou_saved_media_library_v3') || localStorage.getItem('vagou_salon_media');
@@ -164,7 +153,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         }
       }
     } catch {
-      // ignore
+
     }
     return [...INITIAL_SAVED_IMAGES, ...INITIAL_SAVED_VIDEOS];
   });
@@ -202,7 +191,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     };
   }, []);
 
-  // Modal dedicado para seleção da Biblioteca de Mídias Salvas
   const [isMediaLibraryModalOpen, setIsMediaLibraryModalOpen] = useState<boolean>(false);
   const [mediaLibraryCategory, setMediaLibraryCategory] = useState<string>('Todas');
 
@@ -230,8 +218,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
       return m.category.toLowerCase() === mediaLibraryCategory.toLowerCase();
     });
   }, [savedMediaList, mediaLibraryCategory]);
-  
-  // Referências para inputs de Câmera e Dispositivo
+
   const cameraPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const devicePhotoInputRef = useRef<HTMLInputElement | null>(null);
   const cameraVideoInputRef = useRef<HTMLInputElement | null>(null);
@@ -239,7 +226,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
   const formCameraPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const formDevicePhotoInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Estados das 3 abas de mídia dentro do formulário do serviço (div:nth-of-type(5))
   const [formMediaTab, setFormMediaTab] = useState<'prontas' | 'galeria' | 'dispositivo'>('prontas');
   const [formGalleryFilterCat, setFormGalleryFilterCat] = useState<string>('Todas');
   const [formDeviceTargetCat, setFormDeviceTargetCat] = useState<string>('Cabelo');
@@ -257,7 +243,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
       return m.category.toLowerCase() === formGalleryFilterCat.toLowerCase();
     });
   }, [savedMediaList, formGalleryFilterCat]);
-  
+
   const [deleteConfirmService, setDeleteConfirmService] = useState<CatalogServiceItem | null>(null);
   const [deleteConfirmCategory, setDeleteConfirmCategory] = useState<string | null>(null);
   const [isChooseCreateModalOpen, setIsChooseCreateModalOpen] = useState<boolean>(false);
@@ -274,13 +260,12 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     setTimeout(() => setToastMessage(null), 3200);
   };
 
-  // Salvar categorias no LocalStorage e Supabase
   const persistCategories = async (newCats: string[]) => {
     setCategoryList(newCats);
     try {
       localStorage.setItem('vagou_custom_service_categories', JSON.stringify(newCats));
     } catch {
-      // ignore
+
     }
     if (onUpdateSettings) {
       return await onUpdateSettings({ serviceCategories: newCats });
@@ -345,7 +330,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     showToast(`Categoria "${target}" salva!`);
   };
 
-  // Criar nova categoria dentro do fluxo de cadastro
   const handleCreateCategory = async (nameToCreate?: string) => {
     const target = (nameToCreate || newCategoryName).trim();
     if (!target) return;
@@ -367,7 +351,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     showToast(`Categoria "${target}" criada!`);
   };
 
-  // Abrir modal para novo serviço (fluxo passo a passo)
   const handleOpenNew = (defaultCat?: string) => {
     hapticLight();
     const initialCat = defaultCat && defaultCat !== 'Todos' ? defaultCat : (categoryList[0] || 'Cabelo');
@@ -388,7 +371,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     setIsModalOpen(true);
   };
 
-  // Abrir modal para editar serviço
   const handleOpenEdit = (srv: CatalogServiceItem) => {
     hapticLight();
     const initialCat = srv.category || categoryList[0] || 'Cabelo';
@@ -410,7 +392,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     setIsModalOpen(true);
   };
 
-  // Salvar serviço (novo ou existente com validação confirmada do banco)
   const handleSaveService = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle.trim() || isSaving) return;
@@ -480,7 +461,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     onCloseQuickAction?.();
   };
 
-  // Abrir gerenciador de mídia dedicado para um serviço específico
   const handleOpenMediaManager = (srv: CatalogServiceItem) => {
     hapticLight();
     setSaveError(null);
@@ -508,7 +488,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     setVideoDurationWarning(null);
   };
 
-  // Salvar mídia no serviço selecionado
   const handleSaveMediaToService = async () => {
     if (!mediaModalService || isSaving) return;
 
@@ -549,7 +528,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     setMediaModalService(null);
   };
 
-  // Processar arquivo de foto/vídeo capturado na hora ou enviado do aparelho
   const processAndSaveMediaFile = async (
     file: File,
     type: 'image' | 'video',
@@ -560,214 +538,108 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     const currentTitle = mediaModalService?.title || formTitle || 'Serviço';
     const salonId = localStorage.getItem('vagou_salon_db_id') || '';
 
-    // Tentativa prioritária: Upload direto no bucket do Supabase Storage
     try {
-      const uploadedUrl = await uploadSalonMediaToStorage(file, 'salon-media', 'services');
-      if (uploadedUrl && !uploadedUrl.startsWith('data:')) {
-        const newMedia: SavedMediaItem = {
-          id: generateUuidV4(),
-          type,
-          url: uploadedUrl,
-          category: currentCat,
-          title: `${currentTitle.trim()} (${currentCat})`,
-          createdAt: Date.now(),
-          duration: type === 'video' ? 5 : undefined,
-        };
-
-        setSavedMediaList((prev) => {
-          const updated = [newMedia, ...prev];
-          try {
-            localStorage.setItem('vagou_saved_media_library_v3', JSON.stringify(updated.slice(0, 50)));
-            localStorage.setItem('vagou_salon_media', JSON.stringify(updated.slice(0, 50)));
-          } catch {}
-          return updated;
-        });
-
-        if (salonId) {
-          syncSalonMediaToDatabase(salonId, {
-            id: newMedia.id,
-            title: newMedia.title,
-            url: newMedia.url,
-            type,
-            media_group: type === 'video' ? 'videos' : 'fotos',
-            category: 'servicos',
-          });
-        }
-
-        if (type === 'video' || targetMode === 'video') {
-          setMediaVideoUrl(uploadedUrl);
-          setMediaDisplayMode('video');
-        } else if (targetMode === 'static') {
-          setMediaPhotos([uploadedUrl]);
-          setFormPhotoCover(uploadedUrl);
-        } else {
-          setMediaPhotos((prev) => [...prev.slice(0, 4), uploadedUrl]);
-        }
-
-        if (options?.redirectToFormGallery) {
-          setFormGalleryFilterCat(currentCat);
-          setFormMediaTab('galeria');
-        }
-
-        hapticSuccess();
-        showToast(options?.redirectToFormGallery ? 'Foto salva na galeria e selecionada!' : 'Mídia enviada para o Storage com sucesso!');
-        return;
-      }
-    } catch {
-      // Fallback para compressão local em canvas
-    }
-
-    if (type === 'image') {
-      if (!file.type.startsWith('image/')) {
+      if (type === 'image' && !file.type.startsWith('image/')) {
         showToast('Por favor, selecione um arquivo de imagem válido.');
         return;
       }
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const rawUrl = e.target?.result as string;
-        if (!rawUrl) return;
-
-        // Otimizar resolução de imagens grandes
-        const img = new Image();
-        img.onload = () => {
-          let finalUrl = rawUrl;
-          const maxDim = 1200;
-          if (img.width > maxDim || img.height > maxDim) {
-            const canvas = document.createElement('canvas');
-            const scale = Math.min(maxDim / img.width, maxDim / img.height);
-            canvas.width = Math.round(img.width * scale);
-            canvas.height = Math.round(img.height * scale);
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-              finalUrl = canvas.toDataURL('image/jpeg', 0.85);
-            }
-          }
-
-          const newMedia: SavedMediaItem = {
-            id: generateUuidV4(),
-            type: 'image',
-            url: finalUrl,
-            category: currentCat,
-            title: `${currentTitle.trim()} (${currentCat})`,
-            createdAt: Date.now(),
-          };
-
-          setSavedMediaList((prev) => {
-            const updated = [newMedia, ...prev];
-            try {
-              localStorage.setItem('vagou_saved_media_library_v3', JSON.stringify(updated.slice(0, 50)));
-              localStorage.setItem('vagou_salon_media', JSON.stringify(updated.slice(0, 50)));
-            } catch {
-              // ignore
-            }
-            return updated;
-          });
-
-          const salonId = localStorage.getItem('vagou_salon_db_id') || '';
-          if (salonId) {
-            syncSalonMediaToDatabase(salonId, {
-              id: newMedia.id,
-              title: newMedia.title,
-              url: newMedia.url,
-              type: 'image',
-              media_group: 'fotos',
-              category: 'servicos',
-            });
-          }
-
-          if (targetMode === 'static') {
-            setMediaPhotos([finalUrl]);
-            setFormPhotoCover(finalUrl);
-            if (options?.redirectToFormGallery) {
-              setFormGalleryFilterCat(currentCat);
-              setFormMediaTab('galeria');
-            }
-            hapticSuccess();
-            showToast(options?.redirectToFormGallery ? 'Foto salva na galeria e selecionada!' : `Foto salva e definida para o serviço!`);
-          } else {
-            // slideshow: adicionar até 5 fotos
-            if (mediaPhotos.length >= 5) {
-              hapticLight();
-              showToast(`Foto salva na biblioteca. (Slide atingiu limite de 5 fotos)`);
-            } else {
-              setMediaPhotos((prev) => [...prev, finalUrl]);
-              hapticSuccess();
-              showToast(`Foto salva e adicionada ao slide (${mediaPhotos.length + 1}/5)!`);
-            }
-          }
-        };
-        img.src = rawUrl;
-      };
-      reader.readAsDataURL(file);
-    } else {
-      // Vídeo
-      if (!file.type.startsWith('video/')) {
+      if (type === 'video' && !file.type.startsWith('video/')) {
         showToast('Por favor, selecione um arquivo de vídeo válido.');
         return;
       }
-      const videoBlobUrl = URL.createObjectURL(file);
-      const tempVideo = document.createElement('video');
-      tempVideo.preload = 'metadata';
-      tempVideo.src = videoBlobUrl;
-      tempVideo.onloadedmetadata = () => {
-        const dur = Math.round(tempVideo.duration * 10) / 10;
-        setMediaVideoDuration(dur);
-        if (dur > 5.5) {
-          setVideoDurationWarning(`Vídeo de ${dur}s. O radar prioriza vídeos de até 5 segundos para máxima conversão.`);
-        } else {
-          setVideoDurationWarning(null);
-        }
-      };
+
+      if (type === 'video') {
+        const previewUrl = URL.createObjectURL(file);
+        const tempVideo = document.createElement('video');
+        tempVideo.preload = 'metadata';
+        tempVideo.src = previewUrl;
+        tempVideo.onloadedmetadata = () => {
+          const dur = Math.round(tempVideo.duration * 10) / 10;
+          setMediaVideoDuration(dur);
+          if (dur > 5.5) {
+            setVideoDurationWarning(`Vídeo de ${dur}s. O radar prioriza vídeos de até 5 segundos para máxima conversão.`);
+          } else {
+            setVideoDurationWarning(null);
+          }
+          URL.revokeObjectURL(previewUrl);
+        };
+      }
+
+      const uploadedUrl = await uploadSalonMediaToStorage(
+        file,
+        'services',
+        type === 'video' ? 'service_video' : 'service_photo'
+      );
+
+      if (!uploadedUrl || uploadedUrl.startsWith('data:')) {
+        showToast('Falha ao enviar mídia para o Storage. Tente novamente.');
+        return;
+      }
 
       const newMedia: SavedMediaItem = {
         id: generateUuidV4(),
-        type: 'video',
-        url: videoBlobUrl,
+        type,
+        url: uploadedUrl,
         category: currentCat,
         title: `${currentTitle.trim()} (${currentCat})`,
         createdAt: Date.now(),
-        duration: 5,
+        duration: type === 'video' ? 5 : undefined,
       };
 
       setSavedMediaList((prev) => {
         const updated = [newMedia, ...prev];
         try {
-          localStorage.setItem('vagou_saved_media_library_v3', JSON.stringify(updated.slice(0, 30)));
-          localStorage.setItem('vagou_salon_media', JSON.stringify(updated.slice(0, 30)));
-        } catch {
-          // ignore
-        }
+          localStorage.setItem('vagou_saved_media_library_v3', JSON.stringify(updated.slice(0, 50)));
+          localStorage.setItem('vagou_salon_media', JSON.stringify(updated.slice(0, 50)));
+        } catch {}
         return updated;
       });
 
-      const salonId = localStorage.getItem('vagou_salon_db_id') || '';
       if (salonId) {
         syncSalonMediaToDatabase(salonId, {
           id: newMedia.id,
           title: newMedia.title,
           url: newMedia.url,
-          type: 'video',
-          media_group: 'videos',
+          type,
+          media_group: type === 'video' ? 'videos' : 'fotos',
           category: 'servicos',
-          duration_seconds: 5,
+          bucket: 'services',
         });
       }
 
-      setMediaVideoUrl(videoBlobUrl);
-      setMediaDisplayMode('video');
+      if (type === 'video' || targetMode === 'video') {
+        setMediaVideoUrl(uploadedUrl);
+        setMediaDisplayMode('video');
+      } else if (targetMode === 'static') {
+        setMediaPhotos([uploadedUrl]);
+        setFormPhotoCover(uploadedUrl);
+      } else if (mediaPhotos.length >= 5) {
+        hapticLight();
+        showToast('Foto salva na biblioteca. (Slide atingiu limite de 5 fotos)');
+        return;
+      } else {
+        setMediaPhotos((prev) => [...prev, uploadedUrl]);
+      }
+
+      if (options?.redirectToFormGallery) {
+        setFormGalleryFilterCat(currentCat);
+        setFormMediaTab('galeria');
+      }
+
       hapticSuccess();
-      showToast(`Vídeo salvo na biblioteca e selecionado!`);
+      showToast(options?.redirectToFormGallery ? 'Foto salva na galeria e selecionada!' : 'Mídia salva no Storage com sucesso!');
+      return;
+    } catch (uploadErr: any) {
+      showToast(uploadErr?.message || 'Erro ao enviar mídia binária para o Storage.');
+      return;
     }
   };
 
-  // Remover foto do slide no gerenciador de mídia
   const handleRemovePhotoFromSlide = (index: number) => {
     setMediaPhotos((prev) => prev.filter((_, i) => i !== index));
     hapticLight();
   };
 
-  // Excluir serviço (confirmado via modal com validação de banco)
   const handleDeleteService = async (id: string) => {
     if (isSaving) return;
     hapticMedium();
@@ -788,14 +660,12 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
     showToast('Serviço removido do banco.');
   };
 
-  // Filtragem de serviços por categoria
   const filteredServices = useMemo(() => {
     return services.filter((srv) => {
       return selectedCategory === 'Todos' || srv.category?.toLowerCase() === selectedCategory.toLowerCase();
     });
   }, [services, selectedCategory]);
 
-  // Agrupamento por Categoria (Categoria como Grupo Pai e Serviços como Subcategorias)
   const groupedByCategory = useMemo(() => {
     const groups: Record<string, CatalogServiceItem[]> = {};
     filteredServices.forEach((srv) => {
@@ -812,7 +682,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
 
   return (
     <div className="w-full h-full flex flex-col justify-start overflow-hidden relative">
-      {/* Inputs Ocultos de Câmera e Arquivos para Mídia */}
+
       <input
         type="file"
         ref={cameraPhotoInputRef}
@@ -863,7 +733,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         }}
         className="hidden"
       />
-      {/* Inputs dedicados para a aba "Do Dispositivo" do formulário de serviço */}
+
       <input
         type="file"
         ref={formCameraPhotoInputRef}
@@ -896,7 +766,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         className="hidden"
       />
 
-      {/* Toast Feedback */}
       {toastMessage && (
         <div
           className={`absolute top-2 left-1/2 -translate-x-1/2 z-50 px-3.5 py-2 rounded-[4px] font-bold text-xs shadow-lg animate-in fade-in flex items-center gap-1.5 whitespace-nowrap text-white ${
@@ -912,7 +781,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         </div>
       )}
 
-      {/* TOPO LIMPO: BOTÃO ÚNICO DE NOVO SERVIÇO & CHIPS DE CATEGORIAS */}
       <div className={`p-3 border-b transition-colors shrink-0 space-y-2.5 ${
         isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
       }`}>
@@ -924,7 +792,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
             </h2>
           </div>
 
-          {/* Botão ÚNICO Primário de Ação: Novo */}
           <button
             type="button"
             onClick={() => {
@@ -938,7 +805,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
           </button>
         </div>
 
-        {/* Chips de Categorias Roláveis */}
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
           {allAvailableCategories.map((cat) => {
             const count = cat === 'Todos' ? services.length : services.filter((s) => s.category?.toLowerCase() === cat.toLowerCase()).length;
@@ -971,7 +837,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         </div>
       </div>
 
-      {/* LISTA DE SERVIÇOS (LAYOUT PLANO ORGANIZADO POR CATEGORIA) */}
       <div className="flex-1 overflow-y-auto p-3 space-y-4 no-scrollbar">
         {filteredServices.length === 0 ? (
           <div className="text-center py-12 px-4 space-y-3">
@@ -996,7 +861,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         ) : (
           (Object.entries(groupedByCategory) as [string, CatalogServiceItem[]][]).map(([categoryName, catServices]) => (
             <div key={categoryName} className="space-y-2">
-              {/* Header da Categoria Mestre */}
+
               <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
                   <Tag className="w-3.5 h-3.5 brand-icon shrink-0" />
@@ -1012,7 +877,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   </span>
                 </div>
 
-                {/* Botão de Excluir Categoria (apenas para categorias cadastradas na lista e que não sejam o Fallback "Outros") */}
                 {categoryList.includes(categoryName) && categoryName.toLowerCase() !== 'outros' && (
                   <button
                     type="button"
@@ -1029,7 +893,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 )}
               </div>
 
-              {/* Grid de Serviços */}
               <div className="grid grid-cols-1 gap-2">
                 {catServices.map((srv) => {
                   const srvMode = srv.displayMode || (srv.mediaType === 'video' ? 'video' : 'static');
@@ -1042,13 +905,13 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                     <div
                       key={srv.id}
                       className={`p-2.5 rounded transition flex items-center justify-between gap-3 border ${
-                        isDark 
-                          ? 'bg-slate-900/90 border-slate-800/90 hover:border-slate-700' 
+                        isDark
+                          ? 'bg-slate-900/90 border-slate-800/90 hover:border-slate-700'
                           : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
                       }`}
                     >
-                      {/* Miniatura do Anúncio ou Botão de Inserção de Mídia */}
-                      <div 
+
+                      <div
                         onClick={() => handleOpenMediaManager(srv)}
                         className="w-14 h-14 rounded overflow-hidden relative shrink-0 bg-slate-950 border border-slate-800 cursor-pointer group"
                         title={hasMedia ? "Alterar foto ou vídeo" : "Inserir foto ou vídeo"}
@@ -1083,7 +946,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                             )}
                           </>
                         ) : (
-                          /* Estado Sem Mídia: Ícone chamativo para inserção */
+
                           <div className={`w-full h-full flex flex-col items-center justify-center border border-dashed transition p-1 ${
                             isDark
                               ? 'bg-slate-900/90 border-slate-700 text-slate-300 group-hover:bg-slate-800'
@@ -1096,14 +959,12 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                           </div>
                         )}
 
-                        {/* Overlay sutil de edição ao passar o mouse */}
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
                           <Camera className="w-4 h-4 text-white" />
                         </div>
                       </div>
 
-                      {/* Informações Centrais (clique para editar) */}
-                      <div 
+                      <div
                         onClick={() => handleOpenEdit(srv)}
                         className="min-w-0 flex-1 space-y-1 cursor-pointer group/info"
                         title="Clique para editar serviço"
@@ -1132,7 +993,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                         </div>
                       </div>
 
-                      {/* Botão de Exclusão Rápida do Serviço */}
                       <button
                         type="button"
                         onClick={(e) => {
@@ -1154,21 +1014,18 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         )}
       </div>
 
-      {/* ============================================================ */}
-      {/* MODAL 1: FLUXO PASSO A PASSO PARA NOVO / EDITAR SERVIÇO */}
-      {/* ============================================================ */}
       {isModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-xs animate-in fade-in"
           onClick={() => setIsModalOpen(false)}
         >
-          <div 
+          <div
             className={`w-full max-w-md max-h-[92vh] rounded-lg flex flex-col overflow-hidden shadow-2xl border ${
               isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header do Modal */}
+
             <div className={`px-4 py-3 border-b flex items-center justify-between shrink-0 ${
               isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-200 bg-slate-50'
             }`}>
@@ -1187,9 +1044,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               </button>
             </div>
 
-            {/* Formulário com Foco Passo a Passo */}
             <form onSubmit={handleSaveService} className="p-4 space-y-3.5 overflow-y-auto no-scrollbar flex-1">
-              {/* 1. NOME DO SERVIÇO */}
+
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                   1. Nome do Serviço *
@@ -1201,14 +1057,13 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   onChange={(e) => setFormTitle(e.target.value)}
                   placeholder="Ex: Corte Degradê, Alinhamento de Fios, etc."
                   className={`w-full px-3 py-2 rounded-[4px] text-xs border ${
-                    isDark 
-                      ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-[var(--brand-primary)]' 
+                    isDark
+                      ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-[var(--brand-primary)]'
                       : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-[var(--brand-primary)]'
                   } outline-hidden`}
                 />
               </div>
 
-              {/* 2. SELEÇÃO (LISTA SUSPENSA) OU CRIAÇÃO DE CATEGORIA */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -1229,7 +1084,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   )}
                 </div>
 
-                {/* Bloco inline de criação de categoria rápida ou Lista Suspensa */}
                 {isCreatingCategoryInline ? (
                   <div className={`p-2.5 rounded-[4px] border space-y-2 ${isDark ? 'bg-slate-900/80 border-slate-700' : 'bg-slate-50 border-slate-300'}`}>
                     <div className="flex items-center gap-1.5">
@@ -1288,7 +1142,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 )}
               </div>
 
-              {/* 3. PREÇO E DURAÇÃO */}
               <div className="flex flex-row items-start gap-8">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
@@ -1310,8 +1163,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                       }}
                       placeholder="0,00"
                       className={`w-full pl-8 pr-3 py-2 rounded-[4px] text-xs font-bold border ${
-                        isDark 
-                          ? 'bg-slate-900 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                        isDark
+                          ? 'bg-slate-900 border-slate-800 text-white focus:border-[var(--brand-primary)]'
                           : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-[var(--brand-primary)]'
                       } outline-hidden`}
                     />
@@ -1323,10 +1176,10 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                     4. Duração Estimada *
                   </label>
                   <div className="flex items-center gap-1.5">
-                    {/* Bloco de Horas */}
+
                     <div className={`flex items-center px-2 py-1.5 rounded-[4px] border transition ${
-                      isDark 
-                        ? 'bg-slate-900 border-slate-800 focus-within:border-[var(--brand-primary)]' 
+                      isDark
+                        ? 'bg-slate-900 border-slate-800 focus-within:border-[var(--brand-primary)]'
                         : 'bg-slate-50 border-slate-200 focus-within:border-[var(--brand-primary)]'
                     }`}>
                       <input
@@ -1360,10 +1213,9 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
 
                     <span className={`text-xs font-bold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>:</span>
 
-                    {/* Bloco de Minutos */}
                     <div className={`flex items-center px-2 py-1.5 rounded-[4px] border transition ${
-                      isDark 
-                        ? 'bg-slate-900 border-slate-800 focus-within:border-[var(--brand-primary)]' 
+                      isDark
+                        ? 'bg-slate-900 border-slate-800 focus-within:border-[var(--brand-primary)]'
                         : 'bg-slate-50 border-slate-200 focus-within:border-[var(--brand-primary)]'
                     }`}>
                       <input
@@ -1392,7 +1244,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                       <span className="text-[10px] font-bold text-slate-400 select-none pl-0.5">min</span>
                     </div>
 
-                    {/* Badge de Resumo Formatado */}
                     <span className="text-[10.5px] font-bold shrink-0 ml-2 px-1.5 py-0.5 rounded-[4px] border whitespace-nowrap brand-soft-badge">
                       {formatHoursMinutesToDuration(formHours, formMinutes)}
                     </span>
@@ -1400,7 +1251,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 </div>
               </div>
 
-              {/* 5. DESCRIÇÃO */}
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                   5. Descrição do Serviço
@@ -1411,14 +1261,13 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   onChange={(e) => setFormDescription(e.target.value)}
                   placeholder="Descreva a técnica, acabamento, produtos ou benefícios..."
                   className={`w-full px-3 py-2 rounded-[4px] text-xs border resize-none ${
-                    isDark 
-                      ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-[var(--brand-primary)]' 
+                    isDark
+                      ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-[var(--brand-primary)]'
                       : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-[var(--brand-primary)]'
                   } outline-hidden`}
                 />
               </div>
 
-              {/* 6. MÍDIA DO SERVIÇO & GALERIA PRONTA */}
               <div className="space-y-2.5 pt-1">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
@@ -1430,7 +1279,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   </span>
                 </div>
 
-                {/* Seletor das 3 Abas */}
                 <div className="grid grid-cols-3 gap-1.5">
                   <button
                     type="button"
@@ -1487,7 +1335,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   </button>
                 </div>
 
-                {/* CONTEÚDO DA ABA 1: FOTOS PRONTAS */}
                 {formMediaTab === 'prontas' && (
                   <div className="space-y-2 pt-0.5">
                     <div className="flex items-center justify-between">
@@ -1535,7 +1382,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   </div>
                 )}
 
-                {/* CONTEÚDO DA ABA 2: ESCOLHER DA GALERIA */}
                 {formMediaTab === 'galeria' && (
                   <div className="space-y-2 pt-0.5">
                     <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5">
@@ -1611,7 +1457,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   </div>
                 )}
 
-                {/* CONTEÚDO DA ABA 3: DO DISPOSITIVO (TIRAR FOTO | SELECIONAR) */}
                 {formMediaTab === 'dispositivo' && (
                   <div className="space-y-2.5 pt-0.5">
                     <div className="space-y-1">
@@ -1645,7 +1490,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
-                      {/* Sub-opção 1: Tirar foto (Câmera Móvel -> Salva na galeria selecionada -> Vai direto para a galeria) */}
+
                       <button
                         type="button"
                         onClick={() => {
@@ -1658,7 +1503,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                         <span>Tirar foto</span>
                       </button>
 
-                      {/* Sub-opção 2: Selecionar (Dispositivo ou Google Fotos -> Salva e vai para a galeria) */}
                       <button
                         type="button"
                         onClick={() => {
@@ -1678,7 +1522,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   </div>
                 )}
 
-                {/* Status da Capa / Acesso ao Gerenciador de Mídia Completo */}
                 {editingServiceId ? (
                   (() => {
                     const currentService = services.find((s) => s.id === editingServiceId);
@@ -1763,7 +1606,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 </div>
               )}
 
-              {/* Botões de Ação Fixos no Rodapé */}
               <div className={`pt-2 sticky bottom-0 z-20 flex items-center gap-2 ${
                 isDark ? 'bg-slate-950/95' : 'bg-white/95'
               } backdrop-blur-xs`}>
@@ -1779,8 +1621,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                       }
                     }}
                     className={`px-3 py-2.5 rounded-[4px] border transition cursor-pointer font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50 ${
-                      isDark 
-                        ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20' 
+                      isDark
+                        ? 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20'
                         : 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100'
                     }`}
                     title="Excluir este serviço"
@@ -1806,21 +1648,18 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* MODAL 2: GERENCIADOR DE MÍDIA SOB DEMANDA (FOTO / SLIDE / VÍDEO) */}
-      {/* ============================================================ */}
       {mediaModalService && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-xs animate-in fade-in"
           onClick={() => setMediaModalService(null)}
         >
-          <div 
+          <div
             className={`w-full max-w-md max-h-[92vh] rounded-lg flex flex-col overflow-hidden shadow-2xl border ${
               isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header do Gerenciador de Mídia */}
+
             <div className={`px-4 py-3 border-b flex items-center justify-between shrink-0 ${
               isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-200 bg-slate-50'
             }`}>
@@ -1844,15 +1683,14 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               </button>
             </div>
 
-            {/* Conteúdo do Gerenciador de Mídia */}
             <div className="p-4 space-y-4 overflow-y-auto no-scrollbar flex-1">
-              {/* 1. SELEÇÃO DO FORMATO DE EXIBIÇÃO */}
+
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
                   1. Formato de Exibição
                 </label>
                 <div className="grid grid-cols-3 gap-1.5">
-                  {/* Opção 1: Foto Única */}
+
                   <button
                     type="button"
                     onClick={() => {
@@ -1879,7 +1717,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                     </div>
                   </button>
 
-                  {/* Opção 2: Slide de Fotos */}
                   <button
                     type="button"
                     onClick={() => {
@@ -1906,7 +1743,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                     </div>
                   </button>
 
-                  {/* Opção 3: Vídeo 5s */}
                   <button
                     type="button"
                     onClick={() => {
@@ -1935,7 +1771,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 </div>
               </div>
 
-              {/* 2. ORIGEM DA MÍDIA: BIBLIOTECA, DO DISPOSITIVO OU CAPTURAR */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -1947,7 +1782,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 </div>
 
                 <div className="grid grid-cols-3 gap-1.5">
-                  {/* Opção 1: Biblioteca */}
+
                   <button
                     type="button"
                     onClick={() => {
@@ -1965,7 +1800,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                     <span className="text-[10px] whitespace-nowrap">Biblioteca</span>
                   </button>
 
-                  {/* Opção 2: Do Dispositivo */}
                   <button
                     type="button"
                     onClick={() => {
@@ -1985,7 +1819,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                     <span className="text-[10px] whitespace-nowrap">Dispositivo</span>
                   </button>
 
-                  {/* Opção 3: Capturar (Câmera) */}
                   <button
                     type="button"
                     onClick={() => {
@@ -2002,7 +1835,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   </button>
                 </div>
 
-                {/* 2.5. Sugestões de Fotos Prontas para a Categoria */}
                 {mediaDisplayMode !== 'video' && (
                   <div className="space-y-1.5 pt-1">
                     <div className="flex items-center justify-between">
@@ -2055,7 +1887,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 )}
               </div>
 
-              {/* 3. VISUALIZAÇÃO E GESTÃO DAS MÍDIAS ATIVAS */}
               {mediaDisplayMode === 'video' ? (
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
@@ -2138,10 +1969,10 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   {mediaPhotos[0] ? (
                     <div className="flex items-center gap-2.5 p-2 rounded bg-slate-900/80 border brand-border-active">
                       <div className="w-12 h-12 rounded overflow-hidden bg-slate-950 shrink-0 relative">
-                        <img 
-                          src={mediaPhotos[0]} 
-                          alt="Foto selecionada" 
-                          className="w-full h-full object-cover" 
+                        <img
+                          src={mediaPhotos[0]}
+                          alt="Foto selecionada"
+                          className="w-full h-full object-cover"
                         />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -2168,7 +1999,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 </div>
               )}
 
-              {/* Botão de Salvar Mídia no Serviço */}
               <div className="pt-2 sticky bottom-0 z-20">
                 <button
                   type="button"
@@ -2185,21 +2015,18 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* MODAL 3: BIBLIOTECA DE MÍDIAS SALVAS (SELEÇÃO DEDICADA) */}
-      {/* ============================================================ */}
       {isMediaLibraryModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-xs animate-in fade-in"
           onClick={() => setIsMediaLibraryModalOpen(false)}
         >
-          <div 
+          <div
             className={`w-full max-w-md max-h-[88vh] rounded-lg flex flex-col overflow-hidden shadow-2xl border ${
               isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Cabeçalho do Modal da Biblioteca */}
+
             <div className={`p-4 border-b flex items-center justify-between shrink-0 ${
               isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-200 bg-slate-50'
             }`}>
@@ -2215,9 +2042,9 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-sm font-bold truncate">
-                    {mediaDisplayMode === 'video' 
-                      ? 'Biblioteca de Vídeos' 
-                      : mediaDisplayMode === 'slideshow' 
+                    {mediaDisplayMode === 'video'
+                      ? 'Biblioteca de Vídeos'
+                      : mediaDisplayMode === 'slideshow'
                       ? `Fotos para o Slide (${mediaPhotos.length}/5)`
                       : 'Biblioteca de Fotos'}
                   </h3>
@@ -2239,7 +2066,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               </button>
             </div>
 
-            {/* Barra de Filtros de Categoria da Biblioteca */}
             <div className={`px-4 py-2 border-b flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0 ${
               isDark ? 'border-slate-800/80 bg-slate-950' : 'border-slate-100 bg-white'
             }`}>
@@ -2270,7 +2096,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               })}
             </div>
 
-            {/* Conteúdo com Scroll da Biblioteca */}
             <div className="p-4 overflow-y-auto no-scrollbar flex-1">
               {mediaDisplayMode === 'video' ? (
                 filteredSavedVideos.length === 0 ? (
@@ -2372,7 +2197,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                           </button>
                         );
                       } else {
-                        // Modo Slideshow (Até 5 fotos)
+
                         const slideIndex = mediaPhotos.indexOf(item.url);
                         const isInSlide = slideIndex !== -1;
                         return (
@@ -2418,7 +2243,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               )}
             </div>
 
-            {/* Rodapé Fixo da Biblioteca */}
             <div className={`p-3 border-t flex items-center justify-between shrink-0 ${
               isDark ? 'border-slate-800 bg-slate-900/90' : 'border-slate-200 bg-slate-50'
             }`}>
@@ -2460,21 +2284,18 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* MODAL 4: PRÉVIA DEDICADA DO ANÚNCIO (PORTAL & MODO PÚBLICO) */}
-      {/* ============================================================ */}
       {previewService && (
-        <div 
+        <div
           className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs animate-in fade-in"
           onClick={() => setPreviewService(null)}
         >
-          <div 
+          <div
             className={`w-full max-w-xs rounded-xl overflow-hidden shadow-2xl border flex flex-col ${
               isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Cabeçalho do Modal */}
+
             <div className={`p-3 border-b flex items-center justify-between shrink-0 ${
               isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-slate-50'
             }`}>
@@ -2500,7 +2321,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               </button>
             </div>
 
-            {/* Conteúdo: Card com Proporção Idêntica à Vitrine */}
             <div className="p-4 flex flex-col items-center justify-center">
               <div className="w-full max-w-[250px]">
                 <ServicePublicAdPreview
@@ -2516,7 +2336,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 />
               </div>
 
-              {/* Informações Complementares */}
               {previewService.description && (
                 <div className={`mt-3 w-full p-2.5 rounded border text-[11px] ${
                   isDark ? 'bg-slate-900/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-600'
@@ -2529,7 +2348,6 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               )}
             </div>
 
-            {/* Rodapé com Ações */}
             <div className={`p-3 border-t flex items-center justify-between gap-2 shrink-0 ${
               isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-200 bg-slate-50'
             }`}>
@@ -2559,15 +2377,12 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* MODAL 5: CONFIRMAÇÃO DE EXCLUSÃO DE SERVIÇO */}
-      {/* ============================================================ */}
       {deleteConfirmService && (
-        <div 
+        <div
           className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs animate-in fade-in"
           onClick={() => setDeleteConfirmService(null)}
         >
-          <div 
+          <div
             className={`w-full max-w-sm rounded-xl overflow-hidden shadow-2xl border p-4.5 space-y-4 ${
               isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}
@@ -2593,8 +2408,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 disabled={isSaving}
                 onClick={() => setDeleteConfirmService(null)}
                 className={`px-3.5 py-2 rounded-[4px] text-xs font-bold transition cursor-pointer border disabled:opacity-50 ${
-                  isDark 
-                    ? 'border-slate-800 text-slate-300 hover:bg-slate-900' 
+                  isDark
+                    ? 'border-slate-800 text-slate-300 hover:bg-slate-900'
                     : 'border-slate-200 text-slate-700 hover:bg-slate-100'
                 }`}
               >
@@ -2614,15 +2429,12 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* MODAL: ESCOLHA DE CRIAÇÃO ("+ Novo") */}
-      {/* ============================================================ */}
       {isChooseCreateModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs animate-in fade-in"
           onClick={() => setIsChooseCreateModalOpen(false)}
         >
-          <div 
+          <div
             className={`w-full max-w-xs rounded-xl overflow-hidden shadow-2xl border p-4.5 space-y-4 ${
               isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}
@@ -2632,8 +2444,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               <h3 className="text-xs font-black uppercase tracking-wider font-['Poppins'] brand-text">
                 O que deseja criar?
               </h3>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setIsChooseCreateModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
@@ -2650,8 +2462,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   handleOpenNew(selectedCategory);
                 }}
                 className={`p-3 rounded-[4px] border text-left flex items-center gap-3 transition cursor-pointer active:scale-[0.98] ${
-                  isDark 
-                    ? 'bg-slate-900 border-slate-800 hover:border-[var(--brand-primary)] text-white' 
+                  isDark
+                    ? 'bg-slate-900 border-slate-800 hover:border-[var(--brand-primary)] text-white'
                     : 'bg-slate-50 border-slate-200 hover:border-[var(--brand-primary)] text-slate-900'
                 }`}
               >
@@ -2672,8 +2484,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   setIsNewCategoryModalOpen(true);
                 }}
                 className={`p-3 rounded-[4px] border text-left flex items-center gap-3 transition cursor-pointer active:scale-[0.98] ${
-                  isDark 
-                    ? 'bg-slate-900 border-slate-800 hover:border-[var(--brand-primary)] text-white' 
+                  isDark
+                    ? 'bg-slate-900 border-slate-800 hover:border-[var(--brand-primary)] text-white'
                     : 'bg-slate-50 border-slate-200 hover:border-[var(--brand-primary)] text-slate-900'
                 }`}
               >
@@ -2690,18 +2502,15 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* MODAL: CRIAR CATEGORIA */}
-      {/* ============================================================ */}
       {isNewCategoryModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs animate-in fade-in"
           onClick={() => {
             setIsNewCategoryModalOpen(false);
             setNewCategoryModalName('');
           }}
         >
-          <div 
+          <div
             className={`w-full max-w-xs rounded-xl overflow-hidden shadow-2xl border p-4.5 space-y-4 ${
               isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}
@@ -2711,8 +2520,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
               <h3 className="text-xs font-black uppercase tracking-wider font-['Poppins'] brand-text">
                 Nova Categoria
               </h3>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => {
                   setIsNewCategoryModalOpen(false);
                   setNewCategoryModalName('');
@@ -2734,8 +2543,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 placeholder="Ex: Barba, Depilação, Unhas..."
                 autoFocus
                 className={`w-full px-3 py-2 rounded-[4px] text-xs border ${
-                  isDark 
-                    ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-[var(--brand-primary)]' 
+                  isDark
+                    ? 'bg-slate-900 border-slate-800 text-white placeholder-slate-500 focus:border-[var(--brand-primary)]'
                     : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-[var(--brand-primary)]'
                 } outline-hidden`}
                 onKeyDown={(e) => {
@@ -2754,8 +2563,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   setNewCategoryModalName('');
                 }}
                 className={`px-3.5 py-2 rounded text-xs font-bold transition cursor-pointer border ${
-                  isDark 
-                    ? 'border-slate-800 text-slate-300 hover:bg-slate-900' 
+                  isDark
+                    ? 'border-slate-800 text-slate-300 hover:bg-slate-900'
                     : 'border-slate-200 text-slate-700 hover:bg-slate-100'
                 }`}
               >
@@ -2775,15 +2584,12 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* MODAL: CONFIRMAÇÃO DE EXCLUSÃO DE CATEGORIA */}
-      {/* ============================================================ */}
       {deleteConfirmCategory && (
-        <div 
+        <div
           className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs animate-in fade-in"
           onClick={() => setDeleteConfirmCategory(null)}
         >
-          <div 
+          <div
             className={`w-full max-w-sm rounded-xl overflow-hidden shadow-2xl border p-4.5 space-y-4 ${
               isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}
@@ -2798,7 +2604,7 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                   Excluir Categoria?
                 </h3>
                 <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'} leading-relaxed`}>
-                  Tem certeza que deseja excluir a categoria <strong className={isDark ? 'text-white' : 'text-slate-900'}>"{deleteConfirmCategory}"</strong>? 
+                  Tem certeza que deseja excluir a categoria <strong className={isDark ? 'text-white' : 'text-slate-900'}>"{deleteConfirmCategory}"</strong>?
                   <br />
                   <span className="brand-text font-semibold">Nota:</span> Seus serviços associados não serão excluídos, eles serão movidos de forma segura para a categoria <strong className={isDark ? 'text-white' : 'text-slate-900'}>"Outros"</strong>.
                 </p>
@@ -2810,8 +2616,8 @@ export const ProfessionalServicesManager: React.FC<ProfessionalServicesManagerPr
                 type="button"
                 onClick={() => setDeleteConfirmCategory(null)}
                 className={`px-3.5 py-2 rounded text-xs font-bold transition cursor-pointer border ${
-                  isDark 
-                    ? 'border-slate-800 text-slate-300 hover:bg-slate-900' 
+                  isDark
+                    ? 'border-slate-800 text-slate-300 hover:bg-slate-900'
                     : 'border-slate-200 text-slate-700 hover:bg-slate-100'
                 }`}
               >

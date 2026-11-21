@@ -1,12 +1,10 @@
 import React, { useState, useRef } from 'react';
 import {
   Sparkles,
-  Building2,
   Users,
   Home,
   Layers,
   Upload,
-  Image as ImageIcon,
   Check,
   ChevronRight,
   ChevronLeft,
@@ -14,8 +12,6 @@ import {
   Plus,
   Trash2,
   Copy,
-  ExternalLink,
-  ShieldCheck,
   UserCheck,
   MapPin,
   Sparkle
@@ -30,6 +26,7 @@ import {
 } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { syncSalonDataToSupabase } from '../lib/supabase';
+import { uploadBinaryMediaAsset } from '../services/mediaUploadService';
 
 export interface PartnerOnboardingModalProps {
   isOpen: boolean;
@@ -71,11 +68,9 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
 }) => {
   const { isDark } = useTheme();
 
-  // Etapas: 1 (Boas-vindas & Modelo), 2 (Identidade Visual), 3 (Profissional/Equipe), 4 (Serviços), 5 (Conclusão)
   const [currentStep, setCurrentStep] = useState<number>(1);
   const totalSteps = 5;
 
-  // Touch Swipe Handlers
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
 
@@ -93,10 +88,10 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
     const minSwipeDistance = 50;
 
     if (diff > minSwipeDistance && currentStep < totalSteps) {
-      // Swipe para esquerda -> avança
+
       handleNextStep();
     } else if (diff < -minSwipeDistance && currentStep > 1) {
-      // Swipe para direita -> volta
+
       handlePrevStep();
     }
 
@@ -104,9 +99,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
     touchEndX.current = null;
   };
 
-  // ----------------------------------------------------
-  // ETAPA 1: MODELO OPERACIONAL E PÚBLICO-ALVO
-  // ----------------------------------------------------
   const [operatingModel, setOperatingModel] = useState<'solo' | 'team' | 'home_delivery' | 'hybrid'>('solo');
   const [condoAreaDescription, setCondoAreaDescription] = useState('Condomínio e bairros vizinhos');
   const [travelFee, setTravelFee] = useState<number>(0);
@@ -120,9 +112,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
     );
   };
 
-  // ----------------------------------------------------
-  // ETAPA 2: BIO / APRESENTAÇÃO DO ESPAÇO, REDES SOCIAIS & HORÁRIOS (Boletim bol-017)
-  // ----------------------------------------------------
   const [logoLight] = useState<string>(() => localStorage.getItem('vagou_salon_logo_light') || '');
   const [logoDark] = useState<string>(() => localStorage.getItem('vagou_salon_logo_dark') || '');
   const [appIcon] = useState<string>(() => localStorage.getItem('vagou_salon_icon') || '');
@@ -130,7 +119,7 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
   const [instagramUrl, setInstagramUrl] = useState<string>('');
   const [openingHoursText, setOpeningHoursText] = useState<string>('Seg a Sáb: 09:00 às 20:00');
 
-  const handleFileUpload = (
+  const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     setter: (val: string) => void
   ) => {
@@ -138,21 +127,24 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
     if (!file) return;
 
     hapticLight();
-    const reader = new FileReader();
-    reader.onload = (uploadEvent) => {
-      const result = uploadEvent.target?.result as string;
-      if (result) {
-        setter(result);
+    try {
+      const uploaded = await uploadBinaryMediaAsset(file, {
+        bucket: 'avatars',
+        ownerType: 'professional_avatar',
+        salonId: localStorage.getItem('vagou_salon_db_id') || undefined,
+        maxWidth: 480,
+        maxHeight: 480,
+        quality: 0.85,
+      });
+      if (uploaded.publicUrl) {
+        setter(uploaded.publicUrl);
         hapticSuccess();
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('[PartnerOnboardingModal] Erro no upload binário:', err);
+    }
   };
 
-  // ----------------------------------------------------
-  // ETAPA 3: PROFISSIONAL OU EQUIPE
-  // ----------------------------------------------------
-  // Para modelo solo ou domicílio:
   const [soloName, setSoloName] = useState(() => {
     const raw = initialData.legalManagerName || '';
     if (raw.toLowerCase().includes('nexus')) return '';
@@ -169,10 +161,9 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
   });
   const [soloAvatar, setSoloAvatar] = useState<string>('');
 
-  // Para modelo equipe:
   const [teamMemberName, setTeamMemberName] = useState('');
   const [teamMemberRole, setTeamMemberRole] = useState('Profissional');
-  const [teamMemberPhone, setTeamMemberPhone] = useState('');
+  const [, setTeamMemberPhone] = useState('');
   const [teamMembers, setTeamMembers] = useState<SalonProfessionalItem[]>([]);
 
   const handleAddTeamMember = () => {
@@ -197,9 +188,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
     setTeamMembers((prev) => prev.filter((m) => m.id !== id));
   };
 
-  // ----------------------------------------------------
-  // ETAPA 4: PRIMEIROS SERVIÇOS (CAIXAS DE TEXTO DIRETAS)
-  // ----------------------------------------------------
   const [serviceTitle, setServiceTitle] = useState('');
   const [serviceDescription, setServiceDescription] = useState('');
   const [serviceDuration, setServiceDuration] = useState('');
@@ -230,9 +218,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
     setServicesList((prev) => prev.filter((s) => s.id !== id));
   };
 
-  // ----------------------------------------------------
-  // NAVEGAÇÃO ENTRE PASSOS
-  // ----------------------------------------------------
   const handleNextStep = () => {
     hapticLight();
     if (currentStep === 4) {
@@ -255,7 +240,7 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
         return;
       }
       if (servicesList.length === 0) {
-        // Permite pular a criação de serviços
+
         setCurrentStep((prev) => prev + 1);
         return;
       }
@@ -275,7 +260,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
   const handleFinish = () => {
     hapticSuccess();
 
-    // Montar lista de profissionais
     const cleanDefaultName = initialData.legalManagerName?.toLowerCase().includes('nexus') ? '' : initialData.legalManagerName;
     const finalOwnerName = soloName.trim() || cleanDefaultName || initialData.salonName;
     const finalProfessionals: SalonProfessionalItem[] = [];
@@ -293,7 +277,7 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
       if (teamMembers.length > 0) {
         finalProfessionals.push(...teamMembers);
       } else {
-        // Fallback pro próprio gestor se não inseriu equipe
+
         finalProfessionals.push({
           id: `pro_owner_${Date.now()}`,
           name: finalOwnerName,
@@ -304,7 +288,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
       }
     }
 
-    // Salvar em localStorage
     try {
       if (logoLight) localStorage.setItem('vagou_salon_logo_light', logoLight);
       if (logoDark) localStorage.setItem('vagou_salon_logo_dark', logoDark);
@@ -338,7 +321,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
         joinedAt: new Date().toISOString()
       }))));
 
-      // Atualizar configurações do salão
       const currentSettings: Partial<SalonAdminSettings> = JSON.parse(
         localStorage.getItem('vagou_salon_admin_settings') || '{}'
       );
@@ -363,7 +345,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
       };
       localStorage.setItem('vagou_salon_admin_settings', JSON.stringify(updatedSettings));
 
-      // Sincronização remota via Supabase se configurado
       syncSalonDataToSupabase({
         slug: initialData.slug || `salao-${Date.now()}`,
         tradeName: initialData.salonName,
@@ -452,7 +433,7 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Cabeçalho do Modal com Indicador de Etapas */}
+
         <header className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 flex items-center justify-center">
@@ -475,7 +456,7 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5">
-            {/* Indicadores de bolinhas */}
+
             <div className="flex items-center gap-1 mr-2">
               {[1, 2, 3, 4, 5].map((s) => (
                 <div
@@ -504,11 +485,8 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
           </div>
         </header>
 
-        {/* Corpo com Rolagem Interna */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
-          {/* ======================================================== */}
-          {/* ETAPA 1: BOAS-VINDAS & MODELO OPERACIONAL                */}
-          {/* ======================================================== */}
+
           {currentStep === 1 && (
             <div className="space-y-4 animate-in fade-in duration-200">
               <div className="text-center py-2">
@@ -524,7 +502,7 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {/* 1. Solo */}
+
                 <button
                   type="button"
                   onClick={() => {
@@ -557,7 +535,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
                   </div>
                 </button>
 
-                {/* 2. Equipe */}
                 <button
                   type="button"
                   onClick={() => {
@@ -590,7 +567,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
                   </div>
                 </button>
 
-                {/* 3. Domicílio / Condomínio */}
                 <button
                   type="button"
                   onClick={() => {
@@ -623,7 +599,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
                   </div>
                 </button>
 
-                {/* 4. Híbrido */}
                 <button
                   type="button"
                   onClick={() => {
@@ -657,7 +632,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
                 </button>
               </div>
 
-              {/* Ajustes específicos para quem atende a domicílio / condomínio */}
               {(operatingModel === 'home_delivery' || operatingModel === 'hybrid') && (
                 <div className={`p-3 rounded-[6px] border space-y-2.5 animate-in fade-in duration-150 ${
                   isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
@@ -710,7 +684,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
                 </div>
               )}
 
-              {/* Seleção do Público-Alvo Atendido (Checkboxes) */}
               <div className={`p-3 rounded-[6px] border space-y-2 ${
                 isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
               }`}>
@@ -747,9 +720,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
             </div>
           )}
 
-          {/* ======================================================== */}
-          {/* ETAPA 2: BIO / APRESENTAÇÃO, INSTAGRAM & HORÁRIOS        */}
-          {/* ======================================================== */}
           {currentStep === 2 && (
             <div className="space-y-4 animate-in fade-in duration-200">
               <div className="text-center py-1">
@@ -815,13 +785,10 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
             </div>
           )}
 
-          {/* ======================================================== */}
-          {/* ETAPA 3: PROFISSIONAIS / EQUIPE                         */}
-          {/* ======================================================== */}
           {currentStep === 3 && (
             <div className="space-y-4 animate-in fade-in duration-200">
               {operatingModel === 'solo' || operatingModel === 'home_delivery' ? (
-                /* Perfil do Dono Solitário ou Atendimento em Domicílio */
+
                 <div className="space-y-3">
                   <div className="text-center py-1">
                     <h3 className="text-sm font-black font-['Poppins']">
@@ -888,7 +855,7 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
                   </div>
                 </div>
               ) : (
-                /* Cadastro do(s) primeiro(s) profissional(is) para salão com equipe */
+
                 <div className="space-y-3">
                   <div className="text-center py-1">
                     <h3 className="text-sm font-black font-['Poppins']">
@@ -899,7 +866,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
                     </p>
                   </div>
 
-                  {/* Formulário rápido */}
                   <div className={`p-3 rounded-[6px] border space-y-2.5 ${
                     isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
                   }`}>
@@ -951,7 +917,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Lista de membros adicionados */}
                   {teamMembers.length > 0 && (
                     <div className="space-y-1.5">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -989,9 +954,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
             </div>
           )}
 
-          {/* ======================================================== */}
-          {/* ETAPA 4: CRIAÇÃO DOS PRIMEIROS SERVIÇOS                 */}
-          {/* ======================================================== */}
           {currentStep === 4 && (
             <div className="space-y-3.5 animate-in fade-in duration-200">
               <div className="text-center py-1">
@@ -1003,11 +965,10 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
                 </p>
               </div>
 
-              {/* Caixa de Texto de Entrada dos Serviços */}
               <div className={`p-3 rounded-[6px] border space-y-2.5 ${
                 isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
               }`}>
-                {/* 1. Serviço */}
+
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 mb-1">
                     Serviço *
@@ -1023,7 +984,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
                   />
                 </div>
 
-                {/* 2. Descrição */}
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 mb-1">
                     Descrição
@@ -1039,7 +999,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
                   />
                 </div>
 
-                {/* 3. T. Estimado (opcional) | Valor | Botão "+" */}
                 <div className="grid grid-cols-12 gap-2 items-end">
                   <div className="col-span-5">
                     <label className="block text-[10px] font-bold text-slate-400 mb-1">
@@ -1086,7 +1045,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
                 </div>
               </div>
 
-              {/* Lista de Serviços Adicionados */}
               <div className="space-y-1.5 pt-0.5">
                 <div className="flex items-center justify-between px-0.5">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -1151,9 +1109,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
             </div>
           )}
 
-          {/* ======================================================== */}
-          {/* ETAPA 5: CONCLUSÃO & LANÇAMENTO                          */}
-          {/* ======================================================== */}
           {currentStep === 5 && (
             <div className="space-y-4 text-center py-3 animate-in fade-in duration-200">
               <div className="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
@@ -1169,7 +1124,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
                 </p>
               </div>
 
-              {/* Card de Resumo do App */}
               <div className={`p-3 rounded-[6px] border text-left space-y-2 ${
                 isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
               }`}>
@@ -1194,7 +1148,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
                 </div>
               </div>
 
-              {/* Botão de Copiar Link */}
               <div className="flex items-center justify-center gap-2">
                 <button
                   type="button"
@@ -1209,7 +1162,6 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
           )}
         </div>
 
-        {/* Rodapé Fixo de Ação */}
         <footer className={`p-3 border-t flex items-center justify-between shrink-0 ${
           isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
         }`}>
@@ -1227,7 +1179,7 @@ export const PartnerOnboardingModal: React.FC<PartnerOnboardingModalProps> = ({
           )}
 
           <div className="flex items-center gap-2">
-            {/* Botão Pular (visível nos passos 2 e 3) */}
+
             {(currentStep === 2 || currentStep === 3) && (
               <button
                 type="button"

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { 
-  Calendar, 
-  Clock, 
-  User, 
-  ArrowLeft, 
-  CheckCircle, 
-  Clock3, 
+import {
+  Calendar,
+  Clock,
+  User,
+  ArrowLeft,
+  CheckCircle,
+  Clock3,
   Scissors,
   Check,
   Info,
@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { BookingAppointment, SwapTargetQueueItem } from '../types';
-import { resolveClientAvatarsMap, isValidAvatarUrlString, KNOWN_CLIENT_AVATARS_MAP } from '../lib/supabase';
+import { resolveClientAvatarsMap, isValidAvatarUrlString } from '../lib/supabase';
 import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
 import {
   LiveRouteDepartureModal,
@@ -128,13 +128,6 @@ const getProfessionalAvatar = (
     }
   } catch {}
 
-  if (isValidAvatarUrlString(KNOWN_CLIENT_AVATARS_MAP[cleanName])) {
-    return KNOWN_CLIENT_AVATARS_MAP[cleanName];
-  }
-  if (firstName && isValidAvatarUrlString(KNOWN_CLIENT_AVATARS_MAP[firstName])) {
-    return KNOWN_CLIENT_AVATARS_MAP[firstName];
-  }
-
   return '';
 };
 
@@ -174,14 +167,12 @@ const getAppointmentTimestampMs = (apt: BookingAppointment): number => {
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
-  // 1. Extrair horário (HH:MM)
   const timeStr = extractTimeFromAppointment(apt);
   const [hhStr, mmStr] = timeStr.split(':');
   const hours = Number.isFinite(Number(hhStr)) ? Number(hhStr) : 12;
   const minutes = Number.isFinite(Number(mmStr)) ? Number(mmStr) : 0;
   const timeOffsetMs = (hours * 60 + minutes) * 60 * 1000;
 
-  // 2. Se houver dateIso explícito (YYYY-MM-DD...)
   if (apt.dateIso) {
     const isoMatch = apt.dateIso.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (isoMatch) {
@@ -196,7 +187,6 @@ const getAppointmentTimestampMs = (apt: BookingAppointment): number => {
     }
   }
 
-  // 3. Analisar texto combinado de dayGroup + dateTime
   const raw = `${apt.dayGroup || ''} ${apt.dateTime || ''}`.toLowerCase().trim();
 
   if (raw.includes('depois de amanhã') || raw.includes('depois de amanha')) {
@@ -209,7 +199,6 @@ const getAppointmentTimestampMs = (apt: BookingAppointment): number => {
     return todayStart + timeOffsetMs;
   }
 
-  // Formato DD/MM/YYYY, DD/MM/YY ou DD/MM
   const slashMatch = raw.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
   if (slashMatch) {
     const day = Number(slashMatch[1]);
@@ -219,7 +208,6 @@ const getAppointmentTimestampMs = (apt: BookingAppointment): number => {
     return new Date(year, month, day).getTime() + timeOffsetMs;
   }
 
-  // Formato "12 Nov", "15 de setembro", etc.
   const ptMonthMatch = raw.match(/(\d{1,2})\s*(?:de\s*)?(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)/i);
   if (ptMonthMatch) {
     const day = Number(ptMonthMatch[1]);
@@ -251,8 +239,8 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 15 },
-  show: { 
-    opacity: 1, 
+  show: {
+    opacity: 1,
     y: 0,
     transition: {
       type: 'spring' as const,
@@ -301,7 +289,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
   const [failedLogos, setFailedLogos] = useState<Record<string, boolean>>({});
   const [failedAvatars, setFailedAvatars] = useState<Record<string, boolean>>({});
   const [resolvedAvatars, setResolvedAvatars] = useState<Record<string, string>>(() => {
-    let map: Record<string, string> = { ...KNOWN_CLIENT_AVATARS_MAP };
+    let map: Record<string, string> = {};
     try {
       const cached = localStorage.getItem('vagou_client_avatars_map');
       if (cached) {
@@ -314,7 +302,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
     return map;
   });
 
-  // Estados do Modal Unificado "Remarcar" (Opção 1: Horários Livres + Permuta em Cascata)
   const [rescheduleModalApt, setRescheduleModalApt] = useState<BookingAppointment | null>(null);
   const [rescheduleMode, setRescheduleMode] = useState<'free' | 'swap'>('free');
   const [selectedFreeSlot, setSelectedFreeSlot] = useState<string>('');
@@ -514,7 +501,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
     );
   };
 
-  // Filtrar apenas agendamentos reais do cliente (respeitando limpeza local do app) e ordenar cronologicamente
   const clientAppointments = [...appointments]
     .filter((apt) => !apt.isBlockedSlot && apt.protocolCode && !isAppointmentHiddenLocally(apt))
     .sort((a, b) => getAppointmentTimestampMs(a) - getAppointmentTimestampMs(b));
@@ -572,7 +558,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
 
   const getStatusBadge = (status?: string, compactHistoryIcon?: boolean) => {
     const s = (status || 'CONFIRMADO').toUpperCase();
-    
+
     switch (s) {
       case 'CONFIRMADO':
       case 'AGENDADO':
@@ -606,8 +592,8 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
             className={`inline-flex items-center justify-center rounded-[4px] border whitespace-nowrap ${
               compactHistoryIcon ? 'w-6 h-6' : 'gap-1.5 px-3 py-1 text-xs font-bold'
             } ${
-              isDark 
-                ? 'bg-slate-800 border-slate-700 text-slate-300' 
+              isDark
+                ? 'bg-slate-800 border-slate-700 text-slate-300'
                 : 'bg-slate-200 border-slate-300 text-slate-700'
             }`}
           >
@@ -635,7 +621,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
     <div className={`w-full h-full flex flex-col overflow-hidden ${
       isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
     }`}>
-      {/* HEADER DA SEÇÃO */}
+
       <header className={`shrink-0 h-14 border-b flex items-center justify-between px-4 sticky top-0 z-40 ${
         isDark ? 'bg-slate-950/95 border-slate-800/80' : 'bg-white/95 border-slate-200 shadow-xs'
       } backdrop-blur-md`}>
@@ -680,9 +666,8 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
         </div>
       </header>
 
-      {/* ÁREA DE CONTEÚDO ROLANTE */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
-        {/* ABAS DE FILTRO: ATIVO | CONCLUÍDOS | CANCELADOS */}
+
         <div className="grid grid-cols-3 gap-1.5">
           {[
             { id: 'ativo' as const, label: 'Ativo', count: activeAppointments.length },
@@ -715,7 +700,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
           })}
         </div>
 
-        {/* BARRA COMPACTA DE LIMPEZA LOCAL EM CONCLUÍDOS / CANCELADOS */}
         {isHistoryTab && filteredAppointments.length > 0 && (
           <div className="flex items-center justify-between gap-2">
             <button
@@ -776,7 +760,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
           </div>
         )}
 
-        {/* CARD DE PRÉ-AGENDAMENTO PAUSADO (RASCUNHO) */}
         {activeAgendaTab === 'ativo' && savedDraft && (
           <div className={`w-full rounded-[4px] p-4 border space-y-2.5 ${
             isDark ? 'bg-slate-900 border-amber-500/50 text-white' : 'bg-amber-50 border-amber-300 text-slate-900'
@@ -878,9 +861,9 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
           >
             {filteredAppointments.map((item, idx) => {
               const rawPro = (item.professionalName || item.professional || '').trim();
-              const isAnyPro = !rawPro || 
-                rawPro.toLowerCase() === 'any' || 
-                rawPro.toLowerCase().includes('sem preferência') || 
+              const isAnyPro = !rawPro ||
+                rawPro.toLowerCase() === 'any' ||
+                rawPro.toLowerCase().includes('sem preferência') ||
                 rawPro.toLowerCase().includes('qualquer') ||
                 rawPro.toLowerCase() === 'especialista';
               const proAvatar = getProfessionalAvatar(rawPro, item.professionalAvatar, resolvedAvatars);
@@ -932,7 +915,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                         : `bg-white border-slate-200 shadow-xs ${isActiveClickable ? 'hover:border-[var(--brand-primary)] hover:shadow-sm' : 'hover:shadow-sm'}`
                   }`}
                 >
-                  {/* TOPO: Cabeçalho do Card (Logo em Ativo + Nome da Empresa e Serviço + Status no lado oposto) */}
+
                   <div className="flex items-start justify-between gap-2 border-b border-slate-800/20 pb-3">
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
                       {!isHistoryTab && (
@@ -1003,9 +986,8 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                     </div>
                   </div>
 
-                  {/* CORPO: Profissional & Data e Horário na mesma linha */}
                   <div className="grid grid-cols-2 gap-2.5 w-full min-w-0 items-center text-xs">
-                    {/* Coluna 1: Profissional */}
+
                     <div className="min-w-0">
                       {rawPro && !isAnyPro ? (
                         <div className="flex items-center gap-2 min-w-0">
@@ -1057,7 +1039,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                       )}
                     </div>
 
-                    {/* Coluna 2: Data e Horário */}
                     <div className="flex items-center gap-2 text-slate-400 min-w-0">
                       <div
                         className={`w-8 h-8 rounded-[4px] border flex items-center justify-center shrink-0 ${
@@ -1077,7 +1058,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                     </div>
                   </div>
 
-                  {/* FAIXA COMPACTA DE PERMUTA EM CASCATA ATIVA */}
                   {item.swapRequest?.isClientSwap && item.swapRequest.status === 'pending_client_b' && (
                     <div className="pt-2.5 border-t border-slate-800/30 flex items-center justify-between gap-2 text-[11px]">
                       <div className="flex items-center gap-1.5 min-w-0">
@@ -1114,7 +1094,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                     </div>
                   )}
 
-                  {/* Alertas de Adversidade Ativa ou Motivo de Cancelamento */}
                   {item.active_adversity ? (
                     <div className="pt-2 border-t border-slate-800/40">
                       <div className="p-2 rounded-[4px] bg-amber-500/15 text-amber-300 text-[11px] flex items-center justify-between">
@@ -1141,7 +1120,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
           </motion.div>
         )}
 
-        {/* MODAL UNIFICADO DE REMARCAÇÃO & PERMUTA EM CASCATA (OPÇÃO 1) */}
         {rescheduleModalApt && (
           <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
             <div
@@ -1149,7 +1127,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                 isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
               }`}
             >
-              {/* Topo Fixo do Modal */}
+
               <div className="px-4 py-3 border-b border-slate-800/30 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
                   <ArrowLeftRight className="w-4 h-4 brand-icon shrink-0" />
@@ -1171,7 +1149,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                 </button>
               </div>
 
-              {/* Seletor de Modo: Horários Livres vs Permuta (Ocupados) */}
               <div className="grid grid-cols-2 gap-1.5 p-3 border-b border-slate-800/20 shrink-0">
                 <button
                   type="button"
@@ -1210,7 +1187,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                 </button>
               </div>
 
-              {/* Conteúdo Rolante */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {(() => {
                   const getSlotConflict = (slotTime: string) =>
@@ -1391,7 +1367,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                 })()}
               </div>
 
-              {/* Rodapé Fixo de Ação (sticky bottom-0 z-20) */}
               <div
                 className={`p-3 border-t sticky bottom-0 z-20 flex items-center gap-2 ${
                   isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
@@ -1447,7 +1422,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
           </div>
         )}
 
-        {/* PEQUENA MODAL DE OPÇÕES DO AGENDAMENTO (CANCELAR / REMARCAR / IR) */}
         {optionsModalApt && (
           <div
             onClick={() => setOptionsModalApt(null)}
@@ -1459,7 +1433,7 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                 isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
               }`}
             >
-              {/* Cabeçalho compacto */}
+
               <div className="px-4 py-3 border-b border-slate-800/20 flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1 space-y-0.5">
                   <span className={`text-[11px] font-bold truncate block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -1484,7 +1458,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                 </div>
               </div>
 
-              {/* Resumo rápido plano em linha única (Profissional | Data e Horário | Valor) */}
               <div className="px-4 py-3 space-y-2 text-xs">
                 <div
                   className={`grid gap-2 items-start ${
@@ -1539,7 +1512,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
                 )}
               </div>
 
-              {/* Botões de Ação (Cancelar | Remarcar | Ir) */}
               <div className="px-4 py-3 border-t border-slate-800/20 grid grid-cols-3 gap-2">
                 <button
                   type="button"
@@ -1604,7 +1576,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
           </div>
         )}
 
-        {/* MODAL PRÉ-PARTIDA (ETA + 10 MIN) & TRAÇADOR DE ROTA GOOGLE MAPS IN-APP */}
         {departureModalApt && (
           <LiveRouteDepartureModal
             isOpen={Boolean(departureModalApt)}
@@ -1628,7 +1599,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
           />
         )}
 
-        {/* MODAL PROVISÓRIO DE TESTE DE TRAJETO GPS */}
         {isRouteSimulatorOpen && (
           <RouteSimulatorModal
             isOpen={isRouteSimulatorOpen}
@@ -1640,7 +1610,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
           />
         )}
 
-        {/* GAVETA DE RASTREAMENTO AO VIVO (LINHA SHOPEE/CORREIOS ⇄ MAPA 10S) */}
         {drawerViewerState && (
           <LiveTrackingDrawerModal
             isOpen={Boolean(drawerViewerState)}
@@ -1652,7 +1621,6 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
           />
         )}
 
-        {/* NOTA DE COBERTURA & AJUDA */}
         <div className={`rounded-[4px] p-3.5 border flex items-start gap-3 ${
           isDark ? 'bg-slate-900/40 border-slate-800/80 text-slate-400' : 'bg-slate-100/60 border-slate-200 text-slate-500'
         }`}>
@@ -1668,4 +1636,3 @@ export const UserAppointmentsView: React.FC<UserAppointmentsViewProps> = ({
     </div>
   );
 };
-

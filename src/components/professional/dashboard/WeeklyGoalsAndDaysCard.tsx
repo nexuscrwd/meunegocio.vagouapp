@@ -28,7 +28,6 @@ export const WeeklyGoalsAndDaysCard: React.FC<WeeklyGoalsAndDaysCardProps> = ({
 }) => {
   const { isDark } = useTheme();
 
-  // Meta semanal persistida conectada ao salão ou fallback (Meta mensal / 4 ou 1500)
   const [weeklyTarget] = useState<number>(() => {
     try {
       const s = localStorage.getItem('vagou_weekly_goal');
@@ -43,10 +42,9 @@ export const WeeklyGoalsAndDaysCard: React.FC<WeeklyGoalsAndDaysCardProps> = ({
 
   const safeTarget = targetAmount && targetAmount > 0 ? targetAmount : (weeklyTarget > 0 ? weeklyTarget : 1500);
 
-  // Cálculo dos 7 Dias da Semana Atual (Segunda a Domingo)
   const days = useMemo<DaySummary[]>(() => {
     const now = new Date();
-    const currentDay = now.getDay(); // 0 = Domingo, 1 = Segunda, ...
+    const currentDay = now.getDay();
     const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
 
     const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + distanceToMonday);
@@ -100,11 +98,10 @@ export const WeeklyGoalsAndDaysCard: React.FC<WeeklyGoalsAndDaysCardProps> = ({
       });
     }
 
-    // Se a semana ainda estiver sem agendamentos reais distribuídos, aplicar distribuição proporcional realista
     const totalCalculated = result.reduce((acc, d) => acc + d.revenue, 0);
     if (totalCalculated === 0) {
       const baseWeek = weeklyAmount && weeklyAmount > 0 ? weeklyAmount : 1180;
-      const distribution = [0.12, 0.14, 0.15, 0.18, 0.22, 0.14, 0.05]; // Seg a Dom
+      const distribution = [0.12, 0.14, 0.15, 0.18, 0.22, 0.14, 0.05];
       result.forEach((d, idx) => {
         d.revenue = Math.round(baseWeek * distribution[idx]);
         d.count = Math.max(1, Math.round(d.revenue / 50));
@@ -129,7 +126,7 @@ export const WeeklyGoalsAndDaysCard: React.FC<WeeklyGoalsAndDaysCardProps> = ({
         isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 shadow-xs text-slate-900'
       }`}
     >
-      {/* Topo do Card: Título Focado na Semana Atual */}
+
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800/40 gap-2">
         <div className="flex items-center gap-1.5 shrink-0">
           <div className="w-5 h-5 rounded brand-soft-badge flex items-center justify-center">
@@ -141,9 +138,8 @@ export const WeeklyGoalsAndDaysCard: React.FC<WeeklyGoalsAndDaysCardProps> = ({
         </div>
       </div>
 
-      {/* Grade 2 Colunas: Metas da Semana e 7 Dias da Semana com Mesmo Tamanho (50% / 50%) */}
       <div className="grid grid-cols-2 gap-2 w-full items-stretch">
-        {/* Coluna 1: Meta Semana com R$ X / R$ Y (50% da largura) */}
+
         <div className="flex flex-col h-full justify-between pr-2 min-w-0">
           <div className="w-full flex items-center justify-between mb-1 px-0.5">
             <span
@@ -169,7 +165,6 @@ export const WeeklyGoalsAndDaysCard: React.FC<WeeklyGoalsAndDaysCardProps> = ({
           </div>
         </div>
 
-        {/* Coluna 2: Evolução dos 7 Dias da Semana (50% da largura, mesma configuração) */}
         <div className="flex flex-col h-full justify-between pl-2 border-l border-slate-800/40 min-w-0">
           <div className="w-full flex items-center justify-between mb-1 px-0.5">
             <div className="flex items-center gap-1">
@@ -187,21 +182,19 @@ export const WeeklyGoalsAndDaysCard: React.FC<WeeklyGoalsAndDaysCardProps> = ({
             </span>
           </div>
 
-          {/* Gráfico de 7 Barras Verticais (Seg a Dom) */}
           <div className="w-full h-[78px] flex items-end justify-between gap-0.5 px-0.5">
             {days.map((day) => {
               const heightPercent = Math.max(16, Math.round((day.revenue / maxDayRevenue) * 100));
 
               return (
                 <div key={day.label} className="flex-1 flex flex-col items-center h-full justify-end min-w-0">
-                  {/* Valor do dia no topo da barra */}
+
                   <span className={`text-[7.5px] font-bold font-mono mb-0.5 truncate brand-text ${
                     day.isToday ? 'font-black' : 'opacity-85'
                   }`}>
                     {day.revenue >= 1000 ? `${(day.revenue / 1000).toFixed(1)}k` : day.revenue.toFixed(0)}
                   </span>
 
-                  {/* Barra Vertical */}
                   <div
                     style={{ height: `${heightPercent * 0.48}px` }}
                     className={`w-full max-w-[12px] rounded-t transition-all duration-300 brand-bar ${
@@ -209,7 +202,6 @@ export const WeeklyGoalsAndDaysCard: React.FC<WeeklyGoalsAndDaysCardProps> = ({
                     }`}
                   />
 
-                  {/* Título do Dia ao pé da barra */}
                   <span
                     className={`text-[8px] font-semibold mt-0.5 truncate ${
                       day.isToday

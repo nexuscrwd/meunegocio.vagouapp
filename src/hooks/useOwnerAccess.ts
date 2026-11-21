@@ -123,7 +123,6 @@ export function useOwnerAccess({
       setUserEmail(resolvedEmail);
       setUserCpf(resolvedCpf);
 
-      // 0. Soberania Absoluta para Superadmin Master (Criador do Sistema / Admin Master)
       if (localAuth.isSuperadmin) {
         setIsOwner(true);
         setIsManagerOrPro(true);
@@ -140,7 +139,6 @@ export function useOwnerAccess({
         return;
       }
 
-      // 1. Verificação síncrona contra os dados do salão já carregados em memória (initialSalonData / adminSettings)
       const knownSalonEmails = [
         initialSalonData?.email,
         initialSalonData?.branding?.ownerEmail,
@@ -188,7 +186,6 @@ export function useOwnerAccess({
         return;
       }
 
-      // 2. Verificação profunda no Supabase (public.salons, public.clients.cpf e public.salon_members)
       const targetIdentifier =
         salonId ||
         initialSalonData?.id ||
@@ -224,7 +221,6 @@ export function useOwnerAccess({
         }
       }
 
-      // 3. Fallback pela prop userRole caso validada pelo useSalonRole no App.tsx
       if (userRoleProp === 'owner' || userRoleProp === 'admin') {
         setIsOwner(true);
         setIsManagerOrPro(true);

@@ -1,7 +1,7 @@
 import React, { useMemo, useCallback } from 'react';
-import { 
-  X, 
-  CirclePause, 
+import {
+  X,
+  CirclePause,
   Calendar,
   Lock,
   Unlock,
@@ -42,7 +42,6 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
 }) => {
   const { isDark } = useTheme();
 
-  // Determinar data de hoje
   const today = useMemo(() => new Date(), []);
   const todayIso = useMemo(() => today.toISOString().split('T')[0], [today]);
   const formattedToday = useMemo(() => {
@@ -58,12 +57,10 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
     return `${d}/${m}`;
   }, [today]);
 
-  // Minutos atuais do dia
   const currentMinutes = useMemo(() => {
     return today.getHours() * 60 + today.getMinutes();
   }, [today]);
 
-  // Função auxiliar para verificar se agendamento é de hoje
   const isAptToday = useCallback((apt: BookingAppointment) => {
     if (!apt) return false;
     if (apt.dateIso === todayIso) return true;
@@ -72,14 +69,12 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
     return false;
   }, [todayIso, shortToday]);
 
-  // Mapear status de cada horário
   const slotStatuses = useMemo(() => {
     return ALL_DAY_SLOTS.map((timeStr) => {
       const [h, m] = timeStr.split(':').map(Number);
       const slotMin = h * 60 + m;
       const isPast = slotMin < currentMinutes;
 
-      // Buscar agendamento existente de hoje nesse horário
       const matchingApt = appointments.find((a) => {
         if (!isAptToday(a)) return false;
         const aptTime = (a.time || '').trim().slice(0, 5);
@@ -109,12 +104,10 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
     });
   }, [appointments, currentMinutes, isAptToday]);
 
-  // Filtrar apenas horários elegíveis: os passados e ocupados por clientes são removidos por obviedade
   const eligibleSlots = useMemo(() => {
     return slotStatuses.filter((s) => !s.isPast && (s.state === 'available' || s.state === 'paused'));
   }, [slotStatuses]);
 
-  // Contagens
   const stats = useMemo(() => {
     const pausedCount = eligibleSlots.filter((s) => s.state === 'paused').length;
     const futureAvailableCount = eligibleSlots.filter((s) => s.state === 'available').length;
@@ -125,13 +118,12 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
     };
   }, [eligibleSlots]);
 
-  // Alternar um slot individualmente (pausar / despausar)
   const handleToggleSlot = useCallback((timeStr: string) => {
     const target = eligibleSlots.find((s) => s.time === timeStr);
     if (!target) return;
 
     if (target.state === 'paused') {
-      // Despausar este slot
+
       hapticSuccess();
       const updated = appointments.filter((a) => {
         if (!isAptToday(a)) return true;
@@ -143,7 +135,6 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
       return;
     }
 
-    // Pausar este slot
     hapticMedium();
     const newBlock: BookingAppointment = {
       protocolCode: `PAUSE-${timeStr.replace(':', '')}-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -170,7 +161,6 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
     onUpdateAppointments(updated);
   }, [eligibleSlots, appointments, isAptToday, salonName, activeProName, formattedToday, todayIso, onUpdateAppointments]);
 
-  // 1. Pausar Todos os Horários Futuros Vagos
   const handlePauseAllUpcoming = useCallback(() => {
     hapticMedium();
     const available = eligibleSlots.filter((s) => s.state === 'available');
@@ -201,7 +191,6 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
     onUpdateAppointments(updated);
   }, [eligibleSlots, appointments, salonName, activeProName, formattedToday, todayIso, onUpdateAppointments]);
 
-  // 2. Despausar Horários Futuros com antecedência > 1 hora
   const handleUnpauseBeyondOneHour = useCallback(() => {
     hapticSuccess();
     const thresholdMinutes = currentMinutes + 60;
@@ -215,7 +204,6 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
       const [h, m] = aptTime.split(':').map(Number);
       const aptMinutes = h * 60 + m;
 
-      // Se for maior ou igual a 1 hora de antecedência, desbloqueia
       if (aptMinutes >= thresholdMinutes) {
         return false;
       }
@@ -225,7 +213,6 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
     onUpdateAppointments(updated);
   }, [appointments, currentMinutes, isAptToday, onUpdateAppointments]);
 
-  // 3. Despausar Todos os Horários de Hoje
   const handleUnpauseAll = useCallback(() => {
     hapticSuccess();
     const updated = appointments.filter((a) => {
@@ -240,12 +227,12 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-center bg-[#E6EEF6]/80 backdrop-blur-xs animate-in fade-in duration-200">
-      <div 
+      <div
         className={`w-full max-w-[430px] h-dvh max-h-dvh shadow-lg flex flex-col overflow-hidden animate-in fade-in duration-200 ${
           isDark ? 'bg-slate-950 text-slate-100' : 'bg-[#F7F9FC] text-[#1E293B]'
         }`}
       >
-        {/* Barra Superior Institucional com Botão Voltar */}
+
         <div className={`px-3.5 py-3 border-b flex items-center justify-between shrink-0 ${
           isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E6EDF5]'
         }`}>
@@ -278,9 +265,8 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
           </button>
         </div>
 
-        {/* Conteúdo Despoluído e Otimizado */}
         <div className="p-3.5 overflow-y-auto space-y-3.5 flex-1 no-scrollbar">
-          {/* Card de Cabeçalho da Seção */}
+
           <div className={`caixa-card p-3.5 rounded-[4px] flex items-center justify-between gap-3 ${
             isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
           }`}>
@@ -300,9 +286,8 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
             </div>
           </div>
 
-          {/* Ações Rápidas no Topo */}
           <div className="flex flex-col sm:flex-row gap-2">
-            {/* Botão Pausar Todos os Horários Futuros */}
+
             <button
               type="button"
               onClick={handlePauseAllUpcoming}
@@ -313,14 +298,13 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
               <span>Pausar Todos ({stats.futureAvailableCount} livres)</span>
             </button>
 
-            {/* Botão Despausar (> 1h) */}
             <button
               type="button"
               onClick={handleUnpauseBeyondOneHour}
               disabled={stats.pausedCount === 0}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-[4px] disabled:opacity-40 disabled:pointer-events-none font-bold text-xs border transition active:scale-98 cursor-pointer ${
-                isDark 
-                  ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-200' 
+                isDark
+                  ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-200'
                   : 'bg-white hover:bg-[#F1F5F9] border-[#E2E8F0] text-[#1E293B]'
               }`}
               title="Desbloqueia os horários a partir de 1 hora da hora atual"
@@ -329,7 +313,6 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
               <span>Despausar (&gt; 1h)</span>
             </button>
 
-            {/* Botão Despausar Todos */}
             {stats.pausedCount > 0 && (
               <button
                 type="button"
@@ -347,7 +330,6 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
             )}
           </div>
 
-          {/* Grade de Horários Elegíveis dentro de .caixa-card */}
           <div className={`caixa-card p-4 rounded-[4px] space-y-3 ${
             isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
           }`}>
@@ -376,8 +358,8 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
                         type="button"
                         onClick={() => handleToggleSlot(s.time)}
                         className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-[4px] border transition active:scale-95 cursor-pointer ${
-                          isDark 
-                            ? 'bg-rose-950/40 border-rose-500/60 hover:bg-rose-900/50 text-white' 
+                          isDark
+                            ? 'bg-rose-950/40 border-rose-500/60 hover:bg-rose-900/50 text-white'
                             : 'bg-[#FEF2F2] border-[#FECACA] hover:bg-rose-100 text-[#DC2626]'
                         }`}
                         title="Toque para despausar este horário"
@@ -395,15 +377,14 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
                     );
                   }
 
-                  // Vago / Aberto
                   return (
                     <button
                       key={s.time}
                       type="button"
                       onClick={() => handleToggleSlot(s.time)}
                       className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-[4px] border transition active:scale-95 cursor-pointer ${
-                        isDark 
-                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white hover:border-[var(--brand-primary)]' 
+                        isDark
+                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white hover:border-[var(--brand-primary)]'
                           : 'bg-[#F7F9FC] hover:bg-[var(--brand-soft-bg)] border-[#D5E0EC] text-[#1E293B] hover:border-[var(--brand-primary)]'
                       }`}
                       title="Toque para pausar este horário"
@@ -411,7 +392,7 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
                       <span className="text-xs font-mono-tabular font-bold">
                         {s.time}
                       </span>
-                      <span 
+                      <span
                         className="text-[9px] font-bold uppercase tracking-wider mt-0.5 brand-text"
                       >
                         Vago
@@ -424,7 +405,6 @@ export const PauseSlotsModal: React.FC<PauseSlotsModalProps> = ({
           </div>
         </div>
 
-        {/* Rodapé Fixo */}
         <div className={`p-3 border-t shrink-0 sticky bottom-0 z-20 flex items-center justify-between gap-3 ${
           isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white border-[#E6EDF5]'
         }`}>

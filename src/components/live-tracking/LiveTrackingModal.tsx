@@ -338,7 +338,7 @@ const MapGlassBottomSwipeMenu: React.FC<MapGlassBottomSwipeMenuProps> = ({
           : 'bg-white/75 border-white/85 shadow-[0_-10px_30px_rgba(15,23,42,0.16)] ring-1 ring-inset ring-white/60'
       }`}
     >
-      {/* Alça de Swipe estilo Google Maps / Waze */}
+
       <button
         type="button"
         onClick={() => {
@@ -366,7 +366,6 @@ const MapGlassBottomSwipeMenu: React.FC<MapGlassBottomSwipeMenuProps> = ({
         </span>
       </button>
 
-      {/* Informativos em Efeito Vidro Alpha Claro: Distância | Temp. Restante | Velocidade */}
       <div className="px-3 pb-2.5 pt-0.5">
         <div
           className={`grid grid-cols-3 divide-x rounded-[4px] border px-2 py-2 backdrop-blur-md ${
@@ -423,7 +422,6 @@ const MapGlassBottomSwipeMenu: React.FC<MapGlassBottomSwipeMenuProps> = ({
           </div>
         </div>
 
-        {/* Gaveta Swipe Expandida (Compartilhar com Salão + Abrir no Google Maps / Waze + Cheguei) */}
         {isExpanded && (
           <div className="mt-2.5 space-y-2 animate-in fade-in duration-150">
             {showShareButton && (
@@ -506,7 +504,6 @@ const MapGlassBottomSwipeMenu: React.FC<MapGlassBottomSwipeMenuProps> = ({
               </button>
             )}
 
-            {/* Botão para abrir o Radar Google Maps & Busca Google sobre os arredores do destino */}
             <button
               type="button"
               onClick={() => {
@@ -689,8 +686,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     typeof anyApt.originLng === 'number' &&
     !isPlaceholderCoordinates(anyApt.originLat, anyApt.originLng);
 
-  // Reconhece a georreferência real do dispositivo ao iniciar a navegação ("Ir"),
-  // respeitando a origem customizada quando o usuário estiver simulando partida de outro ponto
   useEffect(() => {
     if (!isOpen || typeof navigator === 'undefined' || !navigator.geolocation) return;
     if (hasExplicitSimulatedOrigin) return;
@@ -702,8 +697,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
         const rawLat = pos.coords.latitude;
         const rawLng = pos.coords.longitude;
 
-        // Se o agendamento já trouxe coordenadas explícitas de partida (ex.: Simulador) distantes > 350m do GPS físico atual,
-        // mantém a partida escolhida pelo usuário para não sobrescrever com o destino onde ele já está
         if (
           typeof anyApt.originLat === 'number' &&
           typeof anyApt.originLng === 'number' &&
@@ -769,7 +762,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     return appointment.address || appointment.salonName || 'Estabelecimento';
   }, [appointment.address, appointment.salonName]);
 
-  // Geocodifica o endereço real do destino quando não houver lat/lng explícitas no agendamento
   useEffect(() => {
     if (!isOpen) return;
     const destInfo = resolveAppointmentDestFallbackCoords(appointment);
@@ -795,7 +787,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     };
   }, [isOpen, appointmentKey, salonDestAddress, deviceGpsOrigin?.lat, deviceGpsOrigin?.lng]);
 
-  // Coordenadas efetivas: respeita a origem simulada quando ativa ou usa o GPS real do dispositivo
   const stableCoords = useMemo(() => {
     const oLat = Number(
       (hasExplicitSimulatedOrigin ? anyApt.originLat : deviceGpsOrigin?.lat) ??
@@ -885,7 +876,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     );
   }, [appointmentKey, hasExplicitSimulatedOrigin, deviceGpsOrigin?.address]);
 
-  // Busca Rota Real seguindo a malha viária oficial do Google Maps Platform (Routes API v2)
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
@@ -921,7 +911,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     Boolean(deviceGpsOrigin),
   ]);
 
-  // Sincroniza checkpoints reais automaticamente (substituindo mocks antigos da Av. Paulista se houver)
   useEffect(() => {
     if (!isOpen || !liveRouteData || liveRouteData.checkpoints.length === 0) return;
     const shouldSyncCheckpoints =
@@ -1124,7 +1113,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
     appointment.current_street_name
   );
 
-  // SE ESTIVER NA TELA EXPANDIDA DE MAPA IN-APP + ITINERÁRIO
   if (step === 'in_app_map') {
     return (
       <div
@@ -1148,7 +1136,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* 1. Cabeçalho Principal Sincronizado com o Design System do App */}
+
           <div
             className={`h-13 sm:h-14 px-3 sm:px-4 border-b backdrop-blur-md flex items-center justify-between gap-2 shrink-0 transition-colors ${
               isDark
@@ -1193,7 +1181,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
             </div>
 
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              {/* Seletor Segmentado Mapa / Itinerário */}
+
               <div
                 className={`h-8 p-0.5 rounded-[4px] border flex items-center gap-0.5 ${
                   isDark
@@ -1246,7 +1234,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                 </button>
               </div>
 
-              {/* Botão Fechar */}
               <button
                 type="button"
                 onClick={onClose}
@@ -1262,7 +1249,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
             </div>
           </div>
 
-          {/* 2. Subcabeçalho: Seta de Direção Grande (Altura Total) + Container de Trânsito/Radares Waze */}
           <div
             className={`px-3 sm:px-4 py-2 border-b shrink-0 flex items-stretch gap-2 transition-colors ${
               isDark ? 'bg-slate-950 border-slate-800/80' : 'bg-slate-50 border-slate-200/90'
@@ -1297,7 +1283,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
             />
           </div>
 
-          {/* 4. Conteúdo Principal: Aba Mapa com Menu Swipe Vidro no Rodapé vs Aba Itinerário */}
           {activeViewTab === 'map' ? (
             <div className="relative flex-1 w-full h-full flex flex-col overflow-hidden">
               <InteractiveGoogleRouteMap
@@ -1405,9 +1390,9 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
             </div>
           ) : (
             <div className="flex-1 w-full overflow-y-auto p-4 space-y-4 text-xs">
-              {/* Sequência do Itinerário */}
+
               <div className="space-y-1 pt-1">
-                {/* Ponto Inicial */}
+
                 <div className="flex items-start gap-3 pb-3">
                   <div className="flex flex-col items-center">
                     <div className="w-5 h-5 rounded-full brand-tab-active flex items-center justify-center shrink-0">
@@ -1434,7 +1419,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                   </div>
                 </div>
 
-                {/* Lista Sequencial de Ruas e Manobras Reais da Rota */}
                 {checkpoints.map((cp, index) => {
                   const isPassed = cp.status === 'passed';
                   const isCurrent = cp.status === 'current';
@@ -1512,7 +1496,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
                   );
                 })}
 
-                {/* Ponto Final: Destino */}
                 <div className="flex items-start gap-3">
                   <div className="flex flex-col items-center">
                     <div
@@ -1554,7 +1537,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
             </div>
           )}
 
-          {/* 5. Rodapé Fixo para a aba Itinerário quando chega ao destino */}
           {activeViewTab === 'timeline' && hasReachedDestination && (
             <div
               className={`sticky bottom-0 z-20 px-3.5 py-2.5 border-t shrink-0 ${
@@ -1598,7 +1580,7 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Cabeçalho Compacto */}
+
         <div
           className={`px-4 py-3 border-b flex items-center justify-between shrink-0 ${
             isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-100 border-slate-200'
@@ -1636,9 +1618,8 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
           </button>
         </div>
 
-        {/* Corpo Rolável */}
         <div className="p-4 overflow-y-auto space-y-4 text-xs">
-          {/* PASSO 1: PERGUNTA PRÉ-PARTIDA (ETA + 15 MIN) */}
+
           {step === 'question' && (
             <div className="space-y-4">
               <div
@@ -1708,7 +1689,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
             </div>
           )}
 
-          {/* PASSO 1B: RESPONDEU "NÃO" -> VAI COMPARECER OU NÃO? */}
           {step === 'not_leaving' && (
             <div className="space-y-3.5">
               <div
@@ -1784,7 +1764,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
             </div>
           )}
 
-          {/* PASSO 1C: CANCELAMENTO COM MOTIVO OBRIGATÓRIO */}
           {step === 'cancel_reason' && (
             <div className="space-y-3">
               <div className="space-y-1">
@@ -1846,7 +1825,6 @@ export const LiveRouteDepartureModal: React.FC<LiveRouteDepartureModalProps> = (
           )}
         </div>
 
-        {/* Rodapé Fixo de Ação (Regra Inegociável sticky bottom-0 z-20) */}
         {step === 'cancel_reason' && (
           <div
             className={`p-3.5 border-t sticky bottom-0 z-20 flex items-center gap-2 ${
@@ -2218,7 +2196,7 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 1. Cabeçalho Principal Sincronizado com o Design System do App */}
+
         <div
           className={`h-13 sm:h-14 px-3 sm:px-4 border-b backdrop-blur-md flex items-center justify-between gap-2 shrink-0 transition-colors ${
             isDark
@@ -2245,7 +2223,7 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Seletor Segmentado Mapa / Itinerário */}
+
             <div
               className={`h-8 p-0.5 rounded-[4px] border flex items-center gap-0.5 ${
                 isDark
@@ -2298,7 +2276,6 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
               </button>
             </div>
 
-            {/* Botão Fechar */}
             <button
               type="button"
               onClick={onClose}
@@ -2314,7 +2291,6 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
           </div>
         </div>
 
-        {/* 2. Subcabeçalho: Seta de Direção Grande (Altura Total) + Container de Trânsito/Radares Waze */}
         <div
           className={`px-3 sm:px-4 py-2 border-b shrink-0 flex items-stretch gap-2 transition-colors ${
             isDark ? 'bg-slate-950 border-slate-800/80' : 'bg-slate-50 border-slate-200/90'
@@ -2349,7 +2325,6 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
           />
         </div>
 
-        {/* Alerta Automático de Chegada Iminente (ETA <= 5 min) */}
         {isArriving5Min && appointment.tracking_status !== 'arrived' && (
           <div className="px-4 py-2 brand-tab-active flex items-center justify-between gap-2 shrink-0">
             <div className="flex items-center gap-2 min-w-0">
@@ -2366,7 +2341,6 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
           </div>
         )}
 
-        {/* 4. Conteúdo Principal: Aba Mapa com Menu Swipe Vidro no Rodapé vs Aba Itinerário */}
         {activeTab === 'map' ? (
           <div className="relative flex-1 w-full h-full flex flex-col overflow-hidden">
             <InteractiveGoogleRouteMap
@@ -2453,7 +2427,7 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
         ) : (
           <div className="p-4 overflow-y-auto space-y-4 text-xs flex-1">
             <div className="space-y-1 pt-1">
-              {/* Ponto Inicial */}
+
               <div className="flex items-start gap-3 pb-3">
                 <div className="flex flex-col items-center">
                   <div className="w-5 h-5 rounded-full brand-tab-active flex items-center justify-center shrink-0">
@@ -2477,7 +2451,6 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                 </div>
               </div>
 
-              {/* Lista Sequencial de Ruas e Manobras da Rota */}
               {checkpoints.map((cp, index) => {
                 const isPassed = cp.status === 'passed';
                 const isCurrent = cp.status === 'current';
@@ -2555,7 +2528,6 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
                 );
               })}
 
-              {/* Ponto Final: Destino */}
               <div className="flex items-start gap-3">
                 <div className="flex flex-col items-center">
                   <div
@@ -2597,7 +2569,6 @@ export const LiveTrackingDrawerModal: React.FC<LiveTrackingDrawerModalProps> = (
           </div>
         )}
 
-        {/* 5. Rodapé Fixo para a aba Itinerário quando chega ao destino */}
         {activeTab === 'timeline' && hasReachedDestination && (
           <div
             className={`p-3.5 border-t sticky bottom-0 z-20 shrink-0 ${

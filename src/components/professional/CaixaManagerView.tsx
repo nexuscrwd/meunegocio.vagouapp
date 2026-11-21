@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { 
+import {
   ArrowLeft
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
@@ -39,7 +39,6 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
     [adminSettings, isDark]
   );
 
-  // Faturamento Realizado no Dia de Hoje (Conexão direta com Caixa e Metas)
   const todayRealizedRevenue = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -78,7 +77,7 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
     <div className={`w-full h-full flex flex-col min-h-0 select-none overflow-hidden ${
       isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
     }`}>
-      {/* 1. CABEÇALHO UNIFICADO DA SEÇÃO CAIXA */}
+
       <header
         className={sectionHeaderStyleData.containerClass}
         style={sectionHeaderStyleData.containerStyle}
@@ -93,8 +92,8 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
                 onBack();
               }}
               className={`p-1.5 rounded-[4px] transition active:scale-95 cursor-pointer shrink-0 ${
-                isDark 
-                  ? 'hover:bg-slate-800/80' 
+                isDark
+                  ? 'hover:bg-slate-800/80'
                   : 'hover:bg-black/5'
               }`}
               title="Voltar ao Menu"
@@ -115,7 +114,6 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
         </div>
       </header>
 
-      {/* 2. CORPO ROLÁVEL COM A FERRAMENTA DO CAIXA E PIX & PLACA (LAYOUT PLANO, SEM BORDA NEM CAIXA ANINHADA) */}
       <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-3 sm:p-4 space-y-4 max-w-3xl mx-auto w-full pb-10">
         <FinancialManagerView
           appointments={appointments}
@@ -130,7 +128,6 @@ export const CaixaManagerView: React.FC<CaixaManagerViewProps> = ({
           onUpdateSettings={onUpdateSettings}
         />
 
-        {/* Bloco 1: Metas e Evolução Financeira por Turno (Hoje: Manhã, Tarde, Noite) */}
         <GoalsAndShiftsCard
           dailyAmount={todayRealizedRevenue}
           appointments={appointments}

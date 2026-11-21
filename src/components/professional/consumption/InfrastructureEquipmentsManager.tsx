@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { 
-  Building2, 
-  Plus, 
-  Trash2, 
-  CheckCircle2, 
+import {
+  Building2,
+  Plus,
+  Trash2,
+  CheckCircle2,
   Zap,
   PieChart,
   Coins
@@ -100,7 +100,6 @@ const InfrastructureEquipmentCard: React.FC<InfrastructureEquipmentCardProps> = 
 
   const costPerHour = eq.kwhPerHour * effectiveKwhRate;
   const dailyKwh = eq.kwhPerHour * eq.avgHoursPerDay;
-  const monthlyKwh = dailyKwh * 30;
   const sharePercent = totalDailyKwh > 0 ? (dailyKwh / totalDailyKwh) * 100 : 0;
 
   const handlePowerValueChange = (newVal: number) => {
@@ -123,7 +122,7 @@ const InfrastructureEquipmentCard: React.FC<InfrastructureEquipmentCardProps> = 
         isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
       }`}
     >
-      {/* Topo do Card: Identificação + Porcentagem de Carga */}
+
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-8 h-8 rounded bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-500 shrink-0">
@@ -142,7 +141,7 @@ const InfrastructureEquipmentCard: React.FC<InfrastructureEquipmentCardProps> = 
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {/* Badge de Porcentagem da Carga */}
+
           <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9.5px] font-mono font-bold ${
             isDark ? 'bg-slate-950 border-slate-800 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
           }`}>
@@ -162,24 +161,22 @@ const InfrastructureEquipmentCard: React.FC<InfrastructureEquipmentCardProps> = 
         </div>
       </div>
 
-      {/* Barra de Progresso da Carga Total */}
       <div className={`w-full h-1.5 rounded-full overflow-hidden border ${
         isDark ? 'bg-slate-950 border-slate-800/80' : 'bg-slate-100 border-slate-200'
       }`}>
-        <div 
+        <div
           className="h-full bg-blue-500 rounded-full transition-all duration-300"
           style={{ width: `${Math.min(100, Math.max(2, sharePercent))}%` }}
         />
       </div>
 
-      {/* Parâmetros do Equipamento (Potência e Uso em 2 Colunas Equilibradas) */}
       <div className="grid grid-cols-2 gap-2.5 pt-0.5">
-        {/* Coluna 1: Potência + Seletor W/kW + Conversão */}
+
         <div className="space-y-1">
           <div className="flex items-center justify-between text-[8.5px] font-bold">
             <span className="uppercase text-slate-500">Potência</span>
             <span className={`font-mono ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
-              ↳ {unit === 'W' 
+              ↳ {unit === 'W'
                 ? `${eq.kwhPerHour.toFixed(2).replace('.', ',')} kWh/h`
                 : `${(eq.powerWatts || Math.round(eq.kwhPerHour * 1000))} W`}
             </span>
@@ -195,7 +192,6 @@ const InfrastructureEquipmentCard: React.FC<InfrastructureEquipmentCardProps> = 
               }`}
             />
 
-            {/* Seletor W / kW ao lado do input */}
             <div className={`flex items-center rounded border p-0.5 shrink-0 ${
               isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-300'
             }`}>
@@ -225,7 +221,6 @@ const InfrastructureEquipmentCard: React.FC<InfrastructureEquipmentCardProps> = 
           </div>
         </div>
 
-        {/* Coluna 2: Uso Diário */}
         <div className="space-y-1">
           <div className="flex items-center justify-between text-[8.5px] font-bold">
             <span className="uppercase text-slate-500">Uso Diário</span>
@@ -252,7 +247,6 @@ const InfrastructureEquipmentCard: React.FC<InfrastructureEquipmentCardProps> = 
         </div>
       </div>
 
-      {/* Faixa Financeira: Custo/Hora & Custo Mensal Estimado (Proporcional 50% / 50%) */}
       <div className={`grid grid-cols-2 gap-2 p-2 rounded border items-center ${
         isDark ? 'bg-slate-950/70 border-slate-800/80' : 'bg-slate-50 border-slate-200'
       }`}>
@@ -301,7 +295,7 @@ export const InfrastructureEquipmentsManager: React.FC = () => {
         }
       }
     } catch {
-      // ignore
+
     }
     return INITIAL_INFRA_EQUIPMENTS;
   });
@@ -316,7 +310,7 @@ export const InfrastructureEquipmentsManager: React.FC = () => {
         return taxRate < 0.99 ? pureRate / (1 - taxRate) : pureRate * 1.25;
       }
     } catch {
-      // ignore
+
     }
     return 1.07;
   }, []);
@@ -370,7 +364,7 @@ export const InfrastructureEquipmentsManager: React.FC = () => {
     try {
       localStorage.setItem('vagou_infrastructure_equipments', JSON.stringify(updated));
     } catch {
-      // ignore
+
     }
     syncAllLocalUtilitiesToDatabase();
 
@@ -394,7 +388,7 @@ export const InfrastructureEquipmentsManager: React.FC = () => {
     try {
       localStorage.setItem('vagou_infrastructure_equipments', JSON.stringify(updated));
     } catch {
-      // ignore
+
     }
     syncAllLocalUtilitiesToDatabase();
   };
@@ -406,14 +400,14 @@ export const InfrastructureEquipmentsManager: React.FC = () => {
     try {
       localStorage.setItem('vagou_infrastructure_equipments', JSON.stringify(updated));
     } catch {
-      // ignore
+
     }
     syncAllLocalUtilitiesToDatabase();
   };
 
   return (
     <div className="space-y-3.5 animate-in fade-in duration-150">
-      {/* Header com Ação */}
+
       <div className="flex items-center justify-between px-1">
         <div>
           <h3 className="text-xs font-bold font-['Poppins'] text-white flex items-center gap-1.5">
@@ -440,7 +434,6 @@ export const InfrastructureEquipmentsManager: React.FC = () => {
         </button>
       </div>
 
-      {/* Card Resumo de Carga Total Estimada */}
       <div className={`p-3 rounded-xl border ${
         isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
       }`}>
@@ -488,7 +481,6 @@ export const InfrastructureEquipmentsManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Formulário Novo Equipamento */}
       {showAddForm && (
         <form
           onSubmit={handleAddEquipment}
@@ -539,7 +531,6 @@ export const InfrastructureEquipmentsManager: React.FC = () => {
               </select>
             </div>
 
-            {/* Potência com Seletor W / kW */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-[10px] font-bold uppercase text-slate-400">
@@ -650,7 +641,6 @@ export const InfrastructureEquipmentsManager: React.FC = () => {
         </form>
       )}
 
-      {/* Lista de Equipamentos com Seletor W/kW, Conversão, Custo/Hora e % da Carga */}
       <div className="space-y-2.5">
         {equipments.map((eq) => (
           <InfrastructureEquipmentCard

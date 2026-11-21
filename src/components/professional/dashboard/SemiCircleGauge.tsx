@@ -22,14 +22,11 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
   weeklyAmount = 0,
   averageTicket = 0,
   remainingDays = 0,
-  onUpdateTarget,
 }) => {
   const { isDark } = useTheme();
 
-  // Período da Meta selecionado (Diária, Semanal ou Mensal) - default 'diaria' para uso diário ágil
   const [period, setPeriod] = useState<GoalPeriod>('diaria');
 
-  // Metas persistidas por período
   const [dailyTarget] = useState<number>(() => {
     try {
       const s = localStorage.getItem('vagou_daily_goal');
@@ -54,7 +51,6 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
     return targetAmount > 0 ? targetAmount : 0;
   });
 
-  // Valores dinâmicos conforme período ativo
   const activeTarget = period === 'diaria' ? dailyTarget : period === 'semanal' ? weeklyTarget : monthlyTarget;
   const activeRealized = period === 'diaria' ? dailyAmount : period === 'semanal' ? weeklyAmount : currentAmount;
 
@@ -62,22 +58,20 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
   const percentage = Math.min(100, Math.round((activeRealized / safeTarget) * 100));
   const remainingAmount = Math.max(0, safeTarget - activeRealized);
 
-  // Tradução prática em atendimentos / cortes restantes
   const ticketForCalc = averageTicket > 0 ? averageTicket : 50;
   const cutsNeeded = Math.ceil(remainingAmount / ticketForCalc);
   const cutsPerDay = remainingDays > 0 ? Math.ceil(cutsNeeded / remainingDays) : cutsNeeded;
 
-  // Geometria do Arco Meia-Lua (Semicírculo)
   const radius = 72;
   const strokeWidth = 14;
-  const circumference = Math.PI * radius; // Meio círculo = pi * r
+  const circumference = Math.PI * radius;
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
   return (
     <div className={`p-3.5 rounded-lg border flex flex-col items-center select-none ${
       isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 shadow-xs text-slate-900'
     }`}>
-      {/* Cabeçalho com Título & Seletor de Período (Diária / Semanal / Mensal) */}
+
       <div className="w-full flex items-center justify-between pb-2 mb-1 border-b border-slate-800/40 gap-2">
         <div className="flex items-center gap-1.5 shrink-0">
           <div className="w-6 h-6 rounded brand-soft-badge flex items-center justify-center">
@@ -86,7 +80,6 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
           <span className="text-xs font-bold font-['Poppins']">Velocímetro de Metas</span>
         </div>
 
-        {/* Alternador Abrangente de Período */}
         <div className={`flex items-center p-0.5 rounded-md border shrink-0 ${
           isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
         }`}>
@@ -113,7 +106,6 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
         </div>
       </div>
 
-      {/* Sub-faixa de Status da Meta Selecionada */}
       <div className="w-full flex items-center justify-between py-1">
         <span className={`text-[10px] font-bold uppercase tracking-wider ${
           isDark ? 'text-slate-400' : 'text-slate-500'
@@ -122,9 +114,9 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
         </span>
 
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-          percentage >= 100 
-            ? 'brand-tab-active font-extrabold' 
-            : percentage >= 70 
+          percentage >= 100
+            ? 'brand-tab-active font-extrabold'
+            : percentage >= 70
             ? 'brand-soft-badge font-bold'
             : isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'
         }`}>
@@ -132,13 +124,12 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
         </span>
       </div>
 
-      {/* Gráfico Meia-Lua em SVG */}
       <div className="relative w-[190px] h-[105px] flex items-center justify-center mt-1">
         <svg
           viewBox="0 0 190 105"
           className="w-full h-full overflow-visible"
         >
-          {/* Arco de Fundo Neutro (Meia-Lua) */}
+
           <path
             d="M 23 95 A 72 72 0 0 1 167 95"
             fill="none"
@@ -147,7 +138,6 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
             strokeLinecap="round"
           />
 
-          {/* Arco de Preenchimento da Meta na cor do tema */}
           <path
             d="M 23 95 A 72 72 0 0 1 167 95"
             fill="none"
@@ -160,7 +150,6 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
           />
         </svg>
 
-        {/* Texto Centralizado na Base da Meia-Lua */}
         <div className="absolute bottom-1 left-0 right-0 flex flex-col items-center justify-center text-center">
           <span className="text-2xl font-black font-['Poppins'] tracking-tight leading-none brand-text">
             {percentage}%
@@ -173,7 +162,6 @@ export const SemiCircleGauge: React.FC<SemiCircleGaugeProps> = ({
         </div>
       </div>
 
-      {/* Tradução Prática em Linguagem Simples (Sem MBA) */}
       <div className={`w-full mt-2 p-2 rounded border flex items-start gap-2 ${
         percentage >= 100
           ? 'brand-soft-badge'

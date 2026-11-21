@@ -37,7 +37,6 @@ export function getSectionHeaderStyleData(
   const explicitTxt = normalizeHex(adminSettings.sectionHeaderTextColor);
   let resolvedText = explicitTxt || palette.sectionText;
 
-  // Trava de contraste obrigatória: impede texto claro em barra clara (ex: "Identidade Visual" branco sobre fundo branco)
   if (effectiveBg !== 'transparent') {
     const bgIsLight = isLightColor(effectiveBg);
     const txtIsLight = isLightColor(resolvedText);

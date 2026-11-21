@@ -46,7 +46,6 @@ export const LEGACY_UNCUSTOMIZED_HEXES = new Set([
   '#475569',
 ]);
 
-// Cores verde-menta/esmeralda legadas que ficaram congeladas nas colunas de topo antigas de public.salons
 export const LEGACY_MINT_COLUMN_HEXES = new Set([
   '#ecfdf5',
   '#d1fae5',
@@ -212,7 +211,6 @@ export function resolveAppThemeTokens(
     Boolean(isExplicitlyCustomized) &&
     Boolean(normAccent);
 
-  // Padrão Default Neutro (Cinza, Branco & Escuro Suave)
   if (!activeCustomized || !normAccent) {
     if (isDark) {
       return {
@@ -287,7 +285,6 @@ export function resolveAppThemeTokens(
     };
   }
 
-  // Tema Personalizado / Cor Rápida em Cascata Total no App Inteiro
   const p = normAccent;
   const lum = getRelativeLuminance(p);
   const primaryHover = lum < 0.08 ? mixHex(p, '#FFFFFF', 0.85) : mixHex(p, '#000000', 0.82);
@@ -332,7 +329,6 @@ export function resolveAppThemeTokens(
     };
   }
 
-  // Modo Claro com Cascata do Tema Escolhido (ex: Azul, Rose, Esmeralda, Dourado, Violeta, Grafite, Preto)
   const darkInkHue = mixHex(p, '#0F172A', 0.30);
   const subInkHue = mixHex(p, '#475569', 0.35);
 

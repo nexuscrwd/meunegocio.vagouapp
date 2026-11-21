@@ -176,10 +176,6 @@ function isTurnManeuverCode(maneuverRaw: string, instructionRaw = ''): boolean {
   );
 }
 
-/**
- * Resolve a próxima manobra real (seta + instrução + distância regressiva exata)
- * a partir da posição atual do GPS na malha viária, usando os steps da rota + geometria da polilinha.
- */
 function resolveLiveManeuverFromGps(
   userLat: number,
   userLng: number,
@@ -197,7 +193,6 @@ function resolveLiveManeuverFromGps(
     };
   }
 
-  // 1. Se houver steps estruturados com coordenadas (Google Routes API v2 / OSRM steps=true)
   if (steps.length > 0 && roadPath.length >= 2) {
     let bestStepIdx = -1;
     let minStepStartDistKm = Infinity;
@@ -250,7 +245,6 @@ function resolveLiveManeuverFromGps(
       };
     }
 
-    // Fallback proporcional sobre os steps caso todos sejam retos ou sem startLat
     const propIdx = Math.min(
       steps.length - 1,
       Math.floor((closestIndex / Math.max(1, roadPath.length - 1)) * steps.length)
@@ -268,7 +262,6 @@ function resolveLiveManeuverFromGps(
     }
   }
 
-  // 2. Detecção geométrica pura na polilinha (sem falso positivo de retorno em alças de rodovia)
   if (roadPath.length > closestIndex + 2) {
     let accumMeters = 0;
     let prevLat = userLat;
@@ -325,10 +318,6 @@ function resolveLiveManeuverFromGps(
   };
 }
 
-/**
- * Calcula o Tempo Restante (ETA em minutos) combinando o ritmo real da rota (duração oficial / km)
- * com a velocidade real suavizada do GPS em movimento, eliminando distorções como 01:21 para 18 km.
- */
 function computeRealisticRemainingMinutes(params: {
   remainingKm: number;
   routeTotalKm: number;
@@ -339,7 +328,6 @@ function computeRealisticRemainingMinutes(params: {
   const { remainingKm, routeTotalKm, routeTotalMinutes, smoothedSpeedKmh, mode } = params;
   if (remainingKm <= 0.12) return 0;
 
-  // Ritmo padrão caso rota detalhada ainda não tenha chegado (ex.: ~40 km/h urbano/arterial = 1.5 min/km)
   const fallbackPaceMinPerKm =
     mode === 'walking'
       ? 12.0
@@ -362,10 +350,9 @@ function computeRealisticRemainingMinutes(params: {
 
   const routeBasedMinutes = remainingKm * routePaceMinPerKm;
 
-  // Se o veículo está em movimento real medido pelo GPS (>= 12 km/h), pondera com a velocidade ao vivo
   if (smoothedSpeedKmh >= 12 && mode !== 'walking') {
     const clampedSpeed = Math.min(115, Math.max(15, smoothedSpeedKmh));
-    const gpsPaceMinPerKm = (60 / clampedSpeed) * 1.12; // +12% margem para semáforos/acessos finais
+    const gpsPaceMinPerKm = (60 / clampedSpeed) * 1.12;
     const blendedMinutes = routeBasedMinutes * 0.55 + remainingKm * gpsPaceMinPerKm * 0.45;
     return Math.max(1, Math.round(blendedMinutes));
   }
@@ -373,12 +360,6 @@ function computeRealisticRemainingMinutes(params: {
   return Math.max(1, Math.round(routeBasedMinutes));
 }
 
-/**
- * Map-Matching Ortogonal Contínuo (Snap-to-Polyline):
- * Projeta a coordenada do usuário ortogonalmente no segmento viário mais próximo,
- * eliminando desvios laterais do GPS e calculando o azimute (bearing) exato da rua à frente.
- * GARANTIA ZERO LINHA RETA: Jamais retorna um segmento reto de 2 pontos [user, dest].
- */
 function findForwardRouteBearingAndRemainingPath(
   userLat: number,
   userLng: number,
@@ -436,8 +417,6 @@ function findForwardRouteBearingAndRemainingPath(
     }
   }
 
-  // Se o GPS real do usuário estiver a mais de 220m da rota calculada originalmente,
-  // sinaliza recálculo viário mantendo a geometria atual até a nova rota chegar (sem linha reta).
   if (minDistKm > 0.22) {
     const nextPt = roadPath[Math.min(1, roadPath.length - 1)];
     return {
@@ -1132,7 +1111,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     []
   );
 
-  // Fallback OpenStreetMap / Esri (somente quando não há chave Google Maps ativa ou em caso de restrição de domínio)
   useEffect(() => {
     if (!shouldMountLeaflet) {
       if (leafletMapRef.current) {
@@ -1302,7 +1280,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       lmap.remove();
       leafletMapRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [shouldMountLeaflet, isDark]);
 
   useEffect(() => {
@@ -1728,8 +1706,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
       const gpsSpeedMps = pos.coords.speed;
       const targetDest = effectiveDestRef.current;
 
-      // 1. Se o usuário configurou um ponto de partida distante do seu GPS físico atual (ex.: está fisicamente
-      // no destino Rua Serrana testando a rota desde a Polícia Rodoviária - Base Guarulhos), preserva a rota simulada intacta!
       const distGpsToConfiguredOriginKm = computeHaversineKm(
         rawLat,
         rawLng,
@@ -1746,7 +1722,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         return;
       }
 
-      // 2. Se o usuário já está fisicamente no destino (<= 150m), reconhece chegada imediata sem pedir para retornar
       const distGpsToDestKm = computeHaversineKm(
         rawLat,
         rawLng,
@@ -1942,7 +1917,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         isDark ? 'bg-slate-950' : 'bg-slate-100'
       }`}
     >
-      {/* PALCO CARTOGRÁFICO (VETORIAL NATIVO 100% COM GOOGLE MAPS OU ESTÁGIO 164% COURSE-UP) */}
+
       <div
         className={`absolute z-0 ${
           useNativeVectorHeading
@@ -2061,7 +2036,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         )}
       </div>
 
-      {/* BOTÃO FLUTUANTE RECENTRALIZAR NO GPS */}
       {!isFollowingGps && (
         <button
           type="button"

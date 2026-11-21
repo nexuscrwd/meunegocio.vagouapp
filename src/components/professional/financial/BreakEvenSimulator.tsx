@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Target, TrendingUp, Sliders, CheckCircle2, 
-  HelpCircle, Zap, DollarSign, Calendar, Users, Calculator
+import {
+  Target, TrendingUp, Sliders, CheckCircle2,
+  Zap, Calendar, Calculator
 } from 'lucide-react';
 import { useTheme } from '../../../context/ThemeContext';
 import { FinancialExpense } from '../../../types';
@@ -14,7 +14,6 @@ interface BreakEvenSimulatorProps {
   completedAppointmentsCount: number;
 }
 
-// Funções utilitárias para máscara de ponto a cada milhar e vírgula
 const formatBrazilianNumber = (val: string | number): string => {
   if (val === '' || val === null || val === undefined) return '';
   let strVal = typeof val === 'number' ? val.toString().replace('.', ',') : val;
@@ -44,7 +43,6 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
 }) => {
   const { isDark } = useTheme();
 
-  // Estados com string formatada para entrada livre com máscara
   const [targetProfitStr, setTargetProfitStr] = useState<string>(() => {
     try {
       const saved = localStorage.getItem('vagou_financial_target_profit');
@@ -75,12 +73,10 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
     }
   });
 
-  // Valores numéricos parsed para cálculos
   const targetProfit = parseBrazilianNumber(targetProfitStr);
   const workDays = Math.max(1, Math.round(parseBrazilianNumber(workDaysStr)) || 1);
   const dailyClients = Math.max(1, Math.round(parseBrazilianNumber(dailyClientsStr)) || 1);
 
-  // Salva alterações de configuração
   useEffect(() => {
     try {
       localStorage.setItem('vagou_financial_target_profit', targetProfit.toString());
@@ -89,29 +85,22 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
     } catch {}
   }, [targetProfit, workDays, dailyClients]);
 
-  // Total de custos operacionais do mês
   const totalExpenses = expenses.reduce((acc, exp) => acc + exp.amount, 0);
 
-  // Total de faturamento necessário para cobrir custos e atingir a meta
   const totalRequiredRevenue = totalExpenses + targetProfit;
 
-  // Atendimentos estimadas no mês
   const monthlyEstimatedAppointments = workDays * dailyClients;
 
-  // Ticket Médio Alvo Recomendado
-  const targetAverageTicket = monthlyEstimatedAppointments > 0 
-    ? totalRequiredRevenue / monthlyEstimatedAppointments 
+  const targetAverageTicket = monthlyEstimatedAppointments > 0
+    ? totalRequiredRevenue / monthlyEstimatedAppointments
     : 0;
 
-  // Meta de faturamento diário
   const targetDailyRevenue = workDays > 0 ? totalRequiredRevenue / workDays : 0;
 
-  // Termômetro do Ponto de Equilíbrio
   const breakEvenProgress = totalExpenses > 0 ? Math.min(100, (currentRealizedRevenue / totalExpenses) * 100) : 100;
   const isBreakEvenReached = currentRealizedRevenue >= totalExpenses;
   const netProfitOrDeficit = currentRealizedRevenue - totalExpenses;
 
-  // Estado do Simulador Interativo ("E se...?")
   const [simulatedTicket, setSimulatedTicket] = useState<number>(() => {
     return Math.max(0, Math.round(targetAverageTicket || 0));
   });
@@ -122,7 +111,6 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
     }
   }, [targetAverageTicket]);
 
-  // Atendimentos necessários com o ticket simulado para cobrir custos + meta
   const requiredAppointmentsWithSimulatedTicket = simulatedTicket > 0
     ? Math.ceil(totalRequiredRevenue / simulatedTicket)
     : 0;
@@ -133,8 +121,7 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
 
   return (
     <div className="space-y-3.5">
-      
-      {/* 1. Metômetro do Ponto de Equilíbrio (Break-Even Progress) */}
+
       <div className={`p-3.5 rounded border space-y-2.5 ${
         isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
       }`}>
@@ -155,7 +142,6 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
           </span>
         </div>
 
-        {/* Barra de Progresso do Break-even */}
         <div className="space-y-1">
           <div className="flex items-center justify-between text-xs font-mono">
             <span className="text-slate-400 text-[10px]">Coletado: R$ {currentRealizedRevenue.toFixed(2).replace('.', ',')}</span>
@@ -163,7 +149,7 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
           </div>
 
           <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-800">
-            <div 
+            <div
               className={`h-full rounded-full transition-all duration-700 ${
                 isBreakEvenReached ? 'brand-bar' : 'bg-amber-400'
               }`}
@@ -172,9 +158,8 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
           </div>
         </div>
 
-        {/* Status Mensagem */}
         <div className={`p-2 rounded text-[11px] font-medium flex items-center gap-2 ${
-          isBreakEvenReached 
+          isBreakEvenReached
             ? 'brand-soft-badge'
             : 'bg-amber-500/10 border border-amber-500/30 text-amber-300'
         }`}>
@@ -196,7 +181,6 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
         </div>
       </div>
 
-      {/* 2. Parâmetros de Meta e Capacidade Operacional */}
       <div className={`p-3.5 rounded border space-y-3 ${
         isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
       }`}>
@@ -211,7 +195,7 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-          {/* Meta de Lucro Líquido */}
+
           <div>
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
               Meta de Lucro Desejada (R$)
@@ -231,7 +215,6 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
             />
           </div>
 
-          {/* Dias Trabalhados no Mês */}
           <div>
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
               Dias Úteis / Mês
@@ -251,7 +234,6 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
             />
           </div>
 
-          {/* Atendimentos por Dia */}
           <div>
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
               Média Clientes / Dia
@@ -273,7 +255,6 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
         </div>
       </div>
 
-      {/* 3. Resultado do Ticket Médio Alvo Recomendado */}
       <div className="grid grid-cols-2 gap-2">
         <div className={`p-3 rounded border flex flex-col justify-between brand-border-active ${
           isDark ? 'bg-slate-900/90' : 'bg-white shadow-2xs'
@@ -306,7 +287,6 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
         </div>
       </div>
 
-      {/* 4. Comparativo: Ticket Atual vs Ticket Alvo */}
       <div className={`p-3.5 rounded border space-y-2 ${
         isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
       }`}>
@@ -345,7 +325,6 @@ export const BreakEvenSimulator: React.FC<BreakEvenSimulatorProps> = ({
         </div>
       </div>
 
-      {/* 5. Simulador Interativo ("E se...?") */}
       <div className={`p-3.5 rounded border space-y-3 ${
         isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
       }`}>

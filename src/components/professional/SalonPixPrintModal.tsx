@@ -89,7 +89,7 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
       setCopied(true);
       setTimeout(() => setCopied(false), 2200);
     } catch {
-      // ignore
+
     }
   };
 
@@ -111,7 +111,7 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Cabeçalho */}
+
         <div
           className={`px-4 py-3 border-b flex items-center justify-between shrink-0 print:hidden ${
             isDark ? 'border-slate-800 bg-slate-900/90' : 'border-slate-200 bg-slate-100/90'
@@ -141,9 +141,8 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
           </button>
         </div>
 
-        {/* Corpo Rolável */}
         <div className="p-4 overflow-y-auto space-y-4 flex-1">
-          {/* Seletor de Chave PIX caso existam múltiplas */}
+
           {effectiveKeys.length > 1 && (
             <div className="space-y-1.5 print:hidden">
               <label
@@ -183,7 +182,6 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
             </div>
           )}
 
-          {/* Placa para Display Acrílico (Área Imprimível) */}
           {activePixItem ? (
             <div
               id="salon-pix-acrylic-plate"
@@ -191,7 +189,7 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
                 isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
               }`}
             >
-              {/* Nome do Estabelecimento */}
+
               <div className="space-y-0.5">
                 {salonLogo && (
                   <img
@@ -218,13 +216,11 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
                 )}
               </div>
 
-              {/* Selo Pagamento Instantâneo PIX */}
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[4px] brand-btn text-[11px] font-bold uppercase tracking-wider">
                 <QrCode className="w-3.5 h-3.5" />
                 <span>Pagamento via PIX</span>
               </div>
 
-              {/* QR Code Oficial BACEN */}
               <div className="p-3 rounded-[4px] bg-white border border-slate-200 shadow-md">
                 <img
                   src={qrCodeUrl}
@@ -233,7 +229,6 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
                 />
               </div>
 
-              {/* Dados da Chave */}
               <div
                 className={`w-full pt-2 border-t print:border-slate-200 space-y-1 ${
                   isDark ? 'border-slate-800/80' : 'border-slate-200'
@@ -262,7 +257,6 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
                 )}
               </div>
 
-              {/* Assinatura Vagou */}
               <div
                 className={`pt-1 flex items-center justify-center gap-1 text-[10px] print:text-slate-500 ${
                   isDark ? 'text-slate-400' : 'text-slate-500'
@@ -283,7 +277,6 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
           )}
         </div>
 
-        {/* Rodapé Fixo de Ação */}
         <div
           className={`p-3 border-t sticky bottom-0 z-20 flex items-center gap-2 print:hidden ${
             isDark ? 'border-slate-800 bg-slate-950/95' : 'border-slate-200 bg-slate-50/95'

@@ -36,10 +36,9 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
       }
 
       try {
-        // 1. Tenta obter sessão nativa do Supabase no subdomínio atual
+
         const { data: { session } } = await supabase.auth.getSession();
 
-        // 2. Suporte Cross-Subdomain SSO e Sessão Unificada da Tríade (system_admins, clients, salon_users)
         let clientSession: any = null;
         if (typeof window !== 'undefined') {
           try {
@@ -74,7 +73,6 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
         const currentUserEmail = (session?.user?.email || storedUserEmail || '').trim().toLowerCase();
         const currentUserCpf = (session?.user?.user_metadata?.cpf || storedUserCpf || '').replace(/\D/g, '');
 
-        // Se não há sessão Supabase nem identidade autenticada na Tríade, é visitante ('guest')
         if (!currentUserId && !currentUserEmail && !currentUserCpf && !isSuperadminLocal) {
           if (isMounted && reqId === currentReqIdRef.current) {
             setRole('guest');
@@ -103,7 +101,6 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
           return;
         }
 
-        // 3. Verificação Multi-Camada Soberana (system_admins + salons.owner_id/email/owner_cpf + salon_users + salon_members + professionals)
         const membership = await checkUserSalonMembership(
           currentUserId,
           effectiveSalonIdent,
@@ -138,7 +135,6 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
     setRole('loading');
     evaluateRole();
 
-    // Escuta eventos nativos do Supabase Auth
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         const hasTriadeSession =
@@ -170,7 +166,6 @@ export function useSalonRole(salonIdentifier?: string | null): UseSalonRoleResul
       }
     });
 
-    // Escuta sincronização imediata disparada pelo modal nativo de autenticação (vagou:auth-updated)
     const handleAuthUpdated = (e?: Event) => {
       if (!isMounted) return;
       const customEvt = e as CustomEvent<{ loggedOut?: boolean }> | undefined;

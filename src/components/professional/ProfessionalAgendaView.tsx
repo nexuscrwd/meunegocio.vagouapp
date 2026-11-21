@@ -1,17 +1,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  Calendar, Clock, CheckCircle2, XCircle, 
-  Plus, Phone, User, Check, X,
-  AlertCircle, ExternalLink,
-  DollarSign, Mail,
+import {
+  Calendar, Clock, CheckCircle2,
+  Phone, User, Check, X,
   ChevronLeft, ChevronRight, ChevronDown, RefreshCw, Send, ShieldCheck,
   Lock, Unlock, ArrowRight,
-  LayoutGrid, List, Zap, Baby, Heart,
+  LayoutGrid, List, Zap, Baby,
   Navigation, Package, Map as MapIcon, AlertTriangle, Bell, Home
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { BookingAppointment, CatalogServiceItem, SalonAdminSettings, SalonProfessionalItem } from '../../types';
-import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
+import { hapticLight, hapticSuccess } from '../../utils/haptics';
 import { PixCheckoutModal } from './PixCheckoutModal';
 import { LiveRouteDepartureModal, LiveTrackingDrawerModal } from '../live-tracking/LiveTrackingModal';
 import { syncAppointmentAcrossStorageAndDb, formatCurrentClockTime } from '../../hooks/useLiveRouteTracker';
@@ -28,14 +26,14 @@ export interface ProfessionalAgendaViewProps {
 
 export type DemandStatusKey = 'confirmados' | 'pendentes' | 'trocas' | 'concluidos' | 'cancelados';
 
-export const getStatusCategory = (statusRaw?: string, swapRequest?: any): { 
-  key: DemandStatusKey; 
-  order: number; 
-  label: string; 
+export const getStatusCategory = (statusRaw?: string, swapRequest?: any): {
+  key: DemandStatusKey;
+  order: number;
+  label: string;
   shortLabel: string;
   gridLabel: string;
-  badgeBg: string; 
-  badgeText: string; 
+  badgeBg: string;
+  badgeText: string;
   badgeBorder: string;
   badgeFullClass: string;
   cardBorderDark: string;
@@ -44,7 +42,6 @@ export const getStatusCategory = (statusRaw?: string, swapRequest?: any): {
 } => {
   const status = (statusRaw || '').toUpperCase().trim();
 
-  // 0. EM ATENDIMENTO (Iniciado pelo profissional)
   if (status.includes('ATEND') || status.includes('INICI')) {
     return {
       key: 'confirmados',
@@ -62,7 +59,6 @@ export const getStatusCategory = (statusRaw?: string, swapRequest?: any): {
     };
   }
 
-  // BLOQUEADO (Horários trancados / Intervalo / Almoço)
   if (status.includes('BLOQUE')) {
     return {
       key: 'cancelados',
@@ -80,7 +76,6 @@ export const getStatusCategory = (statusRaw?: string, swapRequest?: any): {
     };
   }
 
-  // 2. TROCA A CONFIRMAR (Troca entre clientes pendente de confirmação)
   if ((swapRequest && swapRequest.isClientSwap) || status.includes('TROCA') || status.includes('SWAP')) {
     return {
       key: 'trocas',
@@ -98,7 +93,6 @@ export const getStatusCategory = (statusRaw?: string, swapRequest?: any): {
     };
   }
 
-  // 3. ALTERAÇÃO / PENDENTES COMUNS (aguarda confirmação do profissional)
   if (status.includes('ALTER') || status.includes('REMANEJ') || status.includes('REAGEND')) {
     return {
       key: 'pendentes',
@@ -133,7 +127,6 @@ export const getStatusCategory = (statusRaw?: string, swapRequest?: any): {
     };
   }
 
-  // 4. CONCLUÍDOS
   if (status.includes('CONCLU')) {
     return {
       key: 'concluidos',
@@ -151,7 +144,6 @@ export const getStatusCategory = (statusRaw?: string, swapRequest?: any): {
     };
   }
 
-  // 6. CANCELADOS
   if (status.includes('CANCEL')) {
     return {
       key: 'cancelados',
@@ -169,7 +161,6 @@ export const getStatusCategory = (statusRaw?: string, swapRequest?: any): {
     };
   }
 
-  // 1. CONFIRMADOS (Padrão)
   return {
     key: 'confirmados',
     order: 1,
@@ -258,9 +249,9 @@ export const calculateEndTime = (startTime?: string, durationStr?: string): stri
   return formatMinutesToTime(startM + durM);
 };
 
-export const CHECKOUT_BUFFER_MINUTES = 15; // 15 minutos de intervalo para pagamento, conferência e higienização
-export const WORK_DAY_START_MINUTES = 8 * 60; // 08:00
-export const WORK_DAY_END_MINUTES = 20 * 60; // 20:00
+export const CHECKOUT_BUFFER_MINUTES = 15;
+export const WORK_DAY_START_MINUTES = 8 * 60;
+export const WORK_DAY_END_MINUTES = 20 * 60;
 
 export interface DynamicTimelineItem {
   id: string;
@@ -306,14 +297,12 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
 }) => {
   const { isDark } = useTheme();
 
-  // Estados de Data Selecionada e Calendário do Mês Fixo
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [calendarViewDate, setCalendarViewDate] = useState<Date>(new Date());
   const [isCalendarCollapsed, setIsCalendarCollapsed] = useState(true);
   const [slotFilter, setSlotFilter] = useState<'todos' | 'confirmados' | 'livres' | 'concluidos'>('todos');
   const [viewMode, setViewMode] = useState<'grid' | 'lista'>('grid');
-  
-  // Modais
+
   const [selectedAppointment, setSelectedAppointment] = useState<BookingAppointment | null>(null);
   const [pixCheckoutAppointment, setPixCheckoutAppointment] = useState<BookingAppointment | null>(null);
   const [liveTrackingViewerState, setLiveTrackingViewerState] = useState<{
@@ -366,7 +355,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
     clientB: { name: string; newTime: string };
   } | null>(null);
 
-  // Estados para Bloqueio de Horário
   const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
   const [blockReason, setBlockReason] = useState('Almoço / Intervalo');
   const [blockTime, setBlockTime] = useState('12:00');
@@ -421,30 +409,9 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
     setSelectedAppointment(null);
   };
 
-  // Estados do Chat Interno no App
   const [activeChatAppointment, setActiveChatAppointment] = useState<BookingAppointment | null>(null);
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; sender: 'professional' | 'client' | 'system'; text: string; timestamp: string }>>([]);
   const [inputChatMessage, setInputChatMessage] = useState('');
-
-  const openChatForAppointment = (app: BookingAppointment) => {
-    setActiveChatAppointment(app);
-    const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    setChatMessages([
-      {
-        id: 'sys-1',
-        sender: 'system',
-        text: `Atendimento de "${app.service || app.serviceTitle || 'Serviço'}" em ${app.time || '14:00'}. Protocolo #${app.protocolCode || 'VG-001'}. Chat seguro do Vagou.`,
-        timestamp: timeStr,
-      },
-      {
-        id: 'client-1',
-        sender: 'client',
-        text: `Olá! Gostaria de confirmar detalhes sobre meu agendamento (#${app.protocolCode || 'VG-001'}).`,
-        timestamp: timeStr,
-      }
-    ]);
-  };
 
   const handleSendChatMessage = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -475,7 +442,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
     }, 1100);
   };
 
-  // Estados do Formulário de Novo Agendamento
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [selectedService, setSelectedService] = useState(services[0]?.title || '');
@@ -512,7 +478,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
     return isSameDay(selectedDate, today);
   }, [selectedDate]);
 
-  // Dias com agendamentos marcados no mês para exibir indicador visual sutil
   const daysWithAppointments = useMemo(() => {
     const datesSet = new Set<string>();
     const now = new Date();
@@ -536,7 +501,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
     return datesSet;
   }, [appointments, calendarViewDate]);
 
-  // Grid do Calendário do Mês (7 colunas)
   const monthGridDays = useMemo(() => {
     const year = calendarViewDate.getFullYear();
     const month = calendarViewDate.getMonth();
@@ -560,7 +524,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
     return grid;
   }, [calendarViewDate]);
 
-  // Agendamentos pertencentes ao dia selecionado no calendário
   const selectedDayAppointments = useMemo(() => {
     const targetYear = selectedDate.getFullYear();
     const targetMonth = selectedDate.getMonth();
@@ -593,7 +556,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
     });
   }, [appointments, selectedDate]);
 
-  // Próximo agendamento ativo a ser atendido no dia selecionado
   const nextActiveAppointment = useMemo(() => {
     const inProgress = selectedDayAppointments.find(a => {
       const s = (a.status || '').toUpperCase().trim();
@@ -616,12 +578,11 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
     return upcoming[0] || null;
   }, [selectedDayAppointments]);
 
-  // Linha do tempo dinâmica inteligente: Atendimentos reais sequenciais + cálculo automático de intervalos vagos
   const timelineData = useMemo(() => {
     if (services.length === 0) {
       return { items: [], freeSlotsSummary: [], completedItems: [] };
     }
-    // 1. Atendimentos concluídos (separados da visão ativa para não poluir "agora ou o futuro")
+
     const completedApps = selectedDayAppointments.filter(a => {
       const s = (a.status || '').toUpperCase().trim();
       return s === 'CONCLUIDO' || s === 'FINALIZADO';
@@ -652,7 +613,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
       };
     }).sort((a, b) => a.startMinutes - b.startMinutes);
 
-    // 2. Atendimentos ativos (exclui CANCELADO e CONCLUIDO/FINALIZADO)
     const validApps = selectedDayAppointments
       .filter(a => {
         const s = (a.status || '').toUpperCase().trim();
@@ -688,18 +648,17 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
     const items: DynamicTimelineItem[] = [];
     const freeSlotsSummary: { time: string; durationText: string; durationMinutes: number }[] = [];
 
-    // Cursor temporal ao longo do expediente (inicia às 08:00)
     let currentCursor = WORK_DAY_START_MINUTES;
 
     validApps.forEach((item, idx) => {
-      // Verifica se existe lacuna livre antes deste agendamento
+
       if (item.startMinutes > currentCursor) {
         const gapMinutes = item.startMinutes - currentCursor;
         if (gapMinutes >= 15) {
           const slotStart = formatMinutesToTime(currentCursor);
           const slotEnd = formatMinutesToTime(item.startMinutes);
           const durText = formatDurationDisplay(gapMinutes);
-          
+
           items.push({
             id: `free-before-${idx}-${slotStart}`,
             type: 'FREE_SLOT',
@@ -719,7 +678,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
         }
       }
 
-      // Adiciona o atendimento real (exatamente 1 card, sem duplicidade!)
       items.push({
         id: `app-${item.app.protocolCode || idx}-${item.startTime}`,
         type: 'APPOINTMENT',
@@ -734,11 +692,9 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
         bufferMinutes: CHECKOUT_BUFFER_MINUTES,
       });
 
-      // Atualiza o cursor para quando a cadeira for liberada (após o buffer de 15 min de higienização/caixa)
       currentCursor = Math.max(currentCursor, item.chairFreeMinutes);
     });
 
-    // Lacuna livre restante até o fim do expediente (20:00)
     if (currentCursor < WORK_DAY_END_MINUTES) {
       const remainingMinutes = WORK_DAY_END_MINUTES - currentCursor;
       if (remainingMinutes >= 15) {
@@ -782,7 +738,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
     };
   }, [selectedDayAppointments]);
 
-  // Itens da timeline visíveis de acordo com o filtro (Todos / Confirmados / Livres / Concluídos)
   const visibleTimelineItems = useMemo(() => {
     if (slotFilter === 'confirmados') {
       return timelineData.items.filter(item => {
@@ -824,13 +779,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
     setCalendarViewDate(next);
   };
 
-  const handleGoToToday = () => {
-    hapticLight();
-    const today = new Date();
-    setSelectedDate(today);
-    setCalendarViewDate(today);
-  };
-
   const handleStatusChange = (protocolCode: string, newStatus: string) => {
     hapticSuccess();
     const updated = appointments.map((app) => {
@@ -840,7 +788,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
       return app;
     });
     onUpdateAppointments(updated);
-    
+
     if (selectedAppointment && selectedAppointment.protocolCode === protocolCode) {
       setSelectedAppointment({ ...selectedAppointment, status: newStatus });
     }
@@ -859,7 +807,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
     const clientANewTime = swap.clientA.requestedTime || '15:00';
     const clientBNewTime = swap.clientA.originalTime || '14:00';
 
-    // Update appointment with new swapped time and confirmed status
     const updated = appointments.map((item) => {
       if (item.protocolCode === app.protocolCode) {
         const updatedTime = clientANewTime;
@@ -875,7 +822,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
           },
         };
       }
-      // Se houver outro agendamento correspondente ao Cliente B no mesmo dia
+
       if (item.customerName?.toLowerCase() === clientBName.toLowerCase() || item.clientName?.toLowerCase() === clientBName.toLowerCase()) {
         const updatedTimeB = clientBNewTime;
         const updatedDateTimeB = item.dateTime ? item.dateTime.replace(/\d{1,2}:\d{2}/, updatedTimeB) : `Hoje, ${updatedTimeB}`;
@@ -894,7 +841,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
       localStorage.setItem('vagou_salon_appointments', JSON.stringify(updated));
     } catch {}
 
-    // Fecha o modal de detalhes do agendamento e abre o modal de confirmação de troca
     setSelectedAppointment(null);
     setSwapConfirmedModalData({
       clientA: { name: clientAName, newTime: clientANewTime },
@@ -943,7 +889,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
     <div className={`w-full h-full flex flex-col justify-between overflow-hidden ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
-      {/* Cabeçalho da Seção: Título Sintético */}
+
       {(() => {
         const hdr = getSectionHeaderStyleData(adminSettings || {}, isDark);
         return (
@@ -962,11 +908,10 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
         );
       })()}
 
-      {/* 1. SEÇÃO FIXA NO TOPO: Calendário Mensal com Seleção do Dia do Mês */}
       <div className={`border-b shrink-0 px-3 py-2.5 ${
         isDark ? 'bg-slate-900/60 border-slate-800/80' : 'bg-white border-slate-200'
       }`}>
-        {/* Barra do Mês: Navegação com Mês / Ano */}
+
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5">
             <button
@@ -1022,17 +967,15 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
           </div>
         </div>
 
-        {/* Grade do Calendário Mensal */}
         {!isCalendarCollapsed && (
           <div>
-            {/* Cabeçalho dos Dias da Semana */}
+
             <div className="grid grid-cols-7 gap-1 text-center text-[9px] font-bold text-slate-400 uppercase mb-1">
               {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dayName) => (
                 <div key={dayName} className="py-0.5">{dayName}</div>
               ))}
             </div>
 
-            {/* Grid dos Dias do Mês (7 colunas) */}
             <div className="grid grid-cols-7 gap-1">
               {monthGridDays.map((gridItem, idx) => {
                 if (!gridItem.date) {
@@ -1083,11 +1026,10 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
         )}
       </div>
 
-      {/* 2. BARRA DE RESUMO DO DIA SELECIONADO & FILTROS DE HORÁRIO */}
       <div className={`border-b shrink-0 ${
         isDark ? 'bg-slate-950 border-slate-800/80' : 'bg-slate-50 border-slate-200'
       }`}>
-        {/* Linha da Data Ativa (Sempre visível em alto contraste) */}
+
         <div className={`px-3 py-1.5 flex items-center justify-between gap-2 border-b ${
           isDark ? 'border-slate-800/60 bg-slate-900/40' : 'border-slate-200/70 bg-white'
         }`}>
@@ -1107,7 +1049,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
           </span>
         </div>
 
-        {/* Chips de Filtro: Todos / Confirmados / Livres / Concluídos */}
         <div className="px-3 py-1.5 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
           {[
             { id: 'todos', label: 'Todos', count: timelineData.items.length },
@@ -1139,11 +1080,10 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
         </div>
       </div>
 
-      {/* 3. AGENDA DINÂMICA DE HORÁRIOS */}
       <div className="flex-1 min-h-0 overflow-y-auto p-3">
-        {/* Barra de Ferramentas: Alternador Grid de Horas / Lista */}
+
         <div className="flex items-center justify-end mb-2 px-0.5">
-          {/* Toggle Grid de Horas (Minicards Poupatempo/Clínica) vs Lista */}
+
           <div className={`flex items-center border rounded-[4px] p-0.5 shrink-0 ${
             isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
           }`}>
@@ -1182,7 +1122,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
           </div>
         </div>
 
-        {/* Conteúdo: Grid de Horas ou Lista */}
         {services.length === 0 ? (
           <div className={`p-8 rounded-[4px] border text-center my-4 ${
             isDark ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'
@@ -1202,20 +1141,18 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
             <p className="text-[10px] mt-0.5 text-slate-400">
               {slotFilter === 'confirmados'
                 ? 'Nenhum agendamento confirmado para este dia.'
-                : slotFilter === 'livres' 
-                ? 'Todos os horários estão ocupados para esta data!' 
+                : slotFilter === 'livres'
+                ? 'Todos os horários estão ocupados para esta data!'
                 : slotFilter === 'concluidos'
                 ? 'Nenhum atendimento concluído encontrado para este dia.'
                 : 'Nenhum agendamento ou horário encontrado para este dia.'}
             </p>
           </div>
         ) : viewMode === 'grid' ? (
-          /* ======================================================== */
-          /* MODO GRID: 3 COLUNAS COM AJUSTE PRECISO DE ELEMENTOS     */
-          /* ======================================================== */
+
           <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
             {visibleTimelineItems.map((item) => {
-              // 1. Vaga Livre no Grid
+
               if (item.type === 'FREE_SLOT') {
                 return (
                   <button
@@ -1249,7 +1186,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                 );
               }
 
-              // 2. Atendimento no Grid
               const app = item.appointment!;
               const catInfo = getStatusCategory(app.status, app.swapRequest);
               const clientName = app.customerName || app.clientName || 'Cliente';
@@ -1307,7 +1243,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                     }`}>
                       {item.startTime}
                     </span>
-                    <span 
+                    <span
                       className={`text-[6.5px] sm:text-[7.5px] font-black uppercase px-1 sm:px-1.5 py-0.5 rounded-[2px] shrink-0 whitespace-nowrap ${
                         catInfo.key === 'confirmados'
                           ? 'brand-tab-active'
@@ -1338,7 +1274,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                         Dep. de {clientName}
                       </p>
                     )}
-                    {/* Selo Compacto bol-020 no Grid */}
+
                     {(app.tracking_status === 'live_sharing' || app.tracking_status === 'arriving_5min') && (
                       <div className="mt-1 px-1 py-0.5 rounded-[2px] brand-tab-active text-[7.5px] font-mono tabular-nums font-black truncate flex items-center gap-0.5">
                         <Navigation className="w-2.5 h-2.5 shrink-0" />
@@ -1360,9 +1296,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
             })}
           </div>
         ) : (
-          /* ======================================================== */
-          /* MODO LISTA: LINHA DO TEMPO SEQUENCIAL SEM REDUNDÂNCIA    */
-          /* ======================================================== */
+
           <div className="space-y-2">
             {visibleTimelineItems.map((item) => {
               if (item.type === 'FREE_SLOT') {
@@ -1467,7 +1401,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                           Resp: {clientName}
                         </p>
                       )}
-                      {/* Pílula Dinâmica de Deslocamento Ao Vivo na Lista (bol-020) */}
+
                       {(app.tracking_status === 'live_sharing' || app.tracking_status === 'arriving_5min') && (
                         <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                           <span className="px-1.5 py-0.5 rounded-[3px] brand-tab-active text-[9.5px] font-mono tabular-nums font-black flex items-center gap-1 whitespace-nowrap">
@@ -1530,24 +1464,23 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
         )}
       </div>
 
-      {/* 5. MODAL: Detalhes Completos do Serviço e Atendimento */}
       {selectedAppointment && (() => {
         const statusClean = (selectedAppointment.status || '').toUpperCase().trim();
         const isConcluded = statusClean === 'CONCLUIDO' || statusClean === 'CONCLUÍDO' || statusClean === 'FINALIZADO' || getStatusCategory(selectedAppointment.status).key === 'concluidos';
         const cat = getStatusCategory(selectedAppointment.status);
 
         return (
-          <div 
+          <div
             className="fixed inset-0 z-50 flex items-center justify-center p-3.5 bg-black/80 backdrop-blur-xs animate-in fade-in"
             onClick={() => setSelectedAppointment(null)}
           >
-            <div 
+            <div
               className={`w-full max-w-md rounded-[4px] overflow-hidden shadow-2xl border flex flex-col max-h-[90vh] ${
                 isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
               }`}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Topo do Modal */}
+
               <div className={`p-3.5 border-b flex items-center justify-between shrink-0 ${
                 isDark ? 'border-slate-800 bg-slate-900/80' : 'border-slate-200 bg-slate-50'
               }`}>
@@ -1576,9 +1509,8 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                 </button>
               </div>
 
-              {/* Conteúdo Rolável do Modal */}
               <div className="p-4 overflow-y-auto space-y-3.5 text-xs">
-                {/* Bloco no Topo: Dados do Cliente (sem botões de mensagem no app e ligar) */}
+
                 <div className={`p-3 rounded-[4px] border space-y-1.5 ${
                   isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
                 }`}>
@@ -1621,7 +1553,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                   </div>
                 </div>
 
-                {/* Banner no Passado para Serviço Concluído */}
                 {isConcluded && (
                   <div className={`p-2.5 rounded-[4px] border text-xs flex items-center justify-between gap-2 ${
                     isDark ? 'bg-blue-950/25 border-blue-500/30 text-blue-200' : 'bg-blue-50 border-blue-200 text-blue-800'
@@ -1645,7 +1576,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                   </div>
                 )}
 
-                {/* Banner para Atendimento em Andamento */}
                 {!isConcluded && ((selectedAppointment.status || '').toUpperCase().includes('ATEND') || (selectedAppointment.status || '').toUpperCase().includes('INICI')) && (
                   <div className="p-2.5 rounded-[4px] border text-xs flex items-center justify-between gap-2 brand-soft-badge">
                     <div className="flex items-center gap-2">
@@ -1661,7 +1591,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                   </div>
                 )}
 
-                {/* Indicador de Próximo a ser Atendido */}
                 {!isConcluded && nextActiveAppointment && nextActiveAppointment.protocolCode === selectedAppointment.protocolCode && !((selectedAppointment.status || '').toUpperCase().includes('ATEND')) && (
                   <div className={`p-2 rounded-[4px] border text-xs flex items-center justify-between gap-2 ${
                     isDark ? 'bg-slate-900/90 border-[rgba(var(--brand-primary-rgb),0.4)] text-slate-200' : 'bg-[rgba(var(--brand-primary-rgb),0.08)] border-[rgba(var(--brand-primary-rgb),0.3)] text-slate-800'
@@ -1676,7 +1605,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                   </div>
                 )}
 
-                {/* PAINEL BOL-020: RADAR BIDIRECIONAL DE DESLOCAMENTO AO VIVO (MAPA 10S ⇄ LINHA SHOPEE) */}
                 {!isConcluded && !(selectedAppointment.isBlockedSlot || selectedAppointment.status === 'BLOQUEADO') && (
                   <div className={`p-3 rounded-[4px] space-y-2.5 ${
                     isDark ? 'bg-slate-900' : 'bg-slate-100'
@@ -1709,7 +1637,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                       </button>
                     </div>
 
-                    {/* Alerta de Chegada em 5 Minutos */}
                     {(selectedAppointment.tracking_status === 'arriving_5min' ||
                       ((selectedAppointment.eta_minutes ?? 99) <= 5 && (selectedAppointment.eta_minutes ?? 0) > 0)) && (
                       <div className="p-2.5 rounded-[4px] brand-tab-active flex items-center justify-between gap-2">
@@ -1725,7 +1652,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                       </div>
                     )}
 
-                    {/* Status atual da rota */}
                     {(selectedAppointment.tracking_status === 'live_sharing' ||
                       selectedAppointment.tracking_status === 'arriving_5min') ? (
                       <div className="space-y-1.5">
@@ -1769,7 +1695,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                       </p>
                     )}
 
-                    {/* Botões de 1 Toque: Linha de Ruas Shopee ⇄ Mapa 10s + Modo Delivery */}
                     <div className="grid grid-cols-2 gap-2 pt-0.5">
                       <button
                         type="button"
@@ -1820,7 +1745,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                   </div>
                 )}
 
-                {/* Contexto especial para Solicitação de Troca entre Clientes */}
                 {!isConcluded && selectedAppointment.swapRequest && selectedAppointment.swapRequest.isClientSwap && (
                   <div className="p-3 rounded-[4px] bg-amber-500/10 border border-amber-500/30 space-y-2.5">
                     <div className="flex items-center justify-between">
@@ -1833,11 +1757,10 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                       </span>
                     </div>
 
-                    {/* Informação visual dos dois clientes e a troca */}
                     <div className="p-2.5 rounded-[4px] bg-slate-900/90 border border-slate-800 space-y-2">
-                      {/* Linha da Troca com Horários */}
+
                       <div className="flex items-center justify-between gap-2 text-xs">
-                        {/* Cliente A */}
+
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1 text-[10px] text-slate-400 uppercase font-bold">
                             <span>Cliente Solicitante</span>
@@ -1850,12 +1773,10 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                           </p>
                         </div>
 
-                        {/* Ícone de Troca */}
                         <div className="flex flex-col items-center justify-center shrink-0 px-1">
                           <ArrowRight className="w-4 h-4 brand-icon" />
                         </div>
 
-                        {/* Cliente B com Ícone de Aceito */}
                         <div className="flex-1 min-w-0 text-right">
                           <div className="flex items-center justify-end gap-1 text-[10px] brand-text uppercase font-bold">
                             {selectedAppointment.swapRequest.clientB.accepted && (
@@ -1872,7 +1793,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                         </div>
                       </div>
 
-                      {/* Resumo Direto da Troca */}
                       <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-300 flex items-center justify-center gap-1 text-center">
                         <span className="text-white font-bold">{selectedAppointment.swapRequest.clientA.name}</span>
                         <span className="text-slate-400">({selectedAppointment.swapRequest.clientA.originalTime})</span>
@@ -1884,7 +1804,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                   </div>
                 )}
 
-                {/* Contexto especial para Pendentes ou Alterações normais */}
                 {!isConcluded && !selectedAppointment.swapRequest?.isClientSwap && (() => {
                   const stUpper = (selectedAppointment.status || '').toUpperCase();
                   const isAlter = stUpper.includes('ALTER') || stUpper.includes('REMANEJ') || stUpper.includes('REAGEND');
@@ -1910,7 +1829,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                   return null;
                 })()}
 
-                {/* Bloco 1: Serviço & Valor */}
                 <div className={`p-3 rounded-[4px] border space-y-1.5 ${
                   isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
                 }`}>
@@ -1960,7 +1878,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                   </div>
                 </div>
 
-                {/* Bloco 2: Período do Atendimento (Tratado no Passado quando Concluído) */}
                 <div className={`p-3 rounded-[4px] border space-y-2 ${
                   isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
                 }`}>
@@ -1969,7 +1886,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                       {isConcluded ? 'Horário da Realização' : 'Horário do Atendimento'}
                     </span>
                     <span className="text-[10px] text-slate-400 font-mono">
-                      {isConcluded 
+                      {isConcluded
                         ? `Realizado em: ${selectedAppointment.dateTime || selectedAppointment.dayGroup || 'Hoje'}`
                         : (selectedAppointment.dateTime || selectedAppointment.dayGroup || 'Hoje')}
                     </span>
@@ -2021,7 +1938,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                   )}
                 </div>
 
-                {/* Bloco 3: Registro de Agendamento */}
                 <div className={`p-3 rounded-[4px] border space-y-1.5 ${
                   isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
                 }`}>
@@ -2045,12 +1961,11 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                 </div>
               </div>
 
-              {/* Rodapé Fixo de Ação do Modal */}
               <div className={`p-3 border-t sticky bottom-0 z-20 flex flex-col gap-2 ${
                 isDark ? 'border-slate-800 bg-slate-950/95' : 'border-slate-200 bg-white/95'
               } backdrop-blur-xs`}>
                 {(() => {
-                  // Caso Concluído: Ações no Passado (Fechar ou Reabrir)
+
                   if (isConcluded || cat.key === 'concluidos') {
                     return (
                       <div className="flex items-center gap-2 w-full">
@@ -2075,7 +1990,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                     );
                   }
 
-                  // Caso 1: Troca entre clientes aguardando confirmação do estabelecimento
                   if (selectedAppointment.swapRequest && selectedAppointment.swapRequest.isClientSwap && selectedAppointment.swapRequest.status !== 'completed') {
                     return (
                       <div className="flex items-center gap-2 w-full">
@@ -2170,7 +2084,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                     const isInProgress = stUpper.includes('ATEND') || stUpper.includes('INICI');
                     const isNextToServe = !isInProgress && nextActiveAppointment && nextActiveAppointment.protocolCode === selectedAppointment.protocolCode;
 
-                    // 1. Se já estiver em atendimento:
                     if (isInProgress) {
                       return (
                         <div className="flex items-center gap-2 w-full">
@@ -2199,7 +2112,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                       );
                     }
 
-                    // 2. Se for o próximo a ser atendido:
                     if (isNextToServe) {
                       return (
                         <div className="flex flex-col gap-2 w-full">
@@ -2244,7 +2156,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                       );
                     }
 
-                    // 3. Demais confirmados:
                     return (
                       <div className="grid grid-cols-3 gap-1.5 w-full">
                         <button
@@ -2291,13 +2202,12 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
         );
       })()}
 
-      {/* Modal: Novo Agendamento Manual */}
       {isNewModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in"
           onClick={() => setIsNewModalOpen(false)}
         >
-          <div 
+          <div
             className={`w-full max-w-sm rounded-[4px] overflow-hidden shadow-2xl border flex flex-col ${
               isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}
@@ -2431,13 +2341,12 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
         </div>
       )}
 
-      {/* Modal do Chat Interno do App */}
       {activeChatAppointment && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className={`w-full max-w-md h-[85vh] sm:h-[550px] rounded-t-[4px] sm:rounded-[4px] border flex flex-col overflow-hidden shadow-2xl ${
             isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
           }`}>
-            {/* Cabeçalho do Chat */}
+
             <div className={`p-3 border-b shrink-0 flex items-center justify-between ${
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
             }`}>
@@ -2470,7 +2379,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
               </button>
             </div>
 
-            {/* Área de Mensagens */}
             <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0 bg-slate-950/40">
               {chatMessages.map((msg) => {
                 if (msg.sender === 'system') {
@@ -2505,7 +2413,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
               })}
             </div>
 
-            {/* Chips de Resposta Rápida */}
             <div className={`px-2.5 py-1.5 border-t flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 ${
               isDark ? 'bg-slate-900/60 border-slate-800/80' : 'bg-slate-50 border-slate-200'
             }`}>
@@ -2522,7 +2429,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                     setInputChatMessage(chip);
                   }}
                   className={`px-2 py-1 rounded-[4px] text-[10px] font-bold border transition cursor-pointer whitespace-nowrap ${
-                    isDark 
+                    isDark
                       ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white'
                       : 'bg-white border-slate-300 text-slate-700 hover:text-slate-900'
                   }`}
@@ -2532,7 +2439,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
               ))}
             </div>
 
-            {/* Formuário de Envio */}
             <form onSubmit={handleSendChatMessage} className={`p-2.5 border-t shrink-0 flex items-center gap-2 ${
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
             }`}>
@@ -2542,8 +2448,8 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                 onChange={(e) => setInputChatMessage(e.target.value)}
                 placeholder="Escreva sua mensagem no app..."
                 className={`flex-1 px-3 py-2 rounded-[4px] border text-xs font-medium outline-hidden transition brand-ring-focus ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-500' 
+                  isDark
+                    ? 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-500'
                     : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400'
                 }`}
               />
@@ -2559,13 +2465,12 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
         </div>
       )}
 
-      {/* MODAL: Bloquear Horário na Agenda (Opção B) */}
       {isBlockModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-3.5 bg-black/80 backdrop-blur-xs animate-in fade-in"
           onClick={() => setIsBlockModalOpen(false)}
         >
-          <div 
+          <div
             className={`w-full max-w-sm rounded-[4px] overflow-hidden shadow-2xl border flex flex-col ${
               isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
             }`}
@@ -2592,7 +2497,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
             </div>
 
             <form onSubmit={handleCreateBlock} className="p-3.5 space-y-3">
-              {/* Motivos Rápidos */}
+
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
                   Motivo da Trava / Bloqueio
@@ -2635,14 +2540,13 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                   placeholder="Ex: Emergência Médica / Almoço"
                   required
                   className={`w-full px-2.5 py-1.5 rounded-[4px] border text-xs outline-hidden transition ${
-                    isDark 
-                      ? 'bg-slate-900 border-slate-800 text-white focus:border-amber-500' 
+                    isDark
+                      ? 'bg-slate-900 border-slate-800 text-white focus:border-amber-500'
                       : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-amber-500'
                   }`}
                 />
               </div>
 
-              {/* Horário & Duração */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
@@ -2679,7 +2583,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                 </div>
               </div>
 
-              {/* Profissional Afetado */}
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                   Profissional
@@ -2723,13 +2626,12 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
         </div>
       )}
 
-      {/* Modal Simples e Rápido de Confirmação da Troca de Horários */}
       {swapConfirmedModalData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
           <div className={`w-full max-w-sm rounded-[4px] border shadow-2xl overflow-hidden ${
             isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
           }`}>
-            {/* Cabeçalho */}
+
             <div className={`p-3.5 border-b flex items-center justify-between ${
               isDark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-200 bg-slate-50'
             }`}>
@@ -2750,7 +2652,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
               </button>
             </div>
 
-            {/* Conteúdo Simples com a Nova Distribuição */}
             <div className="p-4 space-y-3">
               <p className="text-xs text-slate-300 text-center">
                 Os horários foram realocados com sucesso na sua agenda:
@@ -2759,7 +2660,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
               <div className={`p-3 rounded-[4px] border space-y-2 ${
                 isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
               }`}>
-                {/* Cliente B no novo horário */}
+
                 <div className="flex items-center justify-between text-xs py-1 border-b border-slate-800/60">
                   <span className="font-bold text-white flex items-center gap-1.5">
                     <User className="w-3.5 h-3.5 brand-icon" />
@@ -2770,7 +2671,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                   </span>
                 </div>
 
-                {/* Cliente A no novo horário */}
                 <div className="flex items-center justify-between text-xs py-1">
                   <span className="font-bold text-white flex items-center gap-1.5">
                     <User className="w-3.5 h-3.5 text-amber-400" />
@@ -2782,7 +2682,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
                 </div>
               </div>
 
-              {/* Botão de Fechar Rápido */}
               <button
                 type="button"
                 onClick={() => {
@@ -2798,7 +2697,7 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
           </div>
         </div>
       )}
-      {/* Modal de Checkout PIX Pós-Serviço */}
+
       <PixCheckoutModal
         isOpen={Boolean(pixCheckoutAppointment)}
         onClose={() => setPixCheckoutAppointment(null)}
@@ -2834,7 +2733,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
         }}
       />
 
-      {/* GAVETA DE RASTREAMENTO AO VIVO EM 1 TOQUE (LINHA SHOPEE/CORREIOS ⇄ MAPA 10S) */}
       {liveTrackingViewerState && (
         <LiveTrackingDrawerModal
           isOpen={Boolean(liveTrackingViewerState)}
@@ -2846,7 +2744,6 @@ export const ProfessionalAgendaView: React.FC<ProfessionalAgendaViewProps> = ({
         />
       )}
 
-      {/* MODAL DE PARTIDA DO PROFISSIONAL DELIVERY (TRAÇADOR DE ROTA GOOGLE MAPS IN-APP) */}
       {proDeliveryDepartureApt && (
         <LiveRouteDepartureModal
           isOpen={Boolean(proDeliveryDepartureApt)}

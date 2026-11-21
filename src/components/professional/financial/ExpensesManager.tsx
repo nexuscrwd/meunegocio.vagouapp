@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { 
-  Plus, Calendar, AlertCircle, CheckCircle2, 
-  Clock, Trash2, Tag, Building2, User,
+import {
+  Plus, Calendar, CheckCircle2,
+  Clock, Trash2, Building2, User,
   X, Receipt
 } from 'lucide-react';
 import { useTheme } from '../../../context/ThemeContext';
@@ -26,7 +26,6 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
   const [filter, setFilter] = useState<'all' | 'pending' | 'paid' | 'fixed' | 'variable'>('all');
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // Estado do formulário de novo lançamento
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [dueDate, setDueDate] = useState(() => {
@@ -37,7 +36,6 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
   const [scope, setScope] = useState<'salon' | 'personal'>('salon');
   const [status, setStatus] = useState<'pending' | 'paid'>('pending');
 
-  // Filtragem
   const filteredExpenses = expenses.filter((exp) => {
     if (filter === 'pending') return exp.status === 'pending' || exp.status === 'overdue';
     if (filter === 'paid') return exp.status === 'paid';
@@ -46,7 +44,6 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
     return true;
   });
 
-  // Totais
   const totalAmount = expenses.reduce((acc, exp) => acc + exp.amount, 0);
   const paidAmount = expenses.filter(e => e.status === 'paid').reduce((acc, exp) => acc + exp.amount, 0);
   const pendingAmount = expenses.filter(e => e.status !== 'paid').reduce((acc, exp) => acc + exp.amount, 0);
@@ -66,7 +63,6 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
       status,
     });
 
-    // Reset form
     setDescription('');
     setAmount('');
     setShowAddModal(false);
@@ -74,7 +70,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
 
   return (
     <div className="space-y-3.5">
-      {/* 1. Resumo do Caixa de Despesas */}
+
       <div className="grid grid-cols-3 gap-2">
         <div className={`p-2.5 rounded border flex flex-col justify-between ${
           isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
@@ -107,9 +103,8 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
         </div>
       </div>
 
-      {/* 2. Barra de Controle & Novo Lançamento */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        {/* Filtros Rápidos */}
+
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
           {(
             [
@@ -140,7 +135,6 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
           ))}
         </div>
 
-        {/* Botão Adicionar Despesa */}
         <button
           type="button"
           onClick={() => {
@@ -154,7 +148,6 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
         </button>
       </div>
 
-      {/* 3. Lista de Custos e Despesas */}
       <div className={`rounded border divide-y ${
         isDark ? 'bg-slate-900/80 border-slate-800 divide-slate-800/60' : 'bg-white border-slate-200 divide-slate-100'
       }`}>
@@ -166,7 +159,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
         ) : (
           filteredExpenses.map((expense) => {
             const isPaid = expense.status === 'paid';
-            const formattedDate = expense.dueDate 
+            const formattedDate = expense.dueDate
               ? new Date(expense.dueDate + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
               : '--/--/--';
 
@@ -178,7 +171,6 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                       {expense.description}
                     </h4>
 
-                    {/* Badge Categoria */}
                     <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border uppercase tracking-wider shrink-0 ${
                       expense.category === 'fixed'
                         ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
@@ -187,7 +179,6 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                       {expense.category === 'fixed' ? 'Fixo' : 'Variável'}
                     </span>
 
-                    {/* Scope */}
                     <span className="text-[9px] text-slate-400 flex items-center gap-0.5 shrink-0">
                       {expense.scope === 'salon' ? (
                         <Building2 className="w-2.5 h-2.5 text-slate-400" />
@@ -214,7 +205,6 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                       R$ {expense.amount.toFixed(2).replace('.', ',')}
                     </span>
 
-                    {/* Button / Badge Status */}
                     <button
                       type="button"
                       onClick={() => {
@@ -242,7 +232,6 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
                     </button>
                   </div>
 
-                  {/* Excluir */}
                   <button
                     type="button"
                     onClick={() => {
@@ -261,7 +250,6 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
         )}
       </div>
 
-      {/* Modal de Novo Lançamento */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/70 backdrop-blur-xs animate-in fade-in">
           <div className={`w-full max-w-md rounded-lg border p-4 space-y-4 shadow-xl ${

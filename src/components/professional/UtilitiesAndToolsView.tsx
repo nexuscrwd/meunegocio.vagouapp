@@ -1,15 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Zap, 
-  Package, 
-  ArrowLeft, 
-  Wrench, 
-  DollarSign, 
+import {
+  Zap,
+  Package,
+  ArrowLeft,
+  Wrench,
+  DollarSign,
   Layers,
   Droplets,
   Building2,
-  Gauge,
-  Mail
+  Gauge
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { BookingAppointment, CatalogServiceItem, UserPersona, SalonAdminSettings } from '../../types';
@@ -22,10 +21,9 @@ import { EnergyMeterManager } from './consumption/EnergyMeterManager';
 import { WaterConsumptionManager } from './consumption/WaterConsumptionManager';
 import { OperationalEquipmentsManager } from './consumption/OperationalEquipmentsManager';
 import { InfrastructureEquipmentsManager } from './consumption/InfrastructureEquipmentsManager';
-import { GoogleWorkspaceHub } from './GoogleWorkspaceHub';
 import { fetchSalonUtilitiesFromDatabase, syncAllLocalUtilitiesToDatabase } from '../../services/mnvSupabaseSync';
 
-export type UtilitiesSubTab = 
+export type UtilitiesSubTab =
   | 'hub'
   | 'consumo_hub'
   | 'consumo_energia'
@@ -34,7 +32,6 @@ export type UtilitiesSubTab =
   | 'consumo_equip_infra'
   | 'financeiro'
   | 'insumos'
-  | 'workspace'
   | 'bancada'
   | 'utilidades';
 
@@ -67,7 +64,6 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
 }) => {
   const { isDark } = useTheme();
 
-  // Mapear rota inicial com compatibilidade retroativa
   const resolveInitialSubTab = (tab?: string): UtilitiesSubTab => {
     if (tab === 'bancada') return 'consumo_equip_operacionais';
     if (tab === 'utilidades') return 'consumo_hub';
@@ -78,8 +74,7 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
       tab === 'consumo_equip_operacionais' ||
       tab === 'consumo_equip_infra' ||
       tab === 'financeiro' ||
-      tab === 'insumos' ||
-      tab === 'workspace'
+      tab === 'insumos'
     ) {
       return tab;
     }
@@ -94,7 +89,6 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
     }
   }, [initialSubTab]);
 
-  // Hidratação e espelhamento bidirecional de utilidades (salon_utilities_records)
   useEffect(() => {
     const salonId = localStorage.getItem('vagou_salon_db_id') || localStorage.getItem('vagou_salon_slug') || '';
     if (!salonId) return;
@@ -131,7 +125,6 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
     });
   }, []);
 
-  // Faturamento Realizado no Dia e na Semana para o Financeiro & Caixa
   const { todayRealizedRevenue, weekRealizedRevenue } = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -175,7 +168,6 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
     return { todayRealizedRevenue: todayTotal, weekRealizedRevenue: weekTotal };
   }, [appointments]);
 
-  // CARDS DA PORTA DE ENTRADA PRINCIPAL DE UTILIDADES (LAYOUT PLANO: ÍCONE E TÍTULO)
   const mainHubCards = [
     {
       id: 'financeiro' as const,
@@ -197,7 +189,6 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
     },
   ];
 
-  // CARDS DA PORTA DE ENTRADA DE CONSUMO (SUB-HUB)
   const consumoCards = [
     {
       id: 'consumo_energia' as const,
@@ -225,7 +216,6 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
     },
   ];
 
-  // Helper de Navegação do Botão Voltar
   const isInsideConsumoTool = [
     'consumo_energia',
     'consumo_agua',
@@ -240,8 +230,7 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
     } else if (
       activeSubTab === 'consumo_hub' ||
       activeSubTab === 'financeiro' ||
-      activeSubTab === 'insumos' ||
-      activeSubTab === 'workspace'
+      activeSubTab === 'insumos'
     ) {
       setActiveSubTab('hub');
     } else if (onBack) {
@@ -249,7 +238,6 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
     }
   };
 
-  // Título e Subtítulo dinâmicos do cabeçalho
   const getHeaderInfo = () => {
     switch (activeSubTab) {
       case 'consumo_hub':
@@ -301,13 +289,6 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
           desc: 'Previsão de produtos e suprimentos',
           icon: Package,
         };
-      case 'workspace':
-        return {
-          title: 'Google Workspace',
-          badge: 'Integração',
-          desc: 'Gmail, Chat, Drive, Sheets e Tasks',
-          icon: Mail,
-        };
       default:
         return {
           title: 'Utilidades & Ferramentas',
@@ -324,7 +305,7 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
     <div className={`w-full h-full flex flex-col overflow-hidden select-none ${
       isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'
     }`}>
-      {/* 1. CABEÇALHO */}
+
       <header className={`w-full shrink-0 px-3.5 py-2.5 min-h-[44px] border-b flex items-center justify-between gap-2 transition-colors z-20 ${
         isDark ? 'bg-slate-900/95 border-slate-800 text-slate-100' : 'bg-slate-100/95 border-slate-200 text-slate-900 shadow-xs'
       }`}>
@@ -349,7 +330,6 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
           </div>
         </div>
 
-        {/* Atalhos Rápidos no Cabeçalho */}
         <div className="flex items-center gap-1.5 shrink-0">
           {isInsideConsumoTool && (
             <button
@@ -359,8 +339,8 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
                 setActiveSubTab('consumo_hub');
               }}
               className={`px-2.5 py-1 text-[11px] font-bold rounded border flex items-center gap-1.5 transition cursor-pointer ${
-                isDark 
-                  ? 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/30 text-amber-300' 
+                isDark
+                  ? 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/30 text-amber-300'
                   : 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-800'
               }`}
             >
@@ -377,8 +357,8 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
                 setActiveSubTab('hub');
               }}
               className={`px-2.5 py-1 text-[11px] font-bold rounded border flex items-center gap-1.5 transition cursor-pointer ${
-                isDark 
-                  ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200' 
+                isDark
+                  ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
                   : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800'
               }`}
             >
@@ -390,12 +370,11 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
         </div>
       </header>
 
-      {/* 2. CORPO ROLÁVEL COM CONTEÚDO */}
       <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-4 max-w-4xl mx-auto w-full">
-        {/* PORTA DE ENTRADA PRINCIPAL: CARDS QUADRADOS DAS FERRAMENTAS */}
+
         {activeSubTab === 'hub' && (
           <div className="space-y-4 animate-in fade-in duration-150 py-1">
-            {/* GRADE DE 3 CARDS LADO A LADO - COMPACTO E PROPORCIONAL */}
+
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {mainHubCards.map((tool) => {
                 const Icon = tool.icon;
@@ -428,7 +407,6 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
           </div>
         )}
 
-        {/* SUB-HUB: PORTA DE ENTRADA DO GERENCIAMENTO DE CONSUMO */}
         {activeSubTab === 'consumo_hub' && (
           <div className="space-y-4 animate-in fade-in duration-150 py-1">
             <div className="flex items-center justify-between px-1">
@@ -443,7 +421,6 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
               </span>
             </div>
 
-            {/* GRADE DE 4 CARDS - COMPACTO E PROPORCIONAL */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5">
               {consumoCards.map((tool) => {
                 const Icon = tool.icon;
@@ -476,35 +453,30 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
           </div>
         )}
 
-        {/* FERRAMENTA CONSUMO 1: ENERGIA ELÉTRICA (REGISTRO DO RELÓGIO & LISTA) */}
         {activeSubTab === 'consumo_energia' && (
           <div className="animate-in fade-in duration-150">
             <EnergyMeterManager />
           </div>
         )}
 
-        {/* FERRAMENTA CONSUMO 2: ÁGUA (CONSUMO BÁSICO & HIDRÔMETRO) */}
         {activeSubTab === 'consumo_agua' && (
           <div className="animate-in fade-in duration-150">
             <WaterConsumptionManager />
           </div>
         )}
 
-        {/* FERRAMENTA CONSUMO 3: EQUIPAMENTOS OPERACIONAIS */}
         {activeSubTab === 'consumo_equip_operacionais' && (
           <div className="animate-in fade-in duration-150">
             <OperationalEquipmentsManager />
           </div>
         )}
 
-        {/* FERRAMENTA CONSUMO 4: EQUIPAMENTOS DE INFRAESTRUTURA */}
         {activeSubTab === 'consumo_equip_infra' && (
           <div className="animate-in fade-in duration-150">
             <InfrastructureEquipmentsManager />
           </div>
         )}
 
-        {/* FERRAMENTA GERAL 1: FINANCEIRO (CAIXA, PIX & PLACA, DESPESAS, REPASSES E METAS) */}
         {activeSubTab === 'financeiro' && (
           <div className="animate-in fade-in duration-150 space-y-4">
             <FinancialManagerView
@@ -530,7 +502,6 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
           </div>
         )}
 
-        {/* FERRAMENTA GERAL 2: INSUMOS & ESTOQUE */}
         {activeSubTab === 'insumos' && (
           <div className="animate-in fade-in duration-150 space-y-3">
             <ServicesAndSuppliesForecast
@@ -541,19 +512,7 @@ export const UtilitiesAndToolsView: React.FC<UtilitiesAndToolsViewProps> = ({
             />
           </div>
         )}
-
-        {/* FERRAMENTA GERAL 3: GOOGLE WORKSPACE (GMAIL, CHAT, DRIVE, SHEETS, TASKS) */}
-        {activeSubTab === 'workspace' && (
-          <div className="animate-in fade-in duration-150">
-            <GoogleWorkspaceHub
-              salonName={salonName}
-              appointments={appointments}
-            />
-          </div>
-        )}
       </div>
     </div>
   );
 };
-
-

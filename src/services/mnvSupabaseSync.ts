@@ -1,4 +1,5 @@
 import { supabase, getDbClient } from '../lib/supabase';
+import { sanitizePersistedMediaUrl } from './mediaUploadService';
 
 function generateUuidV4(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -13,94 +14,19 @@ function isValidUuid(val?: string | null): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(val).trim());
 }
 
-// ============================================================================
-// 1. SERVIÇOS (salon_services + services + salons.branding.catalogServices)
-// ============================================================================
-export async function syncSalonServiceToDatabase(
-  salonId: string,
-  service: {
-    id?: string;
-    name: string;
-    category: string;
-    price: number;
-    durationMinutes: number;
-    commissionRate?: number;
-    description?: string;
-    photos?: string[];
-    videos?: { id: string; url: string; title?: string; duration_seconds: number }[];
-    slides?: string[];
-    isActive?: boolean;
-  }
-) {
-  const client = getDbClient();
-  if (!client || !salonId) return null;
-
-  let resolvedSalonUuid = salonId;
-  if (!isValidUuid(salonId)) {
-    try {
-      const { data: sRow } = await (client.from('salons') as any).select('id').eq('slug', salonId).maybeSingle();
-      if (sRow?.id) {
-        resolvedSalonUuid = sRow.id;
-      } else {
-        const activeDbId = typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_db_id') : null;
-        if (isValidUuid(activeDbId)) resolvedSalonUuid = activeDbId!;
-      }
-    } catch {}
-  }
-
-  const serviceId = isValidUuid(service.id) ? String(service.id) : generateUuidV4();
-  const firstPhoto =
-    (service.photos && service.photos.length > 0 ? service.photos[0] : null) ||
-    (service.slides && service.slides.length > 0 ? service.slides[0] : null);
-
-  const basePayload: Record<string, any> = {
-    id: serviceId,
-    salon_id: resolvedSalonUuid,
-    name: service.name,
-    title: service.name,
-    category: service.category || 'Geral',
-    price: Number(service.price) || 0,
-    duration_minutes: Number(service.durationMinutes) || 30,
-    commission_rate: Number(service.commissionRate ?? 50),
-    description: service.description || '',
-    image_url: firstPhoto,
-    photos: service.photos || [],
-    videos: service.videos || [],
-    slides: service.slides || [],
-    is_active: service.isActive ?? true,
-    updated_at: new Date().toISOString(),
-  };
-
-  // 1A. Upsert em public.salon_services (ignora silenciosamente caso a tabela ainda não exista)
-  const salonServicesPromise = (async () => {
-    try {
-      return await (client.from('salon_services' as any) as any).upsert(basePayload, { onConflict: 'id' });
-    } catch {
-      return null;
-    }
-  })();
-
-  // 1B. Upsert em public.services (com fallback automático caso commission_rate não exista na tabela)
-  const servicesPromise = (async () => {
-    try {
-      const res = await (client.from('services') as any).upsert(basePayload, { onConflict: 'id' });
-      if (res.error && (res.error.code === 'PGRST204' || res.error.code === '42703' || res.error.message?.includes('column'))) {
-        const fallbackPayload = { ...basePayload };
-        delete fallbackPayload.commission_rate;
-        return await (client.from('services') as any).upsert(fallbackPayload, { onConflict: 'id' });
-      }
-      return res;
-    } catch {
-      return null;
-    }
-  })();
-
-  return await Promise.all([salonServicesPromise, servicesPromise]);
+async function resolveSalonUuid(client: any, salonId: string): Promise<string | null> {
+  if (isValidUuid(salonId)) return salonId.trim();
+  try {
+    const { data: sRow } = await (client.from('salons') as any)
+      .select('id')
+      .eq('slug', salonId)
+      .maybeSingle();
+    if (sRow?.id && isValidUuid(sRow.id)) return sRow.id;
+  } catch {}
+  const activeDbId = typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_db_id') : null;
+  return isValidUuid(activeDbId) ? activeDbId!.trim() : null;
 }
 
-// ============================================================================
-// 2. GALERIA DE MÍDIAS (salon_media_items + salons cover/logo)
-// ============================================================================
 export async function syncSalonMediaToDatabase(
   salonId: string,
   mediaItem: {
@@ -112,25 +38,59 @@ export async function syncSalonMediaToDatabase(
     category: 'servicos' | 'profissionais' | 'espaco' | 'banner' | 'logotipo';
     duration_seconds?: number;
     is_cover?: boolean;
+    bucket?: 'avatars' | 'branding' | 'services' | 'salon-media';
+    storage_path?: string;
   }
 ) {
   const client = getDbClient();
   if (!client || !salonId) return { data: null, error: new Error('Cliente Supabase indisponível') };
 
+  const safeUrl = sanitizePersistedMediaUrl(mediaItem.url);
+  if (!safeUrl) {
+    return { data: null, error: new Error('URL de mídia inválida ou Base64 bloqueado.') };
+  }
+
+  const resolvedSalonUuid = await resolveSalonUuid(client, salonId);
+  if (!resolvedSalonUuid) {
+    return { data: null, error: new Error('Salão não encontrado.') };
+  }
+
   try {
     const mediaId = isValidUuid(mediaItem.id) ? String(mediaItem.id) : generateUuidV4();
-    const { data, error } = await (client.from('salon_media_items' as any) as any)
+    const ownerType =
+      mediaItem.category === 'logotipo'
+        ? 'salon_logo'
+        : mediaItem.category === 'banner'
+        ? 'salon_cover'
+        : mediaItem.category === 'servicos'
+        ? 'service_photo'
+        : 'salon_gallery';
+
+    const bucket =
+      mediaItem.bucket ||
+      (mediaItem.category === 'logotipo' || mediaItem.category === 'banner'
+        ? 'branding'
+        : mediaItem.category === 'servicos'
+        ? 'services'
+        : 'salon-media');
+
+    const derivedPath =
+      mediaItem.storage_path ||
+      `${ownerType}/${resolvedSalonUuid}/${mediaId}`;
+
+    const { data, error } = await (client.from('media_assets' as any) as any)
       .upsert(
         {
           id: mediaId,
-          salon_id: salonId,
+          salon_id: resolvedSalonUuid,
+          owner_type: ownerType,
+          owner_id: resolvedSalonUuid,
+          bucket,
+          storage_path: derivedPath,
+          public_url: safeUrl,
+          mime_type: mediaItem.type === 'video' ? 'video/mp4' : 'image/webp',
           title: mediaItem.title || 'Mídia do Salão',
-          url: mediaItem.url,
-          type: mediaItem.type,
-          media_group: mediaItem.media_group,
-          category: mediaItem.category,
-          duration_seconds: mediaItem.duration_seconds || 5,
-          is_cover: mediaItem.is_cover || false,
+          is_cover: Boolean(mediaItem.is_cover || mediaItem.category === 'banner'),
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'id' }
@@ -139,10 +99,14 @@ export async function syncSalonMediaToDatabase(
       .maybeSingle();
 
     if (mediaItem.is_cover || mediaItem.category === 'banner') {
-      await (client.from('salons') as any).update({ cover_image_url: mediaItem.url, cover_url: mediaItem.url }).eq('id', salonId);
+      await (client.from('salons') as any)
+        .update({ cover_image_url: safeUrl, cover_url: safeUrl, updated_at: new Date().toISOString() })
+        .eq('id', resolvedSalonUuid);
     }
     if (mediaItem.category === 'logotipo') {
-      await (client.from('salons') as any).update({ logo_url: mediaItem.url }).eq('id', salonId);
+      await (client.from('salons') as any)
+        .update({ logo_url: safeUrl, updated_at: new Date().toISOString() })
+        .eq('id', resolvedSalonUuid);
     }
     return { data, error };
   } catch (err: any) {
@@ -150,148 +114,28 @@ export async function syncSalonMediaToDatabase(
   }
 }
 
-export async function deleteSalonMediaFromDatabase(salonId: string, mediaIdOrUrl: string) {
-  const client = getDbClient();
-  if (!client || !salonId || !mediaIdOrUrl) return { success: false };
-  try {
-    if (isValidUuid(mediaIdOrUrl)) {
-      await (client.from('salon_media_items' as any) as any).delete().eq('salon_id', salonId).eq('id', mediaIdOrUrl);
-    } else {
-      await (client.from('salon_media_items' as any) as any).delete().eq('salon_id', salonId).eq('url', mediaIdOrUrl);
-    }
-    return { success: true };
-  } catch {
-    return { success: false };
-  }
-}
-
 export async function fetchSalonMediaFromDatabase(salonId: string) {
   const client = getDbClient() || supabase;
   if (!client || !salonId) return [];
+  const resolvedSalonUuid = await resolveSalonUuid(client, salonId);
+  if (!resolvedSalonUuid) return [];
+
   try {
-    const { data, error } = await (client.from('salon_media_items' as any) as any)
+    const { data, error } = await (client.from('media_assets' as any) as any)
       .select('*')
-      .eq('salon_id', salonId)
+      .eq('salon_id', resolvedSalonUuid)
       .order('created_at', { ascending: false });
     if (error || !Array.isArray(data)) return [];
-    return data;
+    return data.map((row: any) => ({
+      ...row,
+      url: row.public_url,
+      type: String(row.mime_type || '').startsWith('video/') ? 'video' : 'image',
+    }));
   } catch {
     return [];
   }
 }
 
-// ============================================================================
-// 3. TEMA CAMALEÃO & FOTOS DO ESPAÇO (salons + salons.branding)
-// ============================================================================
-export type ChameleonPresetId = 'emerald-dark' | 'gold-luxury' | 'rose-glam' | 'purple-neon' | 'clean-light';
-
-export function resolveThemePresetFromColor(hexColor?: string, isDarkTheme = true): ChameleonPresetId {
-  const c = (hexColor || '').toLowerCase();
-  if (c === '#f59e0b' || c === '#d97706') return 'gold-luxury';
-  if (c === '#ef4444' || c === '#ec4899' || c === '#f43f5e') return 'rose-glam';
-  if (c === '#8b5cf6' || c === '#a855f7') return 'purple-neon';
-  if (!isDarkTheme && (c === '#3b82f6' || c === '#0ea5e9')) return 'clean-light';
-  return 'emerald-dark';
-}
-
-export async function syncSalonThemeAndBranding(
-  salonId: string,
-  themeData: {
-    themePresetId: ChameleonPresetId;
-    primaryColor?: string;
-    secondaryColor?: string;
-    facadePhotoUrl?: string;
-    interiorPhotoUrl?: string;
-  }
-) {
-  const client = getDbClient();
-  if (!client || !salonId) return null;
-
-  const isUuid = isValidUuid(salonId);
-  const matchFilter = isUuid ? { id: salonId } : { slug: salonId };
-
-  const { data: currentSalon } = await (client.from('salons') as any)
-    .select('id, branding, primary_color, secondary_color')
-    .match(matchFilter)
-    .maybeSingle();
-
-  const existingBranding =
-    currentSalon?.branding && typeof currentSalon.branding === 'object' ? currentSalon.branding : {};
-
-  const updatedBranding = {
-    ...existingBranding,
-    themePresetId: themeData.themePresetId,
-    ...(themeData.primaryColor ? { primaryColor: themeData.primaryColor } : {}),
-    ...(themeData.secondaryColor ? { secondaryColor: themeData.secondaryColor } : {}),
-    ...(themeData.facadePhotoUrl !== undefined ? { facadePhotoUrl: themeData.facadePhotoUrl } : {}),
-    ...(themeData.interiorPhotoUrl !== undefined ? { interiorPhotoUrl: themeData.interiorPhotoUrl } : {}),
-  };
-
-  const safePayload: Record<string, any> = {
-    ...(themeData.primaryColor ? { primary_color: themeData.primaryColor } : {}),
-    ...(themeData.secondaryColor ? { secondary_color: themeData.secondaryColor } : {}),
-    branding: updatedBranding,
-    updated_at: new Date().toISOString(),
-  };
-
-  const res = await (client.from('salons') as any).update(safePayload).match(matchFilter);
-  return res;
-}
-
-// ============================================================================
-// 4. PROFISSIONAIS & COMISSÕES (professionals)
-// ============================================================================
-export async function syncSalonProfessionalToDatabase(
-  salonId: string,
-  pro: {
-    id?: string;
-    name: string;
-    role: string;
-    accessLevel?: 'admin' | 'professional' | 'receptionist';
-    phone?: string;
-    email?: string;
-    avatarUrl?: string;
-    commissionRate: number;
-    productCommissionRate?: number;
-    specialties?: string[];
-    isActive?: boolean;
-  }
-) {
-  const client = getDbClient();
-  if (!client || !salonId) return null;
-
-  const proId = isValidUuid(pro.id) ? String(pro.id) : generateUuidV4();
-  const fullPayload: Record<string, any> = {
-    id: proId,
-    salon_id: salonId,
-    name: pro.name,
-    full_name: pro.name,
-    role: pro.role || 'Profissional',
-    access_level: pro.accessLevel || 'professional',
-    phone: pro.phone || '',
-    phone_whatsapp: pro.phone || '',
-    email: pro.email || '',
-    avatar_url: pro.avatarUrl || '',
-    commission_rate: Number(pro.commissionRate) || 50,
-    product_commission_rate: Number(pro.productCommissionRate ?? 10),
-    specialties: pro.specialties || [],
-    is_active: pro.isActive ?? true,
-    updated_at: new Date().toISOString(),
-  };
-
-  let res = await (client.from('professionals') as any).upsert(fullPayload, { onConflict: 'id' });
-  if (res.error && (res.error.code === 'PGRST204' || res.error.code === '42703' || res.error.message?.includes('column'))) {
-    const safePayload = { ...fullPayload };
-    delete safePayload.commission_rate;
-    delete safePayload.product_commission_rate;
-    res = await (client.from('professionals') as any).upsert(safePayload, { onConflict: 'id' });
-  }
-  return res;
-}
-
-// ============================================================================
-// 5. CONTA FAMÍLIA & DEPENDENTES (public.dependents + public.client_family_members + clients.dependents_count)
-// ============================================================================
 export async function syncClientDependentToDatabase(
   parentClientId: string,
   dependent: {
@@ -313,14 +157,11 @@ export async function syncClientDependentToDatabase(
   if (!client || !parentClientId) return null;
 
   const depId = isValidUuid(dependent.id) ? String(dependent.id) : generateUuidV4();
-  const nowIso = new Date().toISOString();
   const validRel = ['son', 'daughter', 'child', 'spouse', 'parent', 'sibling', 'other'].includes(dependent.relationship)
     ? dependent.relationship
     : 'other';
   const cleanBirthDate = dependent.birthDate && String(dependent.birthDate).trim() !== '' ? dependent.birthDate : null;
 
-  // 5A. Gravar em public.dependents (tabela oficial especificada no Master Rebuild v3.0)
-  let depRow: any = null;
   try {
     const { data } = await (client.from('dependents' as any) as any)
       .upsert(
@@ -333,83 +174,40 @@ export async function syncClientDependentToDatabase(
           birth_date: cleanBirthDate,
           gender: dependent.gender || null,
           phone: dependent.phone || null,
+          email: dependent.email || null,
+          avatar_url: sanitizePersistedMediaUrl(dependent.avatarUrl),
+          avatar_emoji: dependent.avatarEmoji || null,
+          autonomy_level: dependent.autonomyLevel || 'parent_controlled',
           notes: dependent.notes || null,
           is_unlinked: dependent.isUnlinked ?? false,
-          updated_at: nowIso,
+          updated_at: new Date().toISOString(),
         },
         { onConflict: 'id' }
       )
       .select()
       .maybeSingle();
-    depRow = data;
+
+    return data || { id: depId };
   } catch {
-    // Tabela dependents pode ainda não ter sido migrada no banco remoto
+    return { id: depId };
   }
-
-  // 5B. Gravar em public.client_family_members (se a tabela legada existir)
-  let familyRow: any = null;
-  try {
-    const { data } = await (client.from('client_family_members' as any) as any)
-      .upsert(
-        {
-          id: depId,
-          guardian_client_id: parentClientId,
-          name: dependent.fullName,
-          relationship: validRel,
-          birth_date: cleanBirthDate,
-          avatar_url: dependent.avatarUrl || null,
-          avatar_emoji: dependent.avatarEmoji || null,
-          gender: dependent.gender || null,
-          notes: dependent.notes || null,
-          autonomy_level: dependent.autonomyLevel || 'parent_controlled',
-          phone: dependent.phone || null,
-          email: dependent.email || null,
-          updated_at: nowIso,
-        },
-        { onConflict: 'id' }
-      )
-      .select()
-      .maybeSingle();
-    familyRow = data;
-  } catch {}
-
-  // 5C. Atualizar contador dependents_count em public.clients
-  await refreshClientDependentsCount(parentClientId);
-
-  return depRow || familyRow || { id: depId };
 }
 
 export async function refreshClientDependentsCount(parentClientId: string) {
   const client = getDbClient();
   if (!client || !parentClientId) return;
   try {
-    let count = 0;
-    try {
-      const { data: deps } = await (client.from('dependents' as any) as any)
-        .select('id')
-        .eq('parent_client_id', parentClientId)
-        .eq('is_unlinked', false);
-      if (Array.isArray(deps)) count = deps.length;
-    } catch {}
-
-    if (count === 0) {
-      try {
-        const { data: members } = await (client.from('client_family_members' as any) as any)
-          .select('id')
-          .eq('guardian_client_id', parentClientId);
-        if (Array.isArray(members)) count = members.length;
-      } catch {}
-    }
-
+    const { data: deps } = await (client.from('dependents' as any) as any)
+      .select('id')
+      .eq('parent_client_id', parentClientId)
+      .eq('is_unlinked', false);
+    const count = Array.isArray(deps) ? deps.length : 0;
     await (client.from('clients') as any)
       .update({ dependents_count: count, updated_at: new Date().toISOString() })
       .eq('id', parentClientId);
   } catch {}
 }
 
-// ============================================================================
-// 6. UTILIDADES: ENERGIA, ÁGUA, EQUIPAMENTOS, DRE & INSUMOS (salon_utilities_records + salons.branding.utilities)
-// ============================================================================
 export interface SalonUtilitiesPayload {
   energy_meters?: unknown[];
   energy_readings?: unknown[];
@@ -427,78 +225,23 @@ export async function syncSalonUtilitiesToDatabase(
   const client = getDbClient();
   if (!client || !salonId) return null;
 
-  const isUuid = isValidUuid(salonId);
-  const matchFilter = isUuid ? { id: salonId } : { slug: salonId };
-
-  // Resolver UUID real do salão se foi passado slug
-  let resolvedSalonUuid = isUuid ? salonId : '';
-  let existingBranding: Record<string, any> = {};
+  const resolvedSalonUuid = await resolveSalonUuid(client, salonId);
+  if (!resolvedSalonUuid) return null;
 
   try {
-    const { data: salonRow } = await (client.from('salons') as any)
-      .select('id, branding')
-      .match(matchFilter)
-      .maybeSingle();
-    if (salonRow?.id) resolvedSalonUuid = salonRow.id;
-    if (salonRow?.branding && typeof salonRow.branding === 'object') {
-      existingBranding = salonRow.branding;
-    }
-  } catch {}
-
-  const nowIso = new Date().toISOString();
-
-  // 6A. Persistir na tabela oficial public.salon_utilities_records (se existir)
-  let tableRes: any = null;
-  if (resolvedSalonUuid) {
-    try {
-      tableRes = await (client.from('salon_utilities_records' as any) as any).upsert(
-        {
-          salon_id: resolvedSalonUuid,
-          ...utilitiesPayload,
-          updated_at: nowIso,
-        },
-        { onConflict: 'salon_id' }
-      );
-    } catch {}
+    return await (client.from('salon_utilities_records' as any) as any).upsert(
+      {
+        salon_id: resolvedSalonUuid,
+        ...utilitiesPayload,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'salon_id' }
+    );
+  } catch {
+    return null;
   }
-
-  // 6B. Espelhar sempre em salons.branding.utilities para leitura imediata (Admin ⇄ Meu Negócio)
-  try {
-    const currentUtils =
-      existingBranding.utilities && typeof existingBranding.utilities === 'object'
-        ? existingBranding.utilities
-        : {};
-
-    const mergedUtilities = {
-      ...currentUtils,
-      ...utilitiesPayload,
-      energyMeters: utilitiesPayload.energy_meters ?? currentUtils.energyMeters ?? [],
-      energyReadings: utilitiesPayload.energy_readings ?? currentUtils.energyReadings ?? [],
-      waterMeters: utilitiesPayload.water_meters ?? currentUtils.waterMeters ?? [],
-      waterReadings: utilitiesPayload.water_readings ?? currentUtils.waterReadings ?? [],
-      appliances: utilitiesPayload.appliances ?? currentUtils.appliances ?? [],
-      financialTransactions: utilitiesPayload.dre_records ?? currentUtils.financialTransactions ?? [],
-      inventoryItems: utilitiesPayload.supply_items ?? currentUtils.inventoryItems ?? [],
-      updatedAt: nowIso,
-    };
-
-    await (client.from('salons') as any)
-      .update({
-        branding: {
-          ...existingBranding,
-          utilities: mergedUtilities,
-        },
-        updated_at: nowIso,
-      })
-      .match(matchFilter);
-  } catch {}
-
-  return tableRes;
 }
 
-/**
- * Coleta automaticamente os dados operacionais do localStorage do Meu Negócio e sincroniza no Supabase
- */
 export async function syncAllLocalUtilitiesToDatabase(salonId?: string | null) {
   if (typeof window === 'undefined') return null;
   const targetSalonId =
@@ -566,17 +309,6 @@ export async function syncAllLocalUtilitiesToDatabase(salonId?: string | null) {
     safeParse('vagou_supply_items', [])
   );
 
-  // Espelhar nas chaves nominais do comunicado técnico para total paridade
-  try {
-    localStorage.setItem('vagou_energy_meters', JSON.stringify(energyMeters));
-    localStorage.setItem('vagou_energy_readings', JSON.stringify(energyReadings));
-    localStorage.setItem('vagou_water_meters', JSON.stringify(waterMeters));
-    localStorage.setItem('vagou_water_readings', JSON.stringify(waterReadings));
-    localStorage.setItem('vagou_appliances', JSON.stringify(appliances));
-    localStorage.setItem('vagou_dre_records', JSON.stringify(dreRecords));
-    localStorage.setItem('vagou_supply_items', JSON.stringify(supplyItems));
-  } catch {}
-
   return await syncSalonUtilitiesToDatabase(targetSalonId, {
     energy_meters: Array.isArray(energyMeters) ? energyMeters : [energyMeters],
     energy_readings: Array.isArray(energyReadings) ? energyReadings : [],
@@ -588,309 +320,30 @@ export async function syncAllLocalUtilitiesToDatabase(salonId?: string | null) {
   });
 }
 
-/**
- * Hidrata os registros de utilidades do Supabase (salon_utilities_records ou salons.branding.utilities)
- */
 export async function fetchSalonUtilitiesFromDatabase(salonId: string): Promise<SalonUtilitiesPayload | null> {
   const client = getDbClient() || supabase;
   if (!client || !salonId) return null;
 
-  const isUuid = isValidUuid(salonId);
-  const matchFilter = isUuid ? { id: salonId } : { slug: salonId };
+  const resolvedSalonUuid = await resolveSalonUuid(client, salonId);
+  if (!resolvedSalonUuid) return null;
 
   try {
-    let resolvedUuid = isUuid ? salonId : '';
-    let brandingUtils: any = null;
-
-    const { data: salonRow } = await (client.from('salons') as any)
-      .select('id, branding')
-      .match(matchFilter)
+    const { data: record } = await (client.from('salon_utilities_records' as any) as any)
+      .select('*')
+      .eq('salon_id', resolvedSalonUuid)
       .maybeSingle();
 
-    if (salonRow?.id) resolvedUuid = salonRow.id;
-    if (salonRow?.branding && typeof salonRow.branding === 'object' && salonRow.branding.utilities) {
-      brandingUtils = salonRow.branding.utilities;
-    }
-
-    if (resolvedUuid) {
-      try {
-        const { data: record } = await (client.from('salon_utilities_records' as any) as any)
-          .select('*')
-          .eq('salon_id', resolvedUuid)
-          .maybeSingle();
-        if (record) {
-          return {
-            energy_meters: record.energy_meters || brandingUtils?.energy_meters || brandingUtils?.energyMeters,
-            energy_readings: record.energy_readings || brandingUtils?.energy_readings || brandingUtils?.energyReadings,
-            water_meters: record.water_meters || brandingUtils?.water_meters || brandingUtils?.waterMeters,
-            water_readings: record.water_readings || brandingUtils?.water_readings || brandingUtils?.waterReadings,
-            appliances: record.appliances || brandingUtils?.appliances,
-            dre_records: record.dre_records || brandingUtils?.dre_records || brandingUtils?.financialTransactions,
-            supply_items: record.supply_items || brandingUtils?.supply_items || brandingUtils?.inventoryItems,
-          };
-        }
-      } catch {}
-    }
-
-    if (brandingUtils) {
-      return {
-        energy_meters: brandingUtils.energy_meters || brandingUtils.energyMeters,
-        energy_readings: brandingUtils.energy_readings || brandingUtils.energyReadings,
-        water_meters: brandingUtils.water_meters || brandingUtils.waterMeters,
-        water_readings: brandingUtils.water_readings || brandingUtils.waterReadings,
-        appliances: brandingUtils.appliances,
-        dre_records: brandingUtils.dre_records || brandingUtils.financialTransactions,
-        supply_items: brandingUtils.supply_items || brandingUtils.inventoryItems,
-      };
-    }
-  } catch {}
-
-  return null;
-}
-
-// ============================================================================
-// 5. BLINDAGEM PGRST204 (safeSupabaseWrite) & PROPAGAÇÃO CRUZADA POR CPF (BOL-024)
-// ============================================================================
-
-/**
- * Intercepta automaticamente falhas PGRST204 / 42703 do PostgREST (caso alguma coluna
- * ainda não exista no cache de schema), remove apenas a coluna ausente e reexecuta a gravação.
- */
-const SALONS_NON_PHYSICAL_TOP_LEVEL_ALIASES = [
-  'pwa_name',
-  'show_slogan',
-  'logo_text_fallback',
-  'logo_text_color',
-  'show_hero_slides',
-  'welcome_style',
-  'section_header_bg_color',
-  'section_header_text_color',
-  'section_header_icon_color',
-  'section_header_bg_style',
-  'section_header_border',
-  'section_header_btn_bg_color',
-  'section_header_btn_active_bg_color',
-  'section_header_btn_border',
-  'section_header_btn_shadow',
-  'section_header_btn_blur',
-  'section_header_btn_font',
-  'nav_style',
-  'nav_shape',
-  'nav_border',
-  'nav_icon_border',
-  'nav_bg_style',
-  'nav_bg_color',
-  'nav_btn_bg_color',
-  'nav_btn_active_bg_color',
-  'nav_active_color',
-  'nav_text_color',
-  'nav_btn_shadow',
-  'nav_btn_blur',
-  'nav_btn_font',
-  'favicon_url',
-  'slogan',
-  'brand_font',
-  'owner_cpf',
-  'pix_key',
-  'pix_keys',
-  'theme_preset_id',
-  'facade_photo_url',
-  'interior_photo_url',
-  'home_delivery_enabled',
-  'home_delivery_area',
-  'home_delivery_travel_fee',
-] as const;
-
-export async function safeSupabaseWrite(
-  tableName: string,
-  operation: 'insert' | 'update' | 'upsert',
-  payload: Record<string, any>,
-  options?: {
-    matchFilter?: Record<string, any>;
-    onConflict?: string;
-    selectSingle?: boolean;
-  }
-): Promise<{ data: any; error: any; strippedColumns: string[] }> {
-  const client = getDbClient() || supabase;
-  if (!client) {
+    if (!record) return null;
     return {
-      data: null,
-      error: new Error('Cliente Supabase indisponível'),
-      strippedColumns: [],
+      energy_meters: record.energy_meters || [],
+      energy_readings: record.energy_readings || [],
+      water_meters: record.water_meters || [],
+      water_readings: record.water_readings || [],
+      appliances: record.appliances || [],
+      dre_records: record.dre_records || [],
+      supply_items: record.supply_items || [],
     };
+  } catch {
+    return null;
   }
-
-  const workingPayload: Record<string, any> = { ...payload };
-  const strippedColumns: string[] = [];
-
-  if (tableName === 'salons') {
-    const existingBranding =
-      workingPayload.branding && typeof workingPayload.branding === 'object'
-        ? { ...workingPayload.branding }
-        : {};
-    let touchedBranding = false;
-    for (const aliasKey of SALONS_NON_PHYSICAL_TOP_LEVEL_ALIASES) {
-      if (aliasKey in workingPayload) {
-        if (workingPayload[aliasKey] !== undefined && !(aliasKey in existingBranding)) {
-          existingBranding[aliasKey] = workingPayload[aliasKey];
-          touchedBranding = true;
-        }
-        delete workingPayload[aliasKey];
-        strippedColumns.push(aliasKey);
-      }
-    }
-    if (touchedBranding || workingPayload.branding) {
-      workingPayload.branding = existingBranding;
-    }
-  }
-
-  for (let attempt = 0; attempt < 20; attempt++) {
-    try {
-      let query: any = (client.from(tableName as any) as any);
-      if (operation === 'insert') {
-        query = query.insert(workingPayload);
-      } else if (operation === 'upsert') {
-        query = query.upsert(
-          workingPayload,
-          options?.onConflict ? { onConflict: options.onConflict } : undefined
-        );
-      } else {
-        query = query.update(workingPayload);
-        if (options?.matchFilter) {
-          query = query.match(options.matchFilter);
-        }
-      }
-
-      if (options?.selectSingle) {
-        query = query.select().maybeSingle();
-      }
-
-      const { data, error } = await query;
-      if (!error) {
-        return { data, error: null, strippedColumns };
-      }
-
-      const errMsg = String(error.message || error.details || '');
-      const isMissingCol =
-        error.code === 'PGRST204' ||
-        error.code === '42703' ||
-        errMsg.includes('Could not find the') ||
-        errMsg.includes('does not exist');
-
-      if (!isMissingCol) {
-        return { data, error, strippedColumns };
-      }
-
-      const matchCol =
-        errMsg.match(/Could not find the '([^']+)' column/i) ||
-        errMsg.match(/column "([^"]+)" of relation/i) ||
-        errMsg.match(/column ([a-zA-Z0-9_]+) does not exist/i);
-
-      const offendingCol = matchCol?.[1];
-      if (offendingCol && offendingCol in workingPayload) {
-        delete workingPayload[offendingCol];
-        strippedColumns.push(offendingCol);
-        continue;
-      }
-
-      return { data, error, strippedColumns };
-    } catch (err: any) {
-      return { data: null, error: err, strippedColumns };
-    }
-  }
-
-  return {
-    data: null,
-    error: new Error('Limite de tentativas excedido em safeSupabaseWrite'),
-    strippedColumns,
-  };
 }
-
-/**
- * Propagação Cruzada de Endereço e Coordenadas GPS por CPF/E-mail (syncAddressAndCoordsAcrossCpfTables)
- * Propaga address, street_number, complement, neighborhood, city, state, cep,
- * latitude, longitude, formatted_address e google_place_id entre salons, clients,
- * professionals, profiles e salon_users vinculados ao mesmo CPF.
- */
-export async function syncAddressAndCoordsAcrossCpfTables(params: {
-  cpf?: string | null;
-  email?: string | null;
-  address?: string | null;
-  street_number?: string | null;
-  complement?: string | null;
-  neighborhood?: string | null;
-  city?: string | null;
-  state?: string | null;
-  cep?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  formatted_address?: string | null;
-  google_place_id?: string | null;
-}): Promise<{ updatedTables: string[] }> {
-  const client = getDbClient() || supabase;
-  if (!client) return { updatedTables: [] };
-
-  const cleanCpf = String(params.cpf || '').replace(/\D/g, '');
-  const cleanEmail = String(params.email || '').trim().toLowerCase();
-  if (cleanCpf.length !== 11 && !cleanEmail) {
-    return { updatedTables: [] };
-  }
-
-  const geoPayload: Record<string, any> = {};
-  if (params.address !== undefined && params.address !== null) geoPayload.address = params.address;
-  if (params.street_number !== undefined && params.street_number !== null) geoPayload.street_number = params.street_number;
-  if (params.complement !== undefined && params.complement !== null) geoPayload.complement = params.complement;
-  if (params.neighborhood !== undefined && params.neighborhood !== null) geoPayload.neighborhood = params.neighborhood;
-  if (params.city !== undefined && params.city !== null) geoPayload.city = params.city;
-  if (params.state !== undefined && params.state !== null) geoPayload.state = params.state;
-  if (params.cep !== undefined && params.cep !== null) geoPayload.cep = params.cep;
-  if (typeof params.latitude === 'number' && !Number.isNaN(params.latitude)) geoPayload.latitude = params.latitude;
-  if (typeof params.longitude === 'number' && !Number.isNaN(params.longitude)) geoPayload.longitude = params.longitude;
-  if (params.formatted_address) geoPayload.formatted_address = params.formatted_address;
-  if (params.google_place_id) geoPayload.google_place_id = params.google_place_id;
-
-  if (Object.keys(geoPayload).length === 0) {
-    return { updatedTables: [] };
-  }
-
-  const updatedTables: string[] = [];
-  const formattedCpf =
-    cleanCpf.length === 11
-      ? `${cleanCpf.slice(0, 3)}.${cleanCpf.slice(3, 6)}.${cleanCpf.slice(6, 9)}-${cleanCpf.slice(9, 11)}`
-      : '';
-
-  const targetTables: Array<{ table: string; cpfCol: string }> = [
-    { table: 'salons', cpfCol: 'owner_cpf' },
-    { table: 'clients', cpfCol: 'cpf' },
-    { table: 'professionals', cpfCol: 'cpf' },
-    { table: 'profiles', cpfCol: 'cpf' },
-    { table: 'salon_users', cpfCol: 'cpf' },
-  ];
-
-  await Promise.all(
-    targetTables.map(async ({ table, cpfCol }) => {
-      try {
-        if (cleanCpf.length === 11) {
-          const r1 = await safeSupabaseWrite(table, 'update', geoPayload, {
-            matchFilter: { [cpfCol]: cleanCpf },
-          });
-          if (!r1.error) updatedTables.push(`${table}(${cpfCol}:digits)`);
-
-          if (formattedCpf) {
-            await safeSupabaseWrite(table, 'update', geoPayload, {
-              matchFilter: { [cpfCol]: formattedCpf },
-            });
-          }
-        } else if (cleanEmail) {
-          const rEmail = await safeSupabaseWrite(table, 'update', geoPayload, {
-            matchFilter: { email: cleanEmail },
-          });
-          if (!rEmail.error) updatedTables.push(`${table}(email)`);
-        }
-      } catch {}
-    })
-  );
-
-  return { updatedTables };
-}
-

@@ -76,7 +76,6 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
     (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') || '' : '')
   ).trim();
 
-  // Estado dinâmico para metadados e fotos reais do salão (Nível 1) vs Fallback Editorial (Nível 2)
   const [fetchedSalonMeta, setFetchedSalonMeta] = useState<{
     tradeName?: string;
     logoUrl?: string;
@@ -86,7 +85,6 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
   const [failedSlides, setFailedSlides] = useState<Record<string, boolean>>({});
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
 
-  // Busca Nível 1: public.salons + public.salon_media_items (até 5 fotos type = 'image')
   useEffect(() => {
     if (!isOpen || !isSupabaseConfigured || !supabase) return;
     let isMounted = true;
@@ -169,15 +167,15 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
         }
 
         if (salonRow.id && collectedPhotos.length < 5) {
-          const { data: mediaRows } = await (supabase.from('salon_media_items' as any) as any)
-            .select('url, media_url, file_url, type')
+          const { data: mediaRows } = await (supabase.from('media_assets' as any) as any)
+            .select('public_url, mime_type')
             .eq('salon_id', salonRow.id)
-            .eq('type', 'image')
+            .like('mime_type', 'image/%')
             .limit(5);
 
           if (Array.isArray(mediaRows)) {
             for (const m of mediaRows) {
-              addCandidatePhoto(m?.url || m?.media_url || m?.file_url);
+              addCandidatePhoto(m?.public_url);
             }
           }
         }
@@ -211,7 +209,6 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
     }
   }, [activeSlideIndex, effectiveSlides.length]);
 
-  // Troca suave de slide a cada 5500ms (transition-opacity duration-1000)
   useEffect(() => {
     if (!isOpen || effectiveSlides.length <= 1) return;
     const timer = window.setInterval(() => {
@@ -440,9 +437,6 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
     const mappedRole: 'pro' | 'cliente' =
       finalIsSuperadmin || membership.isMember ? 'pro' : 'cliente';
 
-    // Roteamento Inteligente Pós-Login (BOL-167):
-    // Proprietário (salons.email / owner_id) ou Profissional (professionals) -> abre direto o Painel Meu Negócio
-    // Cliente -> abre direto a Vitrine de Agendamento do salão
     try {
       if (mappedRole === 'pro') {
         sessionStorage.removeItem('vagou_explicit_public_preview');
@@ -571,7 +565,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
       className="vagou-cinematic-auth vagou-dark-media dark fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950 overflow-y-auto animate-in fade-in duration-300 font-['Poppins']"
       style={{ backgroundColor: '#020617' }}
     >
-      {/* Camada de Fundo: Slideshow Editorial Inteligente em 2 Níveis (Tela Cheia fixed inset-0) */}
+
       <div
         className="vagou-dark-media fixed inset-0 pointer-events-none overflow-hidden bg-slate-950"
         style={{ backgroundColor: '#020617' }}
@@ -593,11 +587,10 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
             }`}
           />
         ))}
-        {/* Película cinematográfica oficial */}
+
         <div className="absolute inset-0 bg-gradient-to-b from-slate-950/65 via-slate-950/55 to-slate-950/85" />
       </div>
 
-      {/* Card Central Flutuante em Vidro Jateado (Glassmorphism Dark — Zero Box dentro de Box) */}
       <div
         className="relative z-10 w-full max-w-md my-auto animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}

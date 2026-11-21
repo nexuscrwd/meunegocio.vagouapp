@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { 
-  Wrench, 
-  Plus, 
-  Trash2, 
-  Zap, 
-  CheckCircle2, 
+import {
+  Wrench,
+  Plus,
+  Trash2,
+  Zap,
+  CheckCircle2,
   PieChart,
   Coins
 } from 'lucide-react';
@@ -96,12 +96,11 @@ const OperationalEquipmentCard: React.FC<OperationalEquipmentCardProps> = ({
   onUpdate,
   onDelete,
 }) => {
-  // Unidade de exibição individual (W ou kW)
+
   const [unit, setUnit] = useState<'W' | 'kW'>(() => (eq.powerWatts >= 100 || eq.kwhPerHour >= 0.1 ? 'W' : 'kW'));
 
   const costPerHour = eq.kwhPerHour * effectiveKwhRate;
   const dailyKwh = eq.kwhPerHour * eq.avgHoursPerDay;
-  const monthlyKwh = dailyKwh * 30;
   const sharePercent = totalDailyKwh > 0 ? (dailyKwh / totalDailyKwh) * 100 : 0;
 
   const handlePowerValueChange = (newVal: number) => {
@@ -124,7 +123,7 @@ const OperationalEquipmentCard: React.FC<OperationalEquipmentCardProps> = ({
         isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
       }`}
     >
-      {/* Topo do Card: Identificação + Porcentagem de Carga */}
+
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-8 h-8 rounded-[4px] brand-soft-badge border flex items-center justify-center shrink-0">
@@ -141,7 +140,7 @@ const OperationalEquipmentCard: React.FC<OperationalEquipmentCardProps> = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {/* Badge de Porcentagem da Carga */}
+
           <div className="flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-slate-950 border border-slate-800 text-slate-300 text-[9.5px] font-mono font-bold">
             <PieChart className="w-3 h-3 brand-icon" />
             <span className="brand-text">{sharePercent.toFixed(1).replace('.', ',')}%</span>
@@ -159,22 +158,20 @@ const OperationalEquipmentCard: React.FC<OperationalEquipmentCardProps> = ({
         </div>
       </div>
 
-      {/* Barra de Progresso da Carga Total */}
       <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden border border-slate-800/80">
-        <div 
+        <div
           className="h-full brand-bar rounded-full transition-all duration-300"
           style={{ width: `${Math.min(100, Math.max(2, sharePercent))}%` }}
         />
       </div>
 
-      {/* Parâmetros do Equipamento (Potência e Uso em 2 Colunas Equilibradas) */}
       <div className="grid grid-cols-2 gap-2.5 pt-0.5">
-        {/* Coluna 1: Potência + Seletor W/kW + Conversão */}
+
         <div className="space-y-1">
           <div className="flex items-center justify-between text-[8.5px] font-bold">
             <span className="uppercase text-slate-400">Potência</span>
             <span className="text-amber-400 font-mono">
-              ↳ {unit === 'W' 
+              ↳ {unit === 'W'
                 ? `${eq.kwhPerHour.toFixed(2).replace('.', ',')} kWh/h`
                 : `${(eq.powerWatts || Math.round(eq.kwhPerHour * 1000))} W`}
             </span>
@@ -190,7 +187,6 @@ const OperationalEquipmentCard: React.FC<OperationalEquipmentCardProps> = ({
               }`}
             />
 
-            {/* Seletor W / kW ao lado do input */}
             <div className="flex items-center bg-slate-950 rounded-lg border border-slate-800 p-0.5 shrink-0">
               <button
                 type="button"
@@ -218,7 +214,6 @@ const OperationalEquipmentCard: React.FC<OperationalEquipmentCardProps> = ({
           </div>
         </div>
 
-        {/* Coluna 2: Uso Diário */}
         <div className="space-y-1">
           <div className="flex items-center justify-between text-[8.5px] font-bold">
             <span className="uppercase text-slate-400">Uso Diário</span>
@@ -243,7 +238,6 @@ const OperationalEquipmentCard: React.FC<OperationalEquipmentCardProps> = ({
         </div>
       </div>
 
-      {/* Faixa Financeira: Custo/Hora & Custo Mensal Estimado (Proporcional 50% / 50%) */}
       <div className={`grid grid-cols-2 gap-2 p-2 rounded-lg border items-center ${
         isDark ? 'bg-slate-950/70 border-slate-800/80' : 'bg-slate-50 border-slate-200'
       }`}>
@@ -288,12 +282,11 @@ export const OperationalEquipmentsManager: React.FC = () => {
         }
       }
     } catch {
-      // ignore
+
     }
     return INITIAL_OPERATIONAL_EQUIPMENTS;
   });
 
-  // Tarifa efetiva de energia (para cálculo de Custo/Hora)
   const effectiveKwhRate = useMemo(() => {
     try {
       const stored = localStorage.getItem('vagou_energy_tariff_config');
@@ -304,12 +297,11 @@ export const OperationalEquipmentsManager: React.FC = () => {
         return taxRate < 0.99 ? pureRate / (1 - taxRate) : pureRate * 1.25;
       }
     } catch {
-      // ignore
+
     }
     return 1.07;
   }, []);
 
-  // Totais da Carga e Consumo Estimado
   const totals = useMemo(() => {
     const totalDailyKwh = equipments.reduce((acc, eq) => acc + (eq.kwhPerHour * eq.avgHoursPerDay), 0);
     const totalMonthlyKwh = totalDailyKwh * 30;
@@ -324,7 +316,6 @@ export const OperationalEquipmentsManager: React.FC = () => {
     };
   }, [equipments, effectiveKwhRate]);
 
-  // Form State para Novo Equipamento
   const [showAddForm, setShowAddForm] = useState(false);
   const [name, setName] = useState('');
   const [category, setCategory] = useState<OperationalEquipment['category']>('Corte & Acabamento');
@@ -360,7 +351,7 @@ export const OperationalEquipmentsManager: React.FC = () => {
     try {
       localStorage.setItem('vagou_operational_equipments', JSON.stringify(updated));
     } catch {
-      // ignore
+
     }
     syncAllLocalUtilitiesToDatabase();
 
@@ -384,7 +375,7 @@ export const OperationalEquipmentsManager: React.FC = () => {
     try {
       localStorage.setItem('vagou_operational_equipments', JSON.stringify(updated));
     } catch {
-      // ignore
+
     }
     syncAllLocalUtilitiesToDatabase();
   };
@@ -396,14 +387,14 @@ export const OperationalEquipmentsManager: React.FC = () => {
     try {
       localStorage.setItem('vagou_operational_equipments', JSON.stringify(updated));
     } catch {
-      // ignore
+
     }
     syncAllLocalUtilitiesToDatabase();
   };
 
   return (
     <div className="space-y-3.5 animate-in fade-in duration-150">
-      {/* Header com Ação */}
+
       <div className="flex items-center justify-between px-1">
         <div>
           <h3 className={`text-xs font-bold font-['Poppins'] flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -430,7 +421,6 @@ export const OperationalEquipmentsManager: React.FC = () => {
         </button>
       </div>
 
-      {/* Card Resumo de Carga Total Estimada */}
       <div className={`p-3 rounded-[4px] border ${
         isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
       }`}>
@@ -478,7 +468,6 @@ export const OperationalEquipmentsManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Formulário Novo Equipamento */}
       {showAddForm && (
         <form
           onSubmit={handleAddEquipment}
@@ -529,7 +518,6 @@ export const OperationalEquipmentsManager: React.FC = () => {
               </select>
             </div>
 
-            {/* Potência com Seletor W / kW */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-[10px] font-bold uppercase text-slate-400">
@@ -640,7 +628,6 @@ export const OperationalEquipmentsManager: React.FC = () => {
         </form>
       )}
 
-      {/* Lista de Equipamentos com Seletor W/kW, Conversão, Custo/Hora e % da Carga */}
       <div className="space-y-2.5">
         {equipments.map((eq) => (
           <OperationalEquipmentCard

@@ -1,16 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  DollarSign, TrendingUp, CreditCard, 
-  ArrowUpRight, Share2, 
+import {
+  DollarSign, TrendingUp, CreditCard,
+  ArrowUpRight, Share2,
   Sparkles, CheckCircle2,
   Wallet, Banknote, QrCode, Receipt, Target,
   PieChart, Users, Printer, Plus, Trash2, Star, X
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
-import { 
-  BookingAppointment, PaymentMethod, ProfessionalTeamMember, 
-  UserPersona, FinancialExpense, SalonAdminSettings, 
-  SalonPixKeyItem, PixKeyType 
+import {
+  BookingAppointment, PaymentMethod, ProfessionalTeamMember,
+  UserPersona, FinancialExpense, SalonAdminSettings,
+  SalonPixKeyItem, PixKeyType
 } from '../../types';
 import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
 import { ExpensesManager } from './financial/ExpensesManager';
@@ -47,12 +47,10 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
 }) => {
   const { isDark } = useTheme();
 
-  // Sub-Aba do Módulo Financeiro (Caixa, PIX & Placa, Despesas, Balanço)
   const [activeTab, setActiveTab] = useState<'caixa' | 'despesas' | 'balanco' | 'pix_billing'>(initialTab);
   const [isPixPrintModalOpen, setIsPixPrintModalOpen] = useState(false);
   const [isPixQuickModalOpen, setIsPixQuickModalOpen] = useState(false);
 
-  // Estado de Chaves PIX (hidratado de adminSettings ou localStorage)
   const [pixKeys, setPixKeys] = useState<SalonPixKeyItem[]>(() => {
     if (Array.isArray(adminSettings?.pixKeys) && adminSettings!.pixKeys.length > 0) {
       return adminSettings!.pixKeys;
@@ -178,10 +176,8 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
     persistPixKeys(filtered);
   };
 
-  // Filtro de Período
   const [periodFilter, setPeriodFilter] = useState<'hoje' | 'semana' | 'mes' | 'todos'>('hoje');
 
-  // Estado de Custos & Despesas (Persistido no localStorage)
   const [expenses, setExpenses] = useState<FinancialExpense[]>(() => {
     try {
       const saved = localStorage.getItem('vagou_financial_expenses');
@@ -190,7 +186,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
     return [];
   });
 
-  // Persiste despesas e sincroniza com public.salon_utilities_records (dre_records)
   useEffect(() => {
     try {
       localStorage.setItem('vagou_financial_expenses', JSON.stringify(expenses));
@@ -199,7 +194,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
     syncAllLocalUtilitiesToDatabase();
   }, [expenses]);
 
-  // Handlers para despesas
   const handleAddExpense = (newExp: Omit<FinancialExpense, 'id' | 'createdAt'>) => {
     const created: FinancialExpense = {
       ...newExp,
@@ -225,7 +219,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
     setExpenses(prev => prev.filter(exp => exp.id !== id));
   };
 
-  // Carrega profissionais e suas comissões do localStorage
   const teamMembers = useMemo<ProfessionalTeamMember[]>(() => {
     try {
       const saved = localStorage.getItem('vagou_salon_team_members');
@@ -248,7 +241,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
     ];
   }, []);
 
-  // Filtragem de Agendamentos por Período
   const filteredAppointments = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -288,7 +280,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
     });
   }, [appointments, periodFilter]);
 
-  // Cálculos Consolidados
   const completedAppointments = useMemo(() => {
     return filteredAppointments.filter((app) => {
       const st = (app.status || '').toUpperCase();
@@ -303,28 +294,23 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
     });
   }, [filteredAppointments]);
 
-  // Faturamento Realizado (Caixa Fechado)
   const totalRealizedRevenue = useMemo(() => {
     return completedAppointments.reduce((acc, app) => acc + (Number(app.totalPrice) || 0), 0);
   }, [completedAppointments]);
 
-  // Previsão em Aberto
   const totalForecastRevenue = useMemo(() => {
     return pendingAppointments.reduce((acc, app) => acc + (Number(app.totalPrice) || 0), 0);
   }, [pendingAppointments]);
 
-  // Ticket Médio
   const averageTicket = useMemo(() => {
     if (completedAppointments.length === 0) return 0;
     return totalRealizedRevenue / completedAppointments.length;
   }, [completedAppointments, totalRealizedRevenue]);
 
-  // Taxa Plataforma Vagou (R$ 2,50 por atendimento concluído)
   const totalPlatformFees = useMemo(() => {
     return completedAppointments.length * 2.50;
   }, [completedAppointments]);
 
-  // Rateio de Comissões por Profissional
   const proFinancialStats = useMemo(() => {
     const stats: Record<string, {
       name: string;
@@ -369,17 +355,14 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
     return Object.values(stats);
   }, [teamMembers, completedAppointments]);
 
-  // Total de Comissões a Repassar
   const totalCommissionsDue = useMemo(() => {
     return proFinancialStats.reduce((acc, p) => acc + p.commissionAmount, 0);
   }, [proFinancialStats]);
 
-  // Lucro Líquido Real Salão
   const salonNetProfit = useMemo(() => {
     return Math.max(0, totalRealizedRevenue - totalCommissionsDue - totalPlatformFees);
   }, [totalRealizedRevenue, totalCommissionsDue, totalPlatformFees]);
 
-  // Métodos de Pagamento
   const paymentBreakdown = useMemo(() => {
     const methods: Record<string, { count: number; total: number; label: string; icon: typeof QrCode }> = {
       pix: { count: 0, total: 0, label: 'PIX Instantâneo', icon: QrCode },
@@ -408,7 +391,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
     }));
   }, [completedAppointments, totalRealizedRevenue]);
 
-  // Meta Mensal configurada para o Salão
   const [salonMonthlyGoal, setSalonMonthlyGoal] = useState<number>(() => {
     try {
       const s = localStorage.getItem('vagou_salon_monthly_goal');
@@ -427,7 +409,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
     } catch {}
   };
 
-  // Gráfico de Evolução de Clientes nos Últimos 7 Dias (Salão Completo)
   const salonWeekEvolution = useMemo<DayEvolutionData[]>(() => {
     const days: DayEvolutionData[] = [];
     const now = new Date();
@@ -482,7 +463,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
     return days;
   }, [appointments]);
 
-  // Gráfico de Distribuição dos Serviços Mais Realizados (Salão Completo)
   const salonServiceDistribution = useMemo<ServiceStat[]>(() => {
     const map: Record<string, { count: number; totalRevenue: number }> = {};
 
@@ -508,7 +488,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
       .sort((a, b) => b.count - a.count);
   }, [appointments]);
 
-  // Ação de Envio do Fechamento no WhatsApp
   const handleShareWhatsApp = () => {
     hapticSuccess();
     const periodName = periodFilter === 'hoje' ? 'Hoje' : periodFilter === 'semana' ? 'Esta Semana' : periodFilter === 'mes' ? 'Este Mês' : 'Período Completo';
@@ -551,7 +530,7 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
     <div className={`w-full flex flex-col ${
       hideHeader ? 'bg-transparent' : 'h-full justify-between overflow-y-auto ' + (isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900')
     }`}>
-      {/* 1. Header do Módulo Financeiro */}
+
       {!hideHeader && (
         <div className={`p-3.5 border-b shrink-0 flex items-center justify-between gap-2 ${
           isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
@@ -566,7 +545,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
             </div>
           </div>
 
-          {/* Botão de Fechamento / WhatsApp */}
           {activeTab === 'caixa' && (
             <button
               type="button"
@@ -580,7 +558,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
         </div>
       )}
 
-      {/* 2. Sub-Abas do Financeiro: no modo Caixa exibe apenas [PIX & Placa]; no menu Financeiro exibe todas as sub-abas */}
       {!hideTabs && (
         <div className={` shrink-0 ${
           hideHeader
@@ -630,11 +607,10 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
         </div>
       )}
 
-      {/* 3. Filtro de Período exclusivo para a aba Caixa */}
       {activeTab === 'caixa' && (
         <div className={`flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0 ${
-          hideHeader 
-            ? 'px-0 pb-3' 
+          hideHeader
+            ? 'px-0 pb-3'
             : `px-3 py-2 border-b ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'}`
         }`}>
           {(['hoje', 'semana', 'mes'] as const).map((p) => {
@@ -667,15 +643,13 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
         </div>
       )}
 
-      {/* 4. Corpo Rolável do Módulo Financeiro */}
       <div className={`flex-1 min-h-0 ${hideHeader ? 'p-0 space-y-3' : 'p-3 space-y-3'}`}>
-        
-        {/* ABA 1: CAIXA & ENTRADAS */}
+
         {activeTab === 'caixa' && (
           <>
-            {/* Bloco 1: KPIs Principais (Layout Plano & Sem Box dentro de Box) */}
+
             <div className="grid grid-cols-2 gap-2">
-              {/* Caixa Realizado */}
+
               <div className={`p-3 rounded border flex flex-col justify-between ${
                 isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
               }`}>
@@ -690,7 +664,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
                 </div>
               </div>
 
-              {/* Previsão Restante */}
               <div className={`p-3 rounded border flex flex-col justify-between ${
                 isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
               }`}>
@@ -705,7 +678,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
                 </div>
               </div>
 
-              {/* Ticket Médio (Valor indexado -> segue cor do tema) */}
               <div className={`p-3 rounded border flex flex-col justify-between ${
                 isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
               }`}>
@@ -720,7 +692,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
                 </div>
               </div>
 
-              {/* Lucro Líquido do Salão (Positivo = verde, Negativo = vermelho) */}
               <div className={`p-3 rounded border flex flex-col justify-between ${
                 salonNetProfit < 0
                   ? isDark ? 'bg-slate-900/90 border-rose-500/40' : 'bg-white border-rose-300 shadow-2xs'
@@ -741,10 +712,9 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
               </div>
             </div>
 
-            {/* SEÇÃO COMPLETA: DRE, MEIOS DE PAGAMENTO E COMISSÕES (Visível na gestão financeira completa) */}
             {variant === 'full' && (
               <>
-                {/* Bloco 2: Demonstrativo Financeiro / DRE do Estabelecimento */}
+
                 <div className={`p-3.5 rounded-xl border ${
                   isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
                 }`}>
@@ -789,7 +759,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
                   </div>
                 </div>
 
-                {/* Bloco 3: Entradas por Meio de Pagamento */}
                 <div className={`p-3.5 rounded-xl border ${
                   isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
                 }`}>
@@ -833,7 +802,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
                   </div>
                 </div>
 
-                {/* Bloco 4: Comissões da Equipe no Período */}
                 <div className={`p-3.5 rounded-xl border ${
                   isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
                 }`}>
@@ -885,7 +853,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
           </>
         )}
 
-        {/* ABA 2: CUSTOS & DESPESAS */}
         {activeTab === 'despesas' && (
           <ExpensesManager
             expenses={expenses}
@@ -895,10 +862,9 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
           />
         )}
 
-        {/* ABA 3: BALANÇO & METAS */}
         {activeTab === 'balanco' && (
           <div className="space-y-3 pb-8">
-            {/* 1. Velocímetro / Gráfico Meia-Lua da Meta */}
+
             <SemiCircleGauge
               currentAmount={totalRealizedRevenue}
               targetAmount={salonMonthlyGoal}
@@ -907,13 +873,10 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
               onUpdateTarget={handleUpdateSalonGoal}
             />
 
-            {/* 2. Gráfico de Evolução de Clientes nos Últimos 7 Dias */}
             <ClientEvolutionChart data={salonWeekEvolution} />
 
-            {/* 3. Gráfico de Ranking dos Serviços Mais Realizados */}
             <ServiceDistributionChart services={salonServiceDistribution} />
 
-            {/* 4. Simulador de Ponto de Equilíbrio & Paga de Contas */}
             <BreakEvenSimulator
               expenses={expenses}
               currentRealizedRevenue={totalRealizedRevenue}
@@ -923,7 +886,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
           </div>
         )}
 
-        {/* ABA 4: PIX & PLACA */}
         {activeTab === 'pix_billing' && (
           variant === 'caixa' ? (
             <div className={`p-5 rounded-[4px] border flex flex-col items-center text-center space-y-3 ${
@@ -1184,7 +1146,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
 
       </div>
 
-      {/* Modal Popup de Escaneamento Rápido do QR Code PIX (Seção Caixa) */}
       {isPixQuickModalOpen && (
         <div
           className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
@@ -1254,7 +1215,6 @@ export const FinancialManagerView: React.FC<FinancialManagerViewProps> = ({
         </div>
       )}
 
-      {/* Modal de Impressão da Plaquinha Acrílica PIX */}
       <SalonPixPrintModal
         isOpen={isPixPrintModalOpen}
         onClose={() => setIsPixPrintModalOpen(false)}

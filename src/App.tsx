@@ -8,10 +8,10 @@ import { SalonNotFoundScreen } from './components/public/SalonNotFoundScreen';
 import { useSalonRole } from './hooks/useSalonRole';
 import { ServiceOffer, BookingAppointment } from './types';
 import { initializeStoredPwaAssets } from './utils/pwaAssets';
-import { 
-  supabase, 
-  isSupabaseConfigured, 
-  fetchUserProfileFromDb, 
+import {
+  supabase,
+  isSupabaseConfigured,
+  fetchUserProfileFromDb,
   isValidAvatarUrlString,
   ensureClientRow,
   fetchUserAppointments,
@@ -20,20 +20,21 @@ import {
   cancelAppointmentInDb,
   ensureSalonRow
 } from './lib/supabase';
-import { 
-  ThemeContext, 
-  ThemeProvider, 
-  useTheme, 
+import { subscribeToVagouRealtimeHub } from './services/realtimeHub';
+import { ensureServiceWorkerReady, triggerPushOutboxDispatch } from './services/webPushService';
+import {
+  ThemeContext,
+  ThemeProvider,
+  useTheme,
   applyAccentColorToDom,
   CUSTOMIZED_THEME_STORAGE_KEY,
   EXPLICIT_THEME_STORAGE_KEY,
-  type ThemeContextType 
+  type ThemeContextType
 } from './context/ThemeContext';
 import { DEFAULT_NEUTRAL_HEX, isCustomBrandHex } from './utils/themePalette';
 
 export { ThemeContext, ThemeProvider, useTheme, applyAccentColorToDom, type ThemeContextType };
 
-// Subdomínios do sistema que NÃO são salões de beleza
 const RESERVED_SUBDOMAINS = [
   'adm', 'admin', 'admvapp', 'portal', 'pvapp', 'meunegocio', 'mnvapp',
   'www', 'api', 'suporte', 'ajuda', 'vagou', 'vagouapp', 'localhost',
@@ -60,7 +61,6 @@ function detectActiveSubdomain(): string {
   return '';
 }
 
-// Lista de ofertas padrão (vazio, carregado do banco)
 const EMPTY_OFFERS: ServiceOffer[] = [];
 
 function sanitizeMockStorageData(): void {
@@ -119,7 +119,6 @@ function hasActiveAppSession(): boolean {
 export const App: React.FC = () => {
   const { isDark, setAccentColor, setTheme, resetToDefaultPalette } = useTheme();
 
-  // Validação do Subdomínio Wildcard (*.vagouapp.com)
   const [isNotFound, setIsNotFound] = useState(false);
   const [currentSubdomain, setCurrentSubdomain] = useState<string>(() => detectActiveSubdomain());
   const [isValidatingSubdomain, setIsValidatingSubdomain] = useState<boolean>(true);
@@ -129,7 +128,6 @@ export const App: React.FC = () => {
     return hasActiveAppSession();
   });
 
-  // Início obrigatório na tela de Login/Cadastre-se se não estiver autenticado
   const [viewMode, setViewMode] = useState<'auth' | 'salon' | 'agenda' | 'dashboard'>(() =>
     hasActiveAppSession() ? 'salon' : 'auth'
   );
@@ -152,7 +150,6 @@ export const App: React.FC = () => {
     return '';
   });
 
-  // Slug de desenvolvimento em DEV (configurado nos Secrets do AI Studio: VITE_DEV_SALON_SLUG)
   const devSlug = import.meta.env.DEV ? (import.meta.env.VITE_DEV_SALON_SLUG as string | undefined) : undefined;
   const activeSalonIdentifier =
     devSlug ||
@@ -162,7 +159,6 @@ export const App: React.FC = () => {
     (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') || '' : '');
   const { role: currentRole } = useSalonRole(activeSalonIdentifier);
 
-  // Trava anti-expulsão: enquanto valida o subdomínio, passa 'loading' para o SalonProfileView
   const effectiveRole = isValidatingSubdomain ? 'loading' : currentRole;
   const [userName, setUserName] = useState(() => {
     return localStorage.getItem('vagou_user_name') || '';
@@ -179,7 +175,7 @@ export const App: React.FC = () => {
     return '';
   });
   const [appointments, setAppointments] = useState<BookingAppointment[]>([]);
-  const [offers, setOffers] = useState<ServiceOffer[]>(EMPTY_OFFERS);
+  const [offers] = useState<ServiceOffer[]>(EMPTY_OFFERS);
 
   interface AppToast {
     id: string;
@@ -218,7 +214,6 @@ export const App: React.FC = () => {
       }
     } catch {}
 
-    // Sincronizar em tempo real com public.appointments no Supabase
     if (isSupabaseConfigured) {
       const userEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
       const userPhone = localStorage.getItem('vagou_user_phone') || '';
@@ -265,7 +260,7 @@ export const App: React.FC = () => {
   const triggerLocalNotification = (apt: BookingAppointment, oldStatus: string, newStatus: string) => {
     const service = apt.serviceTitle || apt.service || 'Serviço';
     const time = apt.dateTime || '';
-    
+
     let title = 'Status Atualizado! 🔔';
     let message = `Seu agendamento para "${service}" foi atualizado de "${oldStatus.toLowerCase()}" para "${newStatus.toLowerCase()}".`;
 
@@ -280,7 +275,6 @@ export const App: React.FC = () => {
       message = `Obrigado! Seu atendimento de "${service}" foi concluído.`;
     }
 
-    // 1. Mostrar o Toast interno no app
     setActiveToast({
       id: Date.now().toString(),
       title,
@@ -288,7 +282,6 @@ export const App: React.FC = () => {
       type: newStatus === 'CONFIRMADO' ? 'success' : newStatus === 'CANCELADO' ? 'error' : 'info'
     });
 
-    // Auto fechar o Toast após 5 segundos
     setTimeout(() => {
       setActiveToast((current) => {
         if (current && Date.now() - parseInt(current.id) >= 4900) {
@@ -298,7 +291,6 @@ export const App: React.FC = () => {
       });
     }, 5000);
 
-    // 2. Chamar a API de Notificação Nativa do navegador (se disponível e autorizada)
     if ('Notification' in window) {
       if (Notification.permission === 'granted') {
         try {
@@ -323,35 +315,32 @@ export const App: React.FC = () => {
       }
     }
 
-    // 3. Feedback tátil/vibratório suave
     try {
       window.navigator.vibrate?.([100, 50, 100]);
     } catch {}
   };
 
-  // Detector de mudança de status para notificações locais
   useEffect(() => {
     if (!appointments || appointments.length === 0) return;
 
     try {
-      // Obter o mapa de status já salvos anteriormente para comparar
+
       const notifiedStr = localStorage.getItem('vagou_notified_status_map') || '{}';
       const notifiedMap = JSON.parse(notifiedStr) as Record<string, string>;
       let hasChanges = false;
 
       appointments.forEach((apt) => {
         if (!apt.protocolCode) return;
-        
+
         const currentStatus = apt.status || 'PENDENTE';
         const previousStatus = notifiedMap[apt.protocolCode];
 
-        // Se o agendamento já estava registrado e o status mudou!
         if (previousStatus && previousStatus !== currentStatus) {
           triggerLocalNotification(apt, previousStatus, currentStatus);
           notifiedMap[apt.protocolCode] = currentStatus;
           hasChanges = true;
         } else if (!previousStatus) {
-          // Primeira vez que vemos esse agendamento, guardamos o status silenciosamente
+
           notifiedMap[apt.protocolCode] = currentStatus;
           hasChanges = true;
         }
@@ -368,8 +357,27 @@ export const App: React.FC = () => {
   useEffect(() => {
     loadAppointments();
     initializeStoredPwaAssets();
-    
-    // Sincronizar perfil do usuário com o Supabase em segundo plano (Tríade Sync) sem apagar avatar local válido
+    ensureServiceWorkerReady().catch(() => {});
+
+    const activeSalonId = localStorage.getItem('vagou_salon_db_id') || null;
+    const activeClientId = localStorage.getItem('vagou_client_id') || null;
+    const unsubscribeV6Hub = isSupabaseConfigured
+      ? subscribeToVagouRealtimeHub({
+          salonId: activeSalonId,
+          clientId: activeClientId,
+          onEvent: (evt) => {
+            if (evt.table === 'notification_outbox' && evt.eventType === 'INSERT') {
+              triggerPushOutboxDispatch().catch(() => {});
+            } else if (evt.table === 'appointments') {
+              loadAppointments();
+              triggerPushOutboxDispatch().catch(() => {});
+            } else if (evt.table === 'media_assets' || evt.table === 'clients') {
+              window.dispatchEvent(new CustomEvent('vagou:v6-realtime-event', { detail: evt }));
+            }
+          },
+        })
+      : () => {};
+
     const syncUserFromSupabase = async () => {
       if (!isSupabaseConfigured || !supabase) return;
       try {
@@ -385,9 +393,8 @@ export const App: React.FC = () => {
 
         if (!hasSession) return;
 
-        // 1. fetchUserProfileFromDb (Clients, Professionals, Auth, Profiles)
         const profile = await fetchUserProfileFromDb({ email: savedEmail, name: savedName, cpf: savedCpf });
-        // Verifica novamente se o usuário continua logado após a requisição assíncrona
+
         const stillHasSession = Boolean(
           localStorage.getItem('vagou_user_email') ||
           localStorage.getItem('vagou_client_session') ||
@@ -444,17 +451,14 @@ export const App: React.FC = () => {
 
     syncUserFromSupabase();
 
-    // Solicitar permissão para notificações nativas no carregamento inicial
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
 
-    // Recarregar agendamentos quando a aba ou janela ganha foco para manter dados sincronizados
     window.addEventListener('focus', loadAppointments);
     window.addEventListener('vagou:profile-updated', handleProfileUpdatedEvent);
     window.addEventListener('storage', handleProfileUpdatedEvent);
 
-    // Inscrição em tempo real para escutar atualizações de agendamento na nuvem Supabase
     let unsubscribeRealtime = () => {};
     if (isSupabaseConfigured) {
       const userEmail = localStorage.getItem('vagou_user_email') || '';
@@ -484,7 +488,6 @@ export const App: React.FC = () => {
       });
     }
 
-    // Poll localstorage a cada 3 segundos
     const interval = setInterval(loadAppointments, 3000);
 
     return () => {
@@ -492,15 +495,14 @@ export const App: React.FC = () => {
       window.removeEventListener('vagou:profile-updated', handleProfileUpdatedEvent);
       window.removeEventListener('storage', handleProfileUpdatedEvent);
       unsubscribeRealtime();
+      unsubscribeV6Hub();
       clearInterval(interval);
     };
   }, []);
 
-  // Ponto ÚNICO soberano de garantia da linha do cliente em public.clients no login e controle de sessão
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
 
-    // Verificar sessão inicial no carregamento preservando login SSO via admvapp
     const checkInitialSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -524,7 +526,7 @@ export const App: React.FC = () => {
           }
           setIsAuthenticated(true);
         } else {
-          // Se não há token no domínio local, verifica se há login SSO ou perfil local ativo
+
           const hasLocalAuth = hasActiveAppSession();
           const ssoName = localStorage.getItem('vagou_user_name');
           const ssoAvatar = localStorage.getItem('vagou_user_avatar');
@@ -695,7 +697,6 @@ export const App: React.FC = () => {
     }
   };
 
-  // Validação Inicial de Subdomínio Wildcard (*.vagouapp.com) e Validação Soberana de Papel (RBAC)
   useEffect(() => {
     const syncSalonThemeState = (salonRow: any) => {
       const dbColor = salonRow?.primary_color || salonRow?.branding?.primaryColor;
@@ -744,7 +745,6 @@ export const App: React.FC = () => {
               return;
             }
 
-            // ✅ ENCONTRADO: Armazena os dados iniciais completos e define o nome do salão ativo
             setInitialSalonData(salon);
             const displayName = salon.trade_name || sub;
             setSalonName(displayName);
@@ -755,7 +755,7 @@ export const App: React.FC = () => {
             syncSalonThemeState(salon);
           }
         } else {
-          // Ambiente sem subdomínio wildcard (Preview / Localhost / Dev): resolve salão ativo para garantir persistência de CRUD
+
           if (isSupabaseConfigured) {
             const cachedSlug = localStorage.getItem('vagou_salon_slug') || '';
             const cachedDbId = localStorage.getItem('vagou_salon_db_id') || '';
@@ -852,7 +852,6 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('message', handleSalonRedirectMessage);
   }, []);
 
-  // ⏳ Enquanto valida o subdomínio no Supabase, exibe tela limpa na atmosfera escura cinematográfica
   if (isValidatingSubdomain) {
     return (
       <div className="min-h-screen w-full bg-slate-950 flex items-center justify-center font-sans">
@@ -861,7 +860,6 @@ export const App: React.FC = () => {
     );
   }
 
-  // 🛑 Se o subdomínio não foi encontrado no Supabase (status !== 'active')
   if (isNotFound) {
     return <SalonNotFoundScreen subdomain={currentSubdomain} />;
   }
@@ -872,8 +870,8 @@ export const App: React.FC = () => {
     <div className={`min-h-screen h-dvh w-full flex justify-center overflow-hidden font-sans ${
       isAuthScreenActive || isDark ? 'bg-slate-950 text-slate-100' : 'bg-[var(--neutral-outer-bg)] text-[#0F172A]'
     }`}>
-      {/* Camada 2: Shell Mobile Principal (max-w-[430px] neutro e independente) */}
-      <section 
+
+      <section
         aria-label="Aplicativo Vagou"
         className={`w-full max-w-[430px] min-h-screen h-dvh flex flex-col relative overflow-hidden shadow-lg sm:border-x ${
           isAuthScreenActive
@@ -883,10 +881,10 @@ export const App: React.FC = () => {
               : 'bg-[var(--brand-canvas-bg)] sm:border-[var(--neutral-shell-border)]'
         }`}
       >
-        {/* Toast Notificação de Status */}
+
         {activeToast && (
-          <aside 
-            role="status" 
+          <aside
+            role="status"
             aria-live="polite"
             className={`absolute top-4 left-4 right-4 z-[9999] pointer-events-auto p-3.5 rounded-[4px] border shadow-2xl flex items-start gap-3 backdrop-blur-md animate-in slide-in-from-top-4 duration-300 ${
               activeToast.type === 'success'
@@ -919,7 +917,6 @@ export const App: React.FC = () => {
           </aside>
         )}
 
-        {/* Contêiner Principal da Página do Estabelecimento */}
         <main className="flex-1 w-full min-h-0 overflow-hidden relative flex flex-col">
           {!isAuthenticated || viewMode === 'auth' ? (
             <PartnerAuthView
@@ -970,7 +967,7 @@ export const App: React.FC = () => {
               userRole={effectiveRole}
               offers={offers}
               onDirectBook={(_offer) => {
-                // Booking callback
+
               }}
               isFavorite={isFavorite}
               onToggleFavorite={handleToggleFavorite}

@@ -1,31 +1,14 @@
-/**
- * ============================================================================
- * EXPORTAÇÃO EXCLUSIVA PARA O PORTAL DO PARCEIRO (PORTAL WEB VAGOU)
- * ============================================================================
- * 
- * Este componente contém o fluxo completo de cadastro em 3 passos para novos
- * estabelecimentos, isolado e pronto para ser integrado no repositório do
- * Portal Web do Parceiro (meunegocio.vagouapp.com).
- * 
- * Funcionalidades inclusas:
- * - Passo 1: Informações do Estabelecimento com busca automática de CEP (ViaCEP).
- * - Passo 2: Dados do Representante Legal (CPF, E-mail, Telefone e Senha estrita).
- * - Passo 3: Segmento do negócio (Barbearia, Salão, Unhas, etc.), paleta de cores e slug do app.
- * - Integração nativa com Supabase Auth e tabela 'salons'.
- * - Modal de Onboarding em 5 etapas pós-cadastro (PartnerOnboardingModal).
- */
-
 import React, { useState } from 'react';
-import { 
-  Building2, ArrowLeft, ArrowRight, UserCheck, Palette, 
-  Check, Eye, EyeOff, Sparkles, AlertCircle, Loader2 
+import {
+  Building2, ArrowLeft, ArrowRight, UserCheck, Palette,
+  Check, Eye, EyeOff, Sparkles, AlertCircle, Loader2
 } from 'lucide-react';
 import { PartnerOnboardingModal } from '../components/PartnerOnboardingModal';
-import { 
-  signUpWithSupabase, 
+import {
+  signUpWithSupabase,
   syncSalonDataToSupabase,
   supabase,
-  isSupabaseConfigured 
+  isSupabaseConfigured
 } from '../lib/supabase';
 
 export interface PartnerRegistrationData {
@@ -79,7 +62,6 @@ export const PartnerRegistrationWizard: React.FC<PartnerRegistrationWizardProps>
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [registeredPartnerData, setRegisteredPartnerData] = useState<PartnerRegistrationData | null>(null);
 
-  // Passo 1: Estabelecimento
   const [salonName, setSalonName] = useState('');
   const [salonWhatsapp, setSalonWhatsapp] = useState('');
   const [cep, setCep] = useState('');
@@ -92,7 +74,6 @@ export const PartnerRegistrationWizard: React.FC<PartnerRegistrationWizardProps>
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [cepError, setCepError] = useState('');
 
-  // Passo 2: Representante Legal & Senha
   const [legalName, setLegalName] = useState('');
   const [legalCpf, setLegalCpf] = useState('');
   const [legalEmail, setLegalEmail] = useState('');
@@ -101,14 +82,12 @@ export const PartnerRegistrationWizard: React.FC<PartnerRegistrationWizardProps>
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Passo 3: Segmento & Cores
   const [selectedCategory, setSelectedCategory] = useState('barbearia');
   const [customCategory, setCustomCategory] = useState('');
   const [selectedColor, setSelectedColor] = useState('#20C933');
   const [salonSlug, setSalonSlug] = useState('');
   const [stepErrors, setStepErrors] = useState<string[]>([]);
 
-  // Máscaras de entrada
   const formatPhone = (v: string) => {
     const raw = v.replace(/\D/g, '').slice(0, 11);
     if (raw.length <= 10) {
@@ -130,7 +109,6 @@ export const PartnerRegistrationWizard: React.FC<PartnerRegistrationWizardProps>
     return raw.replace(/^(\d{5})(\d)/, '$1-$2');
   };
 
-  // Busca de CEP automática via ViaCEP
   const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const masked = formatCep(e.target.value);
     setCep(masked);
@@ -163,7 +141,6 @@ export const PartnerRegistrationWizard: React.FC<PartnerRegistrationWizardProps>
   const isLengthValid = password.length >= 8 && password.length <= 10;
   const hasUpperCase = /[A-Z]/.test(password);
   const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>_\-+=]/.test(password);
-  const isPasswordValid = isLengthValid && hasUpperCase && hasSpecialChar;
 
   const handleSalonNameChange = (val: string) => {
     setSalonName(val);
@@ -249,7 +226,6 @@ export const PartnerRegistrationWizard: React.FC<PartnerRegistrationWizardProps>
 
     const fullAddress = `${logradouro}, ${numero}${complemento ? ' - ' + complemento : ''} - ${bairro}, ${cidade}/${uf}`;
 
-    // Sincronização com Supabase (se configurado)
     if (isSupabaseConfigured && supabase) {
       try {
         await signUpWithSupabase(legalEmail, password, {
@@ -284,7 +260,7 @@ export const PartnerRegistrationWizard: React.FC<PartnerRegistrationWizardProps>
 
   return (
     <div className="w-full max-w-lg mx-auto bg-white rounded-lg shadow-sm border border-slate-200 p-4 sm:p-6 text-slate-900">
-      {/* Botão de Retorno */}
+
       {onCancel && (
         <div className="mb-4">
           <button
@@ -298,7 +274,6 @@ export const PartnerRegistrationWizard: React.FC<PartnerRegistrationWizardProps>
         </div>
       )}
 
-      {/* Barra de Progresso dos 3 Passos */}
       <div className="mb-5">
         <div className="flex items-center justify-between text-[11px] font-bold mb-2">
           <span className={step >= 1 ? 'text-[#20C933]' : 'text-slate-500'}>1. Estabelecimento</span>
@@ -310,7 +285,6 @@ export const PartnerRegistrationWizard: React.FC<PartnerRegistrationWizardProps>
         </div>
       </div>
 
-      {/* Feedback de Erros */}
       {stepErrors.length > 0 && (
         <div className="mb-4 p-3 rounded-[4px] bg-rose-50 border border-rose-200 text-rose-700 text-xs space-y-1">
           {stepErrors.map((err, idx) => (
@@ -322,7 +296,6 @@ export const PartnerRegistrationWizard: React.FC<PartnerRegistrationWizardProps>
         </div>
       )}
 
-      {/* PASSO 1: DADOS DO ESTABELECIMENTO */}
       {step === 1 && (
         <div className="space-y-3.5 animate-in fade-in">
           <div>
@@ -451,7 +424,6 @@ export const PartnerRegistrationWizard: React.FC<PartnerRegistrationWizardProps>
         </div>
       )}
 
-      {/* PASSO 2: DADOS DO REPRESENTANTE LEGAL */}
       {step === 2 && (
         <div className="space-y-3.5 animate-in fade-in">
           <div>
@@ -468,7 +440,7 @@ export const PartnerRegistrationWizard: React.FC<PartnerRegistrationWizardProps>
               type="text"
               value={legalName}
               onChange={(e) => setLegalName(e.target.value)}
-              placeholder="Ex: Anderson Pires"
+              placeholder="Ex: Nome do Responsável"
               className="w-full px-3 py-2 text-xs rounded border border-slate-300 bg-white text-slate-900 focus:border-emerald-600 outline-hidden"
             />
           </div>
@@ -582,7 +554,6 @@ export const PartnerRegistrationWizard: React.FC<PartnerRegistrationWizardProps>
         </div>
       )}
 
-      {/* PASSO 3: SEGMENTO & PALETA DE CORES */}
       {step === 3 && (
         <div className="space-y-3.5 animate-in fade-in">
           <div>
@@ -683,7 +654,6 @@ export const PartnerRegistrationWizard: React.FC<PartnerRegistrationWizardProps>
         </div>
       )}
 
-      {/* Modal de Onboarding Pós-Cadastro */}
       {showOnboardingModal && registeredPartnerData && (
         <PartnerOnboardingModal
           isOpen={showOnboardingModal}

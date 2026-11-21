@@ -11,6 +11,76 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-21] — Varredura Forense Profunda: Zero Comentários, Zero Exports Mortos, Zero Dados Fantasmas (`bol-208`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Refactor / Cleanup / Security]`
+- **Motivo / Solicitação:** Segunda varredura forense emergencial solicitada para garantir que o código-fonte rode exclusivamente o que foi construído, sem nenhum comentário, vestígio antigo, dado fantasma, rota morta ou símbolo não utilizado.
+- **Arquivos Impactados:**
+  - **Excluído:** `src/utils/defaultSalonAssets.ts` (vestígio legado `ROTA99` + geradores SVG inline `data:image/svg+xml` + `DEFAULT_FACE_CLIPART_AVATAR`).
+  - **Rota Morta Removida (`server.ts`):** Excluído o endpoint `POST /api/analyze-design` (0 chamadas no app).
+  - **Dados Fantasmas Removidos:** Excluído `KNOWN_CLIENT_AVATARS_MAP` (nomes, e-mails, telefones e URLs antigas hardcoded em `src/lib/supabase.ts`), removida a lista fixa de ruas legadas (`LEGACY_MOCK_STREETS` em `useLiveRouteTracker.ts`) e neutralizado placeholder pessoal em `PartnerRegistrationWizard.tsx`.
+  - **35 Exports Mortos & 22 Parâmetros Não Usados Removidos:** Limpeza integral em `src/lib/supabase.ts`, `mnvSupabaseSync.ts`, `mediaUploadService.ts`, `webPushService.ts`, `googleMapsService.ts`, `ThemeContext.tsx`, `types.ts`, `bookingSlots.ts`, `imageCompressor.ts`, `pwaAssets.ts`, `PartnerAuthView.tsx`, `SalonProfileView.tsx`, `ProfileDrawer.tsx`, `ProfessionalDashboardView.tsx`, `UserAppointmentsView.tsx`, `SemiCircleGauge.tsx`, `ServicesAndSuppliesForecast.tsx` e `server.ts`.
+  - **Zero Comentários (AST Sweep):** Removidos todos os **1.990 blocos de comentários** em 78 arquivos (`src/**/*.ts(x)`, `src/index.css`, `server.ts`, `vite.config.ts`, `index.html`, `public/sw.js`), preservando estritamente a diretiva de compilação `/// <reference types="vite/client" />` em `src/vite-env.d.ts`.
+- **Resumo Técnico:**
+  - Validação máxima estrita: `tsc --noEmit --noUnusedLocals --noUnusedParameters` aprovado com **0 erros**, **0 exports mortos**, **0 comentários**, **0 vestígios 3D/Firebase/ROTA99/Av. Paulista**.
+
+### [2026-11-21] — Operação Faxina & Emagrecimento Estrutural pré-Bootstrap v6.0 (`bol-207`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Refactor / Cleanup / Performance]`
+- **Motivo / Solicitação:** Varrimento completo do código-fonte antes da ativação do primeiro Super Admin no banco v6.0: eliminação de arquivos órfãos/fantasmas, migrações SQL pré-v6.0, documentações obsoletas, assets estáticos não utilizados, Base64 residual no bundle JS, SDK Firebase (migração 100% para Supabase Auth) e imports/variáveis sem uso.
+- **Arquivos Impactados:**
+  - **Excluídos (27 arquivos de código órfãos/Firebase):** 22 componentes/serviços/hooks inalcançáveis em `src/` (incluindo `SalonStudio3DView.tsx`, `components/modals/{Beneficiary,ConfirmIntent,Origin,Summary}Modal.tsx`, `components/steps/*`, `components/professional/dashboard/*`, `hooks/{useBookingFlow,useTransportCalculator}.ts`, `services/{booking,geocode,transport}Service*.ts`, `index.modular.ts`), `src/types/booking.ts`, `src/utils/salonLogos.ts`, `src/components/professional/GoogleWorkspaceHub.tsx`, `src/services/googleWorkspaceService.ts`, `firebase-applet-config.json`.
+  - **Excluídos (11 SQLs legados):** 9 migrações pré-v6.0 (`20261020_*` a `20261111_*`) e 2 SQLs soltos na raiz (`supabase_master_convergence_20261023.sql`, `supabase_security_questions.sql`). Mantidos apenas `supabase/migrations/20261121_vagou_v6_0_clean_reset.sql` e `supabase/schema.sql`.
+  - **Excluídos (5 `.md` obsoletos + `.gmp_cache/` + assets/lockfile):** `ADMVAPP_V6_SYNC_BLUEPRINT.md`, `PORTAL_EXPORT_INSTRUCTIONS.md`, `CLOUDFLARE_DEPLOY.md`, `DEV_MANUAL.md`, `USER_MANUAL.md`, `.gmp_cache/` (11 arquivos), `public/logo.png`, `public/logo_light.png`, `public/vagou-logo.png`, `public/assets/aistudio/`, `bun.lock`.
+  - **Refatorados & Enxugados:** `package.json` (remoção de `firebase`, `three`, `@types/three`, `cheerio`, `autoprefixer` + `npm prune`), `src/assets/editorialAuthSlides.ts` (substituição de 548 KB de Base64 inline por URLs estáticas `/assets/images/editorial_*.jpg`), `TriadeUserLoginForm.tsx`, `TriadeUserRegisterForm.tsx`, `SalonProfileView.tsx`, `UtilitiesAndToolsView.tsx`, `server.ts` e +15 componentes com 100% de imports/variáveis zumbis zerados (`tsc --noEmit --noUnusedLocals`).
+- **Resumo Técnico:**
+  - Autenticação consolidada 100% em **Supabase Auth** (Google OAuth via `supabase.auth.signInWithOAuth`, zero SDK Firebase).
+  - Bundle JS principal emagrecido sem Base64 inline, sem Three.js e sem Firebase; `node_modules` podado via `npm prune`; zero erros de `noUnusedLocals`.
+
+### [2026-11-21] — Hotfix SQL v6.0: Compatibilidade `storage.protect_delete()` & Schema `extensions` (`bol-206`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / Database]`
+- **Motivo / Solicitação:** Ao executar o reset v6.0 no Supabase Studio, o PostgreSQL bloqueou o `DELETE FROM storage.objects` com `ERROR 42501: Direct deletion from storage tables is not allowed` (trigger nativa `storage.protect_delete()`).
+- **Arquivos Impactados:**
+  - `supabase/migrations/20261121_vagou_v6_0_clean_reset.sql` & `supabase/schema.sql`
+  - `TRIADE_V6_SYNC_MASTER.md`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Removido `DELETE FROM storage.objects` do reset inicial e do trigger `fn_cleanup_storage_orphan_on_media_delete()` (que agora apenas enfileira órfãos em `public.storage_cleanup_queue` com `status = 'pending'` para expurgo oficial via Supabase Storage API em `/api/storage/cleanup`).
+  - Movida a criação das extensões (`pgcrypto`, `uuid-ossp`, `pg_trgm`) para o schema `extensions` após o `DROP SCHEMA public CASCADE`.
+  - Adicionado `extensions` ao `SET search_path` das RPCs `bootstrap_initial_super_admin` e `verify_admin_login` para garantir resolução de `crypt()` e `gen_salt()`.
+  - Criado o manual unificado `TRIADE_V6_SYNC_MASTER.md` contendo o checklist completo de adaptação para `admvapp` e `pvapp`, variáveis `.env` e o SQL v6.0 integral já aplicado em produção.
+
+### [2026-11-21] — Reconstrução Cirúrgica Supabase v6.0: Storage Binário (Zero Base64), Triggers, Web Push VAPID & Realtime Unificado (`bol-205`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Architecture / Database / Security / Sync]`
+- **Motivo / Solicitação:** Após auditoria completa dos repositórios `admvapp` e `mnvapp`, foi solicitada a reconstrução limpa do banco Supabase do zero com schema normalizado sem tabelas espelho, bloqueio rigoroso de imagens em Base64 (armazenamento binário no Supabase Storage + `media_assets`), Web Push nativo (VAPID + Service Worker + fila por Trigger), Supabase Auth JWT com RLS estrito por tenant e sincronia total em Realtime entre a Tríade.
+- **Arquivos Impactados:**
+  - `supabase/migrations/20261121_vagou_v6_0_clean_reset.sql` & `supabase/schema.sql`
+  - `server.ts`
+  - `public/sw.js`
+  - `.env.example`
+  - `src/utils/imageCompressor.ts`
+  - `src/services/mediaUploadService.ts`
+  - `src/services/webPushService.ts`
+  - `src/services/realtimeHub.ts`
+  - `src/services/mnvSupabaseSync.ts`
+  - `src/lib/supabase.ts`
+  - `src/App.tsx`
+  - `src/components/UserDashboard.tsx`
+  - `src/components/ProfileDrawer.tsx`
+  - `src/components/SalonClientAuthModal.tsx`
+  - `src/components/PartnerOnboardingModal.tsx`
+  - `src/components/auth/TriadeUserLoginForm.tsx`
+  - `src/components/auth/TriadeUserRegisterForm.tsx`
+  - `src/components/professional/TeamManager.tsx`
+  - `src/components/professional/ProfessionalServicesManager.tsx`
+  - `src/components/professional/SalonDesignStudioView.tsx`
+  - `ECOSYSTEM_CONTRACT.md`, `ADMVAPP_V6_SYNC_BLUEPRINT.md`, `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Criado script mestre destrutivo + reconstrução limpa `v6.0` (23 tabelas normalizadas, eliminando `salon_services`, `client_family_members`, `platform_admins`, `salon_users` e `salon_media_items`; preservando `service_offers` e `get_offers_in_radius` para o `pvapp`).
+  - Adicionadas constraints `CHECK (public.is_valid_media_url(...))` bloqueando qualquer string `data:` Base64 no Postgres, 4 buckets Storage (`avatars`, `branding`, `services`, `salon-media`), tabela `media_assets` e trigger `trg_cleanup_storage_orphans` + `storage_cleanup_queue`.
+  - Implementadas todas as 4 suítes de automação Postgres: auditoria/CRM/caixa (`trg_sync_appointment_crm_cashflow`) + anti-colisão geotemporal (`trg_prevent_inter_salon_collision`), propagação automática por CPF (`trg_propagate_cpf_identity`), publicação unificada `supabase_realtime` com `REPLICA IDENTITY FULL` e fila transacional `notification_outbox` (`trg_enqueue_appointment_push`).
+  - Implementado pipeline 100% binário (`compressImageToBlob` + `mediaUploadService` + `POST /api/media/upload` com `multer` + `sharp`), eliminando 100% dos uploads Base64 nos componentes e removendo a exposição de `VITE_SUPABASE_SERVICE_ROLE_KEY` no frontend.
+  - Implementado Web Push nativo (`public/sw.js` `vagou-cache-v12`, `webPushService.ts`, rotas `/api/push/*` com `web-push`) e hub unificado `realtimeHub.ts`.
+  - Seed mínimo pós-reset contendo apenas as 3 perguntas oficiais em `security_questions` e a RPC auto-travante `bootstrap_initial_super_admin` (mais endpoint `/api/admin/bootstrap`).
+
 ### [2026-11-19] — Remoção do Logotipo e Status em Ícone nas Abas Concluídos e Cancelados (`bol-204`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[UI / UX]`
 - **Motivo / Solicitação:** Usuário selecionou via Focus Mode o logotipo do salão e a badge de status nos cards das abas **Concluídos** e **Cancelados** (`UserAppointmentsView`) e solicitou remover o logotipo nessas duas abas e substituir as legendas **Concluído** / **Cancelado** apenas por ícones para ganhar espaço horizontal.

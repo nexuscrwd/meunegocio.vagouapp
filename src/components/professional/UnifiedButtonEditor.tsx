@@ -61,7 +61,6 @@ export const UnifiedButtonEditor: React.FC<UnifiedButtonEditorProps> = ({
         </span>
       </div>
 
-      {/* 1. Cor de Fundo dos Botões */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <label className="text-xs font-bold flex items-center gap-1.5">
@@ -119,7 +118,6 @@ export const UnifiedButtonEditor: React.FC<UnifiedButtonEditorProps> = ({
         </div>
       </div>
 
-      {/* 2. Borda dos Botões */}
       <div className={`space-y-1.5 pt-2 border-t ${isDark ? 'border-slate-800/70' : 'border-slate-200'}`}>
         <label className="text-xs font-bold block">Borda dos Botões</label>
         <div className="grid grid-cols-2 gap-2">
@@ -155,7 +153,6 @@ export const UnifiedButtonEditor: React.FC<UnifiedButtonEditorProps> = ({
         </div>
       </div>
 
-      {/* 3. Efeito de Sombra */}
       <div className={`space-y-1.5 pt-2 border-t ${isDark ? 'border-slate-800/70' : 'border-slate-200'}`}>
         <label className="text-xs font-bold block">Sombra</label>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -189,7 +186,6 @@ export const UnifiedButtonEditor: React.FC<UnifiedButtonEditorProps> = ({
         </div>
       </div>
 
-      {/* 4. Efeito de Blur */}
       <div className={`space-y-1.5 pt-2 border-t ${isDark ? 'border-slate-800/70' : 'border-slate-200'}`}>
         <label className="text-xs font-bold block">Desfoque Glass</label>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -223,7 +219,6 @@ export const UnifiedButtonEditor: React.FC<UnifiedButtonEditorProps> = ({
         </div>
       </div>
 
-      {/* 5. Fonte dos Botões */}
       <div className={`space-y-1.5 pt-2 border-t ${isDark ? 'border-slate-800/70' : 'border-slate-200'}`}>
         <label className="text-xs font-bold flex items-center gap-1.5">
           <Type className="w-3.5 h-3.5 brand-icon" />

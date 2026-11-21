@@ -1,15 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Zap, 
-  Plus, 
-  Trash2, 
-  Gauge, 
-  Calendar, 
-  DollarSign, 
+import React, { useState, useMemo } from 'react';
+import {
+  Zap,
+  Trash2,
+  Gauge,
   CheckCircle2,
   Sliders,
   Calculator,
-  ArrowRight,
   Info
 } from 'lucide-react';
 import { useTheme } from '../../../context/ThemeContext';
@@ -21,13 +17,13 @@ import { syncAllLocalUtilitiesToDatabase } from '../../../services/mnvSupabaseSy
 export const DEFAULT_ENERGY_TARIFF: EnergyTariffConfig = {
   concessionaria: 'Enel Distribuição São Paulo',
   uf: 'SP',
-  teRate: 0.342, // R$/kWh Geração
-  tusdRate: 0.448, // R$/kWh Distribuição
+  teRate: 0.342,
+  tusdRate: 0.448,
   flagType: 'Verde',
   flagRate: 0.0,
-  icmsPercent: 18, // 18% ICMS
-  pisCofinsPercent: 5.4, // 5.4% PIS/COFINS
-  cosipFixed: 32.5, // Iluminação Pública (R$)
+  icmsPercent: 18,
+  pisCofinsPercent: 5.4,
+  cosipFixed: 32.5,
 };
 
 const INITIAL_ENERGY_READINGS: EnergyReading[] = [];
@@ -35,16 +31,14 @@ const INITIAL_ENERGY_READINGS: EnergyReading[] = [];
 export const EnergyMeterManager: React.FC = () => {
   const { isDark } = useTheme();
 
-  // Sub-aba interna: 'leitura' | 'config'
   const [activeTab, setActiveTab] = useState<'leitura' | 'config'>('leitura');
 
-  // 1. Configuração Tarifária ANEEL
   const [tariff, setTariff] = useState<EnergyTariffConfig>(() => {
     try {
       const stored = localStorage.getItem('vagou_energy_tariff_config');
       if (stored) return JSON.parse(stored);
     } catch {
-      // ignore
+
     }
     return DEFAULT_ENERGY_TARIFF;
   });
@@ -61,22 +55,20 @@ export const EnergyMeterManager: React.FC = () => {
       localStorage.setItem('vagou_energy_tariff_config', JSON.stringify(updated));
       localStorage.setItem('vagou_energy_meters', JSON.stringify([updated]));
     } catch {
-      // ignore
+
     }
     syncAllLocalUtilitiesToDatabase();
     hapticSuccess();
   };
 
-  // Cálculo da Tarifa Efetiva ANEEL com tributos por dentro
   const effectiveKwhRate = useMemo(() => {
     const basePure = tariff.teRate + tariff.tusdRate + tariff.flagRate;
     const totalTaxPercent = (tariff.icmsPercent + tariff.pisCofinsPercent) / 100;
     if (totalTaxPercent >= 0.99) return basePure * 1.3;
-    // Cálculo tributário padrão brasileiro (ICMS e PIS/COFINS por dentro)
+
     return basePure / (1 - totalTaxPercent);
   }, [tariff]);
 
-  // 2. Histórico de Leituras do Relógio
   const [readings, setReadings] = useState<EnergyReading[]>(() => {
     try {
       const stored = localStorage.getItem('vagou_energy_meter_readings');
@@ -85,22 +77,19 @@ export const EnergyMeterManager: React.FC = () => {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {
-      // ignore
+
     }
     return INITIAL_ENERGY_READINGS;
   });
 
-  // Ordenar medições por data decrescente
   const sortedReadings = useMemo(() => {
     return [...readings].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [readings]);
 
   const latestReading = sortedReadings[0];
 
-  // 3. Simulador & Previsão da Conta com Medidor
   const [currentMeterInput, setCurrentMeterInput] = useState<string>('');
 
-  // Dias decorridos no ciclo calculados automaticamente a partir da última leitura ou dia do mês
   const autoDaysOfCycle = useMemo(() => {
     if (latestReading?.date) {
       const readDate = new Date(latestReading.date + 'T00:00:00');
@@ -113,7 +102,6 @@ export const EnergyMeterManager: React.FC = () => {
     return Math.max(1, Math.min(30, currentDayOfMonth));
   }, [latestReading?.date]);
 
-  // Cálculo da Previsão em Tempo Real
   const forecastData = useMemo(() => {
     const currentVal = parseFloat(currentMeterInput);
     if (!latestReading || isNaN(currentVal) || currentVal <= latestReading.meterReadingKwh) {
@@ -122,20 +110,18 @@ export const EnergyMeterManager: React.FC = () => {
 
     const consumedSoFar = currentVal - latestReading.meterReadingKwh;
     const validDays = Math.max(1, Math.min(30, autoDaysOfCycle));
-    // Projeção proporcional para ciclo de 30 dias
+
     const projectedKwhTotal = Math.round((consumedSoFar / validDays) * 30);
-    
-    // Cálculo dos componentes da conta
+
     const baseEnergyPure = projectedKwhTotal * tariff.teRate;
     const baseDistributionPure = projectedKwhTotal * tariff.tusdRate;
     const flagCost = projectedKwhTotal * tariff.flagRate;
     const pureSubtotal = baseEnergyPure + baseDistributionPure + flagCost;
-    
+
     const taxRate = (tariff.icmsPercent + tariff.pisCofinsPercent) / 100;
     const taxesAmount = taxRate < 0.99 ? (pureSubtotal / (1 - taxRate)) - pureSubtotal : pureSubtotal * taxRate;
     const totalProjectedBill = pureSubtotal + taxesAmount + tariff.cosipFixed;
 
-    // Custo acumulado até o momento
     const soFarSubtotal = consumedSoFar * (tariff.teRate + tariff.tusdRate + tariff.flagRate);
     const soFarTaxes = taxRate < 0.99 ? (soFarSubtotal / (1 - taxRate)) - soFarSubtotal : soFarSubtotal * taxRate;
     const totalSoFar = soFarSubtotal + soFarTaxes + (tariff.cosipFixed * (validDays / 30));
@@ -152,7 +138,6 @@ export const EnergyMeterManager: React.FC = () => {
     };
   }, [currentMeterInput, latestReading, autoDaysOfCycle, tariff]);
 
-  // Salvar Leitura do Simulador como Registro Oficial
   const handleSaveSimulatedReading = () => {
     if (!forecastData || !currentMeterInput) return;
     hapticSuccess();
@@ -172,7 +157,7 @@ export const EnergyMeterManager: React.FC = () => {
       localStorage.setItem('vagou_energy_meter_readings', JSON.stringify(updated));
       localStorage.setItem('vagou_energy_readings', JSON.stringify(updated));
     } catch {
-      // ignore
+
     }
     syncAllLocalUtilitiesToDatabase();
     setCurrentMeterInput('');
@@ -186,14 +171,14 @@ export const EnergyMeterManager: React.FC = () => {
       localStorage.setItem('vagou_energy_meter_readings', JSON.stringify(updated));
       localStorage.setItem('vagou_energy_readings', JSON.stringify(updated));
     } catch {
-      // ignore
+
     }
     syncAllLocalUtilitiesToDatabase();
   };
 
   return (
     <div className="space-y-3.5 animate-in fade-in duration-150">
-      {/* 1. SELETOR DE MODO / SUB-ABAS (Zero blablabla, ultra-sintético) */}
+
       <div className={`p-1 rounded border flex items-center gap-1 ${
         isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
@@ -230,12 +215,9 @@ export const EnergyMeterManager: React.FC = () => {
         </button>
       </div>
 
-      {/* ========================================================
-          ABA 1: MEDIDOR, SIMULAÇÃO E PREVISÃO DA CONTA NO FIM DO MÊS
-         ======================================================== */}
       {activeTab === 'leitura' && (
         <div className="space-y-3.5 animate-in fade-in duration-150">
-          {/* Card do Simulador / Previsão */}
+
           <div className={`p-4 rounded border space-y-3 ${
             isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
           }`}>
@@ -264,7 +246,6 @@ export const EnergyMeterManager: React.FC = () => {
               </div>
             </div>
 
-            {/* Input do Medidor */}
             <div className="pt-1">
               <div>
                 <label className="block text-[10px] font-bold uppercase mb-1 text-slate-500">
@@ -293,7 +274,6 @@ export const EnergyMeterManager: React.FC = () => {
               </div>
             </div>
 
-            {/* Resultado da Previsão Calculada */}
             {forecastData && (
               <div className={`p-3.5 rounded border space-y-2.5 animate-in slide-in-from-top-2 duration-200 ${
                 isDark ? 'bg-slate-950/70 border-amber-500/40' : 'bg-amber-50/70 border-amber-300'
@@ -328,7 +308,6 @@ export const EnergyMeterManager: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Memória de Cálculo ANEEL (Transparência Total) */}
                 <div className={`pt-2 border-t grid grid-cols-2 sm:grid-cols-4 gap-2 text-[9.5px] ${
                   isDark ? 'border-slate-800/80' : 'border-amber-200'
                 }`}>
@@ -353,7 +332,6 @@ export const EnergyMeterManager: React.FC = () => {
             )}
           </div>
 
-          {/* Histórico das Leituras Passadas */}
           <div className="space-y-2">
             <div className="flex items-center justify-between px-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
@@ -412,9 +390,6 @@ export const EnergyMeterManager: React.FC = () => {
         </div>
       )}
 
-      {/* ========================================================
-          ABA 2: PRÉ-CONFIGURAÇÃO DA TARIFA (COMPOSIÇÃO ANEEL)
-         ======================================================== */}
       {activeTab === 'config' && (
         <div className={`p-4 rounded border space-y-4 animate-in fade-in duration-150 ${
           isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
@@ -431,7 +406,6 @@ export const EnergyMeterManager: React.FC = () => {
             </p>
           </div>
 
-          {/* Seleção de Estado (UF) e Distribuidora ANEEL de todos os estados */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="block text-[10px] font-bold uppercase text-slate-500">
@@ -445,7 +419,7 @@ export const EnergyMeterManager: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {/* Dropdown de Estados */}
+
               <div>
                 <label className="block text-[9px] font-bold uppercase mb-1 text-slate-500">
                   Estado (UF)
@@ -480,7 +454,6 @@ export const EnergyMeterManager: React.FC = () => {
                 </select>
               </div>
 
-              {/* Dropdown de Distribuidora daquele Estado */}
               <div>
                 <label className="block text-[9px] font-bold uppercase mb-1 text-slate-500">
                   Concessionária Distribuidora
@@ -528,7 +501,6 @@ export const EnergyMeterManager: React.FC = () => {
             </div>
           </div>
 
-          {/* Campos Tarifários Manuais */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-bold uppercase mb-1 text-slate-500">
@@ -633,7 +605,6 @@ export const EnergyMeterManager: React.FC = () => {
             </div>
           </div>
 
-          {/* Resumo da Tarifa Efetiva Final */}
           <div className="p-3 rounded-[4px] brand-soft-badge border flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Info className="w-4 h-4 brand-icon shrink-0" />

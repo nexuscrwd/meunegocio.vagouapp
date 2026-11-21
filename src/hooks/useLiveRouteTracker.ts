@@ -4,7 +4,6 @@ import {
   LiveRouteCheckpoint,
   LiveAdversityReport,
   TransportMode,
-  LiveTrackingStatus,
 } from '../types';
 import { updateAppointmentLiveTrackingInDb } from '../lib/supabase';
 
@@ -19,31 +18,10 @@ export interface GoogleMapsRouteOption {
   streets: Array<{ street: string; distanceText: string }>;
 }
 
-const LEGACY_MOCK_STREETS = new Set([
-  'av. paulista',
-  'rua da consolação',
-  'rua da consolacao',
-  'av. rebouças',
-  'av. reboucas',
-  'rua oscar freire',
-  'alameda santos',
-  'av. brigadeiro luís antônio',
-  'av. brigadeiro luis antonio',
-  'av. brasil',
-  'rua augusta',
-]);
-
-/**
- * Detecta se a lista de checkpoints contém o antigo mock fixo (Av. Paulista / Consolação / Rebouças / Oscar Freire)
- * para substituí-lo automaticamente pelas vias reais calculadas pela rota.
- */
 export function isPlaceholderCheckpoints(
   checkpoints?: LiveRouteCheckpoint[] | null
 ): boolean {
-  if (!Array.isArray(checkpoints) || checkpoints.length === 0) return true;
-  const normalized = checkpoints.map((c) => String(c?.street || '').trim().toLowerCase());
-  const legacyMatches = normalized.filter((s) => LEGACY_MOCK_STREETS.has(s)).length;
-  return legacyMatches >= 2;
+  return !Array.isArray(checkpoints) || checkpoints.length === 0;
 }
 
 export const GOOGLE_MAPS_ROUTE_OPTIONS: GoogleMapsRouteOption[] = [
@@ -106,7 +84,6 @@ export function syncAppointmentAcrossStorageAndDb(
     last_location_update: patch.last_location_update || nowIso,
   };
 
-  // 1. Atualiza localStorage do Cliente (vagou_user_appointments)
   try {
     const rawUser = localStorage.getItem('vagou_user_appointments');
     if (rawUser) {
@@ -125,7 +102,6 @@ export function syncAppointmentAcrossStorageAndDb(
     }
   } catch {}
 
-  // 2. Atualiza localStorage do Profissional/Salão (vagou_professional_appointments)
   try {
     const rawPro = localStorage.getItem('vagou_professional_appointments');
     if (rawPro) {
@@ -144,7 +120,6 @@ export function syncAppointmentAcrossStorageAndDb(
     }
   } catch {}
 
-  // 3. Dispara evento global na janela para que Agenda do Salão e Visão do Cliente atualizem instantaneamente
   if (typeof window !== 'undefined') {
     window.dispatchEvent(
       new CustomEvent('vagou:appointments-updated', {
@@ -153,7 +128,6 @@ export function syncAppointmentAcrossStorageAndDb(
     );
   }
 
-  // 4. Sincroniza com Supabase em background
   const idOrProto = updatedApt.id || updatedApt.protocolCode;
   if (idOrProto) {
     updateAppointmentLiveTrackingInDb(idOrProto, patch).catch(() => {});
@@ -183,7 +157,6 @@ export function useLiveRouteTracker({
     appointment?.tracking_status === 'live_sharing' ||
     appointment?.tracking_status === 'arriving_5min';
 
-  // Atualiza telemetria real a cada ciclo de 10s usando coordenadas reais do navegador
   const advanceRouteStep = useCallback(
     (gpsCoords?: { lat: number; lng: number; speedMps?: number | null }) => {
       if (!appointment) return;
@@ -247,7 +220,6 @@ export function useLiveRouteTracker({
     [appointment, onUpdateAppointment]
   );
 
-  // Reportar adversidade de trânsito em 1 toque (+X min)
   const reportAdversity = useCallback(
     (type: 'traffic' | 'roadwork' | 'parking', label: string, addedMinutes: number) => {
       if (!appointment) return;
@@ -306,7 +278,6 @@ export function useLiveRouteTracker({
     [appointment, onUpdateAppointment]
   );
 
-  // Ciclo de 10 segundos (contagem regressiva visual de 10s a 1s + ping GPS real)
   useEffect(() => {
     if (!isLiveActive || !autoTickEnabled) {
       setSecondsUntilNextPing(10);

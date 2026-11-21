@@ -14,11 +14,6 @@ export interface ServicePublicAdPreviewProps {
   hasCustomMedia?: boolean;
 }
 
-/**
- * Componente de Pré-visualização em Alta Fidelidade do Anúncio
- * Reproduz com 100% de precisão o card de serviço exibido na seção pública do app e no Portal VagouApp.
- * Suporta modo preview quando ainda não possui mídia personalizada cadastrada.
- */
 export const ServicePublicAdPreview: React.FC<ServicePublicAdPreviewProps> = ({
   title,
   category,
@@ -31,8 +26,8 @@ export const ServicePublicAdPreview: React.FC<ServicePublicAdPreviewProps> = ({
   className = '',
   hasCustomMedia,
 }) => {
-  const isMediaPresent = hasCustomMedia !== undefined 
-    ? hasCustomMedia 
+  const isMediaPresent = hasCustomMedia !== undefined
+    ? hasCustomMedia
     : Boolean((photos && photos.length > 0) || image || videoUrl);
 
   const effectivePhotos = useMemo(() => {
@@ -43,7 +38,6 @@ export const ServicePublicAdPreview: React.FC<ServicePublicAdPreviewProps> = ({
 
   const [slideIdx, setSlideIdx] = useState(0);
 
-  // Ciclo rotativo de slides (2.6s por foto) com crossfade
   useEffect(() => {
     if (displayMode !== 'slideshow' || effectivePhotos.length <= 1) {
       setSlideIdx(0);
@@ -59,7 +53,7 @@ export const ServicePublicAdPreview: React.FC<ServicePublicAdPreviewProps> = ({
     <div
       className={`relative overflow-hidden rounded-lg bg-slate-950 border border-slate-800 shadow-xl select-none ${className}`}
     >
-      {/* 1. Mídia de Fundo do Anúncio */}
+
       {isMediaPresent && displayMode === 'video' && videoUrl ? (
         <video
           key={videoUrl}
@@ -84,7 +78,6 @@ export const ServicePublicAdPreview: React.FC<ServicePublicAdPreviewProps> = ({
             />
           ))}
 
-          {/* Micro-pontos indicadores do Slide na base */}
           <div className="absolute bottom-11 right-2.5 z-10 flex items-center gap-1 pointer-events-none">
             {effectivePhotos.map((_, i) => (
               <span
@@ -106,7 +99,7 @@ export const ServicePublicAdPreview: React.FC<ServicePublicAdPreviewProps> = ({
           referrerPolicy="no-referrer"
         />
       ) : (
-        /* Fallback elegante sem mídia: gradiente escuro e ícone temático */
+
         <div className="w-full h-full bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 flex flex-col items-center justify-center p-4 text-center">
           <div className="w-12 h-12 rounded-full brand-soft-badge border flex items-center justify-center mb-2">
             <Sparkles className="w-5 h-5 brand-icon" />
@@ -120,10 +113,8 @@ export const ServicePublicAdPreview: React.FC<ServicePublicAdPreviewProps> = ({
         </div>
       )}
 
-      {/* 2. Gradiente Cinematográfico Escuro para Contraste Superior */}
       <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/45 to-black/30 pointer-events-none" />
 
-      {/* 3. Topo do Card: Badge de Categoria */}
       <div className="absolute top-2 left-2 right-2 z-10 pointer-events-none flex items-center justify-between gap-1">
         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] bg-slate-950/85 backdrop-blur-md border border-white/15 text-white text-[9px] font-black uppercase tracking-wider shadow-sm">
           <span className="w-1.5 h-1.5 rounded-full brand-bar" />
@@ -131,7 +122,6 @@ export const ServicePublicAdPreview: React.FC<ServicePublicAdPreviewProps> = ({
         </span>
       </div>
 
-      {/* 4. Base do Card: Título, Preço e Duração */}
       <div className="absolute inset-x-0 bottom-0 p-2.5 sm:p-3 z-10 flex flex-col justify-end pointer-events-none">
         <h3 className="text-xs sm:text-[13px] font-bold text-white tracking-tight leading-tight line-clamp-1 font-['Poppins'] drop-shadow-sm">
           {title || 'Título do Procedimento'}

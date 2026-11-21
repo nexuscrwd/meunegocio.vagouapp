@@ -1,14 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  Building2, UserCheck, 
-  Save, Check, Search, Loader2, Sparkles, 
+import {
+  Building2, UserCheck,
+  Save, Check, Search, Loader2, Sparkles,
   ArrowLeft, AlertCircle, FileText,
   Tag
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
-import { 
-  SalonAdminSettings, 
-  SalonProfessionalItem 
+import {
+  SalonAdminSettings,
+  SalonProfessionalItem
 } from '../../types';
 import { hapticSuccess, hapticLight, hapticMedium } from '../../utils/haptics';
 import { getSectionHeaderStyleData } from '../../utils/sectionHeaderStyle';
@@ -35,7 +35,6 @@ const SALON_CATEGORIES = [
   'Multi-Serviços',
 ];
 
-// Validador Matemático Oficial de CPF (Receita Federal — Módulo 11)
 export function isValidCPF(cpf: string): boolean {
   const clean = cpf.replace(/\D/g, '');
   if (clean.length !== 11 || /^(\d)\1{10}$/.test(clean)) return false;
@@ -51,7 +50,6 @@ export function isValidCPF(cpf: string): boolean {
   return rev === parseInt(clean.charAt(10), 10);
 }
 
-// Validador Matemático Oficial de CNPJ (Receita Federal — Módulo 11)
 export function isValidCNPJ(cnpj: string): boolean {
   const clean = cnpj.replace(/\D/g, '');
   if (clean.length !== 14 || /^(\d)\1{13}$/.test(clean)) return false;
@@ -85,11 +83,9 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
 }) => {
   const { isDark } = useTheme();
 
-  // 1. INFORMAÇÕES COMERCIAIS
   const [salonName, setSalonName] = useState(adminSettings.salonName || '');
   const [category, setCategory] = useState(adminSettings.category || 'Barbearia');
 
-  // 2. FISCAL (Autônomo vs CNPJ + BrasilAPI + Responsável Legal CPF)
   const initialCnpjDigits = (adminSettings.cnpj || '').replace(/\D/g, '');
   const [hasCnpj, setHasCnpj] = useState<boolean>(initialCnpjDigits.length === 14);
   const [razaoSocial, setRazaoSocial] = useState(initialCnpjDigits.length === 14 ? (adminSettings.razaoSocial || '') : '');
@@ -126,7 +122,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     }
   }, [adminSettings]);
 
-  // Formatação em tempo real de CNPJ (XX.XXX.XXX/XXXX-XX)
   const handleCnpjChange = (value: string) => {
     const raw = value.replace(/\D/g, '').slice(0, 14);
     let formatted = raw;
@@ -138,7 +133,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     setCnpjFeedback(null);
   };
 
-  // Formatação em tempo real de CPF (XXX.XXX.XXX-XX)
   const handleCpfChange = (value: string) => {
     const raw = value.replace(/\D/g, '').slice(0, 11);
     let formatted = raw;
@@ -158,7 +152,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     }
   };
 
-  // Formatação em tempo real de Telefone / WhatsApp ((XX) 9XXXX-XXXX)
   const handlePhoneChange = (value: string) => {
     const raw = value.replace(/\D/g, '').slice(0, 11);
     let formatted = raw;
@@ -168,7 +161,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     setLegalManagerPhone(formatted);
   };
 
-  // Consulta Automatizada de CNPJ (BrasilAPI com Fallback para ReceitaWS)
   const handleSearchCnpj = async () => {
     const cleanCnpj = cnpj.replace(/\D/g, '');
     if (cleanCnpj.length !== 14) {
@@ -186,7 +178,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     hapticLight();
 
     try {
-      // 1ª Tentativa: BrasilAPI (sem autenticação, rápida)
+
       const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
       if (res.ok) {
         const data = await res.json();
@@ -219,7 +211,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
         return;
       }
 
-      // Fallback: ReceitaWS via JSONP / CORS proxy público
       const fallbackRes = await fetch(`https://minhareceita.org/${cleanCnpj}`);
       if (fallbackRes.ok) {
         const fallbackData = await fallbackRes.json();
@@ -253,7 +244,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     }
   };
 
-  // Salvar Dados do Negócio (Identificação Comercial e Fiscal)
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (isSaving) return;
@@ -312,8 +302,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     <div className={`w-full h-full flex flex-col justify-between overflow-y-auto no-scrollbar ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
-      {/* Barra de Topo Fixa */}
-      <div 
+
+      <div
         className={`${sectionHeaderStyleData.containerClass} flex-col gap-2`}
         style={sectionHeaderStyleData.containerStyle}
       >
@@ -349,11 +339,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
         </div>
       </div>
 
-      {/* Formulário Principal: Identificação Comercial & Fiscal */}
       <form onSubmit={handleSave} className="p-3.5 space-y-4 pb-24 flex-1">
-        {/* ============================================================== */}
-        {/* 1. INFORMAÇÕES (Identificação Comercial: Nome Fantasia & Categoria) */}
-        {/* ============================================================== */}
+
         <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
           isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
         }`}>
@@ -364,7 +351,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
             </h3>
           </div>
 
-          {/* Nome Fantasia & Categoria */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
@@ -377,8 +363,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                 onChange={(e) => setSalonName(e.target.value)}
                 placeholder="Ex: Studio Elegance"
                 className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                  isDark
+                    ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]'
                     : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[var(--brand-primary)]'
                 }`}
               />
@@ -393,8 +379,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition appearance-none cursor-pointer ${
-                    isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]'
                       : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[var(--brand-primary)]'
                   }`}
                 >
@@ -410,9 +396,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
           </div>
         </div>
 
-        {/* ============================================================== */}
-        {/* 2. DADOS FISCAIS & TRIBUTÁRIOS (Autônomo vs CNPJ + Titular) */}
-        {/* ============================================================== */}
         <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
           isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
         }`}>
@@ -428,7 +411,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
             </span>
           </div>
 
-          {/* Seletor: Possui CNPJ ou Atua como Autônomo (CPF) */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
               Enquadramento Tributário
@@ -474,7 +456,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
             </div>
           </div>
 
-          {/* Bloco Dinâmico: CNPJ com Busca Automatizada */}
           {hasCnpj && (
             <div className="space-y-3 pt-1">
               <div>
@@ -489,8 +470,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                     placeholder="00.000.000/0000-00"
                     maxLength={18}
                     className={`flex-1 px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
-                      isDark 
-                        ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                      isDark
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]'
                         : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[var(--brand-primary)]'
                     }`}
                   />
@@ -534,8 +515,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                   onChange={(e) => setRazaoSocial(e.target.value)}
                   placeholder="Nome empresarial na Receita Federal"
                   className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
-                    isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]'
                       : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[var(--brand-primary)]'
                   }`}
                 />
@@ -543,7 +524,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
             </div>
           )}
 
-          {/* Dados do Responsável Legal / Titular do Negócio */}
           <div className={`pt-2 border-t space-y-3 ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
               Responsável Legal / Titular
@@ -560,8 +540,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                   onChange={(e) => setLegalManagerName(e.target.value)}
                   placeholder="Nome civil do proprietário"
                   className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
-                    isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]'
                       : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[var(--brand-primary)]'
                   }`}
                 />
@@ -580,8 +560,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                   className={`w-full px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
                     cpfError
                       ? 'border-rose-500 bg-rose-500/10 text-white'
-                      : isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                      : isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]'
                       : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[var(--brand-primary)]'
                   }`}
                 />
@@ -606,8 +586,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                   placeholder="(11) 98765-4321"
                   maxLength={15}
                   className={`w-full px-3 py-2 rounded-[4px] border text-xs font-mono outline-hidden transition ${
-                    isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]'
                       : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[var(--brand-primary)]'
                   }`}
                 />
@@ -623,8 +603,8 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
                   onChange={(e) => setLegalManagerEmail(e.target.value)}
                   placeholder="seu.email@exemplo.com"
                   className={`w-full px-3 py-2 rounded-[4px] border text-xs outline-hidden transition ${
-                    isDark 
-                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]' 
+                    isDark
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-[var(--brand-primary)]'
                       : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[var(--brand-primary)]'
                   }`}
                 />
@@ -634,7 +614,6 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
         </div>
       </form>
 
-      {/* RODAPÉ FIXO DE AÇÃO */}
       <div className={`p-3 border-t shrink-0 sticky bottom-0 z-20 space-y-2 ${
         isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
       }`}>

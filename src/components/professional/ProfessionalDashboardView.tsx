@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { 
+import {
   Clock, CalendarCheck, User, Zap, Check, Play, Pause, Plus, X,
   ArrowRightLeft, AlertCircle, ArrowLeft, Users, CheckCircle2,
   MessageCircle, Scissors, Navigation, MapPin, Lock
@@ -9,7 +9,7 @@ import { SalonAdminSettings, CatalogServiceItem, BookingAppointment, SalonProfes
 import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
 import { PixCheckoutModal } from './PixCheckoutModal';
 import { LiveTrackingDrawerModal } from '../live-tracking/LiveTrackingModal';
-import { resolveClientAvatarsMap, isValidAvatarUrlString, KNOWN_CLIENT_AVATARS_MAP } from '../../lib/supabase';
+import { resolveClientAvatarsMap, isValidAvatarUrlString } from '../../lib/supabase';
 
 const getAppointmentDurationMinutes = (app: BookingAppointment): number => {
   if (typeof app.durationMinutes === 'number' && app.durationMinutes > 0) {
@@ -51,8 +51,6 @@ export interface DashboardTeamMember {
   avatar?: string;
 }
 
-const DEFAULT_TEAM_MEMBERS: DashboardTeamMember[] = [];
-
 export interface ProfessionalDashboardViewProps {
   adminSettings?: SalonAdminSettings;
   onUpdateSettings?: (settings: Partial<SalonAdminSettings>) => void;
@@ -75,26 +73,15 @@ export interface ProfessionalDashboardViewProps {
 
 export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps> = ({
   adminSettings,
-  onUpdateSettings,
-  services = [],
   appointments = [],
   onUpdateAppointments,
   professionals = [],
-  onNavigateTab,
-  onOpenNewService,
-  onOpenNewAppointment,
-  onLogout,
   salonName = 'Meu Estabelecimento',
   currentUserName,
-  currentPersona = 'admin',
-  isProAdmin,
   activeProId,
-  onSelectActiveProId,
-  onRequestManage,
 }) => {
   const { isDark } = useTheme();
 
-  // Lista consolidada de membros da equipe com taxas de comissão
   const teamList = useMemo<DashboardTeamMember[]>(() => {
     try {
       const saved = localStorage.getItem('vagou_salon_team_members') || localStorage.getItem('vagou_team_members');
@@ -141,26 +128,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     return [];
   }, [professionals, currentUserName]);
 
-  // Papel do usuário logado: 'admin' (Dono) ou 'professional' (Colaborador)
-  const [userRole, setUserRole] = useState<'admin' | 'professional'>(() => {
-    try {
-      const saved = localStorage.getItem('vagou_dashboard_user_role');
-      if (saved === 'admin' || saved === 'professional') return saved;
-    } catch {}
-    return 'admin';
-  });
-
-  // Nome do profissional que está logado atualmente
-  const [loggedProfessionalName, setLoggedProfessionalName] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('vagou_dashboard_logged_pro_name');
-      if (saved) return saved;
-    } catch {}
-    return currentUserName || 'Profissional';
-  });
-
-  // Filtro ativo de visualização no Dashboard: 'all' (Todo o Salão) ou nome do profissional
-  const [selectedFilterPro, setSelectedFilterPro] = useState<string>(() => {
+  const [selectedFilterPro] = useState<string>(() => {
     try {
       const savedRole = localStorage.getItem('vagou_dashboard_user_role');
       const savedPro = localStorage.getItem('vagou_dashboard_selected_pro');
@@ -172,15 +140,10 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     return 'all';
   });
 
-  // Estados de Filtro para os Atendimentos do Painel
-  const [timeFilter, setTimeFilter] = useState<'proximo' | 'hoje' | 'semana' | 'mes'>('proximo');
-
-  // Mapa local de status do atendimento (Ex: 'EM ANDAMENTO' ou 'CONCLUÍDO')
   const [localAppointmentStatuses, setLocalAppointmentStatuses] = useState<Record<string, string>>({});
 
-  // Mapa reativo de avatares de clientes resolvidos (com inicialização síncrona imediata para celular)
   const [resolvedClientAvatars, setResolvedClientAvatars] = useState<Record<string, string>>(() => {
-    let initialMap: Record<string, string> = { ...KNOWN_CLIENT_AVATARS_MAP };
+    let initialMap: Record<string, string> = {};
     if (typeof window !== 'undefined') {
       try {
         const cached = localStorage.getItem('vagou_client_avatars_map');
@@ -266,30 +229,18 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       if (stripped && resolvedClientAvatars[stripped]) return resolvedClientAvatars[stripped];
       const firstName = rawName.split(' ')[0];
       if (firstName && resolvedClientAvatars[firstName]) return resolvedClientAvatars[firstName];
-      
-      // Match por chave contida no mapa
+
       for (const [key, url] of Object.entries(resolvedClientAvatars) as [string, string][]) {
         if (key.length >= 4 && (rawName.includes(key) || key.includes(rawName))) {
           return String(url);
         }
       }
 
-      if (KNOWN_CLIENT_AVATARS_MAP[rawName]) return KNOWN_CLIENT_AVATARS_MAP[rawName];
-      if (firstName && KNOWN_CLIENT_AVATARS_MAP[firstName]) return KNOWN_CLIENT_AVATARS_MAP[firstName];
     }
 
     return '';
   }, [resolvedClientAvatars]);
 
-  const handleUpdateAppointmentStatus = useCallback((appKey: string, newStatus: string) => {
-    hapticLight();
-    setLocalAppointmentStatuses((prev) => ({
-      ...prev,
-      [appKey]: newStatus,
-    }));
-  }, []);
-
-  // Função utilitária para verificar se um agendamento pertence ao profissional filtrado
   const matchesSelectedPro = useCallback((app: BookingAppointment) => {
     if (selectedFilterPro === 'all') return true;
     const appPro = (app.professionalName || app.professional || '').trim().toLowerCase();
@@ -298,135 +249,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     return appPro.includes(target) || target.includes(appPro);
   }, [selectedFilterPro]);
 
-  // Contagem para Badges das categorias no período selecionado
-  const categoryCounts = React.useMemo(() => {
-    const counts = {
-      concluidos: 0,
-      confirmados: 0,
-      pendentes: 0,
-      cancelados: 0,
-    };
-
-    appointments.forEach((app) => {
-      // Filtragem por Profissional Ativo
-      if (!matchesSelectedPro(app)) return;
-
-      let appDate = new Date();
-      if (app.dateIso) {
-        appDate = new Date(app.dateIso + 'T00:00:00');
-      } else {
-        const match = app.dateTime?.match(/(\d{2})\/(\d{2})/);
-        if (match) {
-          const day = parseInt(match[1], 10);
-          const month = parseInt(match[2], 10) - 1;
-          const year = new Date().getFullYear();
-          appDate = new Date(year, month, day);
-        } else if (app.dayGroup === 'Hoje' || app.dateTime?.includes('Hoje')) {
-          appDate = new Date();
-        }
-      }
-
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-
-      let matchesTime = true;
-      if (timeFilter === 'hoje') {
-        matchesTime = appDate >= todayStart && appDate <= todayEnd;
-      } else if (timeFilter === 'proximo') {
-        matchesTime = appDate >= todayStart;
-      } else if (timeFilter === 'semana') {
-        const sunday = new Date(todayStart);
-        sunday.setDate(todayStart.getDate() - todayStart.getDay());
-        const saturday = new Date(sunday);
-        saturday.setDate(sunday.getDate() + 6);
-        saturday.setHours(23, 59, 59, 999);
-        matchesTime = appDate >= sunday && appDate <= saturday;
-      } else if (timeFilter === 'mes') {
-        matchesTime = appDate.getMonth() === now.getMonth() && appDate.getFullYear() === now.getFullYear();
-      }
-
-      if (matchesTime) {
-        const appKey = app.protocolCode || app.id || `${app.time}-${app.clientName}`;
-        const st = (localAppointmentStatuses[appKey] || app.status || '').toUpperCase();
-        if (st === 'CONCLUÍDO' || st === 'CONCLUIDO') {
-          counts.concluidos++;
-        } else if (st === 'CONFIRMADO' || st === 'AGENDADO') {
-          counts.confirmados++;
-        } else if (st === 'PENDENTE' || st === 'ALTERADO') {
-          counts.pendentes++;
-        } else if (st === 'CANCELADO') {
-          counts.cancelados++;
-        }
-      }
-    });
-
-    return counts;
-  }, [appointments, timeFilter, matchesSelectedPro, localAppointmentStatuses]);
-
-  // Atendimento iniciado e em andamento no momento (se houver)
-  const inProgressAppointment = useMemo(() => {
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-
-    return appointments.find((app) => {
-      if (!matchesSelectedPro(app)) return false;
-      const appKey = app.protocolCode || app.id || `${app.time}-${app.clientName}`;
-      const effectiveStatus = localAppointmentStatuses[appKey] || app.status || '';
-      const st = effectiveStatus.toUpperCase();
-      if (!st.includes('ATEND') && !st.includes('INICI')) return false;
-
-      let appDate = new Date();
-      if (app.dateIso) {
-        appDate = new Date(app.dateIso + 'T00:00:00');
-      } else {
-        const match = app.dateTime?.match(/(\d{2})\/(\d{2})/);
-        if (match) {
-          const day = parseInt(match[1], 10);
-          const month = parseInt(match[2], 10) - 1;
-          const year = new Date().getFullYear();
-          appDate = new Date(year, month, day);
-        } else if (app.dayGroup === 'Hoje' || app.dateTime?.includes('Hoje')) {
-          appDate = new Date();
-        }
-      }
-      return appDate >= todayStart && appDate <= todayEnd;
-    }) || null;
-  }, [appointments, matchesSelectedPro, localAppointmentStatuses]);
-
-  // Próximo atendimento do dia para o profissional ativo (excluindo os já iniciados)
-  const nextAppointment = useMemo(() => {
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-
-    const upcoming = appointments.filter((app) => {
-      if (!matchesSelectedPro(app)) return false;
-      const appKey = app.protocolCode || app.id || `${app.time}-${app.clientName}`;
-      const effectiveStatus = localAppointmentStatuses[appKey] || app.status || '';
-      const st = effectiveStatus.toUpperCase();
-      if (st === 'CANCELADO' || st === 'CONCLUÍDO' || st === 'CONCLUIDO' || st.includes('ATEND') || st.includes('INICI')) return false;
-
-      let appDate = new Date();
-      if (app.dateIso) {
-        appDate = new Date(app.dateIso + 'T00:00:00');
-      } else {
-        const match = app.dateTime?.match(/(\d{2})\/(\d{2})/);
-        if (match) {
-          const day = parseInt(match[1], 10);
-          const month = parseInt(match[2], 10) - 1;
-          const year = new Date().getFullYear();
-          appDate = new Date(year, month, day);
-        }
-      }
-      return appDate >= todayStart && appDate <= todayEnd;
-    });
-
-    return upcoming.sort((a, b) => (a.time || '').localeCompare(b.time || ''))[0] || null;
-  }, [appointments, matchesSelectedPro, localAppointmentStatuses]);
-
-  // Ação de iniciar atendimento do próximo cliente
   const handleStartAppointment = useCallback((protocolCode?: string) => {
     if (!protocolCode) return;
     hapticSuccess();
@@ -449,10 +271,8 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     }
   }, [appointments, onUpdateAppointments]);
 
-  // Estado para o Checkout PIX Pós-Serviço
   const [pixCheckoutAppointment, setPixCheckoutAppointment] = useState<BookingAppointment | null>(null);
 
-  // Ação de finalizar atendimento em andamento e abrir o PixCheckoutModal
   const handleCompleteAppointment = useCallback((protocolCode?: string, targetApp?: BookingAppointment) => {
     if (!protocolCode) return;
     hapticSuccess();
@@ -484,7 +304,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     }
   }, [appointments, onUpdateAppointments]);
 
-  // Ação de confirmar atendimento diretamente pelo card
   const handleConfirmAppointment = useCallback((protocolCode?: string) => {
     if (!protocolCode) return;
     hapticSuccess();
@@ -507,7 +326,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     }
   }, [appointments, onUpdateAppointments]);
 
-  // Estados para o Modal Operacional de Atendimento (Iniciar, Pausar, Adicionar Mais Tempo, Concluir, Transferir)
   const [actionModalAppointment, setActionModalAppointment] = useState<BookingAppointment | null>(null);
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
   const [timeExtensionFeedback, setTimeExtensionFeedback] = useState<string | null>(null);
@@ -525,7 +343,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     );
   }, [appointments]);
 
-  // Fila ativa de hoje para o profissional ativo (excluindo concluídos e cancelados)
   const todayActiveAppointments = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -555,7 +372,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       return appDate >= todayStart && appDate <= todayEnd;
     });
 
-    // Ordenação: 1º em atendimento / pausado, depois por horário ascendente
     return activeList.sort((a, b) => {
       const keyA = a.protocolCode || a.id || `${a.time}-${a.clientName}`;
       const keyB = b.protocolCode || b.id || `${b.time}-${b.clientName}`;
@@ -571,7 +387,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     });
   }, [effectiveAppointments, matchesSelectedPro, localAppointmentStatuses]);
 
-  // Três slots de atendimento na fila prioritária
   const currentCardAppointment = useMemo(() => {
     const inProgress = todayActiveAppointments.find((a) => {
       const k = a.protocolCode || a.id || `${a.time}-${a.clientName}`;
@@ -615,13 +430,11 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     }) || null;
   }, [effectiveAppointments, todayActiveAppointments, matchesSelectedPro, localAppointmentStatuses, currentCardAppointment, nextCardAppointment]);
 
-  // Trava Operacional de Mitigação: O próximo atendimento não pode ser iniciado sem a conclusão ou definição do anterior
   const isModalBlockedByPrevious = useMemo(() => {
     if (!actionModalAppointment || !currentCardAppointment) return false;
     const modalKey = actionModalAppointment.protocolCode || actionModalAppointment.id || `${actionModalAppointment.time}-${actionModalAppointment.clientName}`;
     const firstKey = currentCardAppointment.protocolCode || currentCardAppointment.id || `${currentCardAppointment.time}-${currentCardAppointment.clientName}`;
 
-    // Se o agendamento no modal for o segundo (ou posterior ao primeiro), verifica se o primeiro ainda está ativo
     if (modalKey !== firstKey) {
       const firstStatus = (localAppointmentStatuses[firstKey] || currentCardAppointment.status || '').toUpperCase();
       const isFirstFinished = firstStatus.includes('CONCLU') || firstStatus.includes('CANCEL');
@@ -630,7 +443,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     return false;
   }, [actionModalAppointment, currentCardAppointment, localAppointmentStatuses]);
 
-  // Colegas da equipe disponíveis para transferência (excluindo o profissional atual)
   const availableColleaguesForTransfer = useMemo(() => {
     const currentProName = (activeProId || selectedFilterPro || currentUserName || '').trim().toLowerCase();
     const list = teamList.filter((m) => {
@@ -645,7 +457,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     return list;
   }, [teamList, activeProId, selectedFilterPro, currentUserName]);
 
-  // Abertura do Modal de Operações do Atendimento
   const handleOpenActionModal = useCallback((app: BookingAppointment) => {
     hapticLight();
     const appKey = app.protocolCode || app.id || `${app.time}-${app.clientName}`;
@@ -659,13 +470,11 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     setIsActionModalOpen(true);
   }, [localAppointmentStatuses]);
 
-  // Transferência / Repasse de Atendimento para outro profissional do mesmo estabelecimento (Apenas se NÃO iniciado)
   const handleTransferAppointment = useCallback((targetPro: DashboardTeamMember) => {
     if (!actionModalAppointment) return;
     const appKey = actionModalAppointment.protocolCode || actionModalAppointment.id || `${actionModalAppointment.time}-${actionModalAppointment.clientName}`;
     const effectiveStatus = (localAppointmentStatuses[appKey] || actionModalAppointment.status || '').toUpperCase();
-    
-    // Trava lógica estrita: atendimento já iniciado não pode ser transferido
+
     if (effectiveStatus.includes('ATEND') || effectiveStatus.includes('INICI')) {
       return;
     }
@@ -701,7 +510,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     }, 1200);
   }, [actionModalAppointment, appointments, onUpdateAppointments]);
 
-  // Ações do Modal de Atendimento: Iniciar / Retomar, Pausar, Adicionar Tempo, Concluir
   const handleStartFromModal = useCallback(() => {
     if (!actionModalAppointment || isModalBlockedByPrevious) return;
     const protocolCode = actionModalAppointment.protocolCode || actionModalAppointment.id;
@@ -744,12 +552,12 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     hapticLight();
     const currentDur = getAppointmentDurationMinutes(actionModalAppointment);
     const newDur = currentDur + additionalMinutes;
-    const newDurText = newDur >= 60 
+    const newDurText = newDur >= 60
       ? `${Math.floor(newDur / 60)}h${newDur % 60 > 0 ? (newDur % 60) + 'min' : ''}`
       : `${newDur} min`;
 
     const appKey = actionModalAppointment.protocolCode || actionModalAppointment.id || `${actionModalAppointment.time}-${actionModalAppointment.clientName}`;
-    
+
     const updatedApp: BookingAppointment = {
       ...actionModalAppointment,
       duration: newDurText,
@@ -864,12 +672,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       })()
     );
 
-    const isEnRoute = Boolean(
-      isLiveSharing ||
-      isEnRouteNoMap ||
-      isArrived
-    );
-
     const isBlockedOrPause = Boolean(
       app.isBlockedSlot ||
       (app.service || '').toLowerCase().includes('pausa') ||
@@ -894,7 +696,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
       ? `https://wa.me/55${cardClientPhone}?text=${encodeURIComponent(cardDefaultMsg)}`
       : `https://wa.me/?text=${encodeURIComponent(cardDefaultMsg)}`;
 
-    const cardId = cardType === 'atual' 
+    const cardId = cardType === 'atual'
       ? 'professional-current-appointment-card'
       : cardType === 'proximo'
         ? 'professional-next-appointment-card'
@@ -907,16 +709,16 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
         onClick={() => handleOpenActionModal(app)}
         title="Clique para abrir opções e ações do atendimento"
         className={`w-full rounded-[4px] select-none transition-all duration-200 overflow-hidden cursor-pointer ${
-          isDark 
+          isDark
             ? isProgress && cardType === 'atual'
-              ? 'bg-slate-900 border border-[var(--brand-primary)] ring-1 ring-[rgba(var(--brand-primary-rgb),0.4)]' 
-              : 'bg-slate-900 border border-slate-800' 
+              ? 'bg-slate-900 border border-[var(--brand-primary)] ring-1 ring-[rgba(var(--brand-primary-rgb),0.4)]'
+              : 'bg-slate-900 border border-slate-800'
             : isProgress && cardType === 'atual'
-              ? 'caixa-card ring-1 ring-[rgba(var(--brand-primary-rgb),0.4)]' 
+              ? 'caixa-card ring-1 ring-[rgba(var(--brand-primary-rgb),0.4)]'
               : 'caixa-card'
         }`}
       >
-        {/* 1. Parte Superior (EM CIMA): Identificação do Cliente + Status do Card + Ações Rápidas */}
+
         <div
           onClick={() => handleOpenActionModal(app)}
           title="Clique para abrir detalhes do atendimento"
@@ -928,7 +730,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
               : 'bg-[#F7F9FC] border-[#EDF2F7]'
           }`}
         >
-          {/* Cliente: Avatar/Ícone do Cliente em cima + Nome + Status */}
+
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <div
               className={`w-10 h-10 rounded shrink-0 flex items-center justify-center font-bold text-xs shadow-2xs overflow-hidden border ${
@@ -984,7 +786,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
               </h3>
 
               <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                {/* 1. Atendimento Atual: Estritamente exclusivo ("Em Atendimento", "No Local", "Atrasado", "Em Trajeto" ou "Aguardando") */}
+
                 {cardType === 'atual' && (
                   <>
                     {isProgress ? (
@@ -1026,7 +828,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                   </>
                 )}
 
-                {/* 2. Próximo Atendimento */}
                 {cardType === 'proximo' && (
                   <>
                     <span
@@ -1069,7 +870,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                   </>
                 )}
 
-                {/* 3. Confirmação de Atendimento (Legendas ultra-resumidas sem sobreposição) */}
                 {cardType === 'confirmacao' && (
                   <>
                     <span
@@ -1099,7 +899,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
             </div>
           </div>
 
-          {/* Botões de Ação Rápida sob condições de espera / atraso: Mensagem WhatsApp e Rastrear Trajeto */}
           {!isProgress && (
             <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
               <a
@@ -1161,10 +960,9 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
           )}
         </div>
 
-        {/* 2. Parte Inferior (ABAIXO DO CLIENTE): Descrição do Serviço + Horário */}
         <div className="p-3 flex items-center justify-between gap-3">
           <div className="flex flex-col gap-1 flex-1 min-w-0">
-            {/* Descrição do Serviço */}
+
             <p
               className={`text-xs font-bold truncate flex items-center gap-1.5 ${
                 isDark ? 'text-slate-200' : 'text-slate-800'
@@ -1174,7 +972,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
               <span className="truncate">{serviceText}</span>
             </p>
 
-            {/* Horário e Duração */}
             <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400">
               <Clock className="w-3 h-3 shrink-0 text-slate-400" />
               <span>
@@ -1190,7 +987,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
   const renderEmptyAppointmentCard = (cardType: 'atual' | 'proximo' | 'confirmacao') => {
     if (cardType === 'atual') {
       return (
-        <div 
+        <div
           id="professional-current-appointment-card-empty"
           style={{ minHeight: '65px' }}
           className={`p-3 rounded border flex flex-col items-center justify-center select-none w-full text-center ${
@@ -1210,7 +1007,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
 
     if (cardType === 'proximo') {
       return (
-        <div 
+        <div
           id="professional-next-appointment-card-empty"
           style={{ minHeight: '65px' }}
           className={`p-3 rounded border border-dashed flex flex-col items-center justify-center select-none w-full text-center ${
@@ -1227,7 +1024,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     }
 
     return (
-      <div 
+      <div
         id="professional-confirmation-appointment-card-empty"
         style={{ minHeight: '65px' }}
         className={`p-3 rounded-[4px] border border-dashed flex flex-col items-center justify-center select-none w-full text-center ${
@@ -1247,11 +1044,11 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
     <div className={`w-full h-full flex-1 min-h-0 flex flex-col overflow-y-auto no-scrollbar ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-[var(--brand-canvas-bg)] text-[#333E48]'
     }`}>
-      {/* 2. Conteúdo Rolável: Fila & Agenda seguido de Dashboard & Metas */}
+
       <div className="p-2.5 flex flex-col gap-3 flex-1">
-        {/* Bloco de Atendimentos Prioritários: Atual / Próximo e Confirmação */}
+
         <div className="space-y-2.5 pb-6">
-          {/* Título do Grupo de Atendimento */}
+
           <div className="flex items-center justify-between px-0.5 pt-0.5">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] dark:text-slate-400 flex items-center gap-1.5">
               <CalendarCheck className="w-3.5 h-3.5 brand-icon shrink-0" />
@@ -1259,21 +1056,18 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
             </span>
           </div>
 
-          {/* Card 1: Atendimento Atual (Na Cadeira / Em Atendimento) */}
           {currentCardAppointment ? (
             renderAppointmentCard(currentCardAppointment, 'atual')
           ) : (
             renderEmptyAppointmentCard('atual')
           )}
 
-          {/* Card 2: Próximo Atendimento (com status "A caminho: Sim" ou "Não") */}
           {nextCardAppointment ? (
             renderAppointmentCard(nextCardAppointment, 'proximo')
           ) : (
             renderEmptyAppointmentCard('proximo')
           )}
 
-          {/* Card 3: Confirmação de Atendimento */}
           {confirmationCardAppointment ? (
             renderAppointmentCard(confirmationCardAppointment, 'confirmacao')
           ) : (
@@ -1282,7 +1076,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
         </div>
       </div>
 
-      {/* Seção Operacional em Tela Inteira de Atendimento (Iniciar, Pausar, Adicionar Mais Tempo, Concluir) */}
       {isActionModalOpen && actionModalAppointment && (() => {
         const appKey = actionModalAppointment.protocolCode || actionModalAppointment.id || `${actionModalAppointment.time}-${actionModalAppointment.clientName}`;
         const effectiveStatus = (localAppointmentStatuses[appKey] || actionModalAppointment.status || '').toUpperCase();
@@ -1305,22 +1098,22 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
           : null;
 
         return (
-          <div 
+          <div
             id="professional-appointment-action-modal-overlay"
             className={`fixed inset-0 z-[9999] w-full max-w-[430px] mx-auto h-full flex flex-col overflow-hidden animate-in fade-in duration-150 select-none ${
               isDark ? 'bg-slate-950 text-white' : 'bg-[var(--brand-canvas-bg)] text-[#333E48]'
             }`}
           >
-            <div 
+            <div
               id="professional-appointment-action-modal"
               className={`w-full h-full flex flex-col justify-between overflow-y-auto no-scrollbar relative p-4 gap-4 ${
                 isDark ? 'bg-slate-950 text-white' : 'bg-[var(--brand-canvas-bg)] text-[#333E48]'
               }`}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Cabeçalho da Seção com Botão Voltar e Status */}
+
               <div className="flex items-center justify-between border-b pb-2.5 border-[#EDF2F7] dark:border-slate-800/80">
-                <button 
+                <button
                   type="button"
                   id="modal-close-action-button"
                   onClick={() => {
@@ -1358,7 +1151,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 </div>
               </div>
 
-              {/* Informações do Cliente e Serviço + Botão WhatsApp no Modal */}
               <div className={`p-3 flex items-center justify-between gap-3 ${isDark ? 'bg-slate-900 border border-slate-800 rounded-[4px]' : 'caixa-card'}`}>
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   {(() => {
@@ -1416,7 +1208,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 )}
               </div>
 
-              {/* Régua de Horários e Duração */}
               <div className={`grid grid-cols-3 gap-2 p-2.5 rounded border text-center ${
                 isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
               }`}>
@@ -1446,7 +1237,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 </div>
               </div>
 
-              {/* Feedback de Adição de Tempo */}
               {timeExtensionFeedback && (
                 <div className="p-2 rounded brand-soft-badge border text-xs font-bold text-center flex items-center justify-center gap-1.5 animate-in fade-in duration-150">
                   <Clock className="w-3.5 h-3.5 brand-icon shrink-0" />
@@ -1454,7 +1244,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 </div>
               )}
 
-              {/* Trava Operacional: Alerta se Cadeira Ocupada pelo atendimento anterior */}
               {isModalBlockedByPrevious && (
                 <div className="p-2.5 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-start gap-2 text-amber-300 text-xs animate-in fade-in duration-150">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
@@ -1467,7 +1256,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 </div>
               )}
 
-              {/* Feedback de Transferência Concluída */}
               {transferSuccessMessage && (
                 <div className="p-2.5 rounded-lg brand-soft-badge border font-bold text-xs flex items-center justify-center gap-2 text-center animate-in fade-in duration-150">
                   <Check className="w-4 h-4 brand-icon stroke-[2.5]" />
@@ -1475,7 +1263,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 </div>
               )}
 
-              {/* Seção Principal: Ações Operacionais OU Tela de Transferência para Colega */}
               {isTransferOpen ? (
                 <div className="flex flex-col gap-2.5 animate-in fade-in duration-150">
                   <div className="flex items-center justify-between border-b pb-1.5 border-slate-800">
@@ -1499,7 +1286,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
 
                   <div className="space-y-1.5 max-h-48 overflow-y-auto no-scrollbar pr-0.5">
                     {availableColleaguesForTransfer.map((colleague) => (
-                      <div 
+                      <div
                         key={colleague.id}
                         className={`flex items-center justify-between p-2 rounded-lg border transition ${
                           isDark ? 'bg-slate-950/60 border-slate-800 hover:border-slate-700' : 'bg-slate-50 border-slate-200 hover:border-slate-300'
@@ -1532,7 +1319,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {/* Ação 0: Confirmar Presença (se ainda não confirmado e não iniciado) */}
+
                   {!isProgress && !isModalConfirmed && (
                     <button
                       type="button"
@@ -1548,7 +1335,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     </button>
                   )}
 
-                  {/* Ação 1: Iniciar / Retomar Atendimento OU Pausar */}
                   {!isProgress ? (
                     <button
                       type="button"
@@ -1577,7 +1363,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     </button>
                   )}
 
-                  {/* Ação 2: Adicionar Mais Tempo (Estender) */}
                   <div className={`p-2.5 rounded-[4px] border flex flex-col gap-1.5 ${
                     isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-slate-50 border-slate-200'
                   }`}>
@@ -1607,7 +1392,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     </div>
                   </div>
 
-                  {/* Ação 3: Finalizar Serviço & Cobrar PIX */}
                   <button
                     type="button"
                     id="modal-btn-complete-appointment"
@@ -1618,7 +1402,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     <span>Finalizar Serviço</span>
                   </button>
 
-                  {/* Ação 4: Repassar / Transferir Atendimento para Colega do Estabelecimento (Apenas atendimentos NÃO iniciados) */}
                   {!isProgress && (
                     <button
                       type="button"
@@ -1628,8 +1411,8 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                         setIsTransferOpen(true);
                       }}
                       className={`w-full py-2 px-3 rounded border font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-98 ${
-                        isDark 
-                          ? 'border-blue-500/40 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 hover:text-white' 
+                        isDark
+                          ? 'border-blue-500/40 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 hover:text-white'
                           : 'border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700'
                       }`}
                     >
@@ -1638,7 +1421,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     </button>
                   )}
 
-                  {/* Ação 5: Cancelar Atendimento (Abre Modal de Justificativa) */}
                   <button
                     type="button"
                     id="modal-btn-open-cancel"
@@ -1659,7 +1441,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                 </div>
               )}
 
-              {/* Botão Secundário Fechar */}
               <div className="pt-1 text-center">
                 <button
                   type="button"
@@ -1677,7 +1458,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
               </div>
             </div>
 
-            {/* Modal de Justificativa de Cancelamento de Atendimento (Sobreposto ao Modal Operacional) */}
             {isCancelModalOpen && (
               <div
                 id="professional-cancel-justification-modal-overlay"
@@ -1694,7 +1474,7 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                   }`}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {/* Cabeçalho do Modal de Justificativa */}
+
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className={`w-8 h-8 rounded flex items-center justify-center shrink-0 ${
@@ -1726,7 +1506,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     </button>
                   </div>
 
-                  {/* Motivos Rápidos */}
                   <div className="space-y-1.5">
                     <span className={`text-[10px] font-bold uppercase tracking-wider block ${
                       isDark ? 'text-slate-400' : 'text-slate-500'
@@ -1764,7 +1543,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     </div>
                   </div>
 
-                  {/* Campo de Justificativa */}
                   <div className="space-y-1">
                     <label
                       htmlFor="cancel-justification-textarea"
@@ -1788,7 +1566,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
                     />
                   </div>
 
-                  {/* Ações Fixas do Modal de Justificativa */}
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <button
                       type="button"
@@ -1829,7 +1606,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
         );
       })()}
 
-      {/* Modal de Checkout PIX Pós-Serviço */}
       <PixCheckoutModal
         isOpen={Boolean(pixCheckoutAppointment)}
         onClose={() => setPixCheckoutAppointment(null)}
@@ -1865,7 +1641,6 @@ export const ProfessionalDashboardView: React.FC<ProfessionalDashboardViewProps>
         }}
       />
 
-      {/* Modal de Rastreamento em Tempo Real do Cliente */}
       {liveTrackingAppointment && (
         <LiveTrackingDrawerModal
           isOpen={Boolean(liveTrackingAppointment)}

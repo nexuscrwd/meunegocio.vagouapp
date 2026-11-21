@@ -1,11 +1,12 @@
 import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
+import multer from 'multer';
+import * as webpush from 'web-push';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -13,16 +14,69 @@ dotenv.config();
 const DEFAULT_SUPABASE_URL = 'https://xemenxdhuoekytyhmgyt.supabase.co';
 const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlbWVueGRodW9la3l0eWhtZ3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMDE2MzAsImV4cCI6MjEwNTc3NzYzMH0.P-q6bQspwuQNhub08hjWmsjLrugr3CVA1NIdznWJxuo';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ALLOWED_UPLOAD_BUCKETS = new Set(['avatars', 'branding', 'services', 'salon-media']);
+const ALLOWED_IMAGE_MIMES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/svg+xml',
+]);
+const ALLOWED_VIDEO_MIMES = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
+
+const isBase64DataUri = (value: unknown): boolean =>
+  typeof value === 'string' && /^\s*data:/i.test(value);
+
+const sanitizeNonBase64Url = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || isBase64DataUri(trimmed)) return null;
+  return /^https?:\/\//i.test(trimmed) || trimmed.startsWith('/') ? trimmed : null;
+};
+
 const getSupabaseServerClient = () => {
   const sUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL).trim();
-  const sKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY).trim();
+  const sKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY).trim();
   return createClient(sUrl, sKey, {
     auth: { persistSession: false },
   });
 };
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const verifySupabaseBearerUser = async (req: express.Request): Promise<{ userId: string; role: string } | null> => {
+  const authHeader = String(req.headers.authorization || '');
+  if (!authHeader.toLowerCase().startsWith('bearer ')) return null;
+  const token = authHeader.slice(7).trim();
+  if (!token) return null;
+  try {
+    const supabase = getSupabaseServerClient();
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data?.user) return null;
+    const role = String((data.user.app_metadata as any)?.role || 'client');
+    return { userId: data.user.id, role };
+  } catch {
+    return null;
+  }
+};
+
+const configureWebPushVapid = (): boolean => {
+  const pub = (process.env.VAPID_PUBLIC_KEY || '').trim();
+  const priv = (process.env.VAPID_PRIVATE_KEY || '').trim();
+  const subject = (process.env.VAPID_SUBJECT || 'mailto:suporte@vagouapp.com').trim();
+  if (!pub || !priv) return false;
+  try {
+    webpush.setVapidDetails(subject, pub, priv);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const uploadMemory = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+});
 
 async function startServer() {
   const app = express();
@@ -37,7 +91,6 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-  // Initialize Gemini AI (Server-Side Only with required User-Agent header)
   const apiKey = process.env.GEMINI_API_KEY;
   let ai: GoogleGenAI | null = null;
   if (apiKey) {
@@ -49,8 +102,7 @@ async function startServer() {
     });
   }
 
-  // Health check
-  app.get('/api/health', (req, res) => {
+  app.get('/api/health', (_req, res) => {
     res.json({
       status: 'ok',
       hasGeminiKey: !!apiKey,
@@ -61,7 +113,6 @@ async function startServer() {
   const getMapsApiKey = () =>
     (process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || '').trim();
 
-  // 1. Public config endpoint for Maps JS SDK initialization
   app.get('/api/maps/config', (_req, res) => {
     const mapsKey = getMapsApiKey();
     res.json({
@@ -70,7 +121,6 @@ async function startServer() {
     });
   });
 
-  // Helper: Encode array of {lat, lng} into standard Google Polyline (1e5 precision)
   const encodeGooglePolyline1e5 = (points: Array<{ lat: number; lng: number }>): string => {
     let lastLat = 0;
     let lastLng = 0;
@@ -99,7 +149,6 @@ async function startServer() {
     return result;
   };
 
-  // Helper: Decode Valhalla 1e6 polyline into {lat, lng} array
   const decodeValhallaPolyline1e6 = (encoded: string): Array<{ lat: number; lng: number }> => {
     const points: Array<{ lat: number; lng: number }> = [];
     let index = 0;
@@ -219,7 +268,6 @@ async function startServer() {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   };
 
-  // Helper: Geocode destination/origin address via Google Geocoding API -> Places API (New) -> Nominatim
   const resolveSmartCoordinates = async (
     lat: unknown,
     lng: unknown,
@@ -251,7 +299,6 @@ async function startServer() {
       return { lat: numLat, lng: numLng, placeId: options?.placeId };
     }
 
-    // Calibração específica para Base Policial / Marginal Rodovia Ayrton Senna em Guarulhos (sentido SP/Jacu-Pêssego)
     const lowerClean = cleanAddr.toLowerCase();
     if (
       lowerClean.includes('ayrton senna') &&
@@ -269,7 +316,6 @@ async function startServer() {
       Number.isFinite(options.biasLng) &&
       !isPlaceholderCoordPair(options.biasLat, options.biasLng);
 
-    // Camada 1A: Google Geocoding REST API com viewport bias regional
     if (options?.mapsKey) {
       try {
         const boundsParam = hasBias
@@ -300,7 +346,6 @@ async function startServer() {
         }
       } catch {}
 
-      // Camada 1B: Google Places API (New v1) Text Search
       try {
         const gHeaders: Record<string, string> = {
           'Content-Type': 'application/json',
@@ -348,7 +393,6 @@ async function startServer() {
       } catch {}
     }
 
-    // Camada 2: Nominatim OpenStreetMap com viewbox bias regional e sanitização de CEP/barras
     const strippedForNom = cleanAddr
       .replace(/\b(?:cep\s*)?\d{5}-?\d{3}\b/gi, '')
       .replace(/\s*\/\s*/g, ', ')
@@ -402,7 +446,6 @@ async function startServer() {
       } catch {}
     }
 
-    // Camada 3: BrasilAPI v2 se o endereço contiver CEP de 8 dígitos
     const cepMatch = cleanAddr.match(/\b(\d{5})-?(\d{3})\b/);
     if (cepMatch) {
       try {
@@ -424,7 +467,6 @@ async function startServer() {
     return { lat: numLat, lng: numLng };
   };
 
-  // 2. Routes API v2 — computeRoutes + /api/geo/route (5-Layer Real-Road Routing Cascade)
   app.post(['/api/maps/compute-route', '/api/geo/route'], async (req, res) => {
     const mapsKey = getMapsApiKey();
     const reqReferer = String(req.headers.referer || req.headers.origin || '');
@@ -475,7 +517,6 @@ async function startServer() {
       safeDestLng
     );
 
-    // Proteção Anti-Retorno no Destino: se o usuário já está no destino (<= 130m), não gera volta no quarteirão
     if (straightMeters <= 130) {
       const arrivalPoly = encodeGooglePolyline1e5([
         { lat: safeOriginLat, lng: safeOriginLng },
@@ -527,7 +568,6 @@ async function startServer() {
       ? String(travelMode).toUpperCase()
       : 'DRIVE';
 
-    // CAMADA 1: Google Routes API v2 com Calibração Anti-Pista-Contrária em Rodovias Duplas
     if (mapsKey) {
       try {
         const fieldMask = [
@@ -591,7 +631,7 @@ async function startServer() {
             (rt) => rt?.polyline?.encodedPolyline && Number(rt?.distanceMeters || 0) > 0
           );
           if (valid.length === 0) return null;
-          // Prefere a rota sem retorno longo inicial e com menor distância ponderada pelo tempo
+
           valid.sort((a, b) => {
             const distA = Number(a.distanceMeters || 999999);
             const distB = Number(b.distanceMeters || 999999);
@@ -605,9 +645,6 @@ async function startServer() {
         let bestData = await callGoogleComputeRoutes(safeOriginLat, safeOriginLng);
         let bestRoute = pickBestGoogleRoute(bestData?.routes);
 
-        // Calibração Automática de Canteiro Central / Pista Dupla:
-        // Se a origem caiu na pista contrária de uma rodovia (ex.: Rod. Ayrton Senna pista Oeste indo até Marginal Tietê para retornar,
-        // gerando > 1.6x a distância em linha reta e > 4 km de desvio extra), testa deslocamento lateral de ~28m para a pista sentido destino
         if (
           bestRoute &&
           (normalizedMode === 'DRIVE' || normalizedMode === 'TWO_WHEELER') &&
@@ -649,7 +686,6 @@ async function startServer() {
       } catch {}
     }
 
-    // CAMADA 2 & 3: Servidores OSRM Redundantes (FOSSGIS OpenStreetMap DE + Project OSRM Global)
     const osrmFossgisCluster =
       normalizedMode === 'WALK'
         ? 'routed-foot'
@@ -747,7 +783,6 @@ async function startServer() {
       } catch {}
     }
 
-    // CAMADA 4: Valhalla OpenStreetMap Routing Engine
     try {
       const valhallaCosting =
         normalizedMode === 'WALK'
@@ -850,14 +885,13 @@ async function startServer() {
       }
     } catch {}
 
-    // CAMADA 5: Malha Arterial Multi-Segmentada (Garantia Absoluta Zero Linha Reta mesmo sem internet externa)
     const dLat = safeDestLat - safeOriginLat;
     const dLng = safeDestLng - safeOriginLng;
     const segments = 28;
     const corridorPoints: Array<{ lat: number; lng: number }> = [];
     for (let i = 0; i <= segments; i++) {
       const t = i / segments;
-      // Curva suave simulando malha ortogonal/arterial urbana sem jamais gerar linha reta de 2 pontos
+
       const orthoWeight = Math.sin(t * Math.PI);
       const latOffset = dLng * 0.08 * orthoWeight * Math.cos(t * Math.PI * 2);
       const lngOffset = -dLat * 0.08 * orthoWeight * Math.sin(t * Math.PI * 2);
@@ -907,7 +941,6 @@ async function startServer() {
     });
   });
 
-  // 3. Routes API v2 — Simultaneous 5-Modal Route Matrix
   app.post('/api/maps/route-matrix', async (req, res) => {
     const mapsKey = getMapsApiKey();
     if (!mapsKey) {
@@ -987,7 +1020,6 @@ async function startServer() {
     }
   });
 
-  // 4. Places API (New v1) — Search Text & Address Autocomplete Suggestions
   app.post('/api/maps/places-search', async (req, res) => {
     const mapsKey = getMapsApiKey();
     if (!mapsKey) {
@@ -1057,7 +1089,6 @@ async function startServer() {
     }
   });
 
-  // 5. Roads API (nearestRoads) + Geocoding API (Reverse Geocode) for Live GPS Snap-to-Road
   app.get('/api/maps/snap-and-reverse', async (req, res) => {
     const mapsKey = getMapsApiKey();
     const reqReferer = String(req.headers.referer || req.headers.origin || '');
@@ -1076,7 +1107,6 @@ async function startServer() {
       };
       if (reqReferer) gHeaders['Referer'] = reqReferer;
 
-      // Step A: Snap to nearest road via Roads API (apenas se o deslocamento for <= 11m para não pular canteiro central de rodovia)
       if (mapsKey) {
         try {
           const roadsRes = await fetch(
@@ -1106,7 +1136,6 @@ async function startServer() {
         } catch {}
       }
 
-      // Step B: Reverse Geocode coordinate to get street/POI name (Camada 1: Google Geocoding API)
       let streetName = '';
       let formattedAddress = '';
       if (mapsKey) {
@@ -1143,7 +1172,6 @@ async function startServer() {
         } catch {}
       }
 
-      // Step C: Fallback Reverse Geocode via Nominatim OpenStreetMap
       if (!formattedAddress) {
         try {
           const nomRes = await fetch(
@@ -1199,7 +1227,6 @@ async function startServer() {
     }
   });
 
-  // 6. Geocodificação em 3 Camadas (/api/geo/geocode: Google Geocoding API com Referer ➔ Nominatim ➔ BrasilAPI v2)
   app.post('/api/geo/geocode', async (req, res) => {
     const mapsKey = getMapsApiKey();
     const {
@@ -1239,7 +1266,6 @@ async function startServer() {
       Number.isFinite(biasLng) &&
       !isPlaceholderCoordPair(biasLat, biasLng);
 
-    // Camada 1: Google Geocoding API (com cabeçalho Referer encaminhado + viewport bounds bias)
     if (mapsKey && fullQuery) {
       try {
         const headers: Record<string, string> = {
@@ -1273,7 +1299,6 @@ async function startServer() {
       } catch {}
     }
 
-    // Camada 2: Nominatim OpenStreetMap (com sanitização de CEP/barras e fallback rua + cidade)
     if (fullQuery) {
       const strippedNom = String(address || fullQuery)
         .replace(/\b(?:cep\s*)?\d{5}-?\d{3}\b/gi, '')
@@ -1336,7 +1361,6 @@ async function startServer() {
       }
     }
 
-    // Camada 3: BrasilAPI v2 (CEP com coordenadas)
     if (cleanCep.length === 8) {
       try {
         const brRes = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanCep}`);
@@ -1375,7 +1399,6 @@ async function startServer() {
     return res.status(404).json({ error: 'Não foi possível geocodificar o endereço informado' });
   });
 
-  // 7. Endpoint Seguro de Upload e Sincronização de Avatar de Usuário (Tríade Sync — Mobile Resilient)
   app.post('/api/user/avatar', async (req, res) => {
     try {
       const {
@@ -1400,69 +1423,89 @@ async function startServer() {
       const storedUserId = String(userId || '').trim();
 
       const supabase = getSupabaseServerClient();
-      let resolvedAvatarUrl = avatarData;
+      let resolvedAvatarUrl: string | null = null;
       let storagePublicUrl: string | null = null;
+      let uploadedStoragePath: string | null = null;
+      let uploadedBucket: string = 'avatars';
+      let uploadedMime = 'image/webp';
+      let uploadedBytes = 0;
 
-      // Se for DataURL Base64, tentar subir no Supabase Storage primeiro
       if (avatarData.startsWith('data:image/')) {
-        try {
-          const mimeMatch = avatarData.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
-          if (mimeMatch) {
-            const mimeType = mimeMatch[1];
-            const base64Content = mimeMatch[2];
-            const buffer = Buffer.from(base64Content, 'base64');
-            const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
-            const cleanIdentifier = (cleanEmail || cleanCpf || storedClientId || 'user').replace(/[^a-zA-Z0-9-_]/g, '_');
-            const fileName = `${cleanIdentifier}-${Date.now()}.${ext}`;
-
-            // Tentativa A: Bucket 'avatars'
-            try {
-              const { data: upData, error: upErr } = await supabase.storage
-                .from('avatars')
-                .upload(fileName, buffer, { contentType: mimeType, upsert: true });
-
-              if (!upErr && upData?.path) {
-                const { data: pubData } = supabase.storage.from('avatars').getPublicUrl(upData.path);
-                if (pubData?.publicUrl) {
-                  storagePublicUrl = pubData.publicUrl;
-                  resolvedAvatarUrl = pubData.publicUrl;
-                }
-              }
-            } catch (b1Err) {
-              console.warn('[Avatar Upload] Falha no bucket avatars:', b1Err);
-            }
-
-            // Tentativa B: Fallback Bucket 'salon-media' (pasta avatars)
-            if (!storagePublicUrl) {
-              try {
-                const fallbackPath = `avatars/${fileName}`;
-                const { data: upData2, error: upErr2 } = await supabase.storage
-                  .from('salon-media')
-                  .upload(fallbackPath, buffer, { contentType: mimeType, upsert: true });
-
-                if (!upErr2 && upData2?.path) {
-                  const { data: pubData2 } = supabase.storage.from('salon-media').getPublicUrl(upData2.path);
-                  if (pubData2?.publicUrl) {
-                    storagePublicUrl = pubData2.publicUrl;
-                    resolvedAvatarUrl = pubData2.publicUrl;
-                  }
-                }
-              } catch (b2Err) {
-                console.warn('[Avatar Upload] Falha no bucket salon-media:', b2Err);
-              }
-            }
-          }
-        } catch (storageErr) {
-          console.warn('[Avatar Upload] Erro ao converter buffer para storage:', storageErr);
+        const mimeMatch = avatarData.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+        if (!mimeMatch) {
+          return res.status(400).json({ error: 'Formato de imagem inválido.' });
         }
-      } else if (avatarData.startsWith('http://') || avatarData.startsWith('https://')) {
-        resolvedAvatarUrl = avatarData;
-        storagePublicUrl = avatarData;
+        const rawMime = mimeMatch[1].toLowerCase();
+        if (!ALLOWED_IMAGE_MIMES.has(rawMime)) {
+          return res.status(415).json({ error: 'Tipo de imagem não permitido.' });
+        }
+
+        const rawBuffer = Buffer.from(mimeMatch[2], 'base64');
+        let finalBuffer: Buffer = rawBuffer;
+        let finalExt = rawMime.includes('png') ? 'png' : rawMime.includes('svg') ? 'svg' : 'webp';
+        uploadedMime = rawMime === 'image/png' ? 'image/png' : rawMime === 'image/svg+xml' ? 'image/svg+xml' : 'image/webp';
+
+        if (rawMime !== 'image/svg+xml' && rawMime !== 'image/gif') {
+          try {
+            const pipeline = sharp(rawBuffer).rotate().resize(640, 640, { fit: 'inside', withoutEnlargement: true });
+            finalBuffer =
+              uploadedMime === 'image/png'
+                ? await pipeline.png({ compressionLevel: 8 }).toBuffer()
+                : await pipeline.webp({ quality: 84 }).toBuffer();
+          } catch {
+            finalBuffer = rawBuffer;
+          }
+        }
+        uploadedBytes = finalBuffer.length;
+
+        const cleanIdentifier = (storedUserId || storedClientId || cleanCpf || cleanEmail || 'user').replace(/[^a-zA-Z0-9-_]/g, '_');
+        const fileName = `user_avatar/${cleanIdentifier}-${Date.now()}.${finalExt}`;
+
+        const { data: upData, error: upErr } = await supabase.storage
+          .from('avatars')
+          .upload(fileName, finalBuffer, { contentType: uploadedMime, cacheControl: '31536000', upsert: false });
+
+        if (!upErr && upData?.path) {
+          const { data: pubData } = supabase.storage.from('avatars').getPublicUrl(upData.path);
+          if (pubData?.publicUrl) {
+            storagePublicUrl = pubData.publicUrl;
+            resolvedAvatarUrl = pubData.publicUrl;
+            uploadedStoragePath = upData.path;
+            uploadedBucket = 'avatars';
+          }
+        }
+
+        if (!storagePublicUrl) {
+          return res.status(422).json({
+            error: 'Falha ao enviar avatar binário para o Supabase Storage. Persistência Base64 no banco é bloqueada.',
+          });
+        }
+      } else {
+        const safeUrl = sanitizeNonBase64Url(avatarData);
+        if (!safeUrl) {
+          return res.status(400).json({ error: 'URL de avatar inválida ou Base64 não permitido.' });
+        }
+        resolvedAvatarUrl = safeUrl;
+        storagePublicUrl = safeUrl;
       }
 
       const nowIso = new Date().toISOString();
 
-      // 1. Atualizar tabela system_admins
+      if (uploadedStoragePath && storagePublicUrl) {
+        try {
+          await (supabase.from('media_assets' as any) as any).insert({
+            owner_type: 'user_avatar',
+            owner_id: UUID_REGEX.test(storedUserId) ? storedUserId : UUID_REGEX.test(storedClientId) ? storedClientId : null,
+            bucket: uploadedBucket,
+            storage_path: uploadedStoragePath,
+            public_url: storagePublicUrl,
+            mime_type: uploadedMime,
+            size_bytes: uploadedBytes,
+            title: cleanName ? `Avatar - ${cleanName}` : 'Avatar de Usuário',
+          });
+        } catch {}
+      }
+
       try {
         const adminPayload: Record<string, any> = {
           avatar_url: resolvedAvatarUrl,
@@ -1489,7 +1532,6 @@ async function startServer() {
         console.warn('Aviso: Erro ao atualizar system_admins:', err);
       }
 
-      // 2. Atualizar tabela clients
       try {
         const clientPayload: Record<string, any> = {
           avatar_url: resolvedAvatarUrl,
@@ -1533,7 +1575,6 @@ async function startServer() {
         console.warn('Aviso: Erro ao atualizar clients:', err);
       }
 
-      // 3. Atualizar tabela profiles
       try {
         const profilePayload: Record<string, any> = {
           avatar_url: resolvedAvatarUrl,
@@ -1554,7 +1595,6 @@ async function startServer() {
         console.warn('Aviso: Erro ao atualizar profiles:', err);
       }
 
-      // 4. Atualizar tabela professionals
       try {
         const proPayload: Record<string, any> = {
           avatar_url: resolvedAvatarUrl,
@@ -1584,97 +1624,6 @@ async function startServer() {
     }
   });
 
-  // AI Structure & Screen Analysis endpoint
-  app.post('/api/analyze-design', async (req, res) => {
-    try {
-      const { fileName, fileType, imageBase64, mimeType, additionalContext } = req.body;
-
-      if (!ai) {
-        return res.status(500).json({
-          error: 'GEMINI_API_KEY não configurada no servidor. Configure a chave no menu de segredos.',
-        });
-      }
-
-      const prompt = `Você é um Arquiteto de Software e Especialista em UI/UX e Design Systems.
-Analise detalhadamente o arquivo/tela fornecido (Arquivo: ${fileName || 'design/video/tela'}, Tipo: ${fileType || mimeType || 'design'}).
-${additionalContext ? `Contexto adicional do usuário: ${additionalContext}` : ''}
-
-Por favor, forneça uma análise estrutural e técnica completa em formato JSON estrito com o seguinte esquema:
-{
-  "title": "Título descritivo da tela ou fluxo",
-  "summary": "Resumo executivo da finalidade da tela/vídeo e arquitetura geral",
-  "screensIdentified": [
-    {
-      "name": "Nome da tela ou seção",
-      "description": "Explicação do papel desta tela no fluxo",
-      "keyElements": ["Lista de elementos principais, ex: header com busca, card de métricas, tabela paginada"],
-      "purpose": "Objetivo de negócio / interação do usuário"
-    }
-  ],
-  "informationArchitecture": {
-    "hierarchy": ["Nível 1: Header e Navegação", "Nível 2: Grid de Conteúdo Principal", "Nível 3: Modais e Gavetas"],
-    "userFlows": ["Passo a passo do fluxo que o usuário realiza nesta interface"]
-  },
-  "designTokens": {
-    "primaryColors": ["#hex ou nome da cor identificada/sugerida com descrição de uso"],
-    "typographyHints": ["Sugestões de fontes, pesos (Regular 400, Bold 700) e tamanhos"],
-    "layoutGrid": "Descrição da malha (ex: Grid responsivo de 12 colunas, espaçamentos p-4 / gap-6)"
-  },
-  "componentBlueprint": [
-    {
-      "component": "Nome do Componente React (ex: MetricsCard, FileFilterBar)",
-      "propsDescription": "Props sugeridas (ex: title, value, changePercentage, icon)",
-      "tailwindClassHints": "Classes Tailwind CSS sugeridas (ex: bg-white rounded-xl shadow-sm border border-slate-200 p-6)"
-    }
-  ],
-  "recommendations": [
-    "Boas práticas de acessibilidade, estados de carregamento, validações e responsividade"
-  ]
-}
-
-Responda APENAS com o JSON válido, sem blocos de código adicionais além do JSON.`;
-
-      const contents: any[] = [];
-
-      if (imageBase64 && (mimeType?.startsWith('image/') || mimeType === 'application/pdf')) {
-        contents.push({
-          inlineData: {
-            data: imageBase64,
-            mimeType: mimeType || 'image/png',
-          },
-        });
-      }
-
-      contents.push({ text: prompt });
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: contents,
-        config: {
-          responseMimeType: 'application/json',
-        },
-      });
-
-      const responseText = response.text || '{}';
-      let parsedData;
-      try {
-        parsedData = JSON.parse(responseText);
-      } catch (err) {
-        // clean possible markdown codeblocks if any
-        const cleaned = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-        parsedData = JSON.parse(cleaned);
-      }
-
-      return res.json({ success: true, analysis: parsedData });
-    } catch (error: any) {
-      console.error('Erro na análise com Gemini:', error);
-      return res.status(500).json({
-        error: error.message || 'Erro ao processar a análise com IA.',
-      });
-    }
-  });
-
-  // 8. Google Maps Grounding (gemini-3.8-flash + googleMaps tool + Places API New fallback)
   app.post('/api/grounding/maps', async (req, res) => {
     try {
       const {
@@ -1737,7 +1686,7 @@ Responda em português (pt-BR) de forma muito direta, sintetizada para celular (
           }
 
           if (response.text) {
-            // Se groundingChunks vier vazio, enriquecemos com Places API (New) para garantir links reais do Maps
+
             if (mapsSources.length === 0) {
               const mapsKey = getMapsApiKey();
               if (mapsKey) {
@@ -1790,7 +1739,6 @@ Responda em português (pt-BR) de forma muito direta, sintetizada para celular (
         }
       }
 
-      // Fallback direto via Google Places API (New) caso GEMINI_API_KEY não esteja ativa
       const mapsKey = getMapsApiKey();
       if (mapsKey) {
         const placesRes = await fetch('https://places.googleapis.com/v1/places:searchText', {
@@ -1841,7 +1789,6 @@ Responda em português (pt-BR) de forma muito direta, sintetizada para celular (
         }
       }
 
-      // Link direto oficial do Google Maps para a busca solicitada
       const directMapsUri = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
         `${cleanQuery} ${contextLocation}`
       )}`;
@@ -1863,7 +1810,6 @@ Responda em português (pt-BR) de forma muito direta, sintetizada para celular (
     }
   });
 
-  // 9. Google Search Grounding (gemini-3.8-flash + googleSearch tool)
   app.post('/api/grounding/search', async (req, res) => {
     try {
       const { query = '', salonName = '', category = 'beleza e barbearia', city = '' } = req.body || {};
@@ -1922,7 +1868,6 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
     }
   });
 
-  // 10. Hermes Agent RTLS Webhook Orchestrator (/api/webhooks/rtls)
   app.post('/api/webhooks/rtls', async (req, res) => {
     try {
       const payload = req.body || {};
@@ -1958,7 +1903,6 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
     }
   });
 
-  // 11. Waze Live Feed + OpenStreetMap Overpass Radar & Traffic Alerts (/api/traffic/route-alerts)
   app.post('/api/traffic/route-alerts', async (req, res) => {
     try {
       const { originLat, originLng, destLat, destLng } = req.body || {};
@@ -1997,7 +1941,6 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
         source: 'waze' | 'osm_overpass' | 'telemetry';
       }> = [];
 
-      // 1. Tenta buscar alertas em tempo real do feed GeoRSS do Waze Live Map na bounding box da rota
       try {
         const wazeUrl = `https://www.waze.com/live-map/api/georss?top=${maxLat}&bottom=${minLat}&left=${minLng}&right=${maxLng}&env=row&types=alerts,traffic`;
         const wazeRes = await fetch(wazeUrl, {
@@ -2052,7 +1995,6 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
         }
       } catch {}
 
-      // 2. Consulta OpenStreetMap Overpass API para radares fixos de velocidade (highway=speed_camera) e obras na rota
       try {
         const overpassQuery = `[out:json][timeout:3];(node["highway"="speed_camera"](${minLat},${minLng},${maxLat},${maxLng});way["highway"="construction"](${minLat},${minLng},${maxLat},${maxLng}););out center 8;`;
         const overpassRes = await fetch('https://overpass-api.de/api/interpreter', {
@@ -2098,7 +2040,6 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
         }
       } catch {}
 
-      // 3. Fallback determinístico baseado na geometria da rota quando a região não retornar nós externos imediatos
       if (alerts.length === 0) {
         const totalDist = Math.max(250, haversineMeters(oLat, oLng, dLat, dLng));
         alerts.push(
@@ -2143,9 +2084,6 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
     }
   });
 
-  // ============================================================================
-  // PWA WHITE-LABEL DINÂMICO (/manifest.json, /api/pwa/icon, Head HTML) & /api/salon/sync
-  // ============================================================================
   const RESERVED_PWA_SUBDOMAINS = new Set([
     'www', 'app', 'portal', 'adm', 'admin', 'meunegocio', 'api', 'vagouapp', 'dev', 'staging',
   ]);
@@ -2461,7 +2399,6 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
       const height = imgMeta.height || size;
       const isDedicatedSquare = Boolean(meta?.squareIcon) && Math.abs(width - height) <= Math.max(width, height) * 0.15;
 
-      // Para logos largas/retangulares (ex: AVELLI) ou propósito maskable: centraliza com margem de segurança em quadrado sólido
       const paddingFactor = purpose === 'maskable' ? 0.72 : (isDedicatedSquare ? 1.0 : 0.80);
       const targetInner = Math.max(32, Math.round(size * paddingFactor));
 
@@ -2548,7 +2485,6 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
       .replace(/<meta\s+property="og:image"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:image" content="${icon512}" />`);
   };
 
-  // Endpoint proxy privilegiado para gravações do Painel Profissional com fallback resiliente a RLS e drift de colunas
   app.post('/api/salon/sync', async (req, res) => {
     try {
       const { action, salonId, payload } = req.body || {};
@@ -2798,24 +2734,32 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
 
         const rowsToUpsert = services
           .filter((s: any) => uuidRegex.test(s.id))
-          .map((s: any) => ({
-            id: s.id,
-            salon_id: salonId,
-            name: s.title || 'Serviço',
-            title: s.title || 'Serviço',
-            category: s.category || 'Beleza',
-            price: Number(s.price) || 0,
-            duration_minutes: parseDurationToMinutesServer(s.duration_minutes ?? s.duration, 40),
-            description: s.description || '',
-            image_url: s.image || null,
-            photos: Array.isArray(s.photos) ? s.photos : (s.image ? [s.image] : []),
-            media_type: s.mediaType || 'image',
-            video_url: s.videoUrl || null,
-            video_duration_seconds: s.videoDurationSeconds || 0,
-            display_mode: s.displayMode || 'static',
-            aspect_ratio: s.aspectRatio || '1:1',
-            is_active: true,
-          }));
+          .map((s: any) => {
+            const safeImg = sanitizeNonBase64Url(s.image);
+            const safePhotos = Array.isArray(s.photos)
+              ? s.photos.map((p: unknown) => sanitizeNonBase64Url(p)).filter(Boolean)
+              : safeImg
+              ? [safeImg]
+              : [];
+            return {
+              id: s.id,
+              salon_id: salonId,
+              name: s.title || 'Serviço',
+              title: s.title || 'Serviço',
+              category: s.category || 'Beleza',
+              price: Number(s.price) || 0,
+              duration_minutes: parseDurationToMinutesServer(s.duration_minutes ?? s.duration, 40),
+              description: s.description || '',
+              image_url: safeImg || (safePhotos[0] ?? null),
+              photos: safePhotos,
+              media_type: s.mediaType || 'image',
+              video_url: sanitizeNonBase64Url(s.videoUrl),
+              video_duration_seconds: s.videoDurationSeconds || 0,
+              display_mode: s.displayMode || 'static',
+              aspect_ratio: s.aspectRatio || '1:1',
+              is_active: true,
+            };
+          });
 
         let srvErrorMsg: string | null = null;
         if (rowsToUpsert.length > 0) {
@@ -2904,7 +2848,7 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
             name: p.name || 'Profissional',
             role: p.role || 'Profissional',
             access_level: p.accessType || p.systemRole || 'professional',
-            avatar_url: p.avatar || p.avatarUrl || null,
+            avatar_url: sanitizeNonBase64Url(p.avatar || p.avatarUrl),
             phone: p.phone || null,
             email: p.email || null,
             specialties: Array.isArray(p.specialties) ? p.specialties : [],
@@ -2954,10 +2898,474 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
     }
   });
 
-  // Vite middleware for development
+  app.post('/api/media/upload', uploadMemory.single('file'), async (req, res) => {
+    try {
+      const file = req.file;
+      if (!file || !file.buffer?.length) {
+        return res.status(400).json({ error: 'Nenhum arquivo binário enviado.' });
+      }
+
+      const rawMime = (file.mimetype || '').toLowerCase();
+      const isImage = ALLOWED_IMAGE_MIMES.has(rawMime);
+      const isVideo = ALLOWED_VIDEO_MIMES.has(rawMime);
+      if (!isImage && !isVideo) {
+        return res.status(415).json({ error: 'Tipo de arquivo não suportado.' });
+      }
+
+      const requestedBucket = String(req.body?.bucket || 'salon-media').trim().toLowerCase();
+      const bucket = ALLOWED_UPLOAD_BUCKETS.has(requestedBucket) ? requestedBucket : 'salon-media';
+      const ownerType = String(req.body?.ownerType || 'salon_gallery')
+        .trim()
+        .replace(/[^a-z0-9_]/gi, '_')
+        .slice(0, 64);
+      const ownerIdRaw = String(req.body?.ownerId || '').trim();
+      const salonIdRaw = String(req.body?.salonId || '').trim();
+      const title = String(req.body?.title || file.originalname || '').trim().slice(0, 160);
+      const isCover = String(req.body?.isCover || '').toLowerCase() === 'true';
+
+      const authUser = await verifySupabaseBearerUser(req);
+      let finalBuffer: Buffer = file.buffer;
+      let finalMime = rawMime;
+      let finalExt = 'webp';
+      let width: number | null = null;
+      let height: number | null = null;
+
+      if (isImage) {
+        if (rawMime === 'image/svg+xml') {
+          finalExt = 'svg';
+        } else if (rawMime === 'image/gif') {
+          finalExt = 'gif';
+        } else {
+          const maxDim = bucket === 'avatars' ? 640 : bucket === 'branding' ? 1280 : 1440;
+          const keepPng = rawMime === 'image/png';
+          try {
+            const imgSharp = sharp(file.buffer).rotate().resize(maxDim, maxDim, {
+              fit: 'inside',
+              withoutEnlargement: true,
+            });
+            const output = keepPng
+              ? await imgSharp.png({ compressionLevel: 8 }).toBuffer({ resolveWithObject: true })
+              : await imgSharp.webp({ quality: 84 }).toBuffer({ resolveWithObject: true });
+            finalBuffer = output.data;
+            width = output.info.width ?? null;
+            height = output.info.height ?? null;
+            finalMime = keepPng ? 'image/png' : 'image/webp';
+            finalExt = keepPng ? 'png' : 'webp';
+          } catch {
+            finalExt = rawMime.includes('png') ? 'png' : 'jpg';
+          }
+        }
+      } else {
+        finalExt = rawMime.includes('webm') ? 'webm' : 'mp4';
+      }
+
+      const scopeKey = (salonIdRaw || ownerIdRaw || authUser?.userId || 'shared').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const randomToken = Math.random().toString(36).slice(2, 10);
+      const storagePath = `${ownerType}/${scopeKey}/${Date.now()}-${randomToken}.${finalExt}`;
+
+      const supabase = getSupabaseServerClient();
+      const { data: upData, error: upErr } = await supabase.storage
+        .from(bucket)
+        .upload(storagePath, finalBuffer, {
+          contentType: finalMime,
+          cacheControl: '31536000',
+          upsert: false,
+        });
+
+      if (upErr || !upData?.path) {
+        return res.status(502).json({
+          error: upErr?.message || 'Falha ao gravar arquivo binário no Supabase Storage.',
+        });
+      }
+
+      const { data: pubData } = supabase.storage.from(bucket).getPublicUrl(upData.path);
+      const publicUrl = pubData?.publicUrl;
+      if (!publicUrl) {
+        return res.status(502).json({ error: 'Não foi possível gerar URL pública do Storage.' });
+      }
+
+      const resolvedOwnerId = UUID_REGEX.test(ownerIdRaw)
+        ? ownerIdRaw
+        : authUser?.userId && UUID_REGEX.test(authUser.userId)
+        ? authUser.userId
+        : null;
+      const resolvedSalonId = UUID_REGEX.test(salonIdRaw) ? salonIdRaw : null;
+
+      let assetId: string | null = null;
+      try {
+        const { data: assetRow } = await (supabase.from('media_assets' as any) as any)
+          .insert({
+            salon_id: resolvedSalonId,
+            owner_type: ownerType,
+            owner_id: resolvedOwnerId,
+            bucket,
+            storage_path: upData.path,
+            public_url: publicUrl,
+            mime_type: finalMime,
+            size_bytes: finalBuffer.length,
+            width,
+            height,
+            title: title || null,
+            is_cover: isCover,
+            uploaded_by: authUser?.userId || null,
+          })
+          .select('id')
+          .maybeSingle();
+        if (assetRow?.id) assetId = assetRow.id;
+      } catch {}
+
+      return res.json({
+        success: true,
+        id: assetId,
+        bucket,
+        storagePath: upData.path,
+        publicUrl,
+        mimeType: finalMime,
+        sizeBytes: finalBuffer.length,
+        width,
+        height,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Erro interno no upload binário.' });
+    }
+  });
+
+  app.delete('/api/media/:id', async (req, res) => {
+    try {
+      const assetId = String(req.params.id || '').trim();
+      if (!UUID_REGEX.test(assetId)) {
+        return res.status(400).json({ error: 'ID de mídia inválido.' });
+      }
+      const authUser = await verifySupabaseBearerUser(req);
+      const supabase = getSupabaseServerClient();
+
+      const { data: asset } = await (supabase.from('media_assets' as any) as any)
+        .select('id, bucket, storage_path, uploaded_by, salon_id')
+        .eq('id', assetId)
+        .maybeSingle();
+
+      if (!asset) {
+        return res.status(404).json({ error: 'Mídia não encontrada.' });
+      }
+
+      if (authUser && authUser.role !== 'super_admin' && asset.uploaded_by && asset.uploaded_by !== authUser.userId) {
+
+        if (asset.salon_id) {
+          const { data: member } = await (supabase.from('salon_members' as any) as any)
+            .select('id')
+            .eq('salon_id', asset.salon_id)
+            .eq('user_id', authUser.userId)
+            .eq('is_active', true)
+            .maybeSingle();
+          if (!member) {
+            return res.status(403).json({ error: 'Sem permissão para excluir esta mídia.' });
+          }
+        }
+      }
+
+      const { error: delErr } = await (supabase.from('media_assets' as any) as any)
+        .delete()
+        .eq('id', assetId);
+      if (delErr) {
+        return res.status(500).json({ error: delErr.message });
+      }
+
+      if (asset.bucket && asset.storage_path) {
+        await supabase.storage.from(asset.bucket).remove([asset.storage_path]).catch(() => {});
+      }
+
+      return res.json({ success: true, deletedId: assetId });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Erro ao excluir mídia.' });
+    }
+  });
+
+  app.post('/api/storage/cleanup', async (_req, res) => {
+    try {
+      const supabase = getSupabaseServerClient();
+      const { data: pending, error } = await (supabase.from('storage_cleanup_queue' as any) as any)
+        .select('id, bucket, storage_path')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+        .limit(50);
+
+      if (error || !Array.isArray(pending) || pending.length === 0) {
+        return res.json({ success: true, processed: 0 });
+      }
+
+      let cleaned = 0;
+      for (const item of pending) {
+        try {
+          if (item.bucket && item.storage_path) {
+            await supabase.storage.from(item.bucket).remove([item.storage_path]);
+          }
+          await (supabase.from('storage_cleanup_queue' as any) as any)
+            .update({ status: 'cleaned', processed_at: new Date().toISOString() })
+            .eq('id', item.id);
+          cleaned += 1;
+        } catch (cleanErr: any) {
+          await (supabase.from('storage_cleanup_queue' as any) as any)
+            .update({ status: 'failed', last_error: String(cleanErr?.message || cleanErr) })
+            .eq('id', item.id);
+        }
+      }
+      return res.json({ success: true, processed: cleaned });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Erro ao drenar fila de limpeza.' });
+    }
+  });
+
+  app.get('/api/push/vapid-public-key', (_req, res) => {
+    const publicKey = (process.env.VAPID_PUBLIC_KEY || '').trim();
+    res.json({
+      enabled: Boolean(publicKey && process.env.VAPID_PRIVATE_KEY),
+      publicKey,
+    });
+  });
+
+  app.post('/api/push/subscribe', async (req, res) => {
+    try {
+      const { subscription, userId, clientId, salonId, role, deviceLabel, userAgent } = req.body || {};
+      const endpoint = String(subscription?.endpoint || '').trim();
+      const p256dh = String(subscription?.keys?.p256dh || '').trim();
+      const authKey = String(subscription?.keys?.auth || '').trim();
+
+      if (!endpoint || !p256dh || !authKey || !/^https:\/\//i.test(endpoint)) {
+        return res.status(400).json({ error: 'Payload de inscrição Web Push inválido.' });
+      }
+
+      const authUser = await verifySupabaseBearerUser(req);
+      const supabase = getSupabaseServerClient();
+
+      const resolvedUserId = authUser?.userId || (UUID_REGEX.test(String(userId || '')) ? String(userId) : null);
+      const resolvedClientId = UUID_REGEX.test(String(clientId || '')) ? String(clientId) : null;
+      const resolvedSalonId = UUID_REGEX.test(String(salonId || '')) ? String(salonId) : null;
+      const allowedRoles = new Set(['client', 'salon_owner', 'salon_staff', 'super_admin']);
+      const safeRole = allowedRoles.has(String(role || '')) ? String(role) : authUser?.role || 'client';
+
+      const { data, error } = await (supabase.from('push_subscriptions' as any) as any)
+        .upsert(
+          {
+            user_id: resolvedUserId,
+            client_id: resolvedClientId,
+            salon_id: resolvedSalonId,
+            role: safeRole,
+            endpoint,
+            p256dh,
+            auth: authKey,
+            device_label: String(deviceLabel || '').slice(0, 120) || null,
+            user_agent: String(userAgent || req.headers['user-agent'] || '').slice(0, 250) || null,
+            is_active: true,
+            last_seen_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'endpoint' }
+        )
+        .select('id')
+        .maybeSingle();
+
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+
+      return res.json({ success: true, id: data?.id || null });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Erro ao salvar inscrição Push.' });
+    }
+  });
+
+  app.post('/api/push/unsubscribe', async (req, res) => {
+    try {
+      const endpoint = String(req.body?.endpoint || '').trim();
+      if (!endpoint) {
+        return res.status(400).json({ error: 'Endpoint obrigatório.' });
+      }
+      const supabase = getSupabaseServerClient();
+      await (supabase.from('push_subscriptions' as any) as any)
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('endpoint', endpoint);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Erro ao cancelar inscrição Push.' });
+    }
+  });
+
+  app.post('/api/push/dispatch', async (req, res) => {
+    try {
+      if (!configureWebPushVapid()) {
+        return res.json({
+          success: true,
+          dispatched: 0,
+          skipped: true,
+          reason: 'Chaves VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY não configuradas no ambiente.',
+        });
+      }
+
+      const limit = Math.min(50, Math.max(1, Number(req.body?.limit) || 25));
+      const supabase = getSupabaseServerClient();
+
+      const { data: outboxRows, error: fetchErr } = await (supabase.from('notification_outbox' as any) as any)
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+        .limit(limit);
+
+      if (fetchErr || !Array.isArray(outboxRows) || outboxRows.length === 0) {
+        return res.json({ success: true, dispatched: 0 });
+      }
+
+      let dispatched = 0;
+      for (const row of outboxRows) {
+        try {
+          let subQuery = (supabase.from('push_subscriptions' as any) as any)
+            .select('id, endpoint, p256dh, auth')
+            .eq('is_active', true);
+
+          if (row.target_user_id) {
+            subQuery = subQuery.eq('user_id', row.target_user_id);
+          } else if (row.target_client_id) {
+            subQuery = subQuery.eq('client_id', row.target_client_id);
+          } else if (row.salon_id) {
+            subQuery = subQuery.eq('salon_id', row.salon_id);
+          } else {
+            subQuery = subQuery.limit(0);
+          }
+
+          const { data: subs } = await subQuery;
+          const activeSubs = Array.isArray(subs) ? subs : [];
+
+          if (activeSubs.length === 0) {
+            await (supabase.from('notification_outbox' as any) as any)
+              .update({
+                status: 'sent',
+                attempts: (row.attempts || 0) + 1,
+                sent_at: new Date().toISOString(),
+                last_error: 'Nenhum dispositivo inscrito para este destinatário.',
+              })
+              .eq('id', row.id);
+            continue;
+          }
+
+          const notificationPayload = JSON.stringify({
+            title: row.title || 'VagouApp',
+            body: row.body || '',
+            url: row.deep_link || '/',
+            tag: row.event_type || 'vagou-notification',
+            data: row.payload || {},
+          });
+
+          let sentAtLeastOne = false;
+          for (const sub of activeSubs) {
+            try {
+              await webpush.sendNotification(
+                {
+                  endpoint: sub.endpoint,
+                  keys: { p256dh: sub.p256dh, auth: sub.auth },
+                },
+                notificationPayload
+              );
+              sentAtLeastOne = true;
+            } catch (pushErr: any) {
+              const statusCode = Number(pushErr?.statusCode || 0);
+              if (statusCode === 404 || statusCode === 410) {
+                await (supabase.from('push_subscriptions' as any) as any)
+                  .update({ is_active: false, updated_at: new Date().toISOString() })
+                  .eq('id', sub.id);
+              }
+            }
+          }
+
+          await (supabase.from('notification_outbox' as any) as any)
+            .update({
+              status: sentAtLeastOne ? 'sent' : 'failed',
+              attempts: (row.attempts || 0) + 1,
+              sent_at: sentAtLeastOne ? new Date().toISOString() : null,
+              last_error: sentAtLeastOne ? null : 'Falha na entrega Web Push.',
+            })
+            .eq('id', row.id);
+
+          if (sentAtLeastOne) dispatched += 1;
+        } catch (rowErr: any) {
+          await (supabase.from('notification_outbox' as any) as any)
+            .update({
+              status: 'failed',
+              attempts: (row.attempts || 0) + 1,
+              last_error: String(rowErr?.message || rowErr).slice(0, 300),
+            })
+            .eq('id', row.id);
+        }
+      }
+
+      return res.json({ success: true, dispatched, checked: outboxRows.length });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Erro ao despachar fila Push.' });
+    }
+  });
+
+  app.post('/api/admin/bootstrap', async (req, res) => {
+    try {
+      const email = String(req.body?.email || process.env.INITIAL_SUPER_ADMIN_EMAIL || '').trim().toLowerCase();
+      const password = String(req.body?.password || process.env.INITIAL_SUPER_ADMIN_PASSWORD || '').trim();
+      const fullName = String(req.body?.fullName || process.env.INITIAL_SUPER_ADMIN_NAME || 'Super Admin Vagou').trim();
+      const cpf = String(req.body?.cpf || '').replace(/\D/g, '') || null;
+
+      if (!email || !email.includes('@') || password.length < 8) {
+        return res.status(400).json({
+          error: 'Informe e-mail válido e senha com no mínimo 8 caracteres (ou defina INITIAL_SUPER_ADMIN_* no servidor).',
+        });
+      }
+
+      const supabase = getSupabaseServerClient();
+      const { data: existingAdmins } = await (supabase.from('system_admins' as any) as any)
+        .select('id')
+        .limit(1);
+
+      if (Array.isArray(existingAdmins) && existingAdmins.length > 0) {
+        return res.status(409).json({
+          error: 'O Super Admin inicial já foi provisionado. Bootstrap bloqueado por segurança.',
+        });
+      }
+
+      let authUserId: string | null = null;
+      if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        const { data: createdAuth, error: authErr } = await supabase.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+          app_metadata: { role: 'super_admin' },
+          user_metadata: { full_name: fullName, role: 'super_admin' },
+        });
+        if (!authErr && createdAuth?.user?.id) {
+          authUserId = createdAuth.user.id;
+        }
+      }
+
+      const { data: rpcId, error: rpcErr } = await (supabase.rpc as any)('bootstrap_initial_super_admin', {
+        p_email: email,
+        p_full_name: fullName,
+        p_password: password,
+        p_auth_user_id: authUserId,
+        p_cpf: cpf,
+      });
+
+      if (rpcErr) {
+        return res.status(409).json({ error: rpcErr.message });
+      }
+
+      return res.json({
+        success: true,
+        adminId: rpcId,
+        authUserId,
+        email,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Erro ao inicializar Super Admin.' });
+    }
+  });
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true, hmr: false },
+      server: { middlewareMode: true, hmr: false, ws: false },
       appType: 'spa',
     });
 

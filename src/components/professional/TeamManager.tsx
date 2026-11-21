@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Users, UserPlus, User as UserIcon, 
+import {
+  Users, UserPlus, User as UserIcon,
   Trash2, ArrowLeft, ChevronRight, Check,
   Briefcase, ShieldCheck, Scissors, Clock, Save, Camera, Layers,
   Plus, X, AlertCircle, Loader2
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../../utils/haptics';
-import { compressImageFile } from '../../utils/imageCompressor';
+import { uploadBinaryMediaAsset } from '../../services/mediaUploadService';
 import {
   ProfessionalTeamMember,
   ProfessionalRole,
@@ -260,14 +260,12 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
     }
   }, [salonProfessionals]);
 
-  // Controle de navegação: 'list' (lista de botões dos profissionais) vs 'detail' (seção do profissional selecionado)
   const [activeView, setActiveView] = useState<'list' | 'detail'>('list');
   const [editingMember, setEditingMember] = useState<ProfessionalTeamMember | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<ProfessionalTeamMember | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Estados da Seção do Profissional
   const [formAvatarUrl, setFormAvatarUrl] = useState('');
   const [formName, setFormName] = useState('');
   const [formJobFunction, setFormJobFunction] = useState<ProfessionalJobFunctionType>('autonomo');
@@ -279,7 +277,6 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
     createDefaultProDays('09:00', '18:00', true)
   );
 
-  // Categorias disponíveis no salão (combinando banco + catálogo + localStorage + padrão)
   const availableCategories = useMemo(() => {
     const set = new Set<string>(DEFAULT_CATEGORIES);
     if (Array.isArray(adminSettings?.serviceCategories)) {
@@ -306,7 +303,6 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
     return Array.from(set);
   }, [services, adminSettings?.serviceCategories]);
 
-  // Serviços disponíveis no salão (do catálogo ou localStorage)
   const allCatalogServices = useMemo<CatalogServiceItem[]>(() => {
     if (Array.isArray(services) && services.length > 0) return services;
     try {
@@ -321,7 +317,6 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
     return [];
   }, [services]);
 
-  // Filtra os serviços pelas categorias selecionadas pelo profissional (ou mostra todos se nenhuma categoria filtrar)
   const filteredServicesForPro = useMemo(() => {
     if (formCategories.length === 0) return allCatalogServices;
     const lowerCats = new Set(formCategories.map((c) => c.toLowerCase()));
@@ -411,7 +406,6 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
     return { success: true };
   };
 
-  // Abrir Seção do Profissional (edição ou criação)
   const handleOpenProfessionalSection = (member?: ProfessionalTeamMember) => {
     hapticLight();
     setSaveError(null);
@@ -461,19 +455,20 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const compressed = await compressImageFile(file, {
-        maxWidth: 400,
-        maxHeight: 400,
+      const salonId = localStorage.getItem('vagou_salon_db_id') || undefined;
+      const uploaded = await uploadBinaryMediaAsset(file, {
+        bucket: 'avatars',
+        ownerType: 'professional_avatar',
+        ownerId: editingMember?.id,
+        salonId,
+        maxWidth: 480,
+        maxHeight: 480,
         quality: 0.85,
       });
-      setFormAvatarUrl(compressed);
+      setFormAvatarUrl(uploaded.publicUrl);
       hapticLight();
-    } catch {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormAvatarUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('[TeamManager] Falha ao enviar foto binária do profissional:', err);
     }
   };
 
@@ -698,9 +693,6 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
     hapticMedium();
   };
 
-  // ============================================================================
-  // VISÃO 2: SEÇÃO DEDICADA DO PROFISSIONAL SELECIONADO (EDIÇÃO COMPLETA)
-  // ============================================================================
   if (activeView === 'detail') {
     const isMainAdmin = editingMember?.role === 'admin' && editingMember?.id === 'prof_admin_1';
 
@@ -710,7 +702,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
           isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
         }`}
       >
-        {/* Cabeçalho da Seção do Profissional */}
+
         <div
           className={`px-3.5 py-2.5 border-b shrink-0 flex items-center justify-between sticky top-0 z-20 backdrop-blur-md ${
             isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200'
@@ -750,9 +742,8 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
           )}
         </div>
 
-        {/* Formulário Completo da Seção do Profissional */}
         <form onSubmit={handleSaveProfessional} className="p-3.5 space-y-4 pb-24 flex-1">
-          {/* 1. FOTO DE PERFIL & NOME */}
+
           <div
             className={`p-3.5 rounded-[4px] border space-y-3.5 ${
               isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
@@ -793,7 +784,6 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
               </div>
             </div>
 
-            {/* Nome do Profissional */}
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                 Nome *
@@ -812,7 +802,6 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
               />
             </div>
 
-            {/* 2. FUNÇÃO (Atendente, Recepcionista, Prof. Autônomo ou Outros com Input de Texto) */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                 <Briefcase className="w-3.5 h-3.5 brand-icon" />
@@ -863,7 +852,6 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
               )}
             </div>
 
-            {/* 3. TIPO (Profissional, Administrador, Superadministrador) */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 brand-icon" />
@@ -900,13 +888,12 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
             </div>
           </div>
 
-          {/* 4. CATEGORIAS & SERVIÇOS QUE ELE TRABALHA */}
           <div
             className={`p-3.5 rounded-[4px] border space-y-3.5 ${
               isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
             }`}
           >
-            {/* Categorias que ele atende */}
+
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
@@ -942,7 +929,6 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
               </div>
             </div>
 
-            {/* Lista de Serviços que ele trabalha */}
             <div className="space-y-2 pt-2 border-t border-slate-800/60">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
@@ -1011,7 +997,6 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
             </div>
           </div>
 
-          {/* 5. ATENDIMENTO: DIAS DE FUNCIONAMENTO + HORÁRIOS COM INTERVALO/PAUSA (MODELO OFICIAL) */}
           <div
             className={`p-3.5 rounded-[4px] border space-y-3.5 ${
               isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
@@ -1034,7 +1019,6 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
               </button>
             </div>
 
-            {/* Dias de Funcionamento (Grid de 7 Dias com Aberto / Off) */}
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
                 Dias de Atendimento
@@ -1062,7 +1046,6 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
               </div>
             </div>
 
-            {/* Horários de Atendimento (Ajuste por Dia • Intervalo / Pausa) */}
             <div className="space-y-2 pt-1">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Horários de Atendimento (Ajuste por Dia • Intervalo / Pausa)
@@ -1187,7 +1170,6 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
           </div>
         </form>
 
-        {/* Modal de Confirmação de Exclusão */}
         {deleteConfirm && (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs animate-in fade-in"
@@ -1235,7 +1217,6 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
           </div>
         )}
 
-        {/* Rodapé Fixo de Ação (sticky bottom-0 z-20) */}
         <div
           className={`sticky bottom-0 z-20 p-3 border-t backdrop-blur-md space-y-2 ${
             isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
@@ -1281,16 +1262,13 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
     );
   }
 
-  // ============================================================================
-  // VISÃO 1: LISTA DE PROFISSIONAIS (BOTÕES LIMPOS QUE LEVAM À SEÇÃO DO PROFISSIONAL)
-  // ============================================================================
   return (
     <div
       className={`flex flex-col h-full ${
         isDark ? 'bg-slate-950 text-slate-200' : 'bg-[var(--brand-canvas-bg)] text-slate-800'
       }`}
     >
-      {/* HEADER */}
+
       <div
         className={`p-3.5 border-b shrink-0 flex items-center justify-between sticky top-0 z-20 ${
           isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200'
@@ -1313,7 +1291,6 @@ export const TeamManager: React.FC<TeamManagerProps> = ({
         </button>
       </div>
 
-      {/* LISTAGEM: CADA CARD É APENAS UM BOTÃO QUE LEVA O GESTOR À SEÇÃO DO PROFISSIONAL SELECIONADO */}
       <div className="flex-1 overflow-y-auto no-scrollbar p-3.5 space-y-2.5">
         {team.map((member) => (
           <button

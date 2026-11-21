@@ -24,7 +24,7 @@ export const ClientEvolutionChart: React.FC<ClientEvolutionChartProps> = ({ data
     <div className={`p-3.5 rounded-lg border flex flex-col select-none ${
       isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 shadow-xs text-slate-900'
     }`}>
-      {/* Cabeçalho */}
+
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800/40">
         <div className="flex items-center gap-1.5">
           <div className="w-6 h-6 rounded brand-soft-badge flex items-center justify-center">
@@ -46,7 +46,6 @@ export const ClientEvolutionChart: React.FC<ClientEvolutionChartProps> = ({ data
         </div>
       </div>
 
-      {/* Gráfico de Barras Verticais */}
       <div className="w-full h-32 pt-4 pb-1 flex items-end justify-between gap-1.5">
         {data.map((item, idx) => {
           const heightPercent = Math.max(8, Math.round((item.clientsCount / maxClients) * 100));
@@ -54,32 +53,29 @@ export const ClientEvolutionChart: React.FC<ClientEvolutionChartProps> = ({ data
 
           return (
             <div key={idx} className="flex-1 flex flex-col items-center h-full justify-end group relative">
-              {/* Tooltip ao passar o mouse ou tocar */}
+
               <div className="opacity-0 group-hover:opacity-100 transition pointer-events-none absolute -top-8 bg-slate-950 text-white text-[9px] px-1.5 py-0.5 rounded shadow whitespace-nowrap z-10 font-mono">
                 {item.clientsCount} clientes (R$ {item.totalRevenue.toFixed(0)})
               </div>
 
-              {/* Quantidade no topo da barra */}
               <span className={`text-[9px] font-bold font-mono mb-1 ${
-                isPeak 
-                  ? 'brand-text font-black' 
+                isPeak
+                  ? 'brand-text font-black'
                   : isDark ? 'text-slate-400' : 'text-slate-500'
               }`}>
                 {item.clientsCount}
               </span>
 
-              {/* Barra Vertical */}
-              <div 
+              <div
                 style={{ height: `${heightPercent}%` }}
                 className={`w-full max-w-[28px] rounded-t transition-all duration-500 brand-bar ${
                   isPeak ? 'opacity-100' : 'opacity-55 group-hover:opacity-80'
                 }`}
               />
 
-              {/* Rótulo do Dia da Semana */}
               <span className={`text-[9px] font-bold mt-1.5 uppercase ${
-                isPeak 
-                  ? 'brand-text' 
+                isPeak
+                  ? 'brand-text'
                   : isDark ? 'text-slate-400' : 'text-slate-600'
               }`}>
                 {item.dayLabel}
@@ -89,7 +85,6 @@ export const ClientEvolutionChart: React.FC<ClientEvolutionChartProps> = ({ data
         })}
       </div>
 
-      {/* Rodapé Informativo */}
       <div className={`mt-2 pt-2 border-t border-slate-800/40 flex items-center justify-between text-[10px] ${
         isDark ? 'text-slate-400' : 'text-slate-500'
       }`}>

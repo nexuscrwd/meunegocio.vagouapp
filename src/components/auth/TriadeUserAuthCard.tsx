@@ -24,11 +24,6 @@ export interface TriadeUserAuthCardProps {
   variant?: 'card' | 'flat';
 }
 
-/**
- * 🏛️ Orquestrador de Entrada Cinematográfica em Vidro Jateado da Tríade VagouApp (BOL-167)
- * Alterna suavemente as etapas de Login ("Entrar"), Recuperação ("Esqueci a senha") e
- * Cadastro ("Criar conta") dentro do mesmo card de vidro jateado escuro, mantendo o slideshow vivo ao fundo.
- */
 export const TriadeUserAuthCard: React.FC<TriadeUserAuthCardProps> = ({
   initialMode = 'login',
   onSuccess,

@@ -36,7 +36,6 @@ function createSalonMarkerHtml(salonName: string, salonAvatar?: string): HTMLDiv
   wrapper.style.height = '76px';
   wrapper.style.pointerEvents = 'none';
 
-  // Etiqueta superior com o nome do salão
   const labelBadge = document.createElement('div');
   labelBadge.style.background = '#005CA9';
   labelBadge.style.color = '#FFFFFF';
@@ -55,7 +54,6 @@ function createSalonMarkerHtml(salonName: string, salonAvatar?: string): HTMLDiv
   labelBadge.style.zIndex = '3';
   labelBadge.textContent = salonName || 'Salão';
 
-  // Pino circular principal com foto/ícone do salão
   const pinCircle = document.createElement('div');
   pinCircle.style.width = '38px';
   pinCircle.style.height = '38px';
@@ -94,7 +92,6 @@ function createSalonMarkerHtml(salonName: string, salonAvatar?: string): HTMLDiv
     pinCircle.appendChild(fallbackText);
   }
 
-  // Ponta inferior do marcador apontando para a coordenada exata
   const pointerTip = document.createElement('div');
   pointerTip.style.width = '0';
   pointerTip.style.height = '0';
@@ -138,7 +135,6 @@ export const SalonSpaceInteractiveMap: React.FC<SalonSpaceInteractiveMapProps> =
     return DEFAULT_SALON_COORDS;
   });
 
-  // 1. Geocodifica o endereço ou CEP do salão para posicionar o marcador no local exato
   useEffect(() => {
     let cancelled = false;
 
@@ -162,7 +158,7 @@ export const SalonSpaceInteractiveMap: React.FC<SalonSpaceInteractiveMapProps> =
           setSalonCoords({ lat: result.lat, lng: result.lng });
         }
       } catch {
-        // mantém coordenada padrão em caso de falha de rede
+
       }
     };
 
@@ -172,7 +168,6 @@ export const SalonSpaceInteractiveMap: React.FC<SalonSpaceInteractiveMapProps> =
     };
   }, [salonAddress, salonCep, initialSalonLat, initialSalonLng]);
 
-  // 2. Inicializa o Mapa Leaflet (Apenas o Mapa Focado no Marcador do Salão — Sem Rotas)
   useEffect(() => {
     const containerEl = mapContainerRef.current;
     if (!containerEl) return;
@@ -235,7 +230,6 @@ export const SalonSpaceInteractiveMap: React.FC<SalonSpaceInteractiveMapProps> =
 
     mountTiles(0);
 
-    // Marcador do Salão em destaque
     const salonIcon = L.divIcon({
       html: createSalonMarkerHtml(salonName, salonAvatar),
       className: 'vagou-salon-space-marker',
@@ -273,10 +267,9 @@ export const SalonSpaceInteractiveMap: React.FC<SalonSpaceInteractiveMapProps> =
       lmap.remove();
       leafletMapRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, []);
 
-  // 3. Controlador Unificado de Gestos (1 Dedo Arrasto + 2 Dedos Pinça + Mouse)
   useEffect(() => {
     const viewportEl = viewportRef.current;
     if (!viewportEl) return;
@@ -465,7 +458,6 @@ export const SalonSpaceInteractiveMap: React.FC<SalonSpaceInteractiveMapProps> =
     };
   }, []);
 
-  // Atualiza posição e visual do marcador do Salão quando geocodificado
   useEffect(() => {
     const lmap = leafletMapRef.current;
     const sMarker = salonMarkerRef.current;
@@ -482,7 +474,6 @@ export const SalonSpaceInteractiveMap: React.FC<SalonSpaceInteractiveMapProps> =
     lmap.setView([salonCoords.lat, salonCoords.lng], lmap.getZoom(), { animate: true });
   }, [salonCoords.lat, salonCoords.lng, salonName, salonAvatar]);
 
-  // Controles de Zoom e Centralização no Salão
   const handleZoomIn = () => {
     hapticLight();
     const lmap = leafletMapRef.current;
@@ -505,7 +496,7 @@ export const SalonSpaceInteractiveMap: React.FC<SalonSpaceInteractiveMapProps> =
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      {/* Palco do Mapa Interativo (Apenas o Mapa com o Marcador do Salão — Sem Rotas) */}
+
       <div
         ref={viewportRef}
         className={`relative w-full flex-1 min-h-[240px] rounded-[4px] overflow-hidden border shadow-xs select-none cursor-grab active:cursor-grabbing ${
@@ -517,7 +508,6 @@ export const SalonSpaceInteractiveMap: React.FC<SalonSpaceInteractiveMapProps> =
       >
         <div ref={mapContainerRef} className="w-full h-full z-0 pointer-events-none" />
 
-        {/* Controles Flutuantes do Mapa (Centralizar no Salão e Zoom + / -) */}
         <div className="absolute top-2.5 right-2.5 z-10 flex flex-col gap-1.5">
           <button
             type="button"
@@ -556,4 +546,3 @@ export const SalonSpaceInteractiveMap: React.FC<SalonSpaceInteractiveMapProps> =
     </div>
   );
 };
-

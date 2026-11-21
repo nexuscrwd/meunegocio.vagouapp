@@ -1,8 +1,13 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type { SalonProfessionalItem } from '../types';
-import type { InterSalonConflictDetails } from '../types/booking';
-
-export type { InterSalonConflictDetails };
+export interface InterSalonConflictDetails {
+  otherSalonName: string;
+  otherStartTime: string;
+  otherEndTime: string;
+  interSalonTravelMinutes: number;
+  earliestAllowedTime: string;
+  message: string;
+}
 
 export interface BookingSlotItem {
   time: string;
@@ -79,9 +84,6 @@ export interface BusySlotRecord {
   service_title?: string;
 }
 
-/**
- * Busca horários ocupados no banco de dados (combinando RPC get_busy_slots + leitura direta de public.appointments)
- */
 export async function fetchBusySlotsDirectly(
   salonId: string,
   dateStr: string
@@ -89,7 +91,6 @@ export async function fetchBusySlotsDirectly(
   if (!dateStr) return [];
   const results: BusySlotRecord[] = [];
 
-  // 1. Consulta no Supabase (RPC + Tabela public.appointments)
   if (isSupabaseConfigured && supabase && salonId) {
     try {
       const { data: rpcData, error: rpcErr } = await (supabase as any).rpc('get_busy_slots', {
@@ -170,7 +171,6 @@ export async function fetchBusySlotsDirectly(
     }
   }
 
-  // 2. Complementa com agendamentos confirmados localmente na sessão para resposta imediata
   if (typeof window !== 'undefined') {
     try {
       const localApts = JSON.parse(localStorage.getItem('vagou_user_appointments') || '[]');
@@ -218,9 +218,6 @@ export function getWeekdayKeyFromIsoDate(dateStr?: string): string {
   return 'seg';
 }
 
-/**
- *Verifica se um profissional específico possui escala ativa e não está de folga/ausente na data selecionada
- */
 function isProfessionalAvailableOnDay(
   prof: any,
   dayKey: string,
@@ -230,12 +227,10 @@ function isProfessionalAvailableOnDay(
 ): boolean {
   if (!prof) return false;
 
-  // 1. Flag explícita de ativo/inativo (férias, desligado ou ausente no cadastro)
   if (prof.isActive === false || prof.is_active === false) {
     return false;
   }
 
-  // 2. Verificar status explícito de ausência/folga no objeto de escala
   const scheduleObj = prof.workSchedule || prof.work_schedule || prof.schedule_config || null;
   if (scheduleObj && typeof scheduleObj === 'object') {
     const statusStr = String(scheduleObj.status || '').toLowerCase();
@@ -243,7 +238,6 @@ function isProfessionalAvailableOnDay(
       return false;
     }
 
-    // Lista de datas de ausência / folga pontual (YYYY-MM-DD)
     const daysOffList: string[] = Array.isArray(scheduleObj.daysOff)
       ? scheduleObj.daysOff
       : Array.isArray(scheduleObj.absences)
@@ -255,7 +249,6 @@ function isProfessionalAvailableOnDay(
       return false;
     }
 
-    // Escala semanal de dias de trabalho (ex: ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'])
     if (Array.isArray(scheduleObj.days) && scheduleObj.days.length > 0) {
       const normalizedDays = scheduleObj.days.map((d: string) =>
         String(d || '')
@@ -270,7 +263,6 @@ function isProfessionalAvailableOnDay(
     }
   }
 
-  // 3. Verificar grade individualizada em salons.operating_hours.professionalSchedules
   if (professionalSchedulesMap && typeof professionalSchedulesMap === 'object') {
     const profScheduleDays =
       (prof.id && professionalSchedulesMap[prof.id]) ||
@@ -283,7 +275,6 @@ function isProfessionalAvailableOnDay(
     }
   }
 
-  // 4. Verificar bloqueio de dia inteiro / folga / ausência lançada na agenda (public.appointments) na data escolhida
   if (Array.isArray(dayAppointments) && dayAppointments.length > 0) {
     const profNameNorm = String(prof.name || '').trim().toLowerCase();
     const profIdNorm = String(prof.id || '').trim();
@@ -319,7 +310,6 @@ function isProfessionalAvailableOnDay(
       return false;
     }
 
-    // Se todos os slots comerciais (>= 22 horários) daquele profissional estão ocupados/bloqueados no dia
     const uniqueBlockedTimes = new Set(profApts.map((a) => a.start_time));
     if (uniqueBlockedTimes.size >= 22) {
       return false;
@@ -329,10 +319,6 @@ function isProfessionalAvailableOnDay(
   return true;
 }
 
-/**
- * Consulta em tempo real o banco de dados (Supabase: public.professionals, public.salons e public.appointments)
- * e a escala local da equipe para retornar SOMENTE os profissionais efetivamente disponíveis no dia selecionado.
- */
 export async function fetchAvailableProfessionalsForDate(
   salonId: string,
   dateStr: string,
@@ -341,7 +327,6 @@ export async function fetchAvailableProfessionalsForDate(
 ): Promise<SalonProfessionalItem[]> {
   const dayKey = getWeekdayKeyFromIsoDate(dateStr);
 
-  // Hidrata escalas locais salvas no TeamManager (se houver)
   let localTeamMembers: any[] = [];
   if (typeof window !== 'undefined') {
     try {
@@ -403,7 +388,6 @@ export async function fetchAvailableProfessionalsForDate(
       ? await fetchBusySlotsDirectly(salonId, dateStr)
       : [];
 
-  // Consolidar lista base (priorizando dados frescos do banco quando disponíveis)
   const sourceList: SalonProfessionalItem[] =
     dbPros.length > 0
       ? dbPros.map((p: any) => {
@@ -451,14 +435,12 @@ export async function fetchAvailableProfessionalsForDate(
           };
         });
 
-  // Filtrar recepcionistas caso haja outros profissionais de atendimento na equipe
   const nonReceptionistList = sourceList.filter((p) => {
     const r = String(p.role || '').toLowerCase();
     return !r.includes('recep');
   });
   const candidatePros = nonReceptionistList.length > 0 ? nonReceptionistList : sourceList;
 
-  // Filtrar quem está ativo e disponível na data selecionada (sem folga/ausência)
   const availableOnDate = candidatePros.filter((prof) =>
     isProfessionalAvailableOnDay(prof, dayKey, dateStr, professionalSchedulesMap, busySlotsForDay)
   );
@@ -466,9 +448,6 @@ export async function fetchAvailableProfessionalsForDate(
   return availableOnDate;
 }
 
-/**
- * Cache em memória para geocodificação instantânea de CEPs e endereços já consultados
- */
 const locationGeoCache = new Map<
   string,
   { lat: number; lng: number; formattedAddress: string; cep?: string }
@@ -518,10 +497,6 @@ export const TRANSPORT_MODE_META: Record<
   },
 };
 
-/**
- * Aplica calibragem de tráfego real (padrão Google Maps em horário comercial) + margem de folga
- * para garantir que o app NUNCA subestime o tempo real da rota.
- */
 export function computeCalibratedEtaForMode(
   distanceKm: number,
   osrmRawMinutes: number | null,
@@ -530,14 +505,14 @@ export function computeCalibratedEtaForMode(
   const safeDist = Math.max(0.2, distanceKm);
 
   if (mode === 'walking') {
-    // Caminhada urbana (~4.8 km/h)
+
     const walkMinutes = (safeDist / 4.8) * 60;
     const baseWalk = osrmRawMinutes ? Math.max(walkMinutes, osrmRawMinutes) : walkMinutes;
     return Math.max(4, Math.ceil(baseWalk + TRANSPORT_MODE_META.walking.safetyBufferMinutes));
   }
 
   if (mode === 'bicycling') {
-    // Bicicleta urbana (~14.5 km/h)
+
     const bikeMinutes = (safeDist / 14.5) * 60;
     const baseBike = osrmRawMinutes ? Math.max(bikeMinutes, osrmRawMinutes * 1.05) : bikeMinutes;
     return Math.max(5, Math.ceil(baseBike + TRANSPORT_MODE_META.bicycling.safetyBufferMinutes));
@@ -555,7 +530,6 @@ export function computeCalibratedEtaForMode(
     return Math.max(12, Math.ceil(baseTransit + TRANSPORT_MODE_META.transit.safetyBufferMinutes));
   }
 
-  // Base de Carro (trânsito urbano severo/moderado estilo Google Maps: ~16.8 km/h até 15km, ~22 km/h acima)
   const urbanCarMinutes = (safeDist / (safeDist <= 15 ? 16.8 : 22.0)) * 60;
   const baseCar = osrmRawMinutes ? Math.max(urbanCarMinutes, osrmRawMinutes * 1.42) : urbanCarMinutes;
 
@@ -566,10 +540,6 @@ export function computeCalibratedEtaForMode(
   return Math.max(6, Math.ceil(baseCar + TRANSPORT_MODE_META.car.safetyBufferMinutes));
 }
 
-/**
- * Fórmula de Haversine + fator de tortuosidade urbana realista (1.42x em malha viária urbana)
- * Com calibragem Google Maps + margem de segurança por modal de transporte.
- */
 export function calculateHaversineDistanceAndEta(
   lat1: number,
   lng1: number,
@@ -577,7 +547,7 @@ export function calculateHaversineDistanceAndEta(
   lng2: number,
   mode: TransportMode = 'car'
 ): { distanceKm: number; etaMinutes: number } {
-  const R = 6371; // Raio da Terra em km
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
   const a =
@@ -593,16 +563,12 @@ export function calculateHaversineDistanceAndEta(
     return { distanceKm: 0.2, etaMinutes: mode === 'transit' ? 8 : 5 };
   }
 
-  // Fator de tortuosidade viária urbana (1.42x da linha reta reflete curvas e retornos reais de rua)
   const roadDistanceKm = Math.max(0.3, Number((straightDistanceKm * 1.42).toFixed(1)));
   const etaMinutes = computeCalibratedEtaForMode(roadDistanceKm, null, mode);
 
   return { distanceKm: roadDistanceKm, etaMinutes };
 }
 
-/**
- * Calcula a distância real de condução por ruas (OSRM API) e o tempo estimado urbano (padrão Google Maps + margem de folga)
- */
 export async function calculateDrivingRouteDistanceAndEta(
   lat1: number,
   lng1: number,
@@ -610,7 +576,7 @@ export async function calculateDrivingRouteDistanceAndEta(
   lng2: number,
   mode: TransportMode = 'car'
 ): Promise<{ distanceKm: number; etaMinutes: number; routeSummary?: string }> {
-  // 1. Tenta primeiro Google Routes API v2 via proxy do servidor (/api/maps/compute-route)
+
   try {
     const travelMode =
       mode === 'walking'
@@ -653,7 +619,6 @@ export async function calculateDrivingRouteDistanceAndEta(
     }
   } catch {}
 
-  // 2. Fallback para OSRM se offline ou sem chave
   try {
     const osrmProfile = mode === 'walking' ? 'foot' : mode === 'bicycling' ? 'bike' : 'driving';
     const osrmUrl = `https://router.project-osrm.org/route/v1/${osrmProfile}/${lng1},${lat1};${lng2},${lat2}?overview=false`;
@@ -674,12 +639,6 @@ export async function calculateDrivingRouteDistanceAndEta(
   return calculateHaversineDistanceAndEta(lat1, lng1, lat2, lng2, mode);
 }
 
-/**
- * Geocodifica qualquer CEP brasileiro (8 dígitos) ou endereço textual usando 3 provedores reais em cascata:
- * 1. AwesomeAPI CEP (coordenadas diretas do CEP)
- * 2. BrasilAPI CEP v2 (coordenadas oficiais IBGE/Correios)
- * 3. ViaCEP + Google Places API (New v1) / Nominatim OpenStreetMap
- */
 export async function geocodeBrazilLocation(
   query: string
 ): Promise<{ lat: number; lng: number; formattedAddress: string; cep?: string } | null> {
@@ -736,9 +695,8 @@ export async function geocodeBrazilLocation(
     return parts.length > 0 ? parts.join('-') : fallback;
   };
 
-  // Fluxo A: É um CEP de 8 dígitos (ex.: 08235-770 ou 08285-010)
   if (onlyDigits.length === 8) {
-    // 1. Tenta AwesomeAPI CEP (retorna lat e lng exatos do CEP instantaneamente)
+
     try {
       const awesomeRes = await fetch(`https://cep.awesomeapi.com.br/json/${onlyDigits}`);
       if (awesomeRes.ok) {
@@ -760,7 +718,6 @@ export async function geocodeBrazilLocation(
       }
     } catch {}
 
-    // 2. Tenta BrasilAPI CEP v2 (retorna location.coordinates.latitude / longitude)
     try {
       const brRes = await fetch(`https://brasilapi.com.br/api/cep/v2/${onlyDigits}`);
       if (brRes.ok) {
@@ -780,7 +737,6 @@ export async function geocodeBrazilLocation(
       }
     } catch {}
 
-    // 3. Tenta ViaCEP para enriquecer logradouro/bairro caso ainda não tenhamos
     if (!street || !neighborhood || !city) {
       try {
         const viaRes = await fetch(`https://viacep.com.br/ws/${onlyDigits}/json/`);
@@ -797,7 +753,6 @@ export async function geocodeBrazilLocation(
       } catch {}
     }
 
-    // 4. Consulta Nominatim com queries estruturadas (logradouro+cidade, depois CEP, depois bairro+cidade)
     const candidateQueries = [
       street && city ? `${street}, ${city} - ${state}, Brasil` : '',
       `${onlyDigits.slice(0, 5)}-${onlyDigits.slice(5)}, Brasil`,
@@ -833,8 +788,6 @@ export async function geocodeBrazilLocation(
     }
   }
 
-  // Fluxo B: Endereço textual livre (ex.: "Shopping Internacional Guarulhos" ou "Av. Itaquera, São Paulo")
-  // 1. Tenta primeiro Google Places API (New v1) via proxy do servidor
   try {
     const placesRes = await fetch('/api/maps/places-search', {
       method: 'POST',
@@ -856,7 +809,6 @@ export async function geocodeBrazilLocation(
     }
   } catch {}
 
-  // 2. Fallback para Nominatim
   try {
     const nomRes = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(cleanQuery)}`,
@@ -882,9 +834,6 @@ export async function geocodeBrazilLocation(
   return null;
 }
 
-/**
- * Geocodifica o endereço/CEP do cliente e do estabelecimento em tempo real e calcula a rota real com calibragem por modal e margem de folga
- */
 export async function resolveAddressDistanceToSalon(
   addressOrCepQuery: string,
   salonCoords: { lat: number; lng: number } = { lat: -23.5621, lng: -46.4795 },
@@ -901,7 +850,7 @@ export async function resolveAddressDistanceToSalon(
   etaMinutes: number;
   routeSummary?: string;
 }> {
-  // 1. Resolver coordenadas reais do Salão se houver CEP/endereço do salão
+
   let targetSalonLat = salonCoords.lat;
   let targetSalonLng = salonCoords.lng;
   let salonFormattedAddress: string | undefined;
@@ -915,7 +864,6 @@ export async function resolveAddressDistanceToSalon(
     }
   }
 
-  // 2. Resolver coordenadas reais da Origem do Cliente (CEP ou Endereço)
   const originGeo = await geocodeBrazilLocation(addressOrCepQuery);
 
   if (originGeo) {
@@ -940,7 +888,6 @@ export async function resolveAddressDistanceToSalon(
     };
   }
 
-  // 3. Fallback determinístico apenas se o usuário digitar texto sem correspondência geográfica
   const cleanQuery = addressOrCepQuery.trim();
   const seed = cleanQuery.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const simulatedDistanceKm = Number((3.5 + (seed % 85) / 10).toFixed(1));
@@ -958,9 +905,6 @@ export async function resolveAddressDistanceToSalon(
   };
 }
 
-/**
- * Calcula o Horário Máximo de Saída (ex: "13H20") com base no horário agendado (ex: "14:00") e no tempo de trajeto (etaMinutes)
- */
 export function formatMaxDepartureTime(timeSlot: string, etaMinutes: number): string {
   const [sh, sm] = String(timeSlot || '').split(':').map(Number);
   if (Number.isNaN(sh) || Number.isNaN(sm)) return '--H--';
@@ -982,9 +926,6 @@ export function formatMaxDepartureTime(timeSlot: string, etaMinutes: number): st
   return `${String(h).padStart(2, '0')}H${String(m).padStart(2, '0')}`;
 }
 
-/**
- * Gera Deep Links Universais (Google Maps com modo exato e baldeações, Waze, Uber e 99) já com origem e destino preenchidos
- */
 export function buildTransportDeepLinks(params: {
   originAddress?: string;
   originLat?: number;
@@ -1033,7 +974,6 @@ export function buildTransportDeepLinks(params: {
     'Estabelecimento'
   ).trim();
 
-  // Para o Google Maps, se tivermos endereço limpo usamos o endereço (ou coordenadas se for mais preciso)
   const googleOriginParam = originCoordStr || originQuery;
   const googleDestParam = rawSalonAddress || salonCoordStr || destAddressOnly;
 
@@ -1058,8 +998,6 @@ export function buildTransportDeepLinks(params: {
     googleOriginParam
   )}&destination=${encodeURIComponent(googleDestParam)}&travelmode=transit&dir_action=navigate`;
 
-  // URL de incorporação direta (iframe embed) do Google Maps com rota e modalidade selecionada
-  // 0 = carro/moto, 1 = bicicleta, 2 = a pé, 3 = transporte público
   const embedModeCode =
     params.transportMode === 'bicycling'
       ? 1
@@ -1089,7 +1027,6 @@ export function buildTransportDeepLinks(params: {
       )}&navigate=yes`
     : `https://waze.com/ul?q=${encodeURIComponent(destAddressOnly)}&navigate=yes`;
 
-  // Deep Link Oficial Universal Uber (pré-preenche origem e endereço/coordenadas exatas do salão)
   const uberParams = new URLSearchParams({
     action: 'setPickup',
     'dropoff[formatted_address]': destLabel,
@@ -1110,7 +1047,6 @@ export function buildTransportDeepLinks(params: {
   }
   const uberUrl = `https://m.uber.com/ul/?${uberParams.toString()}`;
 
-  // Deep Link 99 App com coordenadas e endereço do destino
   const app99Params = new URLSearchParams({
     dropoff_title: destLabel,
   });
@@ -1127,7 +1063,6 @@ export function buildTransportDeepLinks(params: {
   }
   const app99Url = `https://99app.com/?${app99Params.toString()}`;
 
-  // Intent nativo do sistema (Android/iOS) para abrir aplicativos instalados no dispositivo do cliente
   const nativeGeoIntentUrl = salonCoordStr
     ? `geo:${salonCoordStr}?q=${encodeURIComponent(destLabel || destAddressOnly)}`
     : `geo:0,0?q=${encodeURIComponent(destLabel || destAddressOnly)}`;
@@ -1144,55 +1079,6 @@ export function buildTransportDeepLinks(params: {
     nativeGeoIntentUrl,
     destAddressOnly,
   };
-}
-
-/**
- * Gera link universal do Google Calendar para salvar o agendamento na agenda do celular/conta Google
- */
-export function buildGoogleCalendarEventUrl(params: {
-  serviceTitle: string;
-  salonName: string;
-  salonAddress?: string;
-  professionalName?: string;
-  dateIso: string;
-  timeSlot: string;
-  durationStr?: string;
-}): string {
-  const [y, m, d] = String(params.dateIso || '').split('-').map(Number);
-  const [hh, mm] = String(params.timeSlot || '09:00').split(':').map(Number);
-  const durMatch = String(params.durationStr || '45 min').match(/(\d+)/);
-  const durationMinutes = durMatch ? Math.max(15, parseInt(durMatch[1], 10)) : 45;
-
-  const startDate = new Date(y || 2026, (m || 1) - 1, d || 1, hh || 9, mm || 0, 0);
-  const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
-
-  const toCalIso = (dt: Date) => {
-    const yy = dt.getFullYear();
-    const mo = String(dt.getMonth() + 1).padStart(2, '0');
-    const dd = String(dt.getDate()).padStart(2, '0');
-    const h = String(dt.getHours()).padStart(2, '0');
-    const mi = String(dt.getMinutes()).padStart(2, '0');
-    return `${yy}${mo}${dd}T${h}${mi}00`;
-  };
-
-  const title = `${params.serviceTitle} - ${params.salonName}`;
-  const details = [
-    `Serviço: ${params.serviceTitle}`,
-    params.professionalName ? `Profissional: ${params.professionalName}` : '',
-    `Estabelecimento: ${params.salonName}`,
-  ]
-    .filter(Boolean)
-    .join('\n');
-
-  const calParams = new URLSearchParams({
-    action: 'TEMPLATE',
-    text: title,
-    dates: `${toCalIso(startDate)}/${toCalIso(endDate)}`,
-    details,
-    location: params.salonAddress || params.salonName,
-  });
-
-  return `https://calendar.google.com/calendar/render?${calParams.toString()}`;
 }
 
 export interface SlotGenerationOptions {
@@ -1227,9 +1113,6 @@ const parseDurationToMinutes = (dur?: string | number | null, fallback = 45): nu
   return fallback;
 };
 
-/**
- * Lê os agendamentos ativos do cliente (sessão / localStorage) para verificar conflitos geotemporais entre salões
- */
 export function getLocalActiveClientAppointments(): any[] {
   if (typeof window === 'undefined') return [];
   const merged: any[] = [];
@@ -1258,14 +1141,6 @@ export function getLocalActiveClientAppointments(): any[] {
   return merged;
 }
 
-/**
- * Verifica se um horário pretendido (slotTime) no Salão B colide com algum agendamento ativo do cliente no Salão A
- * na mesma data, considerando:
- *   1. Horário de início no Salão A (startMinA)
- *   2. Tempo de execução do serviço no Salão A (durationMinA -> endMinA = startMinA + durationMinA)
- *   3. Distância / Tempo de deslocamento entre Salão A e Salão B (interSalonTravelMinutes + margem de segurança)
- *   4. Sentido inverso (Salão B -> Salão A): Término no Salão B + deslocamento até o Salão A antes de startMinA
- */
 export function checkInterSalonSlotCollision(params: {
   slotTime: string;
   dateStr?: string;
@@ -1307,7 +1182,6 @@ export function checkInterSalonSlotCollision(params: {
       continue;
     }
 
-    // Verificar se o agendamento é na mesma data
     const aptDateIso = String(apt.dateIso || apt.date_str || '').trim();
     const rawDateText = `${apt.dayGroup || ''} ${apt.dateTime || ''}`.toLowerCase();
     let isSameDay = false;
@@ -1322,7 +1196,6 @@ export function checkInterSalonSlotCollision(params: {
 
     if (!isSameDay) continue;
 
-    // Extrair horário de início do agendamento existente (Salão A)
     const timeMatch = String(apt.time || apt.start_time || apt.dateTime || '').match(/(\d{1,2}):(\d{2})/);
     if (!timeMatch) continue;
     const aptStartMin = parseInt(timeMatch[1], 10) * 60 + parseInt(timeMatch[2], 10);
@@ -1336,7 +1209,6 @@ export function checkInterSalonSlotCollision(params: {
     const otherSalonNorm = otherSalonName.toLowerCase();
     const isDifferentSalon = !currentSalonNorm || otherSalonNorm !== currentSalonNorm;
 
-    // Calcular tempo de deslocamento entre Salão A e Salão B
     let interSalonTravelMinutes = 0;
     if (isDifferentSalon) {
       const aptLat = Number(apt.salon_lat ?? apt.salonLat ?? apt.latitude);
@@ -1355,17 +1227,15 @@ export function checkInterSalonSlotCollision(params: {
           params.currentSalonCoords.lng,
           'car'
         );
-        interSalonTravelMinutes = Math.max(15, etaMinutes + 10); // ETA viário + 10 min margem de check-in
+        interSalonTravelMinutes = Math.max(15, etaMinutes + 10);
       } else {
         const baseEta = Number(apt.eta_minutes ?? apt.etaMinutes ?? params.fallbackInterSalonTravelMinutes ?? 20);
         interSalonTravelMinutes = Math.max(20, (Number.isFinite(baseEta) && baseEta > 0 ? baseEta : 20) + 10);
       }
     }
 
-    // Janela proibida:
-    // 1. O cliente precisa terminar no Salão A (aptEndMin) + deslocar até Salão B (interSalonTravelMinutes)
     const earliestAfterAptA = aptEndMin + interSalonTravelMinutes;
-    // 2. Ou, se agendar no Salão B antes do Salão A, precisa terminar no Salão B (candidateEndMin) + deslocar até Salão A (interSalonTravelMinutes) <= aptStartMin
+
     const latestFinishBeforeAptA = aptStartMin - interSalonTravelMinutes;
 
     const collidesAfterA = candidateStartMin >= aptStartMin && candidateStartMin < earliestAfterAptA;
@@ -1394,13 +1264,6 @@ export function checkInterSalonSlotCollision(params: {
   return null;
 }
 
-/**
- * Gera os horários do dia classificados por período (manhã, tarde, noite),
- * aplicando:
- *  1. Bloqueio de banco de dados (busySlots) e escala dos profissionais disponíveis no dia
- *  2. Trava Inteligente Anti-Colisão Geotemporal entre Salões (Salão A ➔ Salão B e B ➔ A)
- *  3. Regra preditiva para Hoje: Horário >= Hora Atual + Tempo de Deslocamento + 15 min (preparação)
- */
 export function getAvailableSlotsForDate(
   dateStr?: string,
   selectedProNameOrId?: string,
@@ -1447,7 +1310,6 @@ export function getAvailableSlotsForDate(
   const rawBusyList = options?.busySlots || [];
   const availablePros = options?.availableProfessionals;
 
-  // Se a lista de profissionais disponíveis no dia foi explicitamente resolvida como vazia, bloqueia os slots
   if (Array.isArray(availablePros) && availablePros.length === 0) {
     return baseSlots.map((slot) => ({
       ...slot,
@@ -1485,7 +1347,7 @@ export function getAvailableSlotsForDate(
 
     return rawBusyList.some((b) => {
       if (String(b.start_time).slice(0, 5) !== slotTime) return false;
-      // Bloqueio global (sem profissional específico atrelado)
+
       if (!b.professional_id && !b.professional_name) return true;
       if (!pro) {
         if (selectedProNameOrId && selectedProNameOrId !== 'any') {
@@ -1508,7 +1370,6 @@ export function getAvailableSlotsForDate(
     const [h, m] = slot.time.split(':').map(Number);
     const slotMinutes = h * 60 + m;
 
-    // 1. Verifica ocupação no banco de dados e turno de atendimento do(s) profissional(is) disponível(is)
     let isBusy = false;
     if (targetPro) {
       isBusy = isSlotBusyForPro(slot.time, slotMinutes, targetPro);
@@ -1526,7 +1387,6 @@ export function getAvailableSlotsForDate(
       };
     }
 
-    // 2. Verifica Trava Inteligente Anti-Colisão Geotemporal com outro Salão (Salão A ➔ Salão B e B ➔ A)
     const interSalonConflict = checkInterSalonSlotCollision({
       slotTime: slot.time,
       dateStr,
@@ -1547,7 +1407,6 @@ export function getAvailableSlotsForDate(
       };
     }
 
-    // 3. Se for para Hoje, bloqueia horas passadas e slots inferiores a (Hora Atual + Deslocamento + 15 min preparo)
     if (isToday) {
       if (slotMinutes <= nowMinutes) {
         return {
@@ -1571,5 +1430,3 @@ export function getAvailableSlotsForDate(
     };
   });
 }
-
-

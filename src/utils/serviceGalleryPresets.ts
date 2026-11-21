@@ -1,9 +1,3 @@
-/**
- * Curadoria de Imagens da Galeria Temática Vagou para Serviços
- * Fornece fotos e ilustrações profissionais categorizadas para vitrines de serviços
- * quando o salão/profissional não possuir imagem própria.
- */
-
 export interface GalleryPresetItem {
   id: string;
   title: string;
@@ -12,9 +6,8 @@ export interface GalleryPresetItem {
   badge?: string;
 }
 
-// Preset URLs de alta qualidade e alta performance (CDN Unsplash otimizado com auto=format&fit=crop)
 export const SERVICE_GALLERY_PRESETS: GalleryPresetItem[] = [
-  // --- UNHAS / NAIL DESIGN ---
+
   {
     id: 'preset-unhas-1',
     title: 'Unhas em Gel & Alongamento',
@@ -42,7 +35,6 @@ export const SERVICE_GALLERY_PRESETS: GalleryPresetItem[] = [
     url: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80',
   },
 
-  // --- CABELO FEMININO & TRATAMENTOS ---
   {
     id: 'preset-cabelo-1',
     title: 'Corte Moderno & Camadas',
@@ -70,7 +62,6 @@ export const SERVICE_GALLERY_PRESETS: GalleryPresetItem[] = [
     url: 'https://images.unsplash.com/photo-1580618672591-eb180b1a973f?auto=format&fit=crop&w=800&q=80',
   },
 
-  // --- BARBEARIA & CORTE MASCULINO ---
   {
     id: 'preset-barbearia-1',
     title: 'Degradê Fade Navalhado',
@@ -92,7 +83,6 @@ export const SERVICE_GALLERY_PRESETS: GalleryPresetItem[] = [
     url: 'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?auto=format&fit=crop&w=800&q=80',
   },
 
-  // --- BARBA & BARBOTERAPIA ---
   {
     id: 'preset-barba-1',
     title: 'Barboterapia com Toalha Quente',
@@ -107,7 +97,6 @@ export const SERVICE_GALLERY_PRESETS: GalleryPresetItem[] = [
     url: 'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?auto=format&fit=crop&w=800&q=80',
   },
 
-  // --- CÍLIOS & SOBRANCELHAS ---
   {
     id: 'preset-sobrancelhas-1',
     title: 'Design de Sobrancelhas com Henna',
@@ -123,7 +112,6 @@ export const SERVICE_GALLERY_PRESETS: GalleryPresetItem[] = [
     url: 'https://images.unsplash.com/photo-1512290900672-1f4967341951?auto=format&fit=crop&w=800&q=80',
   },
 
-  // --- ESTÉTICA, ROSTO & CORPO ---
   {
     id: 'preset-estetica-1',
     title: 'Limpeza de Pele & Hidratação',
@@ -139,7 +127,6 @@ export const SERVICE_GALLERY_PRESETS: GalleryPresetItem[] = [
     url: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=800&q=80',
   },
 
-  // --- COMBOS & PACOTES ---
   {
     id: 'preset-combos-1',
     title: 'Combo Cabelo & Barba Completo',
@@ -156,16 +143,12 @@ export const SERVICE_GALLERY_PRESETS: GalleryPresetItem[] = [
   },
 ];
 
-/**
- * Retorna as fotos da galeria filtradas por categoria do serviço
- */
 export function getGalleryPresetsForCategory(category?: string): GalleryPresetItem[] {
   if (!category || category === 'Todos' || category === 'Todas') {
     return SERVICE_GALLERY_PRESETS;
   }
   const normalized = category.toLowerCase().trim();
 
-  // Mapeamentos flexíveis
   let targetTag = 'cabelo';
   if (normalized.includes('unha') || normalized.includes('manicure') || normalized.includes('pedicure')) {
     targetTag = 'unhas';
@@ -188,9 +171,6 @@ export function getGalleryPresetsForCategory(category?: string): GalleryPresetIt
   return directMatches.length > 0 ? directMatches : SERVICE_GALLERY_PRESETS.slice(0, 8);
 }
 
-/**
- * Retorna a capa padrão de alta qualidade para um serviço sem foto com base na categoria e título
- */
 export function getDefaultThematicCoverForCategory(category?: string, title?: string): string {
   const presets = getGalleryPresetsForCategory(category);
   if (title) {

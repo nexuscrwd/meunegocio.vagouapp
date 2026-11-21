@@ -156,7 +156,7 @@ export const PixCheckoutModal: React.FC<PixCheckoutModalProps> = ({
       setCopied(true);
       setTimeout(() => setCopied(false), 2200);
     } catch {
-      // ignore
+
     }
   };
 
@@ -173,7 +173,7 @@ export const PixCheckoutModal: React.FC<PixCheckoutModalProps> = ({
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Barra Superior Institucional com Botão Voltar */}
+
         <div
           className={`px-3.5 py-3 border-b flex items-center justify-between shrink-0 ${
             isDark ? 'border-slate-800 bg-slate-900' : 'border-[#E6EDF5] bg-white'
@@ -211,13 +211,12 @@ export const PixCheckoutModal: React.FC<PixCheckoutModalProps> = ({
           </button>
         </div>
 
-        {/* Corpo Rolável */}
         <div className="p-3.5 overflow-y-auto space-y-3.5 flex-1">
-          {/* Card Principal de Acerto Pós-Serviço */}
+
           <div className={`caixa-card p-4 rounded-[4px] space-y-3.5 ${
             isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
           }`}>
-            {/* Resumo Cliente & Serviço */}
+
             <div
               className={`flex items-center justify-between gap-3 pb-3 border-b ${
                 isDark ? 'border-slate-800/80' : 'border-[#EDF2F7]'
@@ -255,7 +254,6 @@ export const PixCheckoutModal: React.FC<PixCheckoutModalProps> = ({
               </div>
             </div>
 
-            {/* Valor do Atendimento + WhatsApp do Cliente */}
             <div className="grid grid-cols-2 gap-2.5">
               <div>
                 <label
@@ -296,7 +294,6 @@ export const PixCheckoutModal: React.FC<PixCheckoutModalProps> = ({
               </div>
             </div>
 
-            {/* Seletor de Chave PIX (se múltiplas) ou Input Rápido */}
             {effectiveKeys.length > 1 ? (
               <div>
                 <label
@@ -348,7 +345,6 @@ export const PixCheckoutModal: React.FC<PixCheckoutModalProps> = ({
             ) : null}
           </div>
 
-          {/* QR Code BACEN na Tela + Botão Copiar */}
           {pixPayload ? (
             <div
               className={`caixa-card p-4 rounded-[4px] flex flex-col items-center text-center space-y-3 ${
@@ -412,7 +408,6 @@ export const PixCheckoutModal: React.FC<PixCheckoutModalProps> = ({
             </div>
           )}
 
-          {/* Ação de 1 Toque: Enviar Cobrança PIX no WhatsApp do Cliente */}
           {whatsappChargeUrl && (
             <a
               href={whatsappChargeUrl}
@@ -427,7 +422,6 @@ export const PixCheckoutModal: React.FC<PixCheckoutModalProps> = ({
           )}
         </div>
 
-        {/* Rodapé Fixo de Ação */}
         <div
           className={`p-3 border-t sticky bottom-0 z-20 flex items-center gap-2 ${
             isDark ? 'border-slate-800 bg-slate-950/95' : 'border-[#E6EDF5] bg-white'

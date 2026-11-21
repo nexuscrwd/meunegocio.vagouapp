@@ -1,9 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { 
-  Droplets, 
-  Trash2, 
-  Gauge, 
-  Calendar, 
+import {
+  Droplets,
+  Trash2,
+  Gauge,
   CheckCircle2,
   Sliders,
   Calculator,
@@ -18,10 +17,10 @@ import { syncAllLocalUtilitiesToDatabase } from '../../../services/mnvSupabaseSy
 export const DEFAULT_WATER_TARIFF: WaterTariffConfig = {
   concessionaria: 'Sabesp (São Paulo & Região)',
   uf: 'SP',
-  waterRateM3: 4.80, // R$/m³
-  sewagePercent: 80, // 80% de taxa de esgoto
-  fixedAvailability: 38.00, // Taxa mínima de ligação / disponibilidade
-  waterPerServiceLiters: 20, // 20 litros por lavagem de cabelo
+  waterRateM3: 4.80,
+  sewagePercent: 80,
+  fixedAvailability: 38.00,
+  waterPerServiceLiters: 20,
 };
 
 const INITIAL_WATER_READINGS: WaterReading[] = [];
@@ -29,16 +28,14 @@ const INITIAL_WATER_READINGS: WaterReading[] = [];
 export const WaterConsumptionManager: React.FC = () => {
   const { isDark } = useTheme();
 
-  // Sub-aba: 'leitura' | 'config'
   const [activeTab, setActiveTab] = useState<'leitura' | 'config'>('leitura');
 
-  // 1. Configuração da Tarifa de Água
   const [tariff, setTariff] = useState<WaterTariffConfig>(() => {
     try {
       const stored = localStorage.getItem('vagou_water_tariff_config');
       if (stored) return JSON.parse(stored);
     } catch {
-      // ignore
+
     }
     return DEFAULT_WATER_TARIFF;
   });
@@ -55,24 +52,21 @@ export const WaterConsumptionManager: React.FC = () => {
       localStorage.setItem('vagou_water_tariff_config', JSON.stringify(updated));
       localStorage.setItem('vagou_water_meters', JSON.stringify([updated]));
     } catch {
-      // ignore
+
     }
     syncAllLocalUtilitiesToDatabase();
     hapticSuccess();
   };
 
-  // Custo efetivo por m³ (Água + Esgoto)
   const effectiveM3Rate = useMemo(() => {
     return tariff.waterRateM3 * (1 + tariff.sewagePercent / 100);
   }, [tariff]);
 
-  // Custo de água por lavatório / cliente
   const costPerService = useMemo(() => {
-    // 1 m³ = 1000 Litros
+
     return (tariff.waterPerServiceLiters / 1000) * effectiveM3Rate;
   }, [tariff, effectiveM3Rate]);
 
-  // 2. Histórico de Leituras
   const [readings, setReadings] = useState<WaterReading[]>(() => {
     try {
       const stored = localStorage.getItem('vagou_water_meter_readings');
@@ -81,7 +75,7 @@ export const WaterConsumptionManager: React.FC = () => {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {
-      // ignore
+
     }
     return INITIAL_WATER_READINGS;
   });
@@ -92,10 +86,8 @@ export const WaterConsumptionManager: React.FC = () => {
 
   const latestReading = sortedReadings[0];
 
-  // 3. Simulador & Previsão da Conta com Hidrômetro
   const [currentMeterInput, setCurrentMeterInput] = useState<string>('');
 
-  // Dias decorridos no ciclo calculados automaticamente a partir da última leitura ou dia do mês
   const autoDaysOfCycle = useMemo(() => {
     if (latestReading?.date) {
       const readDate = new Date(latestReading.date + 'T00:00:00');
@@ -155,7 +147,7 @@ export const WaterConsumptionManager: React.FC = () => {
       localStorage.setItem('vagou_water_meter_readings', JSON.stringify(updated));
       localStorage.setItem('vagou_water_readings', JSON.stringify(updated));
     } catch {
-      // ignore
+
     }
     syncAllLocalUtilitiesToDatabase();
     setCurrentMeterInput('');
@@ -169,14 +161,14 @@ export const WaterConsumptionManager: React.FC = () => {
       localStorage.setItem('vagou_water_meter_readings', JSON.stringify(updated));
       localStorage.setItem('vagou_water_readings', JSON.stringify(updated));
     } catch {
-      // ignore
+
     }
     syncAllLocalUtilitiesToDatabase();
   };
 
   return (
     <div className="space-y-3.5 animate-in fade-in duration-150">
-      {/* 1. SELETOR DE MODO / SUB-ABAS */}
+
       <div className={`p-1 rounded-xl border flex items-center gap-1 ${
         isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
       }`}>
@@ -213,12 +205,9 @@ export const WaterConsumptionManager: React.FC = () => {
         </button>
       </div>
 
-      {/* ========================================================
-          ABA 1: HIDRÔMETRO, SIMULAÇÃO E PREVISÃO DA CONTA
-         ======================================================== */}
       {activeTab === 'leitura' && (
         <div className="space-y-3.5 animate-in fade-in duration-150">
-          {/* Card do Simulador / Previsão */}
+
           <div className={`p-4 rounded-xl border space-y-3 ${
             isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
           }`}>
@@ -245,7 +234,6 @@ export const WaterConsumptionManager: React.FC = () => {
               </div>
             </div>
 
-            {/* Input do Hidrômetro */}
             <div className="pt-1">
               <div>
                 <label className="block text-[10px] font-bold uppercase mb-1 text-slate-400">
@@ -274,7 +262,6 @@ export const WaterConsumptionManager: React.FC = () => {
               </div>
             </div>
 
-            {/* Resultado da Previsão Calculada */}
             {forecastData && (
               <div className={`p-3.5 rounded-lg border space-y-2.5 animate-in slide-in-from-top-2 duration-200 ${
                 isDark ? 'bg-slate-950/70 border-cyan-500/40' : 'bg-cyan-50/70 border-cyan-300'
@@ -327,7 +314,6 @@ export const WaterConsumptionManager: React.FC = () => {
             )}
           </div>
 
-          {/* Histórico das Leituras Passadas */}
           <div className="space-y-2">
             <div className="flex items-center justify-between px-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -386,9 +372,6 @@ export const WaterConsumptionManager: React.FC = () => {
         </div>
       )}
 
-      {/* ========================================================
-          ABA 2: CONFIGURAÇÃO DA TARIFA DE ÁGUA E ESGOTO
-         ======================================================== */}
       {activeTab === 'config' && (
         <div className={`p-4 rounded-xl border space-y-4 animate-in fade-in duration-150 ${
           isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
@@ -403,7 +386,6 @@ export const WaterConsumptionManager: React.FC = () => {
             </p>
           </div>
 
-          {/* Seleção de Estado (UF) e Companhia de Saneamento de todos os estados */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="block text-[10px] font-bold uppercase text-slate-400">
@@ -415,7 +397,7 @@ export const WaterConsumptionManager: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {/* Dropdown de Estados */}
+
               <div>
                 <label className="block text-[9px] font-bold uppercase mb-1 text-slate-400">
                   Estado (UF)
@@ -450,7 +432,6 @@ export const WaterConsumptionManager: React.FC = () => {
                 </select>
               </div>
 
-              {/* Dropdown de Companhia de Saneamento */}
               <div>
                 <label className="block text-[9px] font-bold uppercase mb-1 text-slate-400">
                   Companhia de Água e Saneamento
@@ -498,7 +479,6 @@ export const WaterConsumptionManager: React.FC = () => {
             </div>
           </div>
 
-          {/* Campos Tarifários */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-bold uppercase mb-1 text-slate-400">

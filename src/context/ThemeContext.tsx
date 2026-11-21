@@ -225,7 +225,6 @@ export const applyThemePaletteToDom = (
     root.setAttribute('data-neutral-preset', '1');
     root.setAttribute('data-theme-customized', palette.isCustomized ? 'true' : 'false');
 
-    // Variáveis Neutras / Superfícies Base do App
     root.style.setProperty('--neutral-outer-bg', palette.outerBg);
     root.style.setProperty('--neutral-canvas-bg', palette.canvasBg);
     root.style.setProperty('--neutral-shell-border', palette.shellBorder);
@@ -252,7 +251,6 @@ export const applyThemePaletteToDom = (
     root.style.setProperty('--neutral-price-on-dark', '#FFFFFF');
     root.style.setProperty('--neutral-dot-on-dark', '#E2E8F0');
 
-    // Tokens Semânticos de Marca (--brand-*) para Cascata Completa
     const primaryRgb = hexToRgb(palette.primary);
     root.style.setProperty('--brand-primary', palette.primary);
     root.style.setProperty('--brand-primary-rgb', `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`);
@@ -282,13 +280,6 @@ export const applyThemePaletteToDom = (
   }
 
   return palette;
-};
-
-export const applyNeutralPresetToDom = (presetId: NeutralPresetId, customAccent?: string) => {
-  const tokens = NEUTRAL_PRESETS[presetId] || NEUTRAL_PRESETS[1];
-  const isDarkActive = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-  const hasCustom = Boolean(customAccent && !isLegacyOrSystemDefaultColor(customAccent));
-  applyThemePaletteToDom(hasCustom ? customAccent! : tokens.actionBg, isDarkActive, hasCustom);
 };
 
 export const applyAccentColorToDom = (

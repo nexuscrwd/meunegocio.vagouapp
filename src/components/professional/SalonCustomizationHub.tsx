@@ -56,7 +56,6 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
   const { isDark, themeExplicitlyCustomized, resetToDefaultPalette, setTheme } = useTheme();
   const [isDefaultModalOpen, setIsDefaultModalOpen] = useState(false);
 
-  // Mapeamento de sub-abas para os cards se vier via props
   const initialCard: ManagementCardId | null =
     initialSubTab === 'servicos' ? 'servicos' :
     initialSubTab === 'equipe' ? 'equipe' :
@@ -154,7 +153,6 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
     hapticSuccess();
   };
 
-  // Cards unificados do menu Preferências: Dados do negócio + Visual & Layout
   const cards = [
     {
       id: 'dados' as ManagementCardId,
@@ -172,7 +170,6 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
     },
   ];
 
-  // SUB-VIEW: 1. Dados do Negócio
   if (selectedCard === 'dados') {
     return (
       <BusinessDataCardView
@@ -192,7 +189,6 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
     );
   }
 
-  // SUB-VIEW UNIFICADA: 2. Visual & Layout (Tema & Cores / Logo / Layout)
   if (selectedCard === 'visual' || selectedCard === 'layout') {
     return (
       <SalonDesignStudioView
@@ -211,7 +207,6 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
     );
   }
 
-  // SUB-VIEW: 4. Serviços
   if (selectedCard === 'servicos') {
     return (
       <div className={`w-full h-full flex flex-col justify-between overflow-hidden ${
@@ -257,7 +252,6 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
     );
   }
 
-  // SUB-VIEW: 4. Equipe & Turnos
   if (selectedCard === 'equipe') {
     return (
       <div className={`w-full h-full flex flex-col justify-between overflow-hidden ${
@@ -308,7 +302,6 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
     );
   }
 
-  // SUB-VIEW: 4B. Espaço (Estrutura, Localização & Contatos)
   if (selectedCard === 'espaco') {
     return (
       <ProfessionalSpaceManager
@@ -328,7 +321,6 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
     );
   }
 
-  // SUB-VIEW: 5. Financeiro & Pagamentos
   if (selectedCard === 'financeiro') {
     return (
       <div className={`w-full h-full flex flex-col justify-between overflow-hidden ${
@@ -377,7 +369,6 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
     );
   }
 
-  // SUB-VIEW: 6. Utilidades & Ferramentas
   if (selectedCard === 'utilidades') {
     return (
       <div className="w-full h-full flex flex-col overflow-hidden">
@@ -394,12 +385,11 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
     );
   }
 
-  // VISÃO PRINCIPAL DO HUB: CARDS DE ACESSO AO GERENCIAMENTO
   return (
     <div className={`w-full h-full flex flex-col overflow-y-auto no-scrollbar ${
       isDark ? 'bg-slate-950 text-white' : 'bg-[var(--brand-canvas-bg)] text-slate-900'
     }`}>
-      {/* Cabeçalho Fixo do Gerenciamento */}
+
       <div
         className={sectionHeaderStyleData.containerClass}
         style={sectionHeaderStyleData.containerStyle}
@@ -454,9 +444,8 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
         </div>
       </div>
 
-      {/* Grid de Cards de Acesso */}
       <div className="p-3.5 space-y-2.5 max-w-2xl mx-auto w-full pb-20">
-        {/* Banner Informativo Sintético */}
+
         <div className={`px-3 py-2 rounded-[4px] border flex items-center justify-between text-xs ${
           isDark ? 'bg-slate-900/70 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700 shadow-2xs'
         }`}>
@@ -471,7 +460,6 @@ export const SalonCustomizationHub: React.FC<SalonCustomizationHubProps> = ({
           </span>
         </div>
 
-        {/* Lista de Cards de Acesso */}
         <div className="grid grid-cols-1 gap-2.5">
           {cards.map((card) => {
             const Icon = card.icon;

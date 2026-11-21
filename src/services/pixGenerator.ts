@@ -77,9 +77,6 @@ const computeCrc16Ccitt = (payload: string): string => {
   return crc.toString(16).toUpperCase().padStart(4, '0');
 };
 
-/**
- * Gera o payload oficial EMV® QRCPS-MPM (BR Code BACEN - PIX Copia e Cola)
- */
 export const generatePixPayload = ({
   pixKey,
   keyType,
@@ -129,9 +126,6 @@ export const generatePixPayload = ({
   return `${basePayload}${crc}`;
 };
 
-/**
- * Retorna a URL da imagem do QR Code PIX padrão BACEN
- */
 export const getPixQrCodeUrl = (
   payloadOrOptions: string | PixPayloadOptions,
   size = 280
@@ -145,9 +139,6 @@ export const getPixQrCodeUrl = (
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=10&data=${encodeURIComponent(payload)}`;
 };
 
-/**
- * Monta o link direto de cobrança pós-serviço via WhatsApp com PIX Copia e Cola
- */
 export const buildWhatsAppPixChargeUrl = ({
   clientPhone,
   clientName,

@@ -138,7 +138,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
 }) => {
   const { isDark } = useTheme();
 
-  // 1. Selected Services State
   const [selectedServices, setSelectedServices] = useState<CatalogServiceItem[]>(() => {
     if (initialService) return [initialService];
     if (services.length > 0) return [services[0]];
@@ -151,7 +150,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     }
   }, [services, selectedServices.length]);
 
-  // Objeto consolidado de serviços selecionados (com fallback para permitir uso direto da agenda mensal)
   const selectedService = useMemo<CatalogServiceItem>(() => {
     if (selectedServices.length === 0) {
       return (
@@ -193,7 +191,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     } as CatalogServiceItem;
   }, [selectedServices, services]);
 
-  // Step state: inicia diretamente na agenda mensal ('date')
   const [currentStep, setCurrentStep] = useState<Step>(() => {
     if (initialTimeSlot) return 'professionals_and_time';
     if (initialService && skipDateStep) return 'professionals_and_time';
@@ -227,14 +224,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     return false;
   };
 
-  // Modal Inline "Para Você ou Dependente?" (abre ao clicar em uma data no calendário)
   const [isBeneficiaryModalOpen, setIsBeneficiaryModalOpen] = useState<boolean>(() => {
     if (initialService && skipDateStep && !initialTimeSlot && !resumeDraft && checkIsClientAuthenticatedSync()) return true;
     return false;
   });
   const [returnToSummaryAfterBeneficiary, setReturnToSummaryAfterBeneficiary] = useState<boolean>(false);
 
-  // Modal Simples de Origem ("Local Atual GPS" vs "Saindo de Casa" vs "Outro Local" com cálculo de distância e sugestão de dia/horário propício)
   const [isOriginModalOpen, setIsOriginModalOpen] = useState<boolean>(false);
   const [originModalMode, setOriginModalMode] = useState<'choice' | 'custom_cep'>('choice');
   const [originType, setOriginType] = useState<'gps' | 'home' | 'other'>('gps');
@@ -242,13 +237,11 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   const [hasCalculatedCustomCep, setHasCalculatedCustomCep] = useState(false);
   const [returnToRouteModalAfterOrigin, setReturnToRouteModalAfterOrigin] = useState(false);
 
-  // Modal Independente de Resumo Final / Pré-Salvamento
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [draftSavedFeedback, setDraftSavedFeedback] = useState<string | null>(null);
 
-  // Modal Pós-Confirmação 1: Pergunta "Pôr na Agenda" ou "Ir Agora"
   const [isPostConfirmChoiceModalOpen, setIsPostConfirmChoiceModalOpen] = useState(false);
-  // Modal Pós-Confirmação 2: Modal Próprio de Rota / Deslocamento (Google Maps API)
+
   const [isRouteModalOpen, setIsRouteModalOpen] = useState(false);
   const [isEmbeddedMapOpen, setIsEmbeddedMapOpen] = useState(false);
   const [embeddedMapTab, setEmbeddedMapTab] = useState<'map' | 'itinerary'>('map');
@@ -258,7 +251,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   const [hasReachedDestinationInApp, setHasReachedDestinationInApp] = useState(false);
   const [placesSuggestions, setPlacesSuggestions] = useState<GooglePlaceSuggestion[]>([]);
 
-  // 2. Date Selection State (Monthly Calendar)
   const today = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -283,14 +275,11 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   });
 
-  // 3. Professional Selection State ('any' or professional name)
   const [selectedProfessional, setSelectedProfessional] = useState<string>(preSelectedProfessionalName || 'any');
 
-  // 4. Time Slot & Period Selection (Ordem obrigatória: Manhã, Tarde, Noite, Todos)
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(initialTimeSlot || null);
   const [timePeriodFilter, setTimePeriodFilter] = useState<'manha' | 'tarde' | 'noite' | 'todos'>('manha');
 
-  // 5. Cálculo Preditivo de Deslocamento (Casa ou Outro Local via CEP + Modal de Transporte + Margem de Folga + 15 min preparo)
   const [transportMode, setTransportMode] = useState<TransportMode>('car');
   const [addressQuery, setAddressQuery] = useState<string>(() => {
     return (
@@ -314,7 +303,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   const [etaMinutes, setEtaMinutes] = useState<number>(28);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState<boolean>(false);
 
-  // Sincronizar CEP/Endereço real do salão assim que hidratar do Supabase
   useEffect(() => {
     const nextDest = (salonCep || salonAddress || '').trim();
     if (nextDest && nextDest !== salonDestQuery) {
@@ -322,7 +310,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     }
   }, [salonCep, salonAddress]);
 
-  // Carregar rota detalhada real (Routes API v2) + matriz simultânea dos 5 modais quando o modal de rota ou mapa abrir
   useEffect(() => {
     if (!isRouteModalOpen && !isEmbeddedMapOpen) return;
     let active = true;
@@ -369,7 +356,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     resolvedSalonCoords.lng,
   ]);
 
-  // Autocomplete Places API (New v1) ao digitar rua/local em "Outro Local"
   useEffect(() => {
     const clean = customCepInput.trim();
     const hasLetters = /[a-zA-ZÀ-ÿ]/.test(clean);
@@ -387,14 +373,12 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     return () => clearTimeout(timer);
   }, [customCepInput, isOriginModalOpen, originModalMode]);
 
-  // Horários ocupados e profissionais disponíveis no dia vindos do banco de dados
   const [busySlotsFromDb, setBusySlotsFromDb] = useState<BusySlotRecord[]>([]);
   const [availableProfessionalsForDate, setAvailableProfessionalsForDate] = useState<SalonProfessionalItem[]>(() =>
     professionals.filter((p) => p.isActive !== false && !String(p.role || '').toLowerCase().includes('recep'))
   );
   const [isLoadingBusySlots, setIsLoadingBusySlots] = useState(false);
 
-  // Relógio em tempo real para manter o cálculo de Hora Atual + ETA + 15 min sempre preciso
   const [currentTimeTick, setCurrentTimeTick] = useState<Date>(() => new Date());
   useEffect(() => {
     const timer = setInterval(() => {
@@ -403,7 +387,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Estado de Autenticação e Dependentes (Conta Família sincronizada com o banco)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(() => {
     if (initialService && !checkIsClientAuthenticatedSync()) return true;
     return false;
@@ -419,7 +402,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     return [];
   });
 
-  // Mini-formulário inline para "+ Cadastrar Dependente" dentro do modal "Para Você ou Dependente?"
   const [isCreatingDependentInline, setIsCreatingDependentInline] = useState(false);
   const [newDepFullName, setNewDepFullName] = useState('');
   const [newDepRelationship, setNewDepRelationship] = useState<'son' | 'daughter' | 'spouse' | 'parent' | 'other'>('son');
@@ -442,7 +424,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   const [bookingErrorMessage, setBookingErrorMessage] = useState('');
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
 
-  // Carregar dependentes reais do cliente no Supabase (public.dependents / public.client_family_members)
   useEffect(() => {
     async function loadClientDependentsFromDb() {
       try {
@@ -492,7 +473,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     loadClientDependentsFromDb();
   }, [isOpen, isBeneficiaryModalOpen]);
 
-  // Consultar horários ocupados e disponibilidade real dos profissionais no banco sempre que a data ou o salão mudar
   useEffect(() => {
     let active = true;
     async function loadBusySlotsAndAvailablePros() {
@@ -529,11 +509,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     };
   }, [salonId, selectedDateIso, isSummaryModalOpen, professionals]);
 
-  // Filtrar apenas os profissionais que fazem o tipo de serviço selecionado
   const professionalsForSelectedService = useMemo(() => {
     if (!selectedService) return availableProfessionalsForDate;
 
-    // 1. Vínculo explícito por professionalId no serviço
     if (selectedService.professionalId) {
       const exactMatch = availableProfessionalsForDate.filter(
         (p) => p.id && p.id === selectedService.professionalId
@@ -541,7 +519,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       if (exactMatch.length > 0) return exactMatch;
     }
 
-    // 2. Filtro por especialidade/categoria do serviço
     const normalizeText = (val: string) =>
       String(val || '')
         .toLowerCase()
@@ -606,7 +583,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     return availableProfessionalsForDate;
   }, [availableProfessionalsForDate, selectedService]);
 
-  // Selecionar automaticamente o primeiro profissional apto para o serviço (sem botão "Qualquer")
   useEffect(() => {
     if (professionalsForSelectedService.length > 0) {
       const isCurrentValid =
@@ -618,7 +594,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     }
   }, [professionalsForSelectedService, selectedProfessional]);
 
-  // Verificação unificada de autenticação do cliente (Sessão Local Vagou / admvapp + Supabase Auth)
   const checkIsClientAuthenticated = async (): Promise<boolean> => {
     if (checkIsClientAuthenticatedSync()) return true;
 
@@ -632,7 +607,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     return false;
   };
 
-  // Reagir imediatamente quando o usuário clica em um Serviço na seção Serviços (abre o modal de Beneficiário)
   const prevBookingTriggerRef = useRef<number>(bookingTrigger);
   const prevInitialServiceIdRef = useRef<string | undefined>(initialService?.id);
 
@@ -676,7 +650,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     }
   }, [bookingTrigger, initialService, skipDateStep, initialTimeSlot, initialDateIso, services]);
 
-  // Restaurar rascunho pré-salvo quando solicitado pelo cliente (Banner Flutuante ou Minha Agenda)
   useEffect(() => {
     if (!resumeDraft) return;
     if (Array.isArray(resumeDraft.services) && resumeDraft.services.length > 0) {
@@ -701,7 +674,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     setIsSummaryModalOpen(true);
   }, [resumeDraft]);
 
-  // Rastrear abertura em modo modal tradicional (!inline)
   const prevIsOpenRef = useRef(false);
   useEffect(() => {
     if (!inline && isOpen && !prevIsOpenRef.current) {
@@ -731,7 +703,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     prevIsOpenRef.current = isOpen;
   }, [inline, isOpen, skipDateStep, initialTimeSlot, initialDateIso, initialService, resumeDraft, services]);
 
-  // Handler para salvar novo dependente inline sem sair do fluxo de agendamento
   const handleSaveInlineDependent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDepFullName.trim()) return;
@@ -755,7 +726,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       localStorage.setItem('vagou_user_dependents', JSON.stringify(updatedList));
     } catch {}
 
-    // Sincronizar no Supabase (public.dependents + public.client_family_members)
     if (isSupabaseConfigured && supabase) {
       try {
         let parentClientId = localStorage.getItem('vagou_client_id') || '';
@@ -801,7 +771,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     hapticSuccess();
   };
 
-  // Handler de Cálculo de Rota e ETA (Origem Cliente -> Destino Salão via OSRM + Modal de Transporte + Margem de Folga)
   const runRouteCalculation = async (
     originInput: string,
     destInput: string,
@@ -927,7 +896,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     );
   };
 
-  // Reconhecer automaticamente o local atual do dispositivo (GPS) ao abrir o modal "De onde você vai sair?"
   useEffect(() => {
     if (isOriginModalOpen && originModalMode === 'choice' && originType === 'gps') {
       handleDetectDeviceGpsOrigin();
@@ -944,7 +912,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     setHasCalculatedCustomCep(true);
   };
 
-  // Auto-calcular rota real ao abrir ou quando digitar um CEP completo de 8 dígitos ou mudar o meio de transporte
   useEffect(() => {
     const cleanOriginDigits = addressQuery.replace(/\D/g, '');
     if (cleanOriginDigits.length === 8 || addressQuery.trim().length >= 6) {
@@ -960,7 +927,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     }
   }, [addressQuery, salonDestQuery, transportMode]);
 
-  // Monthly Calendar Generation
   const monthData = useMemo(() => {
     const year = currentViewMonth.getFullYear();
     const month = currentViewMonth.getMonth();
@@ -1029,17 +995,14 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     setCurrentViewMonth(next);
   };
 
-  // Cálculo de bloqueio preditivo (Hora Atual + Deslocamento + 15 min preparo) e Abas de Período
   const isSelectedDateToday = selectedDateIso === todayIso;
   const nowMinutes = currentTimeTick.getHours() * 60 + currentTimeTick.getMinutes();
   const totalLeadMinutes = etaMinutes + PREP_BUFFER_MINUTES;
   const minAllowedMinutesToday = nowMinutes + totalLeadMinutes;
 
-  // Regra de Indisponibilização Automática de Abas de Período Passadas (Manhã < 12:00, Tarde < 18:00)
   const isManhaPeriodDisabled = isSelectedDateToday && (nowMinutes >= 12 * 60 || minAllowedMinutesToday > 11 * 60 + 30);
   const isTardePeriodDisabled = isSelectedDateToday && (nowMinutes >= 18 * 60 || minAllowedMinutesToday > 17 * 60 + 30);
 
-  // Auto-selecionar o período ativo válido sempre que a data ou o horário mínimo mudar
   useEffect(() => {
     if (isSelectedDateToday) {
       if (isTardePeriodDisabled && (timePeriodFilter === 'manha' || timePeriodFilter === 'tarde')) {
@@ -1057,7 +1020,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     return match ? Math.max(15, parseInt(match[1], 10)) : 45;
   }, [selectedService]);
 
-  // Gerar os slots de horário com validação no banco + escala dos profissionais disponíveis no dia + trava anti-colisão entre salões (A -> B) + regra de deslocamento + 15 min
   const generatedSlots = useMemo(() => {
     return getAvailableSlotsForDate(selectedDateIso, selectedProfessional, {
       travelMinutes: etaMinutes,
@@ -1081,7 +1043,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     selectedServiceDurationMinutes,
   ]);
 
-  // Agrupamento de slots por período (Manhã, Tarde, Noite)
   const slotsByPeriod = useMemo(() => {
     return {
       manha: generatedSlots.filter((s) => s.period === 'manha'),
@@ -1090,11 +1051,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     };
   }, [generatedSlots]);
 
-  // Sugestão inteligente do Dia e Horário mais propício com base na distância e tempo de deslocamento (mesmo vindo de outro estado)
   const propitiousSuggestion = useMemo(() => {
     for (let dayOffset = 0; dayOffset <= 30; dayOffset++) {
       const candDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayOffset);
-      if (candDate.getDay() === 0) continue; // Domingo fechado
+      if (candDate.getDay() === 0) continue;
 
       const candIso = `${candDate.getFullYear()}-${String(candDate.getMonth() + 1).padStart(2, '0')}-${String(candDate.getDate()).padStart(2, '0')}`;
       const candShortDate = `${String(candDate.getDate()).padStart(2, '0')}/${String(candDate.getMonth() + 1).padStart(2, '0')}`;
@@ -1184,7 +1144,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     selectedServiceDurationMinutes,
   ]);
 
-  // Profissionais ativos do salão para o cabeçalho (visível apenas quando houver múltiplos profissionais; oculto quando profissional único)
   const salonActiveProfessionals = useMemo(
     () => professionals.filter((p) => p.isActive !== false && !String(p.role || '').toLowerCase().includes('recep')),
     [professionals]
@@ -1204,7 +1163,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
   const resolvedProfessionalAvatar =
     activeProfObj?.avatar || activeProfObj?.avatarUrl || fallbackProfObj?.avatar || fallbackProfObj?.avatarUrl;
 
-  // Pré-Salvar Agendamento como Rascunho (Não trava a vaga no banco até a confirmação)
   const handleSaveAsDraft = () => {
     if (!selectedService || !selectedTimeSlot) return;
     hapticMedium();
@@ -1248,7 +1206,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     }, 1400);
   };
 
-  // Confirmar Agendamento Final no Banco de Dados (com campos preditivos BOL-020)
   const handleConfirmFinal = async (bypassAuthCheck = false) => {
     setBookingErrorMessage('');
     if (!selectedService || !selectedTimeSlot) return;
@@ -1330,7 +1287,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         return;
       }
 
-      // Após terminar o cadastro/confirmação, não exibe "Ir Agora" — direciona exclusivamente para a Agenda
       saveBookingDraft(null);
       onDraftSaved?.(null);
       setIsSummaryModalOpen(false);
@@ -1347,7 +1303,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     }
   };
 
-  // Renderizador de grade de horários para um período específico
   const renderPeriodSlotsBlock = (
     periodKey: 'manha' | 'tarde' | 'noite',
     label: string,
@@ -1449,7 +1404,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       }`}
       role={inline ? undefined : 'region'}
     >
-      {/* Cabeçalho de Profissionais: Visível apenas para salões com múltiplos profissionais; oculto para profissional único */}
+
       {hasMultipleProfessionals && (
         <div
           className={`px-3.5 py-2.5 border-b shrink-0 transition-colors ${
@@ -1513,11 +1468,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         </div>
       )}
 
-      {/* Scrollable Content Body */}
       <div className="flex-1 app-vertical-scroll p-3.5 sm:p-4 space-y-3">
-        {/* ============================================================ */}
-        {/* AGENDA MENSAL DE DATAS DENTRO DE .caixa-card */}
-        {/* ============================================================ */}
+
         {currentStep === 'date' && (
           <section className="caixa-card p-4 space-y-3 animate-in fade-in duration-200">
             <div className="flex items-center justify-between pb-2.5 border-b border-[#EDF2F7] dark:border-slate-800">
@@ -1607,9 +1559,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           </section>
         )}
 
-        {/* ============================================================ */}
-        {/* TURNOS + HORÁRIOS DO DIA SELECIONADO DENTRO DE .caixa-card */}
-        {/* ============================================================ */}
         {currentStep === 'professionals_and_time' && (
           <section className="caixa-card p-4 space-y-3 animate-in fade-in duration-200">
             <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-[#EDF2F7] dark:border-slate-800">
@@ -1635,7 +1584,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               </span>
             </div>
 
-            {/* Linha 2: Abas de Turnos dedicadas em largura total (Manhã | Tarde | Noite | Todos) */}
             <div className="grid grid-cols-4 gap-1.5">
               {(
                 [
@@ -1673,7 +1621,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
               })}
             </div>
 
-            {/* Linha 3: Grade de Horários Classificada por Período (Manhã, Tarde, Noite) */}
             <div className="divide-y divide-[#EDF2F7] dark:divide-slate-800 space-y-3">
               {(timePeriodFilter === 'manha' || timePeriodFilter === 'todos') &&
                 renderPeriodSlotsBlock('manha', 'Manhã (08h às 11h30)', Sun, slotsByPeriod.manha, isManhaPeriodDisabled)}
@@ -1688,9 +1635,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         )}
       </div>
 
-      {/* ============================================================ */}
-      {/* RODAPÉ FIXO DE AÇÃO (sticky bottom-0 z-20) */}
-      {/* ============================================================ */}
       {currentStep === 'professionals_and_time' && Boolean(selectedTimeSlot) && (
         <div className={`px-3.5 py-2.5 border-t shrink-0 sticky bottom-0 z-20 caixa-footer-shadow transition-colors ${
           isDark ? 'bg-[#151A1E] border-slate-800' : 'bg-white border-[#E6EDF5]'
@@ -1714,14 +1658,11 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     </div>
   );
 
-  // ============================================================================
-  // SEÇÃO EM TELA INTEIRA 1: "PARA VOCÊ OU DEPENDENTE?" (Fundo #F7F9FC + Voltar)
-  // ============================================================================
   const beneficiaryModalNode = isBeneficiaryModalOpen && selectedService && (
     <div className={`absolute inset-0 z-40 w-full h-full flex flex-col overflow-hidden animate-in fade-in duration-150 ${
       isDark ? 'bg-slate-950 text-white' : 'bg-[#F7F9FC] text-[#333E48]'
     }`}>
-      {/* Barra Superior Limpa Integrada com Botão Voltar */}
+
       <div className={`px-3.5 py-2.5 border-b flex items-center justify-between gap-2 shrink-0 ${
         isDark ? 'bg-slate-900 border-slate-800' : 'bg-[#F7F9FC] border-[#EDF2F7]'
       }`}>
@@ -1751,7 +1692,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         </span>
       </div>
 
-      {/* Conteúdo em .caixa-card sobre #F7F9FC */}
       <div className="flex-1 app-vertical-scroll p-3.5 sm:p-4 space-y-3">
         <section className="caixa-card p-4 space-y-4">
           <div className="flex items-center gap-3 pb-3 border-b border-[#EDF2F7] dark:border-slate-800">
@@ -1762,7 +1702,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             </div>
           </div>
 
-          {/* Botões Principais em Colunas: Para Você vs Dependente */}
           <div className="grid grid-cols-2 gap-2.5">
             <button
               type="button"
@@ -1809,7 +1748,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             </button>
           </div>
 
-          {/* Lista de Dependentes do Banco + Botão "+ Cadastrar Dependente" */}
           {isDependentBooking && (
             <div className="space-y-2.5 pt-3 border-t border-[#EDF2F7] dark:border-slate-800 animate-in fade-in duration-150">
               {registeredDependents.length > 0 && !isCreatingDependentInline && (
@@ -1872,7 +1810,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 </div>
               )}
 
-              {/* Botão ou Formulário Inline "+ Cadastrar Dependente" */}
               {!isCreatingDependentInline ? (
                 <button
                   type="button"
@@ -1954,9 +1891,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     </div>
   );
 
-  // ============================================================================
-  // SEÇÃO EM TELA INTEIRA 1.5: ORIGEM DO CLIENTE + MODAL DE TRANSPORTE
-  // ============================================================================
   const originHours = Math.floor(etaMinutes / 60);
   const originRemainderMinutes = etaMinutes % 60;
   const formattedEtaHoursAndMinutes = `${originHours} ${originHours === 1 ? 'hora' : 'horas'} e ${String(originRemainderMinutes).padStart(2, '0')} minutos`;
@@ -2018,7 +1952,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     return <Car className={className} />;
   };
 
-  // Filtra os meios de deslocamento viáveis comparando horário selecionado, tempo de chegada de cada modal e horário atual
   const feasibleTransportModeOptions = useMemo(() => {
     const nowMs = currentTimeTick.getTime();
 
@@ -2071,7 +2004,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     }
   }, [feasibleTransportModeOptions, transportMode, distanceKm]);
 
-  // Grade compacta com as opções viáveis do Google Maps API + Aplicativo
   const renderTransportSelectorGrid = (preserveSlot = false) => (
     <div className="space-y-1.5">
       <span className="text-[10px] font-bold uppercase tracking-wider block leading-snug text-[#5F6C7B]">
@@ -2125,15 +2057,11 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     }
   };
 
-  const resolvedSalonLogo = isDark
-    ? salonLogoDark || salonLogo || salonLogoLight
-    : salonLogoLight || salonLogo || salonLogoDark;
-
   const originModalNode = isOriginModalOpen && selectedService && (
     <div className={`absolute inset-0 z-40 w-full h-full flex flex-col overflow-hidden animate-in fade-in duration-150 ${
       isDark ? 'bg-slate-950 text-white' : 'bg-[#F7F9FC] text-[#333E48]'
     }`}>
-      {/* Barra Superior Limpa Integrada com Botão Voltar */}
+
       <div className={`px-3.5 py-2.5 border-b flex items-center justify-between gap-2 shrink-0 ${
         isDark ? 'bg-slate-900 border-slate-800' : 'bg-[#F7F9FC] border-[#EDF2F7]'
       }`}>
@@ -2162,7 +2090,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         </span>
       </div>
 
-      {/* Conteúdo em .caixa-card sobre #F7F9FC */}
       <div className="flex-1 app-vertical-scroll p-3.5 sm:p-4 space-y-3">
         <section className="caixa-card p-4 space-y-4">
           <div className="flex items-center gap-3 pb-3 border-b border-[#EDF2F7] dark:border-slate-800">
@@ -2372,7 +2299,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 </button>
               </form>
 
-              {/* Sugestões Instantâneas do Google Places API (New v1) */}
               {placesSuggestions.length > 0 && (
                 <div className="rounded-[4px] divide-y divide-[#EDF2F7] overflow-hidden bg-[#F7F9FC]">
                   {placesSuggestions.map((place) => (
@@ -2497,14 +2423,11 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     </div>
   );
 
-  // ============================================================================
-  // SEÇÃO EM TELA INTEIRA 2: RESUMO E CONFIRMAÇÃO DO AGENDAMENTO (Fundo #F7F9FC)
-  // ============================================================================
   const summaryModalNode = isSummaryModalOpen && selectedService && selectedTimeSlot && (
     <div className={`absolute inset-0 z-40 w-full h-full flex flex-col overflow-hidden animate-in fade-in duration-150 ${
       isDark ? 'bg-slate-950 text-white' : 'bg-[#F7F9FC] text-[#333E48]'
     }`}>
-      {/* Barra Superior Limpa Integrada com Botão Voltar */}
+
       <div className={`px-3.5 py-2.5 border-b flex items-center justify-between gap-2 shrink-0 ${
         isDark ? 'bg-slate-900 border-slate-800' : 'bg-[#F7F9FC] border-[#EDF2F7]'
       }`}>
@@ -2529,10 +2452,9 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         </div>
       </div>
 
-      {/* Corpo da Seção de Confirmação dentro de .caixa-card */}
       <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3 no-scrollbar text-xs">
         <section className="caixa-card p-4 space-y-3.5 divide-y divide-[#EDF2F7] dark:divide-slate-800">
-          {/* Data | Hora */}
+
           <div className="grid grid-cols-2 pb-3.5">
             <div className="flex flex-col items-center justify-center text-center min-w-0 px-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#5F6C7B] flex items-center justify-center gap-1.5">
@@ -2555,7 +2477,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             </div>
           </div>
 
-          {/* Serviço, Beneficiário, Profissional */}
           <div className="space-y-2.5 pt-3.5">
             <div className="flex justify-between items-start gap-2">
               <span className="flex items-center gap-1.5 text-[#5F6C7B] shrink-0">
@@ -2596,7 +2517,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             </div>
           </div>
 
-          {/* Saída / Destino / Total */}
           <div className="pt-3.5 space-y-3">
             <div className="grid grid-cols-2 gap-3 pb-3 border-b border-[#EDF2F7] dark:border-slate-800">
               <div className="flex flex-col justify-start min-w-0 pr-1">
@@ -2631,7 +2551,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           </div>
         </section>
 
-        {/* Aviso de Erro */}
         {bookingErrorMessage && (
           <div className="p-2.5 bg-[#FEF2F2] border border-[#FECACA] rounded-[4px] text-[#DC2626] text-xs font-medium flex items-start gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 text-[#DC2626] mt-0.5" />
@@ -2639,7 +2558,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           </div>
         )}
 
-        {/* Feedback de Pré-Salvamento */}
         {draftSavedFeedback && (
           <div className="p-2.5 brand-tab-active rounded-[4px] text-xs font-bold flex items-center gap-2">
             <Check className="w-4 h-4 shrink-0" />
@@ -2648,7 +2566,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
         )}
       </div>
 
-      {/* Rodapé Fixo com Sombra Institucional (.caixa-footer-shadow) */}
       <div className={`p-3.5 border-t sticky bottom-0 z-20 space-y-2 caixa-footer-shadow ${
         isDark ? 'bg-[#151A1E] border-slate-800' : 'bg-white border-[#E6EDF5]'
       }`}>
@@ -2707,9 +2624,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     </div>
   );
 
-  // ============================================================================
-  // SEÇÃO EM TELA INTEIRA PÓS-CONFIRMAÇÃO 1: DIRECIONAMENTO PARA AGENDA
-  // ============================================================================
   const postConfirmChoiceModalNode = isPostConfirmChoiceModalOpen && selectedService && selectedTimeSlot && (
     <div className={`absolute inset-0 z-40 w-full h-full flex flex-col overflow-hidden animate-in fade-in duration-150 ${
       isDark ? 'bg-slate-950 text-white' : 'bg-[#F7F9FC] text-[#333E48]'
@@ -2772,9 +2686,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     </div>
   );
 
-  // ============================================================================
-  // MODAL PÓS-CONFIRMAÇÃO 2: MODAL PRÓPRIO DE ROTA & DESLOCAMENTO (GOOGLE MAPS API)
-  // ============================================================================
   const routeModalNode = isRouteModalOpen && selectedService && selectedTimeSlot && (
     <div
       className={`fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xs animate-in fade-in duration-150 ${
@@ -2782,13 +2693,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
       }`}
     >
       {isEmbeddedMapOpen ? (
-        /* TELA EXPANDIDA EM TELA CHEIA COM MAPA INTEGRADO (IN-APP EMBED) */
+
         <div
           className={`w-full h-full sm:max-w-5xl sm:max-h-[96vh] sm:border sm:rounded-[4px] overflow-hidden shadow-2xl flex flex-col transition-colors ${
             isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
           }`}
         >
-          {/* Cabeçalho Principal */}
+
           <div
             className={`px-3.5 py-2.5 border-b flex items-center justify-between gap-2 shrink-0 ${
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
@@ -2831,7 +2742,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             </button>
           </div>
 
-          {/* Sub-cabeçalho com o endereço de destino, somente isso */}
           <div
             className={`px-3.5 py-2 border-b flex items-center gap-1.5 shrink-0 ${
               isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-700'
@@ -2843,7 +2753,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             </span>
           </div>
 
-          {/* Abas de modo de visualização: "Mapa" e "Itinerário" */}
           <div
             className={`px-3.5 py-2 border-b shrink-0 ${
               isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
@@ -2888,7 +2797,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             </div>
           </div>
 
-          {/* Conteúdo Principal: Aba Mapa vs Aba Itinerário */}
           {embeddedMapTab === 'map' ? (
             <InteractiveGoogleRouteMap
               originLat={originCoords.lat}
@@ -2905,7 +2813,7 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             />
           ) : (
             <div className="flex-1 w-full overflow-y-auto p-4 space-y-4">
-              {/* Métricas Rápidas no Topo do Itinerário */}
+
               <div className="grid grid-cols-3 gap-2">
                 <div className={`p-2.5 rounded-[4px] ${isDark ? 'bg-slate-900' : 'bg-slate-100'}`}>
                   <span className={`text-[9.5px] uppercase font-bold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -2935,9 +2843,8 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 </div>
               </div>
 
-              {/* Etapas Sequenciais do Itinerário + Manobras Reais da Routes API v2 */}
               <div className="space-y-1 pt-1">
-                {/* Etapa 1: Alerta Pré-Partida */}
+
                 <div className="flex items-start gap-3 pb-3">
                   <div className="flex flex-col items-center">
                     <div className="w-6 h-6 rounded-full brand-btn flex items-center justify-center shrink-0">
@@ -2960,7 +2867,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   </div>
                 </div>
 
-                {/* Passos Reais Rua a Rua da Routes API v2 */}
                 {liveRouteData?.steps && liveRouteData.steps.length > 0 ? (
                   liveRouteData.steps.slice(0, 12).map((step, idx) => (
                     <div key={`${step.instruction}-${idx}`} className="flex items-start gap-3 pb-3">
@@ -3014,7 +2920,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                   </div>
                 )}
 
-                {/* Etapa Final: Destino & Atendimento */}
                 <div className="flex items-start gap-3">
                   <div className="flex flex-col items-center">
                     <div className="w-6 h-6 rounded-full brand-btn flex items-center justify-center shrink-0">
@@ -3042,7 +2947,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             </div>
           )}
 
-          {/* Rodapé Fixo de Ação (sticky bottom-0 z-20): Exibe apenas o botão "Cheguei" quando o usuário chega ao destino */}
           {hasReachedDestinationInApp && (
             <div
               className={`sticky bottom-0 z-20 px-3.5 py-2.5 border-t flex items-center justify-center shrink-0 ${
@@ -3066,13 +2970,13 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
           )}
         </div>
       ) : (
-        /* CARD COMPACTO PADRÃO: IR AGORA • ROTA & DESLOCAMENTO */
+
         <div
           className={`w-full max-w-md my-auto border rounded-[4px] overflow-hidden shadow-2xl flex flex-col max-h-[90vh] transition-colors ${
             isDark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
           }`}
         >
-          {/* Cabeçalho do Modal Próprio de Rota */}
+
           <div className={`px-4 py-3 border-b flex items-center justify-between gap-2 ${
             isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
           }`}>
@@ -3111,12 +3015,10 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
             </button>
           </div>
 
-          {/* Corpo do Modal Próprio de Rota */}
           <div className="p-4 space-y-3.5 overflow-y-auto no-scrollbar">
-            {/* Seletor com todas as 6 opções do Google Maps API: A pé, Bicicleta, Moto, Carro, Transporte Público, Aplicativo */}
+
             {renderTransportSelectorGrid(true)}
 
-            {/* Card de Rota e Horário Máx. de Saída */}
             <div className={`p-3.5 rounded-[4px] space-y-3 ${isDark ? 'bg-slate-900 text-slate-200' : 'bg-slate-100 text-slate-800'}`}>
               <div className="flex items-start justify-between gap-2">
                 <span className="text-xs font-extrabold brand-text leading-snug break-words flex-1">
@@ -3157,7 +3059,6 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
                 </div>
               </div>
 
-              {/* Botões de Ação Integrados ao Mapa In-App / Waze / Chamar App */}
               <div className="pt-1 space-y-2">
                 {(transportMode === 'walking' || transportMode === 'bicycling' || transportMode === 'transit') && (
                   <button
@@ -3353,5 +3254,3 @@ export const SalonBookingModal: React.FC<SalonBookingModalProps> = ({
     </>
   );
 };
-
-

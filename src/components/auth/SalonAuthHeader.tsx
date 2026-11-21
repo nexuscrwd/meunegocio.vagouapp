@@ -10,13 +10,6 @@ export interface SalonAuthHeaderProps {
   onClose?: () => void;
 }
 
-/**
- * 🏛️ Topo White-Label Limpo em Vidro Jateado (BOL-167)
- * - PROIBIDO fundo ou caixa branca atrás da logo (Zero Box dentro de Box)
- * - Se o salão possuir logo_url, renderiza vazada direto sobre o vidro
- * - Se não possuir logo_url, renderiza a logo oficial escura do VagouApp (/logo.svg)
- *   seguida pelo Nome Fantasia (trade_name) e slogan (ou {slug}.vagouapp.com)
- */
 export const SalonAuthHeader: React.FC<SalonAuthHeaderProps> = ({
   salonName,
   salonSlug,

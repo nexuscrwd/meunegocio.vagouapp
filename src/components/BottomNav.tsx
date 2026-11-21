@@ -111,7 +111,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const navIconBorder = propNavIconBorder || salonContext?.navIconBorder || 'none';
   const navBgStyle = propNavBgStyle || salonContext?.navBgStyle || 'solid';
 
-  // Overrides manuais da aba Estrutura & Barras (quando vazios, segue 100% resolvedPalette do tema!)
   const customNavBg = normalizeHex(propNavBgColor || salonContext?.navBgColor);
   const navBgColor = customNavBg || resolvedPalette.navBg;
 
@@ -332,7 +331,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           );
         }
 
-        // Modo 'minimal': Default Neutro usa #FFFFFF + #0F172A; com tema personalizado usa effectiveActiveBg + resolvedActiveFg
         const activeMinimalBorder =
           isLightNavBg && isLightColor(effectiveActiveBg)
             ? '#CBD5E1'

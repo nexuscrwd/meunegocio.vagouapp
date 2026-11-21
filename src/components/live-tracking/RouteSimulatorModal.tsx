@@ -95,7 +95,6 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
   const [originSuggestions, setOriginSuggestions] = useState<GooglePlaceSuggestion[]>([]);
   const [isSearchingOrigin, setIsSearchingOrigin] = useState<boolean>(false);
 
-  // Destino inicia 100% em branco e limpo para receber CEP, endereço ou "Para Casa"
   const [destAddress, setDestAddress] = useState<string>(defaultDestAddress || '');
   const [destCoords, setDestCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [destPlaceId, setDestPlaceId] = useState<string>('');
@@ -112,7 +111,6 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
     setOriginAddressState(val);
   };
 
-  // Sincroniza endereço residencial do banco caso ainda não esteja no cache local e captura o GPS de partida
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
@@ -124,7 +122,6 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
     setDestSuggestions([]);
     setErrorMessage('');
 
-    // Pré-sincroniza endereço de casa do perfil no Supabase em background
     if (!resolveSavedUserHomeAddress()) {
       fetchUserProfileFromDb()
         .then((dbProf) => {
@@ -165,7 +162,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
         () => {
           if (!active) return;
           setIsLocatingOrigin(false);
-          // Jamais sobrescreve a partida silenciosamente com o endereço residencial após timeout de GPS
+
         },
         { enableHighAccuracy: true, maximumAge: 15000, timeout: 10000 }
       );
@@ -174,7 +171,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -249,7 +246,6 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
     );
   };
 
-  // Manipulador exclusivo e isolado para o Campo 1 (Partida / Origem)
   const handleOriginInputChange = async (
     rawVal: string,
     skipAutocompleteDropdown = false
@@ -347,7 +343,6 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
     }
   };
 
-  // Manipulador exclusivo e isolado para o Campo 2 (Destino) — nunca altera estados da Origem
   const handleDestInputChange = async (
     rawVal: string,
     skipAutocompleteDropdown = false
@@ -500,7 +495,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      // 1. Resolve Coordenadas de Origem se ainda não obtidas via GPS ou Google Places
+
       let resolvedOrigin = originCoords;
       let resolvedOriginPlaceId = originPlaceId;
       if (!resolvedOrigin) {
@@ -514,7 +509,6 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
         resolvedOrigin = { lat: -23.5505, lng: -46.6333 };
       }
 
-      // 2. Resolve Coordenadas de Destino via Google Geocoding API / Places API com viés regional na origem
       let resolvedDest = destCoords;
       let resolvedDestPlaceId = destPlaceId;
       if (!resolvedDest) {
@@ -541,7 +535,6 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
 
       const destTitle = cleanDest.split(',')[0].split('-')[0].trim() || 'Destino';
 
-      // 3. Cria agendamento de teste para disparar a tela de navegação
       const testAppointment: BookingAppointment = {
         id: `trajeto-${Date.now()}`,
         protocolCode: `#TRAJETO-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -604,7 +597,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Barra Superior Institucional com Botão Voltar */}
+
         <div
           className={`px-3.5 py-3 border-b flex items-center justify-between shrink-0 ${
             isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E6EDF5]'
@@ -635,9 +628,8 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
           </button>
         </div>
 
-        {/* Contêiner Rolável sem <form> para impedir Autofill cruzado do navegador em celulares */}
         <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 text-xs">
-          {/* Card de Apresentação da Ferramenta */}
+
           <div className={`caixa-card p-3.5 rounded-[4px] flex items-center gap-3 ${
             isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
           }`}>
@@ -663,7 +655,6 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
             </div>
           </div>
 
-          {/* Mensagem de Erro */}
           {errorMessage && (
             <div className="p-2.5 rounded-[4px] bg-[#FEF2F2] border border-[#FECACA] text-[#DC2626] text-xs font-bold flex items-center gap-2">
               <X className="w-4 h-4 shrink-0 text-[#DC2626]" />
@@ -671,11 +662,10 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
             </div>
           )}
 
-          {/* Card Principal de Campos de Trajeto */}
           <div className={`caixa-card p-4 rounded-[4px] space-y-4 ${
             isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
           }`}>
-            {/* CAMPO 1: DE ONDE VOCÊ VAI SAIR? */}
+
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
                 <label
@@ -687,7 +677,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                 </label>
 
                 <div className="flex items-center gap-1.5">
-                  {/* Botão "Local Atual" */}
+
                   <button
                     type="button"
                     onClick={handleUseCurrentLocation}
@@ -703,7 +693,6 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                     <span>Local Atual</span>
                   </button>
 
-                  {/* Botão "De Casa" */}
                   <button
                     type="button"
                     onClick={() => applyHomeAddressToField('origin')}
@@ -734,7 +723,7 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                   data-form-type="other"
                   value={originAddress}
                   onChange={(e) => {
-                    // Trava absoluta: se o usuário estiver com foco no campo de Destino, bloqueia autofill cruzado na Origem
+
                     if (
                       typeof document !== 'undefined' &&
                       destInputRef.current &&
@@ -782,7 +771,6 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                   </span>
                 </div>
 
-                {/* Sugestões de Endereço Inteligente (Places API) */}
                 {originSuggestions.length > 0 && (
                   <div
                     className={`mt-1 rounded-[4px] border divide-y overflow-hidden shadow-lg ${
@@ -828,7 +816,6 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
 
             <div className="border-t border-[#EDF2F7] dark:border-slate-800" />
 
-            {/* CAMPO 2: PARA ONDE VOCÊ VAI? (EM BRANCO + BOTÃO "PARA CASA" + CEP/ENDEREÇO) */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
                 <label
@@ -839,7 +826,6 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                   <span>Para onde você vai?</span>
                 </label>
 
-                {/* Botão "Para Casa" */}
                 <button
                   type="button"
                   onClick={() => applyHomeAddressToField('dest')}
@@ -915,7 +901,6 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
                   </span>
                 </div>
 
-                {/* Sugestões de Endereço Inteligente para Destino (Places API) */}
                 {destSuggestions.length > 0 && (
                   <div
                     className={`mt-1 rounded-[4px] border divide-y overflow-hidden shadow-lg ${
@@ -959,7 +944,6 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
 
             <div className="border-t border-[#EDF2F7] dark:border-slate-800" />
 
-            {/* CAMPO 3: MODALIDADE */}
             <div className="space-y-2">
               <label className="text-[11px] font-bold uppercase tracking-wider text-[#1E293B] dark:text-slate-200 block">
                 Modalidade de Deslocamento
@@ -1000,7 +984,6 @@ export const RouteSimulatorModal: React.FC<RouteSimulatorModalProps> = ({
             </div>
           </div>
 
-          {/* RODAPÉ FIXO: BOTÃO IR */}
           <div
             className={`pt-3 border-t sticky bottom-0 z-20 ${
               isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-[#F7F9FC]/95 border-[#E6EDF5]'

@@ -1,19 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  X, User, Mail, Phone, MapPin, Calendar, Clock, 
-  Check, Moon, Sun, MessageCircle, MessageSquare, Send, ShieldCheck, 
-  ChevronRight, ArrowRight, Sparkles, CheckCircle2, 
-  Scissors, LayoutDashboard, LogOut, Users, DollarSign, Wrench, Wallet,
-  ArrowLeftRight, AlertCircle, RotateCcw, Timer, Ban, HelpCircle, Info, Layers,
-  Camera, Upload, Eye, Plus, Trash2, UserPlus, Navigation, Package, Map as MapIcon, Bell, Bookmark,
-  Building2, Palette, Sliders, LayoutGrid, Store, Loader2
+import {
+  X, User, Mail, Phone, MapPin, Calendar, Clock,
+  Check, Moon, Sun, MessageSquare, Send, ShieldCheck,
+  ChevronRight, CheckCircle2,
+  Scissors, LayoutDashboard, LogOut, Users,
+  ArrowLeftRight, AlertCircle, Timer, Layers,
+  Camera, Plus, Trash2, UserPlus, Navigation, Package, Bell, Bookmark,
+  Sliders, LayoutGrid, Store, Loader2
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess, hapticMedium } from '../utils/haptics';
 import { BookingAppointment, UserProfile, UserPersona, ClientSwapGovernance, SwapTargetQueueItem, UserFamilyDependent } from '../types';
-import { fetchUserProfileFromDb, updateUserProfileInDb, resolveTriadeAvatar, uploadAvatarToSupabaseStorage, saveUserAvatarToSupabase, isValidAvatarUrlString, isSupabaseConfigured, supabase, getDbClient, generateUuidV4, fetchClientFamilyMembers } from '../lib/supabase';
-import { compressImageFile } from '../utils/imageCompressor';
+import { fetchUserProfileFromDb, updateUserProfileInDb, resolveTriadeAvatar, saveUserAvatarToSupabase, isValidAvatarUrlString, isSupabaseConfigured, supabase, getDbClient, generateUuidV4, fetchClientFamilyMembers } from '../lib/supabase';
+import { compressImageToBlob } from '../utils/imageCompressor';
 import { syncClientDependentToDatabase, refreshClientDependentsCount } from '../services/mnvSupabaseSync';
+import { subscribeToWebPush, unsubscribeFromWebPush } from '../services/webPushService';
 import { LiveRouteDepartureModal, LiveTrackingDrawerModal } from './live-tracking/LiveTrackingModal';
 import { RouteSimulatorModal } from './live-tracking/RouteSimulatorModal';
 import { getSavedBookingDraft, saveBookingDraft, BookingDraftItem } from '../utils/bookingSlots';
@@ -126,15 +127,11 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   onNavigateToSchedule,
   onNavigateTab,
   salonName = 'Meu Estabelecimento',
-  salonPhone = '',
   isSalonLoggedIn = false,
   currentPersona = 'cliente',
   isProAdmin = false,
   isGerMode = false,
   onToggleMode,
-  onRequestManage,
-  onOpenAdminPanel,
-  onLoginSalon,
   onLogoutSalon,
   allAppointments,
   onUpdateAppointments,
@@ -168,7 +165,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     }
   }, [isOpen, initialSubTab]);
 
-  // Estado do Chat Interno no App
   const [isAppChatOpen, setIsAppChatOpen] = useState(false);
   const [drawerChatMessages, setDrawerChatMessages] = useState<Array<{ id: string; sender: 'user' | 'salon' | 'system'; text: string; timestamp: string }>>([
     {
@@ -215,7 +211,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     }, 1100);
   };
 
-  // Estado dos Dados Pessoais do Usuário
   const [profile, setProfile] = useState<UserProfile>(() => {
     const savedName = localStorage.getItem('vagou_user_name') || userName || 'Usuário';
     const savedEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
@@ -225,21 +220,20 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
       const saved = localStorage.getItem('vagou_user_profile');
       if (saved) {
         const parsed = JSON.parse(saved);
-        return { 
-          ...DEFAULT_PROFILE, 
-          ...parsed, 
+        return {
+          ...DEFAULT_PROFILE,
+          ...parsed,
           name: savedName || parsed.name,
           email: parsed.email || savedEmail,
           phone: parsed.phone || savedPhone,
         };
       }
     } catch {
-      // ignore
+
     }
     return { ...DEFAULT_PROFILE, name: savedName, email: savedEmail, phone: savedPhone };
   });
 
-  // Sincronizar dados com o banco Supabase ao abrir o menu lateral ou ao deslogar
   useEffect(() => {
     const handleAuthReset = (e?: Event) => {
       const customEvt = e as CustomEvent<{ loggedOut?: boolean }> | undefined;
@@ -320,9 +314,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     return () => { isMounted = false; };
   }, [isOpen, userName]);
 
-  // ============================================================
-  // 👥 CONTA FAMÍLIA & DEPENDENTES (Padrão Tríade VagouApp / admvapp)
-  // ============================================================
   const [dependents, setDependents] = useState<UserFamilyDependent[]>(() => {
     try {
       const saved = localStorage.getItem('vagou_user_dependents');
@@ -338,7 +329,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   const [isSavingDep, setIsSavingDep] = useState(false);
   const [dependentFeedback, setDependentFeedback] = useState<string | null>(null);
 
-  // Sincronizar dependentes do Supabase ao abrir (public.dependents + public.client_family_members)
   useEffect(() => {
     if (!isOpen) return;
     async function loadDependents() {
@@ -402,7 +392,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     setDependents(nextList);
     localStorage.setItem('vagou_user_dependents', JSON.stringify(nextList));
 
-    // Sincronizar no banco Supabase (public.dependents + public.client_family_members + clients.dependents_count)
     if (supabase && isSupabaseConfigured) {
       const client = getDbClient();
       try {
@@ -466,12 +455,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
             .eq('id', depId);
         } catch {}
 
-        try {
-          await (client.from('client_family_members' as any) as any)
-            .delete()
-            .eq('id', depId);
-        } catch {}
-
         const parentClientId = localStorage.getItem('vagou_client_id') || localStorage.getItem('vagou_user_id');
         if (parentClientId) {
           await refreshClientDependentsCount(parentClientId);
@@ -484,7 +467,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   };
 
   const [isEditing, setIsEditing] = useState(false);
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [, setIsSavingProfile] = useState(false);
   const [savedSuccessToast, setSavedSuccessToast] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarUploadStatus, setAvatarUploadStatus] = useState<string | null>(null);
@@ -494,9 +477,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Detecção permissiva para dispositivos móveis (câmera direta, HEIC, JPEG, PNG, blobs sem MIME)
-    const isImage = 
-      file.type.startsWith('image/') || 
+    const isImage =
+      file.type.startsWith('image/') ||
       /\.(jpe?g|png|webp|heic|heif|gif|svg)$/i.test(file.name || '') ||
       file.size > 0;
 
@@ -507,19 +489,18 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     hapticLight();
 
     try {
-      // 1. Compressão client-side imediata (reduz fotos de celulares de 10MB para ~25KB JPEG universal)
-      const compressed = await compressImageFile(file, {
+
+      const binaryAvatarFile = await compressImageToBlob(file, {
         maxWidth: 480,
         maxHeight: 480,
         quality: 0.85,
-        mimeType: 'image/jpeg',
+        mimeType: 'image/webp',
       });
 
-      setAvatarUploadStatus('Enviando e sincronizando com Supabase...');
+      setAvatarUploadStatus('Enviando arquivo binário para o Supabase Storage...');
 
-      // 2. Gravação de ponta a ponta no Supabase (Storage + Database)
       const saveResult = await saveUserAvatarToSupabase({
-        fileOrBase64: compressed,
+        fileOrBase64: binaryAvatarFile,
         email: profile.email || localStorage.getItem('vagou_user_email') || '',
         cpf: localStorage.getItem('vagou_user_cpf') || profile.cpf || '',
         name: profile.name || localStorage.getItem('vagou_user_name') || 'Usuário',
@@ -529,26 +510,28 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         type: currentPersona === 'profissional' ? 'pro' : currentPersona === 'admin' ? 'admin' : 'client',
       });
 
-      const finalAvatar = (saveResult.avatarUrl && isValidAvatarUrlString(saveResult.avatarUrl))
+      const finalAvatar = saveResult.avatarUrl && isValidAvatarUrlString(saveResult.avatarUrl)
         ? saveResult.avatarUrl.trim()
-        : compressed;
+        : '';
 
-      if (isValidAvatarUrlString(finalAvatar)) {
-        setProfile(prev => ({ ...prev, avatarUrl: finalAvatar }));
-        try {
-          localStorage.setItem('vagou_user_avatar', finalAvatar);
-        } catch {}
-        onUpdateUserAvatar?.(finalAvatar);
-        window.dispatchEvent(
-          new CustomEvent('vagou:profile-updated', {
-            detail: { name: profile.name, avatarUrl: finalAvatar },
-          })
-        );
-        window.dispatchEvent(new Event('storage'));
+      if (!finalAvatar) {
+        throw new Error('Storage não retornou uma URL válida.');
       }
 
+      setProfile(prev => ({ ...prev, avatarUrl: finalAvatar }));
+      try {
+        localStorage.setItem('vagou_user_avatar', finalAvatar);
+      } catch {}
+      onUpdateUserAvatar?.(finalAvatar);
+      window.dispatchEvent(
+        new CustomEvent('vagou:profile-updated', {
+          detail: { name: profile.name, avatarUrl: finalAvatar },
+        })
+      );
+      window.dispatchEvent(new Event('storage'));
+
       hapticSuccess();
-      setAvatarUploadStatus('Foto de perfil salva com sucesso no Supabase!');
+      setAvatarUploadStatus('Foto de perfil salva no Supabase Storage!');
       setTimeout(() => {
         setAvatarUploadStatus(null);
         setIsUploadingAvatar(false);
@@ -565,7 +548,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     }
   };
 
-  // Estado dos Agendamentos
   const [appointments, setAppointments] = useState<BookingAppointment[]>(() => {
     if (allAppointments && allAppointments.length > 0) {
       return allAppointments;
@@ -579,7 +561,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         }
       }
     } catch {
-      // ignore
+
     }
     return DEFAULT_APPOINTMENTS;
   });
@@ -600,7 +582,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     return () => window.removeEventListener('vagou:booking-draft-updated', handleDraftSync);
   }, [isOpen]);
 
-  // Governança e Regras de Reciprocidade de Troca
   const [swapGovernance, setSwapGovernance] = useState<ClientSwapGovernance>(() => {
     try {
       const saved = localStorage.getItem('vagou_client_swap_governance');
@@ -627,13 +608,11 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     });
   };
 
-  // Modais de Bloqueio Educativo / Alerta de Governança
   const [governanceWarning, setGovernanceWarning] = useState<{
     isOpen: boolean;
     type: 'optInRequired' | 'banned' | 'quotaExceeded';
   } | null>(null);
 
-  // Modal e Fluxo de Solicitação de Troca de Horário (Cascata até 3 Alvos: B -> C -> D)
   const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
   const [swapTargetAppointment, setSwapTargetAppointment] = useState<BookingAppointment | null>(null);
   const [selectedSwapSlots, setSelectedSwapSlots] = useState<string[]>([]);
@@ -641,7 +620,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     'Amiga(o)! Por favor, me dê essa ajuda, preciso realizar o serviço hoje, mas tive um imprevisto e só consigo nesse horário. Se você puder aceitar, serei eternamente grato(a)!'
   );
 
-  // Helper para buscar slots ocupados do mesmo dia e profissional para propor troca (com travas de antecedência e duração)
   const getCandidateSlots = (appointment: BookingAppointment): CandidateSlotInfo[] => {
     const list = allAppointments && allAppointments.length > 0 ? allAppointments : appointments;
     const currentPro = appointment.professionalName || appointment.professional || '';
@@ -659,14 +637,13 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
       return isSamePro && isSameDay && isDifferentTime && item.status !== 'CANCELADO';
     });
 
-    // Apenas agendamentos reais concorrentes da mesma agenda/data
     return rawCandidates.map(item => {
       const time = item.time || (item.dateTime ? item.dateTime.split('às')[1]?.trim() : '15:00');
       const duration = item.duration || '45 min';
       const durationMinutes = parseDurationInMinutes(duration);
       const isDurationCompatible = durationMinutes <= requesterDuration;
-      const durationReason = !isDurationCompatible 
-        ? `Duração incompatível (${durationMinutes}min > ${requesterDuration}min)` 
+      const durationReason = !isDurationCompatible
+        ? `Duração incompatível (${durationMinutes}min > ${requesterDuration}min)`
         : undefined;
 
       const leadTimeCheck = checkSlotLeadTime(time, item.dayGroup || currentDay);
@@ -691,21 +668,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     });
   };
 
-  // Alternar seleção de slot (até 3 na fila em cascata)
-  const handleToggleSwapSlot = (slotTime: string) => {
-    hapticLight();
-    setSelectedSwapSlots(prev => {
-      if (prev.includes(slotTime)) {
-        return prev.filter(s => s !== slotTime);
-      }
-      if (prev.length >= 3) {
-        return prev;
-      }
-      return [...prev, slotTime];
-    });
-  };
-
-  // Disparo da Fila em Cascata (Cliente A seleciona até 3 horários: B -> C -> D)
   const handleSendSwapProposal = (appointment: BookingAppointment, targetSlots: string[], message: string) => {
     if (!swapGovernance.optIn) {
       setGovernanceWarning({ isOpen: true, type: 'optInRequired' });
@@ -724,7 +686,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     hapticSuccess();
     const candidateSlots = getCandidateSlots(appointment);
 
-    // Constrói a fila em cascata
     const cascadeTargets: SwapTargetQueueItem[] = targetSlots.map((slot, index) => {
       const targetItem = candidateSlots.find(item => item.time === slot);
       return {
@@ -759,11 +720,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
       rejectedSlots: appointment.swapRequest?.rejectedSlots || [],
       cascadeTargets,
       currentCascadeIndex: 0,
-      timeoutSecondsPerTarget: 1200, // 20 min
+      timeoutSecondsPerTarget: 1200,
       lastTargetUpdatedAt: Date.now(),
     };
 
-    // Incrementa cota de trocas do mês
     updateSwapGovernance(prev => ({
       ...prev,
       usedThisMonth: prev.usedThisMonth + 1,
@@ -790,7 +750,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     setIsSwapModalOpen(false);
   };
 
-  // Avanço automático na cascata (caso o alvo recuse ativamente ou o tempo de 20 min expire)
   const handleAdvanceCascade = (appointment: BookingAppointment, reason: 'rejected' | 'timeout') => {
     hapticLight();
     const currentSwap = appointment.swapRequest;
@@ -810,7 +769,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     const hasNext = nextIndex < updatedTargets.length;
 
     if (hasNext) {
-      // Repassa para o próximo alvo da fila (ex: Cliente C ou D)
+
       const nextTarget = updatedTargets[nextIndex];
       updatedTargets[nextIndex] = {
         ...nextTarget,
@@ -856,7 +815,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         onUpdateAppointments(newAppointments);
       }
     } else {
-      // Fila esgotada (todos os alvos recusaram ou expiraram)
+
       const updatedSwap = {
         ...currentSwap,
         cascadeTargets: updatedTargets,
@@ -884,7 +843,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     }
   };
 
-  // Cancelar proposta enviada
   const handleCancelSwapProposal = (appointment: BookingAppointment) => {
     hapticLight();
     const newAppointments = (allAppointments && allAppointments.length > 0 ? allAppointments : appointments).map(item => {
@@ -907,13 +865,11 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     }
   };
 
-  // Cliente Alvo aceita proposta de troca
   const handleAcceptIncomingSwap = (appointmentWithSwap: BookingAppointment) => {
     hapticSuccess();
     const currentSwap = appointmentWithSwap.swapRequest;
     if (!currentSwap) return;
 
-    // Reseta vácuos consecutivos se respondeu positivamente
     updateSwapGovernance(prev => ({
       ...prev,
       consecutiveTimeouts: 0,
@@ -958,10 +914,9 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     }
   };
 
-  // Cliente Alvo recusa ativamente a troca (Soma 1 no contador de recusas ativas com limite de 5)
   const handleRejectIncomingSwap = (appointmentWithSwap: BookingAppointment) => {
     hapticLight();
-    // Incrementa recusa ativa do cliente
+
     updateSwapGovernance(prev => {
       const newRejections = prev.activeRejections + 1;
       return {
@@ -971,14 +926,12 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
       };
     });
 
-    // Avança para o próximo da cascata
     handleAdvanceCascade(appointmentWithSwap, 'rejected');
   };
 
-  // Cliente Alvo deixa tempo expirar (Simulação de Vácuo / Timeout)
   const handleTimeoutIncomingSwap = (appointmentWithSwap: BookingAppointment) => {
     hapticLight();
-    // Incrementa contador de vácuos consecutivos
+
     updateSwapGovernance(prev => {
       const newTimeouts = prev.consecutiveTimeouts + 1;
       const shouldDeactivate = newTimeouts >= 3;
@@ -989,16 +942,13 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
       };
     });
 
-    // Avança para o próximo da cascata sem penalidade imediata se for < 3
     handleAdvanceCascade(appointmentWithSwap, 'timeout');
   };
 
-  // Propostas recebidas (Incoming Swaps) pendentes de resposta do cliente
   const incomingSwapRequests = (allAppointments && allAppointments.length > 0 ? allAppointments : appointments).filter(
     app => app.swapRequest?.isClientSwap && app.swapRequest?.status === 'pending_client_b'
   );
 
-  // Preferências
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
     return localStorage.getItem('vagou_notifications_pref') !== 'disabled';
   });
@@ -1007,12 +957,36 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     return localStorage.getItem('vagou_haptics_pref') !== 'disabled';
   });
 
-  // Salvar preferências
-  const handleToggleNotifications = () => {
+  const handleToggleNotifications = async () => {
     hapticLight();
     const next = !notificationsEnabled;
     setNotificationsEnabled(next);
     localStorage.setItem('vagou_notifications_pref', next ? 'enabled' : 'disabled');
+
+    if (next) {
+      const pushRole =
+        currentPersona === 'admin'
+          ? 'super_admin'
+          : currentPersona === 'profissional'
+          ? isProAdmin
+            ? 'salon_owner'
+            : 'salon_staff'
+          : 'client';
+
+      const res = await subscribeToWebPush({
+        userId: localStorage.getItem('vagou_auth_user_id') || null,
+        clientId: localStorage.getItem('vagou_client_id') || null,
+        salonId: localStorage.getItem('vagou_salon_db_id') || null,
+        role: pushRole,
+      });
+
+      if (res.permission === 'denied') {
+        setNotificationsEnabled(false);
+        localStorage.setItem('vagou_notifications_pref', 'disabled');
+      }
+    } else {
+      await unsubscribeFromWebPush();
+    }
   };
 
   const handleToggleHaptics = () => {
@@ -1049,7 +1023,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
       if (profile.phone) localStorage.setItem('vagou_user_phone', profile.phone);
       if (validAvatar) localStorage.setItem('vagou_user_avatar', validAvatar);
     } catch {
-      // ignore
+
     }
 
     if (onUpdateUserName && profile.name.trim()) {
@@ -1060,7 +1034,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
       onUpdateUserAvatar(validAvatar);
     }
 
-    // Sincronização direta com o Supabase (relacional + auth.users.user_metadata)
     await updateUserProfileInDb({
       name: profile.name,
       email: profile.email,
@@ -1088,7 +1061,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
     }, 600);
   };
 
-  // Fechar ao pressionar a tecla Escape
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1105,7 +1077,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex justify-center bg-[#E6EEF6]/80 backdrop-blur-xs transition-opacity animate-in fade-in duration-200 cursor-pointer overflow-hidden"
       onMouseDown={(e) => {
         backdropMouseDownRef.current = e.target === e.currentTarget;
@@ -1119,15 +1091,15 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
       aria-modal="true"
       role="dialog"
     >
-      {/* Container do Drawer dentro do Shell Mobile Centralizado (430px • #F7F9FC) */}
-      <div 
+
+      <div
         className={`w-full max-w-[430px] h-dvh max-h-dvh flex flex-col shadow-lg transition-transform animate-in fade-in duration-200 cursor-default overflow-hidden ${
           isDark ? 'bg-slate-950 text-white' : 'bg-[#F7F9FC] text-[#1E293B]'
         }`}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 1. CABEÇALHO COMPACTO SOMENTE NAS SUB-TELAS (AGENDA, DADOS, ETC.) */}
+
         {activeSubTab !== 'menu' && (
           <div className={`p-3.5 border-b flex items-center justify-between shrink-0 ${
             isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-[#E6EDF5]'
@@ -1156,8 +1128,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 onClose();
               }}
               className={`w-8 h-8 rounded-[4px] border flex items-center justify-center transition active:scale-95 cursor-pointer ${
-                isDark 
-                  ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300 hover:text-white' 
+                isDark
+                  ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300 hover:text-white'
                   : 'bg-[#F1F5F9] hover:bg-[#E2E8F0] border-[#E2E8F0] text-[#5F6C7B] hover:text-[#1E293B]'
               }`}
               title="Fechar menu"
@@ -1168,18 +1140,16 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
           </div>
         )}
 
-        {/* 2. CORPO DO DRAWER COM ROLAGEM */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain no-scrollbar p-4 pb-28 space-y-4">
-          {/* INPUT DE FOTO GLOBAL NO DRAWER (Acessível em qualquer sub-aba) */}
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            accept="image/*" 
-            className="hidden" 
-            onChange={handleAvatarFileChange} 
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarFileChange}
           />
 
-          {/* STATUS DE UPLOAD E SINCRONIZAÇÃO COM O SUPABASE */}
           {avatarUploadStatus && (
             <div className="p-3 brand-soft-badge border rounded flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-top-2">
               {isUploadingAvatar ? (
@@ -1191,7 +1161,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
             </div>
           )}
 
-          {/* TOAST DE FEEDBACK DE SALVAMENTO */}
           {savedSuccessToast && (
             <div className="p-3 brand-soft-badge border rounded flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-top-2">
               <CheckCircle2 className="w-4 h-4 brand-icon shrink-0" />
@@ -1199,10 +1168,9 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
             </div>
           )}
 
-          {/* VISTA 1: MENU PRINCIPAL DE OPÇÕES */}
           {activeSubTab === 'menu' && (
             <div className="space-y-4">
-              {/* CARD DE IDENTIFICAÇÃO DO USUÁRIO COM BOTÃO DE TEMA E FECHAR NO LADO DIREITO OPOSTO */}
+
               <div className={`caixa-card p-3.5 sm:p-4 rounded-[4px] flex items-center justify-between gap-3 ${
                 isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E6EDF5]'
               }`}>
@@ -1217,22 +1185,22 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         authMetadataAvatar: profile.avatarUrl || userAvatarUrl,
                         isBusinessContext: false,
                       }) ? (
-                        <img 
+                        <img
                           src={resolveTriadeAvatar({
                             professionalAvatar: currentPersona === 'profissional' ? (profile.avatarUrl || userAvatarUrl) : null,
                             clientAvatar: currentPersona === 'cliente' ? (profile.avatarUrl || userAvatarUrl) : null,
                             authMetadataAvatar: profile.avatarUrl || userAvatarUrl,
                             isBusinessContext: false,
-                          })} 
-                          alt={profile.name} 
-                          className="w-full h-full object-cover" 
+                          })}
+                          alt={profile.name}
+                          className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
                         />
                       ) : (
                         <User className={`w-6 h-6 stroke-[1.8] ${isDark ? 'text-slate-300' : 'brand-icon'}`} />
                       )}
                     </div>
-                    {/* Botão de Câmera de Toque Imediato no Celular */}
+
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
@@ -1261,7 +1229,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   </div>
                 </div>
 
-                {/* Ações no Lado direito oposto: Tema + Fechar [X] */}
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     type="button"
@@ -1271,8 +1238,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       toggleTheme();
                     }}
                     className={`px-2 py-1.5 rounded-[4px] border flex flex-col items-center justify-center gap-0.5 transition active:scale-95 cursor-pointer shrink-0 ${
-                      isDark 
-                        ? 'bg-slate-800/90 hover:bg-slate-750 text-amber-400 border-slate-700' 
+                      isDark
+                        ? 'bg-slate-800/90 hover:bg-slate-750 text-amber-400 border-slate-700'
                         : 'bg-[#F7F9FC] hover:bg-[#EDF2F7] text-amber-600 border-[#E2E8F0]'
                     }`}
                     title={isDark ? "Mudar para Modo Claro" : "Mudar para Modo Escuro"}
@@ -1295,8 +1262,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       onClose();
                     }}
                     className={`w-8 h-8 rounded-[4px] border flex items-center justify-center transition active:scale-95 cursor-pointer shrink-0 ${
-                      isDark 
-                        ? 'bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white border-slate-700' 
+                      isDark
+                        ? 'bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white border-slate-700'
                         : 'bg-[#F7F9FC] hover:bg-[#EDF2F7] text-[#5F6C7B] hover:text-[#1E293B] border-[#E2E8F0]'
                     }`}
                     title="Fechar menu"
@@ -1307,14 +1274,11 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 </div>
               </div>
 
-              {/* LISTA DE OPÇÕES CONTEXTUAIS DO MENU */}
               <div className="space-y-2.5">
-                {/* ============================================================ */}
-                {/* 📊 ESTRUTURA QUANDO NO MODO GESTÃO */}
-                {/* ============================================================ */}
+
                 {isGerMode && (
                   <>
-                    {/* Alternador Rápido: Ver como Cliente */}
+
                     {onToggleMode && (
                       <button
                         type="button"
@@ -1337,14 +1301,12 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       </button>
                     )}
 
-                    {/* SEÇÃO 1: GESTÃO DO ESTABELECIMENTO */}
                     <div className="pt-2 px-1">
                       <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider font-mono">
                         Gestão do Estabelecimento
                       </span>
                     </div>
 
-                    {/* 1. Gerenciar (Serviços, Equipe e Espaço) */}
                     <button
                       type="button"
                       id="menu-option-gerenciar"
@@ -1376,7 +1338,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
                     {isGerenciarSubmenuOpen && (
                       <div className="pl-4 space-y-2">
-                        {/* 1A. Serviços */}
+
                         <button
                           type="button"
                           id="menu-option-servicos"
@@ -1403,7 +1365,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                         </button>
 
-                        {/* 1B. Equipe */}
                         <button
                           type="button"
                           id="menu-option-equipe"
@@ -1430,7 +1391,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                         </button>
 
-                        {/* 1C. Espaço */}
                         <button
                           type="button"
                           id="menu-option-espaco"
@@ -1459,7 +1419,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       </div>
                     )}
 
-                    {/* 3. Preferências */}
                     {isProAdmin && (
                       <button
                         type="button"
@@ -1488,7 +1447,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       </button>
                     )}
 
-                    {/* 4. Utilidades */}
                     <button
                       type="button"
                       id="menu-option-utilidades-workspace"
@@ -1517,12 +1475,9 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   </>
                 )}
 
-                {/* ============================================================ */}
-                {/* 👁️ ESTRUTURA QUANDO NO MODO CLIENTE */}
-                {/* ============================================================ */}
                 {!isGerMode && (
                   <>
-                    {/* Se for Dono/Pro em teste na visão do cliente, atalho para retornar */}
+
                     {isSalonLoggedIn && onToggleMode && (
                       <button
                         type="button"
@@ -1545,14 +1500,12 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       </button>
                     )}
 
-                    {/* Seção Minha Conta exclusiva do Modo Cliente */}
                     <div className="pt-2 px-1">
                       <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider font-mono">
                         Minha Conta
                       </span>
                     </div>
 
-                    {/* Meus Dados Pessoais */}
                     <button
                       type="button"
                       onClick={() => {
@@ -1565,8 +1518,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         }
                       }}
                       className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark 
-                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
+                        isDark
+                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white'
                           : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
                       }`}
                     >
@@ -1584,7 +1537,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                     </button>
 
-                    {/* Minha Agenda */}
                     <button
                       type="button"
                       id="menu-option-minha-agenda-client"
@@ -1598,8 +1550,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         }
                       }}
                       className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark 
-                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
+                        isDark
+                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white'
                           : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
                       }`}
                     >
@@ -1617,7 +1569,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                     </button>
 
-                    {/* Conta Família & Dependentes */}
                     <button
                       type="button"
                       onClick={() => {
@@ -1649,7 +1600,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                     </button>
 
-                    {/* Chat no App com o Estabelecimento */}
                     <button
                       type="button"
                       onClick={() => {
@@ -1657,8 +1607,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         setIsAppChatOpen(true);
                       }}
                       className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark 
-                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
+                        isDark
+                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white'
                           : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
                       }`}
                     >
@@ -1676,7 +1626,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                     </button>
 
-                    {/* Trajeto (Simulador GPS / Teste Provisório) */}
                     <button
                       type="button"
                       id="menu-option-trajeto-simulador"
@@ -1685,8 +1634,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         setIsRouteSimulatorOpen(true);
                       }}
                       className={`caixa-card w-full p-3.5 rounded-[4px] flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer ${
-                        isDark 
-                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white' 
+                        isDark
+                          ? 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-white'
                           : 'bg-white hover:bg-[#F7F9FC] text-[#1E293B]'
                       }`}
                     >
@@ -1711,10 +1660,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   </>
                 )}
 
-                {/* Botão de Instalação PWA (Vagou no domínio principal ou Salão no subdomínio) */}
                 <PWAInstallButton appName={salonName} isDark={isDark} />
 
-                {/* Desconectar do Modo Pro / Gestão */}
                 {isSalonLoggedIn ? (
                   <button
                     type="button"
@@ -1726,8 +1673,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       }
                     }}
                     className={`w-full p-3 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer mt-3 ${
-                      isDark 
-                        ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400' 
+                      isDark
+                        ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400'
                         : 'bg-[#FEF2F2] hover:bg-rose-100 border-[#FECACA] text-[#DC2626]'
                     }`}
                   >
@@ -1748,8 +1695,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       }
                     }}
                     className={`w-full p-3 rounded-[4px] border flex items-center justify-between text-left transition active:scale-[0.99] cursor-pointer mt-3 ${
-                      isDark 
-                        ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400' 
+                      isDark
+                        ? 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-400'
                         : 'bg-[#FEF2F2] hover:bg-rose-100 border-[#FECACA] text-[#DC2626]'
                     }`}
                   >
@@ -1764,7 +1711,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
             </div>
           )}
 
-          {/* VISTA 2: MINHA AGENDA */}
           {activeSubTab === 'agenda' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between pb-1">
@@ -1776,7 +1722,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 </span>
               </div>
 
-              {/* CARD DE PRÉ-AGENDAMENTO PAUSADO (RASCUNHO) */}
               {savedDraft && (
                 <div className={`p-3.5 rounded-[4px] border space-y-2.5 ${
                   isDark ? 'bg-slate-900 border-amber-500/50 text-white' : 'bg-amber-50 border-amber-300 text-slate-900'
@@ -1832,17 +1777,16 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 </div>
               )}
 
-              {/* BANNER DE PROPOSTA DE TROCA RECEBIDA (INCOMING SWAP) */}
               {incomingSwapRequests.length > 0 && (
                 <div className="space-y-2">
                   {incomingSwapRequests.map((reqApt) => {
                     const swap = reqApt.swapRequest!;
                     return (
-                      <div 
+                      <div
                         key={reqApt.id || reqApt.protocolCode}
                         className={`p-3.5 rounded border-2 transition ${
-                          isDark 
-                            ? 'bg-slate-900 border-amber-500/80 shadow-lg' 
+                          isDark
+                            ? 'bg-slate-900 border-amber-500/80 shadow-lg'
                             : 'bg-amber-50/90 border-amber-500 shadow-sm'
                         }`}
                       >
@@ -1891,8 +1835,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                             type="button"
                             onClick={() => handleRejectIncomingSwap(reqApt)}
                             className={`py-2 px-3 rounded text-xs font-bold transition active:scale-98 cursor-pointer flex items-center justify-center gap-1.5 ${
-                              isDark 
-                                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' 
+                              isDark
+                                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300'
                                 : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
                             }`}
                             title="Recusar ativamente conta 1 no seu limite de 5 recusas"
@@ -1911,7 +1855,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           </button>
                         </div>
 
-                        {/* Botão de teste/simulação de vácuo sem penalidade ativa */}
                         <div className="pt-1 text-center">
                           <button
                             type="button"
@@ -1966,7 +1909,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           #{item.protocolCode}
                         </span>
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          item.status === 'CONFIRMADO' 
+                          item.status === 'CONFIRMADO'
                             ? 'brand-soft-badge border'
                             : item.status === 'ALTERADO' || isPendingB || isPendingSalon
                             ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
@@ -1993,7 +1936,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         </span>
                       </div>
 
-                      {/* ESTADO 1: FILA EM CASCATA ATIVA (A -> B -> C -> D) */}
                       {isPendingB && swap && (
                         <div className={`p-3 rounded text-xs space-y-2.5 ${
                           isDark ? 'bg-amber-500/10 border border-amber-500/30 text-slate-300' : 'bg-amber-50 border border-amber-200 text-slate-700'
@@ -2011,10 +1953,9 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                             </button>
                           </div>
 
-                          {/* Lista dos Alvos da Cascata */}
                           <div className="space-y-1.5">
-                            {(swap.cascadeTargets && swap.cascadeTargets.length > 0 
-                              ? swap.cascadeTargets 
+                            {(swap.cascadeTargets && swap.cascadeTargets.length > 0
+                              ? swap.cascadeTargets
                               : [{ slotTime: swap.clientA.requestedTime, status: 'pending', customerName: swap.clientB.name }]
                             ).map((target, tIdx) => {
                               const isCurrent = (swap.currentCascadeIndex ?? 0) === tIdx;
@@ -2024,7 +1965,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                               const isAcceptedTarget = target.status === 'accepted';
 
                               return (
-                                <div 
+                                <div
                                   key={tIdx}
                                   className={`p-2 rounded flex items-center justify-between text-[11px] transition ${
                                     isCurrent
@@ -2071,7 +2012,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                             })}
                           </div>
 
-                          {/* Simulação de avanço da cascata para testes rápidos */}
                           <div className="pt-1 flex gap-2">
                             <button
                               type="button"
@@ -2091,7 +2031,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         </div>
                       )}
 
-                      {/* ESTADO 2: FILA EM CASCATA ESGOTADA OU RECUSADA */}
                       {isRejected && swap && (
                         <div className={`p-2.5 rounded text-xs space-y-2 ${
                           isDark ? 'bg-rose-500/10 border border-rose-500/30' : 'bg-rose-50 border border-rose-200'
@@ -2117,7 +2056,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         </div>
                       )}
 
-                      {/* ESTADO 3: TROCA ACEITA PELO CLIENTE, AGUARDANDO CONFIRMAÇÃO DO SALÃO */}
                       {isPendingSalon && (
                         <div className={`p-2.5 rounded text-xs space-y-1 ${
                           isDark ? 'bg-blue-500/10 border border-blue-500/30 text-blue-300' : 'bg-blue-50 border border-blue-200 text-blue-800'
@@ -2132,7 +2070,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                         </div>
                       )}
 
-                      {/* ESTADO 4: HORÁRIO CONFIRMADO -> ESTOU A CAMINHO (BOL-020) & SOLICITAR TROCA */}
                       {!isPendingB && !isRejected && !isPendingSalon && item.status === 'CONFIRMADO' && (
                         <div className="space-y-2 pt-1">
                           {(item.tracking_status === 'live_sharing' || item.tracking_status === 'arriving_5min') && (
@@ -2241,11 +2178,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
             </div>
           )}
 
-          {/* VISTA 3: MEUS DADOS PESSOAIS */}
           {activeSubTab === 'dados' && (
             <div className="space-y-4">
               <form onSubmit={handleSaveProfile} className="space-y-3">
-                {/* Foto de Perfil do Usuário */}
+
                 <div className={`p-3.5 rounded border flex items-center justify-between gap-3 ${
                   isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
                 }`}>
@@ -2254,10 +2190,10 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
                     }`}>
                       {profile.avatarUrl && !profile.avatarUrl.includes('unsplash.com') && !profile.avatarUrl.startsWith('data:image/svg+xml') ? (
-                        <img 
-                          src={profile.avatarUrl} 
-                          alt={profile.name} 
-                          className="w-full h-full object-cover" 
+                        <img
+                          src={profile.avatarUrl}
+                          alt={profile.name}
+                          className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
                         />
                       ) : (
@@ -2289,7 +2225,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   )}
                 </div>
 
-                {/* Campo Nome */}
                 <div className="space-y-1">
                   <label className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                     isDark ? 'text-slate-400' : 'text-slate-600'
@@ -2311,7 +2246,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   />
                 </div>
 
-                {/* Campo E-mail */}
                 <div className="space-y-1">
                   <label className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                     isDark ? 'text-slate-400' : 'text-slate-600'
@@ -2333,7 +2267,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   />
                 </div>
 
-                {/* Campo Telefone (Visível apenas fora do modo cliente) */}
                 {currentPersona !== 'cliente' && (
                   <div className="space-y-1">
                     <label className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
@@ -2356,7 +2289,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   </div>
                 )}
 
-                {/* Campo Endereço */}
                 <div className="space-y-1">
                   <label className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                     isDark ? 'text-slate-400' : 'text-slate-600'
@@ -2377,7 +2309,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   />
                 </div>
 
-                {/* BOTÕES DE AÇÃO DOS DADOS */}
                 <div className="pt-2">
                   {!isEditing ? (
                     <button
@@ -2400,8 +2331,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                           setIsEditing(false);
                         }}
                         className={`flex-1 py-3 rounded border text-xs font-bold transition cursor-pointer ${
-                          isDark 
-                            ? 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-300' 
+                          isDark
+                            ? 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-300'
                             : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
                         }`}
                       >
@@ -2419,7 +2350,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 </div>
               </form>
 
-              {/* Segurança & Recuperação de Acesso (Suporte pós-reset admvapp) */}
               <SecurityQuestionProfileCard
                 userEmail={profile.email}
                 userPhone={profile.phone}
@@ -2428,10 +2358,9 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
             </div>
           )}
 
-          {/* VISTA: CONTA FAMÍLIA & DEPENDENTES (Padrão Tríade VagouApp / admvapp) */}
           {activeSubTab === 'dependentes' && (
             <div className="space-y-4">
-              {/* Card de Apresentação da Conta Família */}
+
               <div className={`caixa-card p-3.5 rounded-[4px] flex items-center justify-between gap-3 ${
                 isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
               }`}>
@@ -2462,7 +2391,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 </button>
               </div>
 
-              {/* Feedback de Ação */}
               {dependentFeedback && (
                 <div className="p-3 brand-soft-badge rounded-[4px] flex items-center gap-2 text-xs font-semibold animate-in fade-in">
                   <CheckCircle2 className="w-4 h-4 brand-icon shrink-0" />
@@ -2470,10 +2398,9 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 </div>
               )}
 
-              {/* Formulário de Cadastro de Novo Dependente */}
               {isAddingDependent && (
-                <form 
-                  onSubmit={handleAddDependent} 
+                <form
+                  onSubmit={handleAddDependent}
                   className={`caixa-card p-4 rounded-[4px] space-y-3 animate-in fade-in slide-in-from-top-2 ${
                     isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
                   }`}
@@ -2485,7 +2412,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     </span>
                   </div>
 
-                  {/* Nome Completo */}
                   <div className="space-y-1">
                     <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-[#5F6C7B]'}`}>
                       Nome Completo *
@@ -2500,7 +2426,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     />
                   </div>
 
-                  {/* Grau de Parentesco */}
                   <div className="space-y-1">
                     <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-[#5F6C7B]'}`}>
                       Grau de Parentesco *
@@ -2534,7 +2459,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     </div>
                   </div>
 
-                  {/* Data de Nascimento */}
                   <div className="space-y-1">
                     <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-[#5F6C7B]'}`}>
                       Data de Nascimento (Opcional)
@@ -2547,7 +2471,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                     />
                   </div>
 
-                  {/* Observações / Cuidados */}
                   <div className="space-y-1">
                     <label className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-[#5F6C7B]'}`}>
                       Observações / Cuidados (Opcional)
@@ -2572,7 +2495,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 </form>
               )}
 
-              {/* Lista de Dependentes Vinculados */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between px-1">
                   <span className="text-xs font-bold text-[#64748B] uppercase tracking-wider font-mono">
@@ -2611,14 +2533,14 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                                 {dep.full_name}
                               </h5>
                               <span className="px-1.5 py-0.5 rounded-[4px] brand-soft-badge text-[9px] font-mono font-bold shrink-0">
-                                {dep.relationship === 'son' 
-                                  ? 'Filho(a)' 
-                                  : dep.relationship === 'daughter' 
-                                  ? 'Filha' 
-                                  : dep.relationship === 'spouse' 
-                                  ? 'Cônjuge' 
-                                  : dep.relationship === 'parent' 
-                                  ? 'Pai/Mãe' 
+                                {dep.relationship === 'son'
+                                  ? 'Filho(a)'
+                                  : dep.relationship === 'daughter'
+                                  ? 'Filha'
+                                  : dep.relationship === 'spouse'
+                                  ? 'Cônjuge'
+                                  : dep.relationship === 'parent'
+                                  ? 'Pai/Mãe'
                                   : 'Outro'}
                               </span>
                             </div>
@@ -2652,10 +2574,9 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
             </div>
           )}
 
-          {/* VISTA 4: CONFIGURAÇÕES & PREFERÊNCIAS */}
           {activeSubTab === 'config' && (
             <div className="space-y-3">
-              {/* Notificações no App */}
+
               <div className={`p-3.5 rounded border flex items-center justify-between ${
                 isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
               }`}>
@@ -2682,7 +2603,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 </button>
               </div>
 
-              {/* Vibração Tátil */}
               <div className={`p-3.5 rounded border flex items-center justify-between ${
                 isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
               }`}>
@@ -2709,7 +2629,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 </button>
               </div>
 
-              {/* REDE SOLIDÁRIA DE TROCAS & GOVERNANÇA */}
               <div className={`p-3.5 rounded border space-y-3 ${
                 isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
               }`}>
@@ -2740,7 +2659,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   </button>
                 </div>
 
-                {/* Métricas de Governança Flat */}
                 <div className="grid grid-cols-3 gap-2 pt-1">
                   <div className={`p-2 rounded border text-center ${
                     isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
@@ -2773,7 +2691,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   </div>
                 </div>
 
-                {/* Regras e Governança Explicada */}
                 <div className="space-y-1 text-[10px] text-slate-400 leading-relaxed border-t border-slate-800/60 pt-2">
                   <div className="flex items-center gap-1.5 font-bold brand-text">
                     <ShieldCheck className="w-3.5 h-3.5 brand-icon" />
@@ -2787,7 +2704,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 </div>
               </div>
 
-              {/* Segurança e Privacidade */}
               <div className={`p-3.5 rounded border space-y-1.5 ${
                 isDark ? 'bg-slate-900/60 border-slate-800/80 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
               }`}>
@@ -2803,7 +2719,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
           )}
         </div>
 
-        {/* 3. RODAPÉ FIXO DO MENU */}
         <div className={`p-3 border-t text-center text-[10px] shrink-0 ${
           isDark ? 'bg-slate-900/80 border-slate-800 text-slate-500' : 'bg-white border-slate-200 text-slate-400'
         }`}>
@@ -2811,7 +2726,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         </div>
       </div>
 
-      {/* Seção em Tela Inteira: Chat Interno no App (Cliente -> Salão) */}
       {isAppChatOpen && (
         <div
           className="fixed inset-0 z-50 flex justify-center bg-[#E6EEF6]/80 backdrop-blur-xs"
@@ -2823,7 +2737,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Barra Superior Institucional com Botão Voltar */}
+
             <div className={`px-3.5 py-3 border-b shrink-0 flex items-center justify-between ${
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E6EDF5]'
             }`}>
@@ -2849,7 +2763,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               </button>
             </div>
 
-            {/* Card de Identificação do Salão no Chat */}
             <div className="px-3.5 pt-3 shrink-0">
               <div className={`caixa-card p-3 rounded-[4px] flex items-center justify-between ${
                 isDark ? 'bg-slate-900 border-slate-800' : 'bg-white'
@@ -2874,7 +2787,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               </div>
             </div>
 
-            {/* Mensagens */}
             <div className="flex-1 overflow-y-auto p-3.5 space-y-3 min-h-0">
               {drawerChatMessages.map((msg) => {
                 if (msg.sender === 'system') {
@@ -2911,7 +2823,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               })}
             </div>
 
-            {/* Input Form Fixo no Rodapé */}
             <form onSubmit={handleSendDrawerChatMessage} className={`p-3 border-t shrink-0 sticky bottom-0 z-20 flex items-center gap-2 ${
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E6EDF5]'
             }`}>
@@ -2934,7 +2845,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         </div>
       )}
 
-      {/* Seção em Tela Inteira: Solicitação de Troca de Horário com Cascata Prioritária (A -> B -> C -> D) */}
       {isSwapModalOpen && swapTargetAppointment && (
         <div
           className="fixed inset-0 z-50 flex justify-center bg-[#E6EEF6]/80 backdrop-blur-xs animate-in fade-in duration-150"
@@ -2946,7 +2856,7 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header da Seção com Botão Voltar */}
+
             <div className={`p-3.5 border-b shrink-0 flex items-center justify-between ${
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-[#E6EDF5]'
             }`}>
@@ -2972,9 +2882,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               </div>
             </div>
 
-            {/* Conteúdo com Rolagem */}
             <div className="p-4 space-y-4 overflow-y-auto flex-1">
-              {/* Seu Horário Atual */}
+
               <div className={`caixa-card p-3 rounded-[4px] text-xs space-y-1 ${
                 isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white'
               }`}>
@@ -2991,7 +2900,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 </div>
               </div>
 
-              {/* Banner Informativo da Cascata e Regras da Permuta */}
               <div className={`p-2.5 rounded border text-[11px] space-y-1.5 ${
                 isDark ? 'bg-slate-900/90 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
               }`}>
@@ -3003,7 +2911,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   A proposta é enviada a <strong>um cliente por vez</strong>. Se houver recusa ou expiração (20 min), migra automaticamente para o próximo.
                 </p>
 
-                {/* Banner de Travas de Permuta */}
                 <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/60 text-[9.5px]">
                   <div className="flex items-start gap-1">
                     <Clock className="w-3 h-3 brand-icon shrink-0 mt-0.5" />
@@ -3016,7 +2923,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 </div>
               </div>
 
-              {/* Seleção de Horários Alvo com Prioridade */}
               <div className="space-y-2">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
                   <span>Escolha até 3 Horários Alvo (Toque p/ definir fila):</span>
@@ -3097,14 +3003,14 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                                 ? 'brand-text'
                                 : 'text-slate-400'
                             }`}>
-                              {isRejected 
-                                ? 'Recusado' 
+                              {isRejected
+                                ? 'Recusado'
                                 : !candidate.isDurationCompatible
                                 ? `Duração Incompatível (${candidate.durationMinutes}m > ${reqDurationMin}m)`
                                 : !candidate.isLeadTimeValid
                                 ? `Margem < 1h (${candidate.leadTimeReason})`
-                                : isSelected 
-                                ? `${priorityIndex + 1}º da Fila` 
+                                : isSelected
+                                ? `${priorityIndex + 1}º da Fila`
                                 : 'Elegível p/ Troca'}
                             </span>
                           </button>
@@ -3115,7 +3021,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 })()}
               </div>
 
-              {/* Caixa de Mensagem de Incentivo / Apelo */}
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
@@ -3129,8 +3034,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   onChange={(e) => setSwapIncentiveMessage(e.target.value)}
                   placeholder="Explique seu imprevisto com carinho para motivar o colega a aceitar a troca (ex: 'Tive um imprevisto na escola do meu filho, se puder me ajudar ficarei muito grato!')..."
                   className={`w-full p-2.5 rounded border text-xs font-medium outline-hidden leading-relaxed transition brand-ring-focus ${
-                    isDark 
-                      ? 'bg-slate-900 border-slate-800 text-slate-200' 
+                    isDark
+                      ? 'bg-slate-900 border-slate-800 text-slate-200'
                       : 'bg-slate-50 border-slate-300 text-slate-900'
                   }`}
                 />
@@ -3140,7 +3045,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
               </div>
             </div>
 
-            {/* Rodapé Fixo de Ação */}
             <div className={`p-3 border-t shrink-0 flex gap-2 ${
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
             }`}>
@@ -3148,8 +3052,8 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                 type="button"
                 onClick={() => setIsSwapModalOpen(false)}
                 className={`flex-1 py-2.5 rounded border text-xs font-bold transition cursor-pointer ${
-                  isDark 
-                    ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300' 
+                  isDark
+                    ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
                     : 'bg-slate-200 hover:bg-slate-300 border-slate-300 text-slate-700'
                 }`}
               >
@@ -3176,7 +3080,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         </div>
       )}
 
-      {/* MODAIS DE AVISO DE GOVERNANÇA & REGRAS DE TROCA */}
       {governanceWarning?.isOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className={`w-full max-w-sm rounded-[4px] border p-4 space-y-3.5 shadow-2xl ${
@@ -3275,7 +3178,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         </div>
       )}
 
-      {/* MODAL PROVISÓRIO DE TESTE DE TRAJETO GPS */}
       {isRouteSimulatorOpen && (
         <RouteSimulatorModal
           isOpen={isRouteSimulatorOpen}
@@ -3287,7 +3189,6 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
         />
       )}
 
-      {/* TELA DE NAVEGAÇÃO AO VIVO (INTERACTIVE ROUTE MAP) DISPARADA PELO TESTE OU AGENDA */}
       {drawerDepartureApt && (
         <LiveRouteDepartureModal
           isOpen={Boolean(drawerDepartureApt)}

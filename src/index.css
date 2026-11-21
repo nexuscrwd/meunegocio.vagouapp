@@ -7,7 +7,6 @@
     --font-sans: 'Public Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: 'IBM Plex Mono', monospace;
 
-    /* Tokens Default Claros, Neutros & Independentes */
     --neutral-outer-bg: #EEF2F6;
     --neutral-canvas-bg: #F8FAFC;
     --neutral-shell-border: #E2E8F0;
@@ -34,7 +33,6 @@
     --neutral-price-on-dark: #FFFFFF;
     --neutral-dot-on-dark: #E2E8F0;
 
-    /* Tokens Semânticos de Marca (Cascata Dinâmica em Todo o App) */
     --brand-primary: #334155;
     --brand-primary-rgb: 51, 65, 85;
     --brand-primary-hover: #1E293B;
@@ -91,7 +89,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Utilitários Semânticos do Tema Ativo (--brand-*) */
 .brand-btn {
   background-color: var(--brand-primary) !important;
   border-color: var(--brand-primary) !important;
@@ -170,7 +167,6 @@
   border-color: var(--brand-card-border);
 }
 
-/* Superfícies Padrão Neutras / Tintadas pelo Tema Ativo no Modo Claro */
 html:not(.dark) .bg-\[\#F7F9FC\] {
   background-color: var(--neutral-canvas-bg) !important;
 }
@@ -179,14 +175,12 @@ html:not(.dark) .bg-\[\#E6EEF6\] {
   background-color: var(--neutral-outer-bg) !important;
 }
 
-/* Cabeçalho Superior Semântico */
 .caixa-header-gradient {
   background: var(--neutral-header-bg);
   border-bottom: 1px solid var(--neutral-header-border);
   color: var(--neutral-header-text);
 }
 
-/* Card Padrão Universal */
 .caixa-card {
   background-color: var(--neutral-card-bg);
   border: 1px solid var(--neutral-card-border);
@@ -201,7 +195,6 @@ html:not(.dark) .bg-\[\#E6EEF6\] {
   box-shadow: 0 2px 5px -1px rgba(0, 0, 0, 0.45), 0 1px 2px 0 rgba(0, 0, 0, 0.3);
 }
 
-/* Card Interativo para Grades */
 .caixa-tile {
   background-color: var(--neutral-card-bg);
   border: 1px solid var(--neutral-card-border);
@@ -222,7 +215,6 @@ html:not(.dark) .bg-\[\#E6EEF6\] {
   box-shadow: 0 2px 5px -1px rgba(0, 0, 0, 0.45), 0 1px 2px 0 rgba(0, 0, 0, 0.3);
 }
 
-/* Halo Circular para Ícones */
 .caixa-icon-halo {
   width: 40px;
   height: 40px;
@@ -240,7 +232,6 @@ html:not(.dark) .bg-\[\#E6EEF6\] {
   color: var(--brand-soft-fg);
 }
 
-/* Inputs e Selects Padronizados */
 .caixa-input {
   width: 100%;
   height: 40px;
@@ -274,7 +265,6 @@ html:not(.dark) .bg-\[\#E6EEF6\] {
   box-shadow: 0 -2px 8px rgba(15, 23, 42, 0.06);
 }
 
-/* Regra de Ouro 1: Arredondamento Universal Estrito de 4px (exceto avatares rounded-full e Entrada Cinematográfica BOL-167 .vagou-cinematic-auth) */
 .rounded-md:not(.rounded-full),
 .rounded-lg:not(.rounded-full),
 .rounded-xl:not(.rounded-full),
@@ -313,7 +303,6 @@ input[type="number"] {
   appearance: textfield;
 }
 
-/* Unificação de Ações Primárias */
 .bg-accent,
 .status-blue-bg,
 .bg-\[\#005CA9\],
@@ -343,7 +332,6 @@ input[type="number"] {
   background-color: var(--brand-soft-bg) !important;
 }
 
-/* Semântica de Sucesso / Confirmação */
 .status-green-bg,
 .bg-\[\#20C933\],
 .bg-\[\#008B47\] {
@@ -364,7 +352,6 @@ input[type="number"] {
   border-color: #059669 !important;
 }
 
-/* Harmonização de Bordas — Tema Escuro */
 .dark .border-slate-800:not([style*="border-color"]),
 .dark .border-slate-800\/90:not([style*="border-color"]),
 .dark .border-slate-800\/80:not([style*="border-color"]),
@@ -378,7 +365,6 @@ input[type="number"] {
   border-color: var(--neutral-input-border);
 }
 
-/* Harmonização de Bordas — Tema Claro */
 html:not(.dark) .border-slate-200:not([style*="border-color"]),
 html:not(.dark) .border-slate-200\/90:not([style*="border-color"]),
 html:not(.dark) .border-slate-200\/80:not([style*="border-color"]),
@@ -398,7 +384,6 @@ html:not(.dark) .border-slate-700\/60:not([style*="border-color"]) {
   border-color: var(--neutral-input-border);
 }
 
-/* Harmonização Automática de Superfícies no Modo Claro */
 html:not(.dark) .bg-slate-950:not([style*="background-color"]):not(.caixa-tile):not(.vagou-dark-media):not(.brand-btn),
 html:not(.dark) .bg-slate-950\/95:not([style*="background-color"]),
 html:not(.dark) .bg-slate-950\/90:not([style*="background-color"]),
@@ -411,7 +396,6 @@ html:not(.dark) .bg-slate-50:not([style*="background-color"]):not(.brand-btn) {
   color: #0F172A;
 }
 
-/* Mantém fundo escuro nos cards fotográficos de serviços com overlay cinematográfico */
 html:not(.dark) .caixa-tile.bg-slate-950,
 html:not(.dark) .caixa-tile .bg-slate-950,
 html:not(.dark) .caixa-tile .bg-slate-950\/85 {
@@ -437,7 +421,6 @@ html:not(.dark) .bg-slate-900\/40:not([style*="background-color"]) {
   color: #0F172A;
 }
 
-/* Correção crítica: não transforma botões intencionalmente escuros (.text-white) em fundo claro sem contraste */
 html:not(.dark) .bg-slate-800:not([style*="background-color"]):not(.text-white):not(.brand-btn),
 html:not(.dark) .bg-slate-800\/90:not([style*="background-color"]):not(.text-white),
 html:not(.dark) .bg-slate-800\/80:not([style*="background-color"]):not(.text-white),
@@ -466,7 +449,6 @@ html:not(.dark) .text-slate-600:not([style*="color"]) {
   color: #64748B;
 }
 
-/* Regra de contraste: texto sobre fundo sólido escuro ou verde sempre branco puro */
 .text-white,
 .dark .text-white,
 .bg-\[\#18181B\],
@@ -546,7 +528,6 @@ html.dark body {
   min-width: 44px;
 }
 
-/* Camada de tiles do mapa de navegação: filtro no pane inteiro evita linhas/costuras entre tiles */
 .vagou-map-dark .leaflet-tile-pane {
   filter: invert(92%) hue-rotate(180deg) brightness(87%) contrast(95%);
 }
@@ -566,9 +547,6 @@ html:not(.dark) .leaflet-container {
   image-rendering: -webkit-optimize-contrast;
 }
 
-/* 🏛️ Blindagem da Entrada Cinematográfica em Vidro Jateado (BOL-167):
-   Garante atmosfera 100% escura mesmo quando html:not(.dark) estiver ativo no navegador,
-   preserva o verde oficial #20C933 e elimina o retângulo branco de autofill do Chrome */
 html:not(.dark) .vagou-cinematic-auth,
 html:not(.dark) .vagou-cinematic-auth .bg-slate-950 {
   background-color: #020617 !important;
@@ -625,4 +603,3 @@ html:not(.dark) .vagou-cinematic-auth .text-slate-500 {
   box-shadow: 0 0 0 1000px #121827 inset !important;
   transition: background-color 99999s ease-in-out 0s !important;
 }
-

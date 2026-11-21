@@ -10,7 +10,7 @@ export interface GoalsAndShiftsCardProps {
   selectedFilterPro?: string;
   matchesSelectedPro?: (app: BookingAppointment) => boolean;
   onUpdateTarget?: (newTarget: number) => void;
-  // Mantidos como opcionais para compatibilidade retroativa
+
   currentAmount?: number;
   weeklyAmount?: number;
   targetAmount?: number;
@@ -33,7 +33,6 @@ export const GoalsAndShiftsCard: React.FC<GoalsAndShiftsCardProps> = ({
 }) => {
   const { isDark } = useTheme();
 
-  // Meta diária persistida (Dia Atual)
   const [dailyTarget] = useState<number>(() => {
     try {
       const s = localStorage.getItem('vagou_daily_goal');
@@ -49,7 +48,6 @@ export const GoalsAndShiftsCard: React.FC<GoalsAndShiftsCardProps> = ({
   const safeTarget = targetAmount && targetAmount > 0 ? targetAmount : dailyTarget;
   const percentage = safeTarget > 0 ? Math.min(100, Math.round((dailyAmount / safeTarget) * 100)) : 0;
 
-  // Atendimentos e Faturamento por Turno no Dia Atual (Manhã, Tarde, Noite)
   const shifts = useMemo<ShiftSummary[]>(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -152,7 +150,7 @@ export const GoalsAndShiftsCard: React.FC<GoalsAndShiftsCardProps> = ({
         isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 shadow-xs text-slate-900'
       }`}
     >
-      {/* Topo do Card: Título Focado no Dia Atual */}
+
       <div className={`flex items-center justify-between pb-2 mb-2 border-b gap-2 ${
         isDark ? 'border-slate-800/80' : 'border-slate-200'
       }`}>
@@ -166,9 +164,8 @@ export const GoalsAndShiftsCard: React.FC<GoalsAndShiftsCardProps> = ({
         </div>
       </div>
 
-      {/* Grade 2 Colunas: Metas do Dia e Turnos de Atendimento com Mesmo Tamanho (50% / 50%) */}
       <div className="grid grid-cols-2 gap-2 w-full items-stretch">
-        {/* Coluna 1: Meta Hoje com R$ X / R$ Y (50% da largura) */}
+
         <div className="flex flex-col h-full justify-between pr-2 min-w-0">
           <div className="w-full flex items-center justify-between mb-1 px-0.5">
             <span
@@ -194,7 +191,6 @@ export const GoalsAndShiftsCard: React.FC<GoalsAndShiftsCardProps> = ({
           </div>
         </div>
 
-        {/* Coluna 2: Evolução por Turno Financeiro (50% da largura, mesma configuração) */}
         <div className="flex flex-col h-full justify-between pl-2 border-l border-slate-800/40 min-w-0">
           <div className="w-full flex items-center justify-between mb-1 px-0.5">
             <div className="flex items-center gap-1">
@@ -212,25 +208,22 @@ export const GoalsAndShiftsCard: React.FC<GoalsAndShiftsCardProps> = ({
             </span>
           </div>
 
-          {/* Gráfico de 3 Barras Verticais */}
           <div className="w-full h-[78px] flex items-end justify-around gap-1.5 px-0.5">
             {shifts.map((shift) => {
               const heightPercent = Math.max(22, Math.round((shift.revenue / maxRevenue) * 100));
 
               return (
                 <div key={shift.label} className="flex-1 flex flex-col items-center h-full justify-end min-w-0">
-                  {/* Faturamento no topo da barra */}
+
                   <span className="text-[10px] font-bold font-mono brand-text mb-0.5 truncate">
                     R$ {shift.revenue >= 1000 ? `${(shift.revenue / 1000).toFixed(1)}k` : shift.revenue.toFixed(0)}
                   </span>
 
-                  {/* Barra Vertical */}
                   <div
                     style={{ height: `${heightPercent * 0.50}px` }}
                     className="w-full max-w-[28px] rounded-t brand-bar transition-all duration-300"
                   />
 
-                  {/* Título do Turno ao pé da barra */}
                   <span
                     className={`text-[9.5px] font-semibold mt-1 truncate ${
                       isDark ? 'text-slate-300' : 'text-slate-700'

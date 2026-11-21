@@ -1,24 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion } from 'motion/react';
-import { 
-  ArrowLeft, 
-  User, 
-  Mail, 
-  Phone, 
-  Camera, 
-  Check, 
-  Heart, 
+import {
+  ArrowLeft,
+  User,
+  Mail,
+  Phone,
+  Camera,
+  Check,
+  Heart,
   Calendar,
   Upload,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { hapticLight, hapticSuccess } from '../utils/haptics';
-import { compressImageFile } from '../utils/imageCompressor';
-import { 
-  fetchUserProfileFromDb, 
-  updateUserProfile, 
-  isSupabaseConfigured, 
-  uploadAvatarToSupabaseStorage,
+import { uploadBinaryMediaAsset } from '../services/mediaUploadService';
+import {
+  fetchUserProfileFromDb,
+  updateUserProfile,
   isValidAvatarUrlString
 } from '../lib/supabase';
 import { SecurityQuestionProfileCard } from './auth/SecurityQuestionProfileCard';
@@ -28,17 +25,16 @@ interface UserDashboardProps {
   onUpdateProfile?: (name: string, avatarUrl: string) => void;
 }
 
-export const UserDashboard: React.FC<UserDashboardProps> = ({ 
+export const UserDashboard: React.FC<UserDashboardProps> = ({
   onBack,
   onUpdateProfile
 }) => {
   const { isDark } = useTheme();
-  
-  // Carregar dados iniciais do localStorage ou usar fallbacks
+
   const [name, setName] = useState(() => {
     return localStorage.getItem('vagou_user_name') || 'Usuário';
   });
-  
+
   const [userAvatarUrl, setUserAvatarUrl] = useState<string>(() => {
     const saved = localStorage.getItem('vagou_user_avatar');
     if (saved && (saved.includes('unsplash.com') || saved.includes('images.unsplash'))) {
@@ -48,7 +44,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     return isValidAvatarUrlString(saved) ? saved.trim() : '';
   });
 
-  // Alias compatível com referências de template
   const avatarUrl = userAvatarUrl;
   const setAvatarUrl = setUserAvatarUrl;
 
@@ -77,10 +72,9 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [isSavedSuccessfully, setIsSavedSuccessfully] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [, setIsSavingDb] = useState(false);
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sincronizar e identificar dados do usuário diretamente no banco Supabase
   useEffect(() => {
     let isMounted = true;
     async function loadDataFromSupabase() {
@@ -142,7 +136,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     return () => { isMounted = false; };
   }, []);
 
-  // Contadores dinâmicos para a seção de estatísticas do cliente
   const [stats, setStats] = useState({
     activeCount: 0,
     concludedCount: 0
@@ -162,7 +155,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     }
   }, []);
 
-  // Formatar telefone no padrão brasileiro
   const formatPhone = (value: string) => {
     const numbers = value.replace(/\D/g, '');
     if (numbers.length <= 11) {
@@ -176,7 +168,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     return value;
   };
 
-  // Processamento de arquivos para troca de avatar (suporta drag-and-drop e input clássico)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -190,28 +181,21 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     }
 
     try {
-      let resolvedAvatar = '';
+      const ownerId =
+        localStorage.getItem('vagou_auth_user_id') ||
+        localStorage.getItem('vagou_client_id') ||
+        undefined;
 
-      // 1. Tenta enviar para o Supabase Storage (retorna URL pública leve)
-      if (isSupabaseConfigured) {
-        const identifier = email || localStorage.getItem('vagou_client_id') || name || 'user';
-        const uploadedUrl = await uploadAvatarToSupabaseStorage(file, identifier);
-        if (isValidAvatarUrlString(uploadedUrl)) {
-          resolvedAvatar = uploadedUrl.trim();
-        }
-      }
+      const uploaded = await uploadBinaryMediaAsset(file, {
+        bucket: 'avatars',
+        ownerType: 'user_avatar',
+        ownerId,
+        maxWidth: 480,
+        maxHeight: 480,
+        quality: 0.85,
+      });
 
-      // 2. Fallback: comprimir a imagem em DataURI leve (320x320 JPEG/PNG) para caber no LocalStorage e no banco
-      if (!resolvedAvatar) {
-        const compressed = await compressImageFile(file, {
-          maxWidth: 320,
-          maxHeight: 320,
-          quality: 0.85,
-        });
-        if (isValidAvatarUrlString(compressed)) {
-          resolvedAvatar = compressed.trim();
-        }
-      }
+      const resolvedAvatar = uploaded.publicUrl;
 
       if (isValidAvatarUrlString(resolvedAvatar)) {
         setUserAvatarUrl(resolvedAvatar);
@@ -229,7 +213,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         hapticLight();
       }
     } catch (err) {
-      console.error('[UserDashboard] Erro ao processar imagem de avatar:', err);
+      console.error('[UserDashboard] Erro ao enviar avatar binário:', err);
     }
   };
 
@@ -256,13 +240,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     setIsSavingDb(true);
 
     const storedAvatarFallback = localStorage.getItem('vagou_user_avatar') || '';
-    // Validação estrita de URL/DataURI antes de salvar no Supabase e LocalStorage
+
     const validatedAvatarUrl = isValidAvatarUrlString(userAvatarUrl)
       ? userAvatarUrl.trim()
       : isValidAvatarUrlString(storedAvatarFallback)
         ? storedAvatarFallback.trim()
         : '';
-    
+
     try {
       localStorage.setItem('vagou_user_name', name.trim());
       if (validatedAvatarUrl) {
@@ -281,7 +265,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       };
       localStorage.setItem('vagou_user_profile', JSON.stringify(updatedProfile));
 
-      // Sincronizar em tempo real com a tabela 'clients' (e 'professionals'/'profiles') no Supabase via updateUserProfile
       const dbResult = await updateUserProfile({
         name: name.trim(),
         email: email.trim(),
@@ -294,17 +277,15 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         ? dbResult.avatarUrl.trim()
         : validatedAvatarUrl;
 
-      // Garante sincronização do estado local userAvatarUrl após escrita bem-sucedida
       setUserAvatarUrl(finalSyncedAvatar);
       if (finalSyncedAvatar) {
         localStorage.setItem('vagou_user_avatar', finalSyncedAvatar);
       }
-      
-      // Chamar callback global para propagar atualizações no resto do App
+
       if (onUpdateProfile) {
         onUpdateProfile(name.trim(), finalSyncedAvatar);
       }
-      
+
       hapticSuccess();
       setIsSavedSuccessfully(true);
       try {
@@ -328,7 +309,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   return (
     <div className="w-full h-dvh max-h-dvh flex flex-col min-h-0 bg-transparent overflow-hidden">
-      {/* CABEÇALHO UNIFICADO COM INDICADOR DE CONEXÃO AO BANCO */}
+
       <header className={`sticky top-0 z-40 px-4 py-3.5 flex items-center justify-between border-b ${
         isDark ? 'bg-slate-950/95 border-slate-900/60' : 'bg-white border-slate-200'
       } backdrop-blur-md shrink-0`}>
@@ -352,10 +333,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         <div className="w-8 h-8" />
       </header>
 
-      {/* CONTEÚDO ROLANTE */}
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 pb-28 space-y-5 no-scrollbar">
-        
-        {/* EDITAR FOTO / AVATAR (ÁREA DE UPLOAD E PRESETS) */}
+
         <div className={`p-4 rounded-[4px] border ${
           isDark ? 'bg-slate-900/70 border-slate-800/80' : 'bg-white border-slate-200'
         } space-y-4`}>
@@ -365,25 +344,24 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </div>
 
           <div className="flex flex-col items-center sm:flex-row sm:items-start gap-4">
-            
-            {/* Imagem do Perfil Ativa + Upload trigger */}
-            <div 
+
+            <div
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
               className={`relative w-24 h-24 rounded-[4px] border-2 cursor-pointer group flex items-center justify-center overflow-hidden transition-all shrink-0 ${
-                isDragging 
-                  ? 'border-[var(--brand-primary)] bg-[var(--brand-soft-bg)] scale-105' 
-                  : isDark 
-                    ? 'border-slate-800 hover:border-[var(--brand-primary)] bg-slate-950' 
+                isDragging
+                  ? 'border-[var(--brand-primary)] bg-[var(--brand-soft-bg)] scale-105'
+                  : isDark
+                    ? 'border-slate-800 hover:border-[var(--brand-primary)] bg-slate-950'
                     : 'border-slate-300 hover:border-[var(--brand-primary)] bg-slate-100 shadow-2xs'
               }`}
             >
               {avatarUrl && !avatarUrl.includes('unsplash.com') && !avatarUrl.startsWith('data:image/svg+xml') ? (
-                <img 
-                  src={avatarUrl} 
-                  alt="Foto do Perfil" 
+                <img
+                  src={avatarUrl}
+                  alt="Foto do Perfil"
                   referrerPolicy="no-referrer"
                   className="w-full h-full object-cover"
                 />
@@ -394,23 +372,20 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 <Upload className="w-4 h-4 brand-icon mb-1" />
                 <span className="text-[9px] font-bold text-slate-300 uppercase">Enviar</span>
               </div>
-              
-              {/* Botão flutuante para indicar editabilidade */}
+
               <div className="absolute bottom-1 right-1 w-6 h-6 rounded-[4px] brand-btn flex items-center justify-center shadow-md">
                 <Camera className="w-3 h-3" />
               </div>
             </div>
 
-            {/* Input escondido */}
-            <input 
-              type="file" 
+            <input
+              type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
               accept="image/*"
               className="hidden"
             />
 
-            {/* Informações de Drag-and-Drop */}
             <div className="flex-1 space-y-3 text-center sm:text-left">
               <div className="space-y-0.5">
                 <p className={`text-xs font-extrabold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
@@ -421,7 +396,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 </p>
               </div>
 
-              {/* Ações de Foto */}
               <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
                 <button
                   type="button"
@@ -441,8 +415,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                       localStorage.removeItem('vagou_user_avatar');
                     }}
                     className={`px-3 py-1.5 rounded text-xs font-bold transition active:scale-95 cursor-pointer border ${
-                      isDark 
-                        ? 'border-slate-800 hover:bg-rose-500/10 hover:border-rose-500/30 text-rose-400' 
+                      isDark
+                        ? 'border-slate-800 hover:bg-rose-500/10 hover:border-rose-500/30 text-rose-400'
                         : 'border-slate-200 hover:bg-rose-50 hover:border-rose-300 text-rose-600'
                     }`}
                   >
@@ -454,7 +428,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </div>
         </div>
 
-        {/* METRICAS / DASHBOARD ESTATÍSTICO */}
         <div className="grid grid-cols-2 gap-3">
           <div className={`p-3 rounded-[4px] border ${
             isDark ? 'bg-slate-900/60 border-slate-800/80' : 'bg-white border-slate-200 shadow-2xs'
@@ -487,13 +460,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </div>
         </div>
 
-        {/* FORMULÁRIO DE DADOS PESSOAIS */}
         <form onSubmit={handleSave} className="space-y-4">
           <div className={`p-4 rounded-[4px] border ${
             isDark ? 'bg-slate-900/70 border-slate-800/80' : 'bg-white border-slate-200'
           } space-y-3`}>
-            
-            {/* Campo: Nome Completo */}
+
             <div className="space-y-1">
               <label className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                 isDark ? 'text-slate-400' : 'text-slate-600'
@@ -501,21 +472,20 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 <User className="w-3.5 h-3.5 brand-icon" />
                 <span>Nome Completo</span>
               </label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
                 placeholder="Insira seu nome completo"
                 className={`w-full px-3 py-2.5 rounded-[4px] text-xs border outline-hidden transition font-semibold brand-ring-focus ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-slate-100' 
+                  isDark
+                    ? 'bg-slate-950 border-slate-800 text-slate-100'
                     : 'bg-white border-slate-200 text-slate-950 shadow-2xs'
                 }`}
               />
             </div>
 
-            {/* Campo: E-mail */}
             <div className="space-y-1">
               <label className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                 isDark ? 'text-slate-400' : 'text-slate-600'
@@ -523,21 +493,20 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 <Mail className="w-3.5 h-3.5 brand-icon" />
                 <span>E-mail</span>
               </label>
-              <input 
-                type="email" 
+              <input
+                type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="exemplo@email.com"
                 className={`w-full px-3 py-2.5 rounded-[4px] text-xs border outline-hidden transition font-semibold brand-ring-focus ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-slate-100' 
+                  isDark
+                    ? 'bg-slate-950 border-slate-800 text-slate-100'
                     : 'bg-white border-slate-200 text-slate-950 shadow-2xs'
                 }`}
               />
             </div>
 
-            {/* Campo: Telefone */}
             <div className="space-y-1">
               <label className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                 isDark ? 'text-slate-400' : 'text-slate-600'
@@ -545,22 +514,21 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 <Phone className="w-3.5 h-3.5 brand-icon" />
                 <span>Telefone Celular</span>
               </label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={phone}
                 onChange={(e) => setPhone(formatPhone(e.target.value))}
                 required
                 placeholder="(11) 99999-9999"
                 className={`w-full px-3 py-2.5 rounded-[4px] text-xs border outline-hidden transition font-semibold brand-ring-focus ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-800 text-slate-100' 
+                  isDark
+                    ? 'bg-slate-950 border-slate-800 text-slate-100'
                     : 'bg-white border-slate-200 text-slate-950 shadow-2xs'
                 }`}
               />
             </div>
           </div>
 
-          {/* Banner de Salvo com sucesso */}
           {isSavedSuccessfully && (
             <div className="brand-soft-badge text-xs py-2 px-3 rounded-[4px] font-bold flex items-center gap-2">
               <Check className="w-4 h-4 brand-icon shrink-0" />
@@ -568,7 +536,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             </div>
           )}
 
-          {/* Botão de Envio Unificado */}
           <button
             type="submit"
             className="w-full py-3.5 brand-btn active:scale-[0.99] font-bold text-xs rounded-[4px] transition uppercase tracking-wider font-display flex items-center justify-center gap-2 cursor-pointer shadow-xs"
@@ -578,7 +545,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </button>
         </form>
 
-        {/* Segurança & Recuperação de Acesso (Suporte pós-reset admvapp) */}
         <SecurityQuestionProfileCard
           userEmail={email}
           userPhone={phone}

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
+import {
   Store, Phone, MapPin, Save, Check,
   Sparkles, Search, Loader2, Plus, X,
   QrCode, Printer, Copy, ExternalLink,
@@ -137,9 +137,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // ==============================================================
-  // 1. ABA ESTRUTURA (Lista Pré-definida + Inserir Mais Itens + Descrição)
-  // ==============================================================
   const [spaceDescription, setSpaceDescription] = useState(
     adminSettings.spaceDescription ||
     adminSettings.bio ||
@@ -214,9 +211,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
     setSelectedAmenities((prev) => prev.filter((item) => item !== label));
   };
 
-  // ==============================================================
-  // 2. ABA LOCALIZAÇÃO (CEP, Endereço, Número, Compl., Bairro, Cidade, UF — movido de Dados do Negócio)
-  // ==============================================================
   const [cep, setCep] = useState(adminSettings.cep || '');
   const [logradouro, setLogradouro] = useState(adminSettings.logradouro || adminSettings.salonAddress || '');
   const [numero, setNumero] = useState(adminSettings.numero || '');
@@ -227,9 +221,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [cepError, setCepError] = useState('');
 
-  // ==============================================================
-  // 3. ABA CONTATOS (WhatsApp, Tel. Fixo, E-mail, Site, Instagram, Facebook — movido de Dados do Negócio)
-  // ==============================================================
   const [salonPhone, setSalonPhone] = useState(adminSettings.salonPhone || adminSettings.legalManagerPhone || '');
   const [phoneLandline, setPhoneLandline] = useState(adminSettings.phoneLandline || '');
   const [commercialEmail, setCommercialEmail] = useState(
@@ -241,7 +232,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
   const [isStorefrontQrModalOpen, setIsStorefrontQrModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Sincronização em tempo real caso adminSettings seja atualizado pelo Supabase Realtime
   useEffect(() => {
     if (adminSettings.spaceDescription !== undefined) {
       setSpaceDescription(adminSettings.spaceDescription || adminSettings.bio || '');
@@ -266,7 +256,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
     if (adminSettings.facebookUrl !== undefined) setFacebookUrl(adminSettings.facebookUrl || '');
   }, [adminSettings]);
 
-  // Máscaras de formatação
   const formatCep = (v: string) => {
     const raw = v.replace(/\D/g, '').slice(0, 8);
     return raw.replace(/^(\d{5})(\d)/, '$1-$2');
@@ -291,7 +280,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
       .replace(/(\d{4})(\d)/, '$1-$2');
   };
 
-  // Busca automática por CEP via ViaCEP
   const searchCepAddress = async (cepValue: string) => {
     const cleanCep = cepValue.replace(/\D/g, '');
     if (cleanCep.length !== 8) return;
@@ -354,7 +342,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
     } catch {}
   };
 
-  // Salvar configurações da seção Espaço
   const handleSaveSettings = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (isSaving) return;
@@ -413,7 +400,7 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
     <div className={`w-full h-full flex flex-col justify-between overflow-y-auto no-scrollbar ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
-      {/* Barra de Topo Fixa com as 3 Abas: Estrutura | Localização | Contatos */}
+
       <div
         className={`${sectionHeaderStyleData.containerClass} flex-col gap-2`}
         style={sectionHeaderStyleData.containerStyle}
@@ -451,7 +438,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
           )}
         </div>
 
-        {/* 3 Abas Dedicadas: Estrutura | Contatos | Localização */}
         <div className="grid grid-cols-3 gap-1.5 w-full">
           {[
             { id: 'estrutura' as SpaceManagementTabId, label: 'Estrutura', icon: Sparkles },
@@ -484,11 +470,8 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
         </div>
       </div>
 
-      {/* Formulário Principal */}
       <form onSubmit={handleSaveSettings} className="p-3.5 space-y-4 pb-24 flex-1">
-        {/* ============================================================== */}
-        {/* ABA 1: ESTRUTURA (Lista Pré-definida + Inserir Mais Itens + Sobre o Espaço) */}
-        {/* ============================================================== */}
+
         {activeTab === 'estrutura' && (
           <div className={`p-3.5 rounded-[4px] border space-y-4 ${
             isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
@@ -505,7 +488,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
               </span>
             </div>
 
-            {/* Descrição / Sobre o Espaço */}
             <div>
               <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                 Sobre o Espaço
@@ -523,7 +505,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
               />
             </div>
 
-            {/* Lista Pré-definida de Itens de Estrutura */}
             <div>
               <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
                 Itens Pré-definidos da Estrutura
@@ -556,7 +537,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
               </div>
             </div>
 
-            {/* Inserir Mais Itens Personalizados */}
             <div className={`pt-2 border-t space-y-2.5 ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
               <div className="flex items-center justify-between gap-2">
                 <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
@@ -604,7 +584,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
                 </button>
               </div>
 
-              {/* Seletor Rápido de Ícone para o Novo Item */}
               <div className="space-y-1">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                   Escolha o Ícone do Item
@@ -639,7 +618,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
                 </div>
               </div>
 
-              {/* Lista de Itens Personalizados Adicionados */}
               {customAmenities.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {customAmenities.map((item) => {
@@ -670,9 +648,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
           </div>
         )}
 
-        {/* ============================================================== */}
-        {/* ABA 2: LOCALIZAÇÃO & ENDEREÇO (Movida de Dados do Negócio) */}
-        {/* ============================================================== */}
         {activeTab === 'localizacao' && (
           <div className={`p-3.5 rounded-[4px] border space-y-3 ${
             isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
@@ -837,9 +812,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
           </div>
         )}
 
-        {/* ============================================================== */}
-        {/* ABA 3: CONTATOS & REDES SOCIAIS (Movida de Dados do Negócio) */}
-        {/* ============================================================== */}
         {activeTab === 'contatos' && (
           <div className={`p-3.5 rounded-[4px] border space-y-3.5 ${
             isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
@@ -851,7 +823,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
               </h3>
             </div>
 
-            {/* Link Exclusivo & QR Code da Vitrine */}
             <div className={`space-y-2 pb-3 border-b ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -910,7 +881,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
               </div>
             </div>
 
-            {/* WhatsApp, Tel. Fixo, E-mail */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
@@ -967,7 +937,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
               </div>
             </div>
 
-            {/* Site, Instagram e Facebook */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
@@ -1027,7 +996,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
         )}
       </form>
 
-      {/* Modal de Impressão da Placa QR Code de Agendamento da Vitrine */}
       {isStorefrontQrModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200"
@@ -1100,7 +1068,6 @@ export const ProfessionalSpaceManager: React.FC<ProfessionalSpaceManagerProps> =
         </div>
       )}
 
-      {/* RODAPÉ FIXO DE AÇÃO (STICKY BOTTOM-0 Z-20) */}
       <div className={`sticky bottom-0 z-20 p-3 border-t backdrop-blur-md space-y-2 ${
         isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-white/95 border-slate-200 shadow-lg'
       }`}>

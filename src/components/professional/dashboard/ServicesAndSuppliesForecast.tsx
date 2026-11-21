@@ -1,16 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { 
-  Boxes, 
-  PackageCheck, 
-  AlertTriangle, 
-  Plus, 
-  Check, 
-  X, 
-  Sparkles, 
-  Scissors, 
-  CalendarDays,
-  Layers,
-  ArrowRight
+import {
+  Boxes,
+  PackageCheck,
+  Plus,
+  Check,
+  X,
+  Sparkles,
+  Scissors,
+  Layers
 } from 'lucide-react';
 import { useTheme } from '../../../context/ThemeContext';
 import { BookingAppointment, CatalogServiceItem } from '../../../types';
@@ -25,9 +22,9 @@ export interface SupplyItem {
   category: 'quimica' | 'barbearia' | 'finalizacao' | 'higiene';
   currentStock: number;
   unit: 'g' | 'ml' | 'un' | 'tubos';
-  consumptionPerService: number; // consumo médio por atendimento típico
-  serviceName: string; // serviço associado
-  minAlertThreshold: number; // nível mínimo recomendado
+  consumptionPerService: number;
+  serviceName: string;
+  minAlertThreshold: number;
 }
 
 export interface ForecastServiceStat {
@@ -47,19 +44,14 @@ const DEFAULT_SUPPLIES: SupplyItem[] = [];
 
 export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastProps> = ({
   appointments,
-  services,
   activeProId,
-  isOwner = true
 }) => {
   const { isDark } = useTheme();
 
-  // Seletor de período: Hoje, Esta Semana ou Este Mês
   const [period, setPeriod] = useState<ForecastPeriod>('hoje');
 
-  // Controle de exibição (Serviços Previstos ou Almoxarifado / Insumos)
   const [activeSubTab, setActiveSubTab] = useState<'servicos' | 'insumos'>('servicos');
 
-  // Estoque de insumos persistido
   const [supplies, setSupplies] = useState<SupplyItem[]>(() => {
     try {
       const saved = localStorage.getItem('vagou_salon_supplies');
@@ -71,23 +63,20 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
     return DEFAULT_SUPPLIES;
   });
 
-  // Modal de reposição rápida
   const [restockModalItem, setRestockModalItem] = useState<SupplyItem | null>(null);
   const [restockAmount, setRestockAmount] = useState<string>('50');
 
-  // 1. Filtrar agendamentos com base no período e profissional
   const filteredAppointments = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    
-    // Fim da semana (próximos 7 dias)
+
     const weekEnd = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
-    // Fim do mês
+
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
     return appointments.filter((app) => {
-      // Filtro de profissional (se não for dono e tiver pro selecionado)
+
       if (activeProId && activeProId !== 'todos') {
         const pName = (app.professional || app.professionalName || '').toLowerCase();
         if (!pName.includes(activeProId.toLowerCase())) {
@@ -95,11 +84,9 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
         }
       }
 
-      // Status não cancelado
       const st = (app.status || '').toUpperCase();
       if (st === 'CANCELADO') return false;
 
-      // Data do agendamento
       let appDate = new Date();
       if (app.dateIso) {
         appDate = new Date(app.dateIso + 'T00:00:00');
@@ -127,7 +114,6 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
     });
   }, [appointments, period, activeProId]);
 
-  // 2. Agrupar serviços previstos com contagem e valor
   const forecastServicesMap = useMemo<Record<string, ForecastServiceStat>>(() => {
     const map: Record<string, ForecastServiceStat> = {};
 
@@ -141,7 +127,6 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
       map[title].totalRevenue += price;
     });
 
-    // Se a lista estiver vazia por falta de agendamentos futuros no período, preenche com estimativa realista
     if (Object.keys(map).length === 0) {
       if (period === 'hoje') {
         map['Corte Degradê / Fade Moderno'] = { count: 4, totalRevenue: 200, durationTotal: 160 };
@@ -171,19 +156,17 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
     return (Object.values(forecastServicesMap) as ForecastServiceStat[]).reduce((sum, item) => sum + item.totalRevenue, 0);
   }, [forecastServicesMap]);
 
-  // 3. Cruzar insumos com a demanda prevista
   const suppliesAnalysis = useMemo(() => {
     return supplies.map((supply) => {
-      // Contagem de serviços demandados no período
+
       let demandedServicesCount = 0;
       (Object.entries(forecastServicesMap) as [string, ForecastServiceStat][]).forEach(([sName, stat]) => {
-        if (sName.toLowerCase().includes(supply.serviceName.toLowerCase()) || 
+        if (sName.toLowerCase().includes(supply.serviceName.toLowerCase()) ||
             supply.serviceName.toLowerCase().includes(sName.toLowerCase())) {
           demandedServicesCount += stat.count;
         }
       });
 
-      // Se não encontrou correspondência exata, usa proporção estimada
       if (demandedServicesCount === 0) {
         if (supply.category === 'barbearia') demandedServicesCount = Math.round(totalForecastCount * 0.35);
         else if (supply.category === 'quimica') demandedServicesCount = Math.max(1, Math.round(totalForecastCount * 0.12));
@@ -191,10 +174,10 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
       }
 
       const totalNeeded = demandedServicesCount * supply.consumptionPerService;
-      const autonomyInServices = supply.consumptionPerService > 0 
-        ? Math.floor(supply.currentStock / supply.consumptionPerService) 
+      const autonomyInServices = supply.consumptionPerService > 0
+        ? Math.floor(supply.currentStock / supply.consumptionPerService)
         : 0;
-      
+
       const isDeficit = supply.currentStock < totalNeeded;
       const deficitAmount = isDeficit ? totalNeeded - supply.currentStock : 0;
       const isLowStock = supply.currentStock <= supply.minAlertThreshold;
@@ -211,12 +194,10 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
     });
   }, [supplies, forecastServicesMap, totalForecastCount]);
 
-  // Quantidade de alertas críticos de estoque
   const criticalDeficitCount = useMemo(() => {
     return suppliesAnalysis.filter((s) => s.isDeficit).length;
   }, [suppliesAnalysis]);
 
-  // Handler para repor estoque
   const handleConfirmRestock = () => {
     if (!restockModalItem) return;
     const added = parseFloat(restockAmount);
@@ -242,7 +223,7 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
     <div className={`rounded-lg border p-3.5 transition-colors select-none ${
       isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 shadow-xs text-slate-900'
     }`}>
-      {/* 1. Cabeçalho Principal com Seletor Temporal */}
+
       <div className="w-full flex items-center justify-between pb-2 mb-2 border-b border-slate-800/40 gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
           <div className="w-6 h-6 rounded brand-soft-badge flex items-center justify-center shrink-0">
@@ -255,7 +236,6 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
           </div>
         </div>
 
-        {/* Alternador de Período: Hoje | Semana | Mês */}
         <div className={`flex items-center p-0.5 rounded-md border shrink-0 ${
           isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
         }`}>
@@ -282,7 +262,6 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
         </div>
       </div>
 
-      {/* 2. Sub-abas Rápidas: Serviços Previstos vs. Almoxarifado / Autonomia */}
       <div className="w-full flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-1">
           <button
@@ -333,7 +312,6 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
         </span>
       </div>
 
-      {/* 3. CONTEÚDO DA ABA 1: SERVIÇOS PREVISTOS */}
       {activeSubTab === 'servicos' && (
         <div className="space-y-2">
           <div className="grid grid-cols-1 gap-1.5">
@@ -372,7 +350,6 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
             ))}
           </div>
 
-          {/* Dica operacional resumida */}
           <div className={`p-2 rounded border flex items-start gap-2 mt-1 ${
             isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100/80 border-slate-200'
           }`}>
@@ -384,13 +361,10 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
         </div>
       )}
 
-      {/* 4. CONTEÚDO DA ABA 2: ALMOXARIFADO & AUTONOMIA DE ATENDIMENTOS */}
       {activeSubTab === 'insumos' && (
         <div className="space-y-2">
           <div className="grid grid-cols-1 gap-2">
             {suppliesAnalysis.map((item) => {
-              const stockPercent = Math.min(100, Math.round((item.currentStock / (item.totalNeeded || item.minAlertThreshold * 2 || 1)) * 100));
-
               return (
                 <div
                   key={item.id}
@@ -431,7 +405,6 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
                     </button>
                   </div>
 
-                  {/* Barra de Estoque vs Demanda */}
                   <div className="mt-2">
                     <div className="flex items-center justify-between text-[10px] font-mono mb-1">
                       <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>
@@ -444,7 +417,6 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
                       </span>
                     </div>
 
-                    {/* Barra de Progresso */}
                     <div className={`w-full h-1.5 rounded-full overflow-hidden ${
                       isDark ? 'bg-slate-800' : 'bg-slate-200'
                     }`}>
@@ -457,14 +429,13 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
                     </div>
                   </div>
 
-                  {/* Autonomia de Atendimentos */}
                   <div className="mt-1.5 pt-1.5 border-t border-slate-800/40 flex items-center justify-between text-[10px]">
                     <span className={`flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                       <PackageCheck className="w-3 h-3 brand-icon" />
                       Autonomia da bancada:
                     </span>
                     <span className={`font-bold font-mono px-1.5 py-0.2 rounded ${
-                      item.autonomyInServices <= 2 
+                      item.autonomyInServices <= 2
                         ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                         : 'brand-soft-badge'
                     }`}>
@@ -478,7 +449,6 @@ export const ServicesAndSuppliesForecast: React.FC<ServicesAndSuppliesForecastPr
         </div>
       )}
 
-      {/* 5. MODAL DE REPOSIÇÃO RÁPIDA DE INSUMO */}
       {restockModalItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
           <div className={`w-full max-w-sm rounded-lg border p-4 shadow-2xl ${

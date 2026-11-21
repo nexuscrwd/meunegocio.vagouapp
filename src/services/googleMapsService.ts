@@ -49,7 +49,6 @@ export type ModalMatrixMap = Partial<
 >;
 
 let cachedMapsApiKey: string | null = null;
-let mapsScriptLoadPromise: Promise<boolean> | null = null;
 
 function isJsonResponse(res: Response): boolean {
   const ct = res.headers.get('content-type') || '';
@@ -75,9 +74,6 @@ export function formatDistanceMeters(meters: number): string {
   return `${Math.round(safe / 10) * 10} m`;
 }
 
-/**
- * Obtém a chave do Google Maps Platform a partir do Vite env ou do endpoint seguro /api/maps/config
- */
 export async function getGoogleMapsApiKey(): Promise<string> {
   if (cachedMapsApiKey !== null) return cachedMapsApiKey;
 
@@ -104,97 +100,6 @@ export async function getGoogleMapsApiKey(): Promise<string> {
   return '';
 }
 
-/**
- * Carrega o Google Maps JavaScript SDK dinamicamente (com suporte a AdvancedMarkerElement)
- */
-export async function loadGoogleMapsJsSdk(): Promise<boolean> {
-  if (typeof window === 'undefined') return false;
-  if ((window as any).google?.maps?.Map) return true;
-  if (mapsScriptLoadPromise) return mapsScriptLoadPromise;
-
-  mapsScriptLoadPromise = (async () => {
-    const apiKey = await getGoogleMapsApiKey();
-    if (!apiKey) return false;
-
-    if ((window as any).google?.maps?.Map) return true;
-
-    return new Promise<boolean>((resolve) => {
-      let resolved = false;
-      const safeResolve = (val: boolean) => {
-        if (!resolved) {
-          resolved = true;
-          resolve(val);
-        }
-      };
-
-      (window as any).gm_authFailure = () => {
-        console.warn('[Vagou GPS] Google Maps JS auth failure: chave restrita ou domínio não autorizado.');
-        safeResolve(false);
-      };
-
-      const checkReady = () => {
-        const gmaps = (window as any).google?.maps;
-        if (gmaps?.Map) {
-          safeResolve(true);
-          return true;
-        }
-        return false;
-      };
-
-      if (checkReady()) return;
-
-      const existing = document.getElementById('vagou-google-maps-sdk') as HTMLScriptElement | null;
-      if (existing) {
-        const startTime = Date.now();
-        const poll = setInterval(() => {
-          if (checkReady()) {
-            clearInterval(poll);
-          } else if (Date.now() - startTime > 2500) {
-            clearInterval(poll);
-            safeResolve(false);
-          }
-        }, 60);
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.id = 'vagou-google-maps-sdk';
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
-        apiKey
-      )}&v=weekly&language=pt-BR&region=BR&libraries=marker&solution_channel=gmp_mcp_codeassist_v1_aistudio`;
-      script.async = true;
-      script.defer = true;
-
-      script.onload = () => {
-        if (checkReady()) return;
-        const startTime = Date.now();
-        const poll = setInterval(() => {
-          if (checkReady()) {
-            clearInterval(poll);
-          } else if (Date.now() - startTime > 2000) {
-            clearInterval(poll);
-            safeResolve(false);
-          }
-        }, 50);
-      };
-
-      script.onerror = () => safeResolve(false);
-      document.head.appendChild(script);
-
-      setTimeout(() => {
-        if (!resolved) {
-          safeResolve(Boolean((window as any).google?.maps?.Map));
-        }
-      }, 3500);
-    });
-  })();
-
-  return mapsScriptLoadPromise;
-}
-
-/**
- * Decodifica uma string encodedPolyline oficial do Google Routes API v2 / OSRM (1e5) em coordenadas {lat, lng}[]
- */
 export function decodeGooglePolyline(encoded: string): Array<{ lat: number; lng: number }> {
   if (!encoded) return [];
   const points: Array<{ lat: number; lng: number }> = [];
@@ -231,9 +136,6 @@ export function decodeGooglePolyline(encoded: string): Array<{ lat: number; lng:
   return points;
 }
 
-/**
- * Converte modalidade do Vagou para o TravelMode oficial da Routes API v2
- */
 export function toGoogleTravelMode(
   mode?: BookingTransportMode | TrackingTransportMode
 ): 'DRIVE' | 'TWO_WHEELER' | 'BICYCLE' | 'WALK' | 'TRANSIT' {
@@ -244,9 +146,6 @@ export function toGoogleTravelMode(
   return 'DRIVE';
 }
 
-/**
- * Extrai um nome enxuto de rua/avenida/rodovia a partir da instrução de navegação
- */
 function extractStreetFromInstruction(instruction: string, index: number): string {
   const clean = String(instruction || '')
     .replace(/\s+/g, ' ')
@@ -264,9 +163,6 @@ function extractStreetFromInstruction(instruction: string, index: number): strin
   return clean.length > 64 ? `${clean.slice(0, 61)}...` : clean;
 }
 
-/**
- * Consolida passos consecutivos na mesma via para gerar um Itinerário limpo e fiel às ruas reais
- */
 export function buildConsolidatedCheckpoints(steps: GoogleRouteStep[]): LiveRouteCheckpoint[] {
   const nowClock = formatCurrentClockTime(0);
   if (!steps.length) return [];
@@ -427,7 +323,6 @@ async function geocodeAddressClientNominatim(
     } catch {}
   }
 
-  // Fallback direto para BrasilAPI v2 caso haja CEP no texto
   const cepMatch = clean.match(/\b(\d{5})-?(\d{3})\b/);
   if (cepMatch) {
     try {
@@ -451,10 +346,6 @@ async function geocodeAddressClientNominatim(
   return null;
 }
 
-/**
- * Fallback viário direto no cliente (CORS-safe) para builds estáticos (ex.: Cloudflare Pages dist)
- * Busca steps=true reais, manobras de conversão, durações reais e ruas reais.
- */
 async function computeClientOsrmDetailedRoute(params: {
   originLat: number;
   originLng: number;
@@ -540,10 +431,6 @@ async function computeClientOsrmDetailedRoute(params: {
   return null;
 }
 
-/**
- * Calcula rota detalhada real via Routes API v2 (/api/geo/route) + fallback viário CORS no cliente,
- * retornando distância real, ETA realista, geometria da rota (polyline), manobras reais e ruas reais para o Itinerário.
- */
 export async function computeGoogleDetailedRoute(params: {
   originLat?: number;
   originLng?: number;
@@ -572,7 +459,6 @@ export async function computeGoogleDetailedRoute(params: {
       ? params.destLng
       : -46.4795;
 
-  // 1. Tenta o proxy backend oficial (Google Routes API v2 + Google Geocoding API)
   try {
     const travelMode = toGoogleTravelMode(params.mode);
     const res = await fetch('/api/geo/route', {
@@ -683,7 +569,6 @@ export async function computeGoogleDetailedRoute(params: {
     }
   } catch {}
 
-  // 2. Fallback direto no cliente para deploy estático (Cloudflare Pages / PWA offline-backend)
   return computeClientOsrmDetailedRoute({
     originLat: safeOriginLat,
     originLng: safeOriginLng,
@@ -694,9 +579,6 @@ export async function computeGoogleDetailedRoute(params: {
   });
 }
 
-/**
- * Calcula simultaneamente a matriz dos 5 modais (A pé, Bicicleta, Moto, Carro, Transp. Público) via Routes API v2
- */
 export async function fetchGoogleModalRouteMatrix(params: {
   originLat?: number;
   originLng?: number;
@@ -719,9 +601,6 @@ export async function fetchGoogleModalRouteMatrix(params: {
   }
 }
 
-/**
- * Busca sugestões reais de endereços, ruas e estabelecimentos via Places API (New v1)
- */
 export async function searchGooglePlacesSuggestions(
   query: string,
   biasLat?: number,
@@ -771,9 +650,6 @@ export async function searchGooglePlacesSuggestions(
   return [];
 }
 
-/**
- * Faz o Snap-to-Road via Roads API + Reverse Geocode via Geocoding API (com fallback Nominatim no cliente)
- */
 export async function snapAndReverseGeocodeGps(
   lat: number,
   lng: number
@@ -817,9 +693,6 @@ export async function snapAndReverseGeocodeGps(
   return null;
 }
 
-/**
- * Geocodificação em 3 Camadas (/api/geo/geocode: Google Geocoding API com Referer ➔ Nominatim ➔ fallback cliente)
- */
 export async function geocodeAddressThreeLayers(params: {
   address?: string;
   streetNumber?: string;

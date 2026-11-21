@@ -75,7 +75,7 @@ export const SalonLocationGroundingPanel: React.FC<SalonLocationGroundingPanelPr
       setErrorMsg(null);
 
       try {
-        // Opcionalmente captura coordenadas do navegador se não fornecidas pelo salão
+
         let resolvedLat = lat;
         let resolvedLng = lng;
         if (
@@ -132,7 +132,6 @@ export const SalonLocationGroundingPanel: React.FC<SalonLocationGroundingPanelPr
     [salonName, salonAddress, salonCity, category, lat, lng]
   );
 
-  // Carrega automaticamente o primeiro tópico de estacionamentos ao montar
   useEffect(() => {
     runGroundingQuery('maps', MAPS_QUICK_TOPICS[0].query, 'parking');
   }, [runGroundingQuery]);
@@ -168,7 +167,7 @@ export const SalonLocationGroundingPanel: React.FC<SalonLocationGroundingPanelPr
         isDark ? 'bg-slate-950/90 text-slate-100' : 'bg-slate-50 text-slate-900'
       }`}
     >
-      {/* Seletor de Modo: Radar Google Maps vs Google Search Web */}
+
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <MapPin className="w-3.5 h-3.5 brand-icon shrink-0" />
@@ -210,7 +209,6 @@ export const SalonLocationGroundingPanel: React.FC<SalonLocationGroundingPanelPr
         </div>
       </div>
 
-      {/* Chips Objetivos de 1 Toque */}
       <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
         {(mode === 'maps' ? MAPS_QUICK_TOPICS : SEARCH_QUICK_TOPICS).map(({ id, label, query, Icon }) => {
           const isSelected = activeTopicId === id;
@@ -237,7 +235,6 @@ export const SalonLocationGroundingPanel: React.FC<SalonLocationGroundingPanelPr
         })}
       </div>
 
-      {/* Barra de Pesquisa Direta */}
       <form onSubmit={handleCustomSubmit} className="flex items-center gap-1.5">
         <div className="relative flex-1 min-w-0">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -266,7 +263,6 @@ export const SalonLocationGroundingPanel: React.FC<SalonLocationGroundingPanelPr
         </button>
       </form>
 
-      {/* Resultado Sintetizado + Links Verificados Obrigatórios (Google Maps / Google Search) */}
       <div
         className={`rounded-[4px] p-2.5 space-y-2 ${
           isDark ? 'bg-slate-900/90' : 'bg-white'
@@ -300,7 +296,6 @@ export const SalonLocationGroundingPanel: React.FC<SalonLocationGroundingPanelPr
               </div>
             )}
 
-            {/* Fontes & Links Diretos Obrigatórios (groundingChunks.maps.uri / groundingChunks.web.uri) */}
             {sources.length > 0 && (
               <div className="pt-1.5 space-y-1">
                 <span className="text-[9.5px] font-bold uppercase tracking-wider brand-text block">

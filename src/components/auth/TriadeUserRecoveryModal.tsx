@@ -68,9 +68,6 @@ export interface TriadeUserRecoveryModalProps {
 
 export type RecoveryModalView = 'choose' | 'user' | 'password';
 
-/**
- * 🏛️ Modal Independente de Recuperação ("Esqueci a senha / Usuário") em Vidro Jateado (BOL-167)
- */
 export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = ({
   salonName,
   salonSlug,
@@ -89,13 +86,11 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
   });
   const [isQuestionListOpen, setIsQuestionListOpen] = useState(false);
 
-  // Estados de Recuperação de Usuário (Pergunta Secreta)
   const [secretAnswer, setSecretAnswer] = useState('');
   const [contactHint, setContactHint] = useState('');
   const [recoveredUsername, setRecoveredUsername] = useState<string | null>(null);
   const [recoveredFullName, setRecoveredFullName] = useState<string | null>(null);
 
-  // Estados de Recuperação de Senha
   const [passwordStep, setPasswordStep] = useState<'identify' | 'reset'>('identify');
   const [recoveryIdentifier, setRecoveryIdentifier] = useState('');
   const [matchedAccounts, setMatchedAccounts] = useState<any[]>([]);
@@ -117,7 +112,6 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
     setSelectedQuestion(next);
   };
 
-  // Consulta da resposta da pergunta secreta para recuperar Nome de Usuário
   const handleRecoverUsername = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
@@ -137,7 +131,7 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
       let foundUser: { username: string; name: string } | null = null;
 
       if (isSupabaseConfigured && supabase) {
-        // 1. Tenta via RPC oficial public.recover_username_by_security_answer
+
         try {
           const { data: rpcData } = await (supabase as any).rpc(
             'recover_username_by_security_answer',
@@ -156,7 +150,6 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
           }
         } catch {}
 
-        // 2. Consulta direta em public.user_security_answers + public.clients
         if (!foundUser) {
           try {
             const { data: ansRows } = await (supabase.from('user_security_answers' as any) as any)
@@ -185,7 +178,6 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
           } catch {}
         }
 
-        // 3. Consulta nas colunas de pergunta secreta da tabela public.clients
         if (!foundUser) {
           try {
             const { data: clientRows } = await (supabase.from('clients') as any)
@@ -213,7 +205,6 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
           } catch {}
         }
 
-        // 4. Caso o usuário tenha informado Celular ou E-mail complementar, localiza a conta e vincula a resposta secreta
         if (!foundUser && contactHint.trim().length >= 3) {
           const matchedByHint = await findMatchingTriadeAccounts(contactHint.trim());
           if (matchedByHint.length > 0) {
@@ -228,7 +219,6 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
                 name: String(target.name || resolvedUser),
               };
 
-              // Salva a resposta secreta para futuras consultas
               try {
                 await (supabase.from('user_security_answers' as any) as any).upsert(
                   {
@@ -245,7 +235,6 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
         }
       }
 
-      // 5. Fallback no cache local caso cadastrado na sessão atual
       if (!foundUser) {
         try {
           const localAnswers = JSON.parse(
@@ -293,7 +282,6 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
     }
   };
 
-  // Validação de Senha Forte (1 Maiúscula + 1 Caractere Especial + Confirmação)
   const hasUpperCase = /[A-Z]/.test(newPassword);
   const hasSpecialChar = /[^A-Za-z0-9\s]/.test(newPassword);
   const passwordsMatch =
@@ -400,7 +388,7 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
           : ''
       }`}
     >
-      {/* Topo White-Label Limpo direto sobre o vidro */}
+
       <SalonAuthHeader
         salonName={salonName}
         salonSlug={salonSlug}
@@ -428,7 +416,6 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
           </div>
         )}
 
-        {/* TELA 1: ESCOLHA ENTRE [USUÁRIO] E [SENHA] */}
         {view === 'choose' && (
           <div className="space-y-4">
             <p className="text-xs text-center font-medium text-slate-300">
@@ -476,10 +463,9 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
           </div>
         )}
 
-        {/* TELA 2A: RECUPERAÇÃO DE USUÁRIO VIA PERGUNTA SECRETA ALEATÓRIA */}
         {view === 'user' && (
           <form onSubmit={handleRecoverUsername} className="space-y-3.5">
-            {/* Seleção rápida de pergunta secreta com quebra de linha */}
+
             <div className="relative">
               <div className="flex items-center justify-between mb-1.5">
                 <label
@@ -554,7 +540,6 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
               )}
             </div>
 
-            {/* Pergunta Secreta Destacada */}
             <div
               className={`p-3 rounded-[4px] border space-y-2 ${
                 isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
@@ -579,7 +564,6 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
               />
             </div>
 
-            {/* Campo complementar opcional de Celular ou E-mail */}
             <div>
               <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                 Celular ou E-mail (opcional para confirmação rápida)
@@ -665,7 +649,6 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
           </form>
         )}
 
-        {/* TELA 2B: RECUPERAÇÃO DE SENHA */}
         {view === 'password' && (
           <form onSubmit={handleRecoverPassword} className="space-y-3.5">
             {passwordStep === 'identify' ? (

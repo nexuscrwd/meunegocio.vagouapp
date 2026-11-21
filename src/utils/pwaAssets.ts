@@ -1,18 +1,3 @@
-/**
- * Gerenciador de Ativos PWA Dinâmicos (White-label & Multi-estabelecimento)
- * Aponta para endpoints HTTP reais (/manifest.json e /api/pwa/icon) para compatibilidade
- * total com Android WebAPK e iOS Adicionar à Tela de Início.
- */
-
-export interface PwaCustomAssets {
-  name: string;
-  shortName: string;
-  iconUrl?: string;
-  themeColor?: string;
-  backgroundColor?: string;
-  slogan?: string;
-}
-
 const RESERVED_SUBDOMAINS = new Set([
   'www', 'app', 'portal', 'adm', 'admin', 'meunegocio', 'api', 'vagouapp', 'dev', 'staging'
 ]);
@@ -52,7 +37,7 @@ function detectClientSalonSlug(explicitSlug?: string): string | null {
       }
     }
   } catch {
-    // ignore
+
   }
   return null;
 }
@@ -101,7 +86,6 @@ export function updateDynamicPwaAssets(
         ? (effectiveIsDark ? '#0F172A' : '#FFFFFF')
         : themeColor;
 
-    // 1. Título e metas da página
     document.title = finalSlogan ? `${finalName} — ${finalSlogan}` : finalName;
 
     const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
@@ -135,7 +119,6 @@ export function updateDynamicPwaAssets(
       ogDesc.setAttribute('content', shareDesc);
     }
 
-    // 2. Favicons & Apple Touch Icons HTTP reais (nunca URL blob: ou vazia)
     const icon192 = activeSlug
       ? `/api/pwa/icon?salon=${encodeURIComponent(activeSlug)}&size=192&purpose=any`
       : '/icon-192.png';
@@ -168,7 +151,6 @@ export function updateDynamicPwaAssets(
       }
     });
 
-    // 3. Manifest HTTP real (WebAPK e Safari exigem endpoint HTTP válido, nunca blob:)
     const manifestUrl = activeSlug
       ? `/manifest.json?salon=${encodeURIComponent(activeSlug)}`
       : '/manifest.json';
@@ -221,12 +203,12 @@ export function initializeStoredPwaAssets() {
         if (parsed.accentColor) color = parsed.accentColor;
         if (parsed.slogan) slogan = parsed.slogan;
       } catch {
-        // ignore JSON parse error
+
       }
     }
 
     updateDynamicPwaAssets(name, icon, color, slogan, isDarkTheme, activeSlug);
   } catch {
-    // ignore
+
   }
 }

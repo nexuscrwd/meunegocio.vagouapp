@@ -85,7 +85,7 @@ export const ProfileModeSwitchModal: React.FC<ProfileModeSwitchModalProps> = ({
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Cabeçalho do Modal */}
+
         <div
           className={`px-4 py-3.5 border-b flex items-center justify-between gap-3 shrink-0 ${
             isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
@@ -128,7 +128,6 @@ export const ProfileModeSwitchModal: React.FC<ProfileModeSwitchModalProps> = ({
           </button>
         </div>
 
-        {/* Corpo Explicativo Plano (Zero Box dentro de Box) */}
         <div className="p-4 overflow-y-auto space-y-3.5 text-xs">
           <p
             className={`text-xs leading-relaxed font-medium ${
@@ -166,7 +165,6 @@ export const ProfileModeSwitchModal: React.FC<ProfileModeSwitchModalProps> = ({
           </div>
         </div>
 
-        {/* Rodapé Fixo de Ação */}
         <div
           className={`px-4 py-3 border-t sticky bottom-0 z-20 flex items-center gap-2 ${
             isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'

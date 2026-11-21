@@ -126,7 +126,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
         }}
       >
         <div className="flex items-center justify-between gap-2">
-          {/* Bloco Esquerdo: Logo do Estabelecimento sem borda, escalada proporcionalmente com distância mínima das linhas superior e inferior do cabeçalho */}
+
           <div className="h-[60px] -my-2.5 flex-1 min-w-0 max-w-[200px] border-0 bg-transparent flex items-center justify-start overflow-hidden">
             {hasValidLogo ? (
               <img
@@ -145,7 +145,6 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             )}
           </div>
 
-          {/* Bloco Direito: Avatar + Saudação + Dropdown */}
           <div className="relative">
             <button
               type="button"
@@ -190,7 +189,6 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               </div>
             </button>
 
-            {/* Menu Dropdown Flutuante do Usuário */}
             {isUserMenuOpen && (
               <>
                 <div
@@ -198,7 +196,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                   onClick={() => setIsUserMenuOpen(false)}
                 />
                 <div className="absolute right-0 mt-2 w-72 max-h-[80vh] overflow-y-auto no-scrollbar bg-white rounded-[4px] shadow-xl border border-slate-200 z-50 text-slate-900">
-                  {/* Topo do Dropdown: Identificação do Usuário + Botão Claro/Escuro */}
+
                   <div className="px-3.5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-extrabold font-display text-slate-900 truncate">
@@ -226,7 +224,6 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                     </button>
                   </div>
 
-                  {/* Alternador Rápido de Modo (se logado no salão) */}
                   {isSalonLoggedIn && (
                     <div className="p-2 bg-slate-50 border-b border-slate-200">
                       <button

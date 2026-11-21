@@ -8,8 +8,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    
-    <!-- PWA Primary Meta Tags -->
+
     <meta name="theme-color" content="#FFFFFF" id="meta-theme-color" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -18,12 +17,11 @@
     <script>
       (function() {
         try {
-          // Limpa chaves legadas que forçavam tema escuro ou barra grafite por engano
+
           localStorage.removeItem('vagou_user_theme_preference');
           localStorage.removeItem('vagou_theme');
           localStorage.removeItem('vagou_neutral_preset');
 
-          // Por padrão o tom é SEMPRE claro ('light'); só ativa 'dark' se o usuário alternar manualmente (v3)
           var explicitThemeV3 = localStorage.getItem('vagou_theme_mode_v3');
           var effectiveTheme = explicitThemeV3 === 'dark' ? 'dark' : 'light';
 
@@ -78,21 +76,18 @@
         } catch(e) {}
       })();
     </script>
-    
-    <!-- Google Fonts: Plus Jakarta Sans, Public Sans, IBM Plex Mono, Poppins, Cormorant Garamond, Oswald -->
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,600&family=IBM+Plex+Mono:wght@400;500;600;700&family=Oswald:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@300;400;500;600;700;800;900&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-    <!-- Manifest & Icons -->
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
     <link rel="apple-touch-icon" href="/icon-512.png" />
-    
-    <!-- Open Graph -->
+
     <meta property="og:title" content="Vagou Pro — Gestão & Vagas Imediatas" />
     <meta property="og:description" content="Plataforma de gestão e vagas imediatas para profissionais e estabelecimentos de beleza e bem-estar." />
     <meta property="og:type" content="website" />
@@ -132,4 +127,3 @@
     </script>
   </body>
 </html>
-
