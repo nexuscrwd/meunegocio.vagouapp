@@ -20,7 +20,7 @@ import {
   Sparkles,
   ChevronDown,
 } from 'lucide-react';
-import { supabase, isSupabaseConfigured, generateUuidV4 } from '../../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { SalonAuthHeader } from './SalonAuthHeader';
 import { OFFICIAL_SECURITY_QUESTIONS } from './TriadeUserRecoveryModal';
 
@@ -584,6 +584,156 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     }
   };
 
+  const checkUserFieldConflict = async (params: {
+    phone?: string;
+    username?: string;
+    email?: string;
+  }): Promise<{ conflict: boolean; field?: string; message?: string }> => {
+    const apiCandidates = [
+      '/api/public/check-user-conflict',
+      'https://ais-pre-vk4cbfzrlyp7qy3ovw7223-465857221829.us-west1.run.app/api/public/check-user-conflict',
+      'https://ais-dev-vk4cbfzrlyp7qy3ovw7223-465857221829.us-west1.run.app/api/public/check-user-conflict',
+    ];
+
+    for (const endpoint of apiCandidates) {
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(params),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json && typeof json.conflict === 'boolean') {
+            return json;
+          }
+        }
+      } catch {}
+    }
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const [sysAdminsRes, profilesRes, globalPrefRes] = await Promise.all([
+          (supabase.from('system_admins' as any) as any)
+            .select('username, email, phone')
+            .limit(200),
+          (supabase.from('profiles' as any) as any)
+            .select('username, email, phone')
+            .limit(500),
+          (supabase.from('admin_preferences' as any) as any)
+            .select('preferences')
+            .eq('id', 'global')
+            .maybeSingle(),
+        ]);
+
+        const allEntries: any[] = [
+          ...(Array.isArray(sysAdminsRes?.data) ? sysAdminsRes.data : []),
+          ...(Array.isArray(profilesRes?.data) ? profilesRes.data : []),
+          ...(Array.isArray(globalPrefRes?.data?.preferences?.auth_directory)
+            ? globalPrefRes.data.preferences.auth_directory
+            : []),
+        ];
+
+        const pDigits = String(params.phone || '').replace(/\D/g, '');
+        if (pDigits.length >= 10) {
+          const pSuffix = pDigits.slice(-9);
+          const hasPhone = allEntries.some((row) => {
+            const rDigits = String(row?.phone || '').replace(/\D/g, '');
+            if (rDigits.length < 9) return false;
+            return (
+              rDigits === pDigits ||
+              rDigits === `55${pDigits}` ||
+              (rDigits.slice(-9) === pSuffix && rDigits.slice(-11, -9) === pDigits.slice(-11, -9))
+            );
+          });
+          if (hasPhone) {
+            return {
+              conflict: true,
+              field: 'phone',
+              message:
+                'Este número de celular / WhatsApp já está cadastrado no sistema. Faça login ou utilize outro número.',
+            };
+          }
+        }
+
+        const uClean = String(params.username || '').trim().replace(/^@+/, '').toLowerCase();
+        if (uClean.length >= 2) {
+          const hasUser = allEntries.some((row) => {
+            const rUser = String(row?.username || '').trim().replace(/^@+/, '').toLowerCase();
+            return rUser && rUser === uClean;
+          });
+          if (hasUser) {
+            return {
+              conflict: true,
+              field: 'username',
+              message: 'Este nome de usuário já está em uso. Escolha outro.',
+            };
+          }
+        }
+
+        const eClean = String(params.email || '').trim().toLowerCase();
+        if (eClean.includes('@')) {
+          const hasEmail = allEntries.some((row) => {
+            const rEmail = String(row?.email || '').trim().toLowerCase();
+            return rEmail && rEmail === eClean;
+          });
+          if (hasEmail) {
+            return {
+              conflict: true,
+              field: 'email',
+              message:
+                'Este e-mail já está cadastrado no sistema. Faça login ou utilize outro e-mail.',
+            };
+          }
+        }
+      } catch {}
+    }
+
+    return { conflict: false };
+  };
+
+  const handleAdvanceContactStep = async () => {
+    if (!isContactValid || isLoading) return;
+    setFeedback(null);
+    setIsLoading(true);
+    try {
+      const check = await checkUserFieldConflict({ phone: phone.trim() });
+      if (check.conflict) {
+        setFeedback({
+          type: 'error',
+          message:
+            check.message ||
+            'Este número de celular / WhatsApp já está cadastrado no sistema.',
+        });
+        return;
+      }
+      setStep('name');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAdvanceEmailStep = async () => {
+    if (!isEmailStepValid || isLoading) return;
+    setFeedback(null);
+    setIsLoading(true);
+    try {
+      const check = await checkUserFieldConflict({ email: cleanEmail });
+      if (check.conflict) {
+        setFeedback({
+          type: 'error',
+          message:
+            check.message ||
+            'Este e-mail já está cadastrado no sistema. Faça login ou utilize outro e-mail.',
+        });
+        return;
+      }
+      setStep('address_cep');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleFinalizeRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
@@ -629,14 +779,147 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
         uf: uf.trim().toUpperCase(),
       };
 
-      try {
-        localStorage.setItem('vagou_user_home_address', fullAddressString);
-        localStorage.setItem('vagou_user_address_json', JSON.stringify(addressObj));
-      } catch {}
+      const selectedSecQ =
+        OFFICIAL_SECURITY_QUESTIONS.find((q) => q.code === securityQuestionCode) ||
+        OFFICIAL_SECURITY_QUESTIONS[0];
+      const normalizedSecAnswer = normalizeText(securityAnswer);
 
-      let userId: string = generateUuidV4();
+      const preCheck = await checkUserFieldConflict({
+        phone: phone.trim(),
+        username: normalizedUsername,
+        email: cleanEmail,
+      });
 
-      if (isSupabaseConfigured && supabase) {
+      if (preCheck.conflict) {
+        if (preCheck.field === 'phone') setStep('contact');
+        else if (preCheck.field === 'username') setStep('name');
+        else if (preCheck.field === 'email') setStep('email');
+        throw new Error(
+          preCheck.message || 'Já existe um cadastro com estes dados no sistema.'
+        );
+      }
+
+      let persistedUserId = '';
+      let persistedClientId = '';
+
+      const registerPayload = {
+        full_name: cleanName,
+        username: normalizedUsername,
+        email: cleanEmail,
+        phone: phone.trim(),
+        password: cleanPass,
+        address: addressObj.street,
+        street: addressObj.street,
+        number: addressObj.number,
+        complement: addressObj.complement,
+        neighborhood: addressObj.neighborhood,
+        city: addressObj.city,
+        uf: addressObj.uf,
+        cep: addressObj.cep,
+        formatted_address: fullAddressString,
+        security_question_code: selectedSecQ.code,
+        security_answer: normalizedSecAnswer,
+        account_type: 'client',
+      };
+
+      const apiRegisterCandidates = [
+        '/api/public/register-user',
+        'https://ais-pre-vk4cbfzrlyp7qy3ovw7223-465857221829.us-west1.run.app/api/public/register-user',
+        'https://ais-dev-vk4cbfzrlyp7qy3ovw7223-465857221829.us-west1.run.app/api/public/register-user',
+      ];
+
+      for (const endpoint of apiRegisterCandidates) {
+        if (persistedUserId) break;
+        try {
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(registerPayload),
+          });
+          const contentType = res.headers.get('content-type') || '';
+          if (!contentType.includes('application/json')) continue;
+          const apiJson = await res.json();
+
+          if (res.status === 409 || res.status === 400 || apiJson?.conflict) {
+            if (apiJson?.field === 'phone') setStep('contact');
+            else if (apiJson?.field === 'username') setStep('name');
+            else if (apiJson?.field === 'email') setStep('email');
+            throw new Error(
+              apiJson?.error || 'Estes dados já estão cadastrados no sistema.'
+            );
+          }
+
+          if (res.ok && apiJson?.success && apiJson?.userId) {
+            persistedUserId = String(apiJson.userId);
+            persistedClientId = String(apiJson?.client?.id || apiJson.userId);
+            if (
+              isSupabaseConfigured &&
+              supabase &&
+              apiJson?.session?.access_token &&
+              apiJson?.session?.refresh_token
+            ) {
+              try {
+                await supabase.auth.setSession({
+                  access_token: apiJson.session.access_token,
+                  refresh_token: apiJson.session.refresh_token,
+                });
+              } catch {}
+            }
+            break;
+          }
+        } catch (apiErr: any) {
+          if (
+            apiErr?.message &&
+            (apiErr.message.includes('já está cadastrado') ||
+              apiErr.message.includes('já está em uso') ||
+              apiErr.message.includes('obrigatórios'))
+          ) {
+            throw apiErr;
+          }
+        }
+      }
+
+      if (!persistedUserId && isSupabaseConfigured && supabase) {
+        try {
+          const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)(
+            'register_triade_user',
+            {
+              p_full_name: cleanName,
+              p_username: normalizedUsername,
+              p_email: cleanEmail,
+              p_phone: phone.trim(),
+              p_password: cleanPass,
+              p_address: addressObj.street,
+              p_street_number: addressObj.number,
+              p_complement: addressObj.complement,
+              p_neighborhood: addressObj.neighborhood,
+              p_city: addressObj.city,
+              p_state: addressObj.uf,
+              p_cep: addressObj.cep,
+              p_formatted_address: fullAddressString,
+              p_security_question_code: selectedSecQ.code,
+              p_security_answer: normalizedSecAnswer,
+            }
+          );
+
+          if (!rpcErr && rpcData?.success && rpcData?.user_id) {
+            persistedUserId = String(rpcData.user_id);
+            persistedClientId = String(rpcData.client_id || rpcData.user_id);
+          } else if (rpcData && rpcData.success === false && rpcData.error) {
+            throw new Error(String(rpcData.error));
+          }
+        } catch (rpcCatch: any) {
+          if (
+            rpcCatch?.message &&
+            (rpcCatch.message.includes('já está cadastrado') ||
+              rpcCatch.message.includes('já está em uso'))
+          ) {
+            throw rpcCatch;
+          }
+        }
+      }
+
+      if (!persistedUserId && isSupabaseConfigured && supabase) {
         const metadata: Record<string, any> = {
           full_name: cleanName,
           name: cleanName,
@@ -651,18 +934,49 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           neighborhood: addressObj.neighborhood,
           city: addressObj.city,
           uf: addressObj.uf,
+          security_question_code: selectedSecQ.code,
+          security_answer: normalizedSecAnswer,
         };
 
-        try {
-          const { data } = await supabase.auth.signUp({
-            email: cleanEmail,
-            password: authPassSafe,
-            options: { data: metadata },
-          });
-          if (data?.user?.id) {
-            userId = data.user.id;
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password: authPassSafe,
+          options: { data: metadata },
+        });
+
+        if (signUpError) {
+          const msgLower = String(signUpError.message || '').toLowerCase();
+          if (msgLower.includes('already registered') || msgLower.includes('already exists')) {
+            setStep('email');
+            throw new Error(
+              'Este e-mail já está cadastrado no sistema. Faça login ou utilize outro e-mail.'
+            );
           }
-        } catch {}
+          if (msgLower.includes('rate limit') || msgLower.includes('over_email_send_rate_limit')) {
+            throw new Error(
+              'Limite temporário de envio de e-mail do Supabase atingido. Aguarde 60 segundos e tente novamente.'
+            );
+          }
+          throw new Error(signUpError.message || 'Falha ao registrar usuário no Supabase.');
+        }
+
+        if (
+          Array.isArray(signUpData?.user?.identities) &&
+          signUpData.user.identities.length === 0
+        ) {
+          setStep('email');
+          throw new Error(
+            'Este e-mail já está cadastrado no sistema. Faça login ou utilize outro e-mail.'
+          );
+        }
+
+        if (!signUpData?.user?.id) {
+          throw new Error(
+            'O banco de dados não confirmou a criação do usuário. Verifique sua conexão e tente novamente.'
+          );
+        }
+
+        persistedUserId = String(signUpData.user.id);
 
         try {
           await (supabase.from('profiles' as any) as any)
@@ -679,38 +993,14 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               cep: addressObj.cep,
               formatted_address: fullAddressString,
             })
-            .eq('id', userId);
+            .eq('id', persistedUserId);
         } catch {}
 
         try {
-          const { data: existingClient } = await (supabase.from('clients') as any)
-            .select('id, user_id')
-            .ilike('email', cleanEmail)
-            .limit(1)
-            .maybeSingle();
-
-          let resolvedClientId = existingClient?.id ? String(existingClient.id) : '';
-
-          if (existingClient?.id) {
-            userId = String(existingClient.user_id || existingClient.id);
-            await (supabase.from('clients') as any)
-              .update({
-                full_name: cleanName,
-                phone: phone.trim(),
-                address: addressObj.street,
-                street_number: addressObj.number,
-                complement: addressObj.complement,
-                neighborhood: addressObj.neighborhood,
-                city: addressObj.city,
-                state: addressObj.uf,
-                cep: addressObj.cep,
-                formatted_address: fullAddressString,
-              })
-              .eq('id', existingClient.id);
-          } else {
-            const { data: insertedClient } = await (supabase.from('clients') as any)
-              .insert({
-                user_id: userId,
+          const { data: insertedClient } = await (supabase.from('clients') as any)
+            .upsert(
+              {
+                user_id: persistedUserId,
                 full_name: cleanName,
                 email: cleanEmail,
                 phone: phone.trim(),
@@ -722,63 +1012,85 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 state: addressObj.uf,
                 cep: addressObj.cep,
                 formatted_address: fullAddressString,
-              })
-              .select('id, user_id')
-              .maybeSingle();
-            if (insertedClient?.id) {
-              resolvedClientId = String(insertedClient.id);
-              userId = String(insertedClient.user_id || insertedClient.id);
-            }
-          }
+                security_question_code: selectedSecQ.code,
+                is_active: true,
+              },
+              { onConflict: 'user_id' }
+            )
+            .select('id, user_id')
+            .maybeSingle();
 
-          const normalizedSecAnswer = normalizeText(securityAnswer);
-          if (normalizedSecAnswer.length >= 2) {
-            const selectedSecQ =
-              OFFICIAL_SECURITY_QUESTIONS.find((q) => q.code === securityQuestionCode) ||
-              OFFICIAL_SECURITY_QUESTIONS[0];
-            if (resolvedClientId) {
-              try {
-                await (supabase.from('user_security_answers' as any) as any).upsert(
-                  {
-                    client_id: resolvedClientId,
-                    question_code: selectedSecQ.code,
-                    answer_hash: normalizedSecAnswer,
-                  },
-                  { onConflict: 'client_id,question_code' }
-                );
-              } catch {}
-            }
-            try {
-              await (supabase.from('clients') as any)
-                .update({
-                  security_question_code: selectedSecQ.code,
-                })
-                .ilike('email', cleanEmail);
-            } catch {}
+          if (insertedClient?.id) {
+            persistedClientId = String(insertedClient.id);
           }
+        } catch {}
+
+        if (normalizedSecAnswer.length >= 2 && persistedClientId) {
+          try {
+            await (supabase.from('user_security_answers' as any) as any).upsert(
+              {
+                client_id: persistedClientId,
+                question_code: selectedSecQ.code,
+                answer_hash: normalizedSecAnswer,
+              },
+              { onConflict: 'client_id,question_code' }
+            );
+          } catch {}
+        }
+
+        for (let attempt = 0; attempt < 5; attempt++) {
+          try {
+            const { data: verifyProfile } = await (supabase.from('profiles' as any) as any)
+              .select('id, username')
+              .eq('id', persistedUserId)
+              .maybeSingle();
+            if (verifyProfile?.id && verifyProfile?.username) {
+              break;
+            }
+          } catch {}
+          await new Promise((r) => setTimeout(r, 900));
+        }
+
+        try {
+          await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password: authPassSafe,
+          });
         } catch {}
       }
 
-      if (normalizeText(securityAnswer).length >= 2) {
+      if (!persistedUserId) {
+        throw new Error(
+          'Não foi possível gravar o usuário no banco de dados Supabase. Tente novamente.'
+        );
+      }
+
+      try {
+        localStorage.setItem('vagou_user_home_address', fullAddressString);
+        localStorage.setItem('vagou_user_address_json', JSON.stringify(addressObj));
+      } catch {}
+
+      if (normalizedSecAnswer.length >= 2) {
         try {
           const prevAnswers = JSON.parse(
             localStorage.getItem('vagou_user_security_answers') || '[]'
           );
           const nextAnswers = Array.isArray(prevAnswers) ? prevAnswers : [];
           nextAnswers.push({
-            userId,
+            userId: persistedUserId,
+            clientId: persistedClientId || persistedUserId,
             username: normalizedUsername,
             name: cleanName,
             email: cleanEmail,
-            questionCode: securityQuestionCode,
-            answer: normalizeText(securityAnswer),
+            questionCode: selectedSecQ.code,
+            answer: normalizedSecAnswer,
           });
           localStorage.setItem('vagou_user_security_answers', JSON.stringify(nextAnswers));
         } catch {}
       }
 
       const resultData: TriadeUserData = {
-        id: userId,
+        id: persistedUserId,
         name: cleanName,
         username: normalizedUsername,
         email: cleanEmail,
@@ -796,7 +1108,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
       setIsLoading(false);
       setFeedback({
         type: 'error',
-        message: err?.message || 'Erro ao concluir o cadastro.',
+        message: err?.message || 'Erro ao concluir o cadastro no banco de dados.',
       });
     }
   };
@@ -948,15 +1260,18 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           <div className="sticky bottom-0 z-20 pt-2 bg-slate-900">
             <button
               type="button"
-              disabled={!isContactValid}
-              onClick={() => {
-                setFeedback(null);
-                setStep('name');
-              }}
+              disabled={!isContactValid || isLoading}
+              onClick={handleAdvanceContactStep}
               className="w-full py-3 px-4 rounded-[4px] bg-accent hover:opacity-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition cursor-pointer whitespace-nowrap"
             >
-              <span className="text-white">Avançar</span>
-              <ArrowRight className="w-4 h-4 text-white" />
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+              ) : (
+                <>
+                  <span className="text-white">Avançar</span>
+                  <ArrowRight className="w-4 h-4 text-white" />
+                </>
+              )}
             </button>
           </div>
 
@@ -1214,15 +1529,18 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
 
             <button
               type="button"
-              disabled={!isEmailStepValid}
-              onClick={() => {
-                setFeedback(null);
-                setStep('address_cep');
-              }}
+              disabled={!isEmailStepValid || isLoading}
+              onClick={handleAdvanceEmailStep}
               className="py-3 px-4 rounded-[4px] bg-accent hover:opacity-95 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer whitespace-nowrap"
             >
-              <span className="text-white">Avançar</span>
-              <ArrowRight className="w-4 h-4 text-white" />
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+              ) : (
+                <>
+                  <span className="text-white">Avançar</span>
+                  <ArrowRight className="w-4 h-4 text-white" />
+                </>
+              )}
             </button>
           </div>
         </div>

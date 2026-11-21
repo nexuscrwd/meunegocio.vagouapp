@@ -88,6 +88,18 @@ async function startServer() {
     ? Number(process.env.PORT) || 3000
     : 3000;
 
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      if (req.method === 'OPTIONS') {
+        res.status(204).end();
+        return;
+      }
+    }
+    next();
+  });
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -3486,6 +3498,608 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
     results.sort((a, b) => (b._prio || 0) - (a._prio || 0));
     return results.map(({ _prio, ...rest }) => rest);
   };
+
+  let isSyncingAuthDirectory = false;
+  let lastAuthDirectoryHash = '';
+
+  const syncSupabaseAuthAndTables = async (force = false): Promise<any[]> => {
+    if (isSyncingAuthDirectory && !force) return [];
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return [];
+    isSyncingAuthDirectory = true;
+    try {
+      const supabaseAdmin = getSupabaseServerClient();
+      const [sysRes, profRes, cliRes, proRes, authRes] = await Promise.all([
+        (supabaseAdmin.from('system_admins' as any) as any).select('*'),
+        (supabaseAdmin.from('profiles' as any) as any).select('*'),
+        (supabaseAdmin.from('clients') as any).select('*'),
+        (supabaseAdmin.from('professionals') as any).select('*'),
+        supabaseAdmin.auth.admin.listUsers(),
+      ]);
+
+      const authUsers = authRes?.data?.users || [];
+      const sysAdmins = Array.isArray(sysRes?.data) ? sysRes.data : [];
+      const profiles = Array.isArray(profRes?.data) ? profRes.data : [];
+      const clients = Array.isArray(cliRes?.data) ? cliRes.data : [];
+      const professionals = Array.isArray(proRes?.data) ? proRes.data : [];
+
+      const sysByEmail = new Set(
+        sysAdmins.map((a: any) => String(a.email || '').trim().toLowerCase()).filter(Boolean)
+      );
+      const profById = new Map<string, any>();
+      for (const p of profiles) {
+        if (p?.id) profById.set(String(p.id), p);
+      }
+      const cliByUserId = new Map<string, any>();
+      const cliByEmail = new Map<string, any>();
+      for (const c of clients) {
+        if (c?.user_id) cliByUserId.set(String(c.user_id), c);
+        if (c?.email) cliByEmail.set(String(c.email).trim().toLowerCase(), c);
+      }
+
+      let didMutateTables = false;
+
+      for (const u of authUsers) {
+        const uid = String(u.id || '').trim();
+        const uEmail = String(u.email || '').trim().toLowerCase();
+        if (!uid || !uEmail) continue;
+
+        if (!u.email_confirmed_at) {
+          try {
+            await supabaseAdmin.auth.admin.updateUserById(uid, { email_confirm: true });
+          } catch {}
+        }
+
+        const meta = u.user_metadata || {};
+        const metaName = String(meta.full_name || meta.name || '').trim();
+        const metaUsername = String(meta.username || '').trim().replace(/^@+/, '');
+        const metaPhone = String(meta.phone || '').trim();
+        const metaCpf = String(meta.cpf || '').trim();
+        const metaStreet = String(meta.street || '').trim();
+        const metaNumber = String(meta.number || '').trim();
+        const metaComplement = String(meta.complement || '').trim();
+        const metaNeighborhood = String(meta.neighborhood || '').trim();
+        const metaCity = String(meta.city || '').trim();
+        const metaUf = String(meta.uf || meta.state || '').trim();
+        const metaCep = String(meta.cep || '').trim();
+        const metaFormattedAddr = String(meta.address || '').trim();
+        const metaSecCode = String(meta.security_question_code || '').trim();
+        const metaSecAnswer = String(meta.security_answer || '').trim();
+        const isSuper =
+          sysByEmail.has(uEmail) ||
+          Boolean(meta.is_superadmin) ||
+          String(meta.role || '').toLowerCase() === 'super_admin' ||
+          String((u.app_metadata as any)?.role || '').toLowerCase() === 'super_admin';
+
+        const existingProf = profById.get(uid);
+        const needsProfSync =
+          !existingProf ||
+          (metaUsername && !existingProf.username) ||
+          (metaPhone && !existingProf.phone) ||
+          (metaStreet && !existingProf.address) ||
+          (metaCep && !existingProf.cep);
+
+        if (needsProfSync) {
+          try {
+            await (supabaseAdmin.from('profiles' as any) as any).upsert(
+              {
+                id: uid,
+                email: uEmail,
+                full_name: existingProf?.full_name || metaName || metaUsername || uEmail.split('@')[0],
+                username: existingProf?.username || metaUsername || null,
+                phone: existingProf?.phone || metaPhone || null,
+                cpf: existingProf?.cpf || metaCpf || null,
+                address: existingProf?.address || metaStreet || null,
+                street_number: existingProf?.street_number || metaNumber || null,
+                complement: existingProf?.complement || metaComplement || null,
+                neighborhood: existingProf?.neighborhood || metaNeighborhood || null,
+                city: existingProf?.city || metaCity || 'São Paulo',
+                state: existingProf?.state || metaUf || 'SP',
+                cep: existingProf?.cep || metaCep || null,
+                formatted_address: existingProf?.formatted_address || metaFormattedAddr || null,
+                role: isSuper ? 'super_admin' : existingProf?.role || 'client',
+                is_active: true,
+                created_via: existingProf?.created_via || 'mnvapp',
+              },
+              { onConflict: 'id' }
+            );
+            didMutateTables = true;
+          } catch {}
+        }
+
+        if (!isSuper) {
+          const existingCli = cliByUserId.get(uid) || cliByEmail.get(uEmail);
+          const needsCliSync =
+            !existingCli ||
+            !existingCli.user_id ||
+            (metaPhone && !existingCli.phone) ||
+            (metaStreet && !existingCli.address) ||
+            (metaCep && !existingCli.cep) ||
+            (metaSecCode && !existingCli.security_question_code);
+
+          if (needsCliSync) {
+            try {
+              const cliPayload: Record<string, any> = {
+                user_id: uid,
+                full_name: existingCli?.full_name || existingProf?.full_name || metaName || metaUsername || uEmail.split('@')[0],
+                email: uEmail,
+                phone: existingCli?.phone || existingProf?.phone || metaPhone || null,
+                cpf: existingCli?.cpf || existingProf?.cpf || metaCpf || null,
+                address: existingCli?.address || existingProf?.address || metaStreet || null,
+                street_number: existingCli?.street_number || existingProf?.street_number || metaNumber || null,
+                complement: existingCli?.complement || existingProf?.complement || metaComplement || null,
+                neighborhood: existingCli?.neighborhood || existingProf?.neighborhood || metaNeighborhood || null,
+                city: existingCli?.city || existingProf?.city || metaCity || 'São Paulo',
+                state: existingCli?.state || existingProf?.state || metaUf || 'SP',
+                cep: existingCli?.cep || existingProf?.cep || metaCep || null,
+                formatted_address: existingCli?.formatted_address || existingProf?.formatted_address || metaFormattedAddr || null,
+                security_question_code: existingCli?.security_question_code || metaSecCode || null,
+                is_active: true,
+                created_via: existingCli?.created_via || 'mnvapp',
+              };
+
+              let resolvedCliId = existingCli?.id ? String(existingCli.id) : '';
+              if (existingCli?.id) {
+                await (supabaseAdmin.from('clients') as any).update(cliPayload).eq('id', existingCli.id);
+              } else {
+                const { data: insCli } = await (supabaseAdmin.from('clients') as any)
+                  .insert(cliPayload)
+                  .select('id')
+                  .maybeSingle();
+                if (insCli?.id) resolvedCliId = String(insCli.id);
+              }
+
+              if (resolvedCliId && metaSecCode && metaSecAnswer) {
+                await (supabaseAdmin.from('user_security_answers' as any) as any).upsert(
+                  {
+                    client_id: resolvedCliId,
+                    question_code: metaSecCode,
+                    answer_hash: metaSecAnswer,
+                  },
+                  { onConflict: 'client_id,question_code' }
+                );
+              }
+              didMutateTables = true;
+            } catch {}
+          }
+        }
+      }
+
+      const finalProfiles = didMutateTables
+        ? ((await (supabaseAdmin.from('profiles' as any) as any).select('*'))?.data || profiles)
+        : profiles;
+      const finalClients = didMutateTables
+        ? ((await (supabaseAdmin.from('clients') as any).select('*'))?.data || clients)
+        : clients;
+
+      const authMetaById = new Map<string, any>();
+      for (const u of authUsers) {
+        authMetaById.set(String(u.id), u.user_metadata || {});
+      }
+
+      const directory: any[] = [];
+      for (const r of sysAdmins) {
+        if (r.is_active === false) continue;
+        directory.push({
+          id: r.user_id || r.id,
+          user_id: r.user_id || r.id,
+          email: r.email || '',
+          name: r.full_name || r.username || 'Administrador',
+          full_name: r.full_name || r.username || 'Administrador',
+          username: r.username || '',
+          phone: r.phone_whatsapp || '',
+          cpf: r.cpf || '',
+          role: r.role || 'super_admin',
+          sourceTable: 'system_admins',
+          isSuperadmin: true,
+          avatar_url: r.avatar_url || null,
+        });
+      }
+      for (const r of finalProfiles) {
+        if (r.is_active === false) continue;
+        const meta = authMetaById.get(String(r.id)) || {};
+        const uname = r.username || meta.username || '';
+        const fname = r.full_name || meta.full_name || meta.name || uname || 'Usuário';
+        const phone = r.phone || meta.phone || '';
+        const isSuper =
+          String(r.role || '').toLowerCase() === 'super_admin' ||
+          String(r.role || '').toUpperCase().includes('SUPER');
+        directory.push({
+          id: r.id,
+          user_id: r.id,
+          email: r.email || meta.email || '',
+          name: fname,
+          full_name: fname,
+          username: uname,
+          phone,
+          cpf: r.cpf || '',
+          role: r.role || 'client',
+          sourceTable: isSuper ? 'system_admins' : 'clients',
+          isSuperadmin: isSuper,
+          avatar_url: r.avatar_url || meta.avatar_url || null,
+        });
+      }
+      for (const r of finalClients) {
+        if (r.is_active === false) continue;
+        const meta = authMetaById.get(String(r.user_id)) || {};
+        const linkedProf = finalProfiles.find((p: any) => String(p.id) === String(r.user_id));
+        directory.push({
+          id: r.id,
+          user_id: r.user_id || r.id,
+          client_id: r.id,
+          email: r.email || meta.email || '',
+          name: r.full_name || meta.full_name || 'Cliente',
+          full_name: r.full_name || meta.full_name || 'Cliente',
+          username: linkedProf?.username || meta.username || '',
+          phone: r.phone || linkedProf?.phone || meta.phone || '',
+          cpf: r.cpf || linkedProf?.cpf || '',
+          role: 'client',
+          sourceTable: 'clients',
+          isSuperadmin: false,
+          avatar_url: r.avatar_url || linkedProf?.avatar_url || meta.avatar_url || null,
+        });
+      }
+      for (const r of professionals) {
+        if (r.is_active === false) continue;
+        directory.push({
+          id: r.id,
+          user_id: r.user_id || r.id,
+          email: r.email || '',
+          name: r.full_name || r.name || 'Profissional',
+          full_name: r.full_name || r.name || 'Profissional',
+          username: r.username || '',
+          phone: r.phone || '',
+          cpf: r.cpf || '',
+          role: r.role || 'professional',
+          sourceTable: 'professionals',
+          isSuperadmin: false,
+          avatar_url: r.avatar_url || null,
+        });
+      }
+
+      const dirHash = JSON.stringify(directory.map((d) => `${d.id}:${d.username}:${d.email}:${d.phone}`));
+      if (force || didMutateTables || dirHash !== lastAuthDirectoryHash) {
+        lastAuthDirectoryHash = dirHash;
+        const { data: globalPref } = await (supabaseAdmin.from('admin_preferences' as any) as any)
+          .select('*')
+          .eq('id', 'global')
+          .maybeSingle();
+        const basePrefs = globalPref?.preferences || {};
+        await (supabaseAdmin.from('admin_preferences' as any) as any).upsert({
+          id: 'global',
+          preferences: {
+            ...basePrefs,
+            auth_directory: directory,
+            auth_directory_updated_at: new Date().toISOString(),
+          },
+        });
+      }
+      return directory;
+    } catch {
+      return [];
+    } finally {
+      isSyncingAuthDirectory = false;
+    }
+  };
+
+  setTimeout(() => {
+    syncSupabaseAuthAndTables(true).catch(() => {});
+  }, 500);
+  setInterval(() => {
+    syncSupabaseAuthAndTables(false).catch(() => {});
+  }, 4000);
+
+  const checkUserConflictOnServer = async (params: {
+    username?: string;
+    email?: string;
+    phone?: string;
+    cpf?: string;
+  }): Promise<{
+    hasConflict: boolean;
+    conflictField?: 'username' | 'email' | 'phone' | 'cpf';
+    message?: string;
+  }> => {
+    const reqUser = String(params.username || '').trim().replace(/^@+/, '').toLowerCase();
+    const reqEmail = String(params.email || '').trim().toLowerCase();
+    const reqPhone = String(params.phone || '').replace(/\D/g, '');
+    const reqCpf = String(params.cpf || '').replace(/\D/g, '');
+
+    const directory = await syncSupabaseAuthAndTables(false);
+    for (const rec of directory) {
+      const recUser = String(rec.username || '').trim().replace(/^@+/, '').toLowerCase();
+      const recEmail = String(rec.email || '').trim().toLowerCase();
+      const recPhone = String(rec.phone || '').replace(/\D/g, '');
+      const recCpf = String(rec.cpf || '').replace(/\D/g, '');
+
+      if (reqUser && recUser && recUser === reqUser) {
+        return {
+          hasConflict: true,
+          conflictField: 'username',
+          message: `O nome de usuário "${params.username}" já está cadastrado no sistema. Escolha outro nome de usuário.`,
+        };
+      }
+      if (reqEmail && recEmail && recEmail === reqEmail) {
+        return {
+          hasConflict: true,
+          conflictField: 'email',
+          message: `O e-mail "${params.email}" já está cadastrado no sistema. Faça login ou utilize outro e-mail.`,
+        };
+      }
+      if (reqCpf.length === 11 && recCpf.length === 11 && recCpf === reqCpf) {
+        return {
+          hasConflict: true,
+          conflictField: 'cpf',
+          message: 'O CPF informado já pertence a um usuário cadastrado no sistema.',
+        };
+      }
+      if (
+        reqPhone.length >= 10 &&
+        recPhone.length >= 10 &&
+        recPhone.slice(-9) === reqPhone.slice(-9)
+      ) {
+        return {
+          hasConflict: true,
+          conflictField: 'phone',
+          message: `O WhatsApp "${params.phone}" já está vinculado a uma conta cadastrada. Faça login ou utilize outro número.`,
+        };
+      }
+    }
+    return { hasConflict: false };
+  };
+
+  app.post('/api/public/check-user-conflict', async (req, res) => {
+    try {
+      const conflict = await checkUserConflictOnServer({
+        username: req.body?.username,
+        email: req.body?.email,
+        phone: req.body?.phone,
+        cpf: req.body?.cpf,
+      });
+      return res.json(conflict);
+    } catch (err: any) {
+      return res.status(500).json({ hasConflict: false, error: err?.message });
+    }
+  });
+
+  app.post('/api/public/register-user', async (req, res) => {
+    try {
+      const body = req.body || {};
+      const cleanName = String(body.fullName || body.name || '').trim();
+      const cleanEmail = String(body.email || '').trim().toLowerCase();
+      const cleanUsername = String(body.username || '').trim().replace(/^@+/, '');
+      const cleanPhone = String(body.phone || '').trim();
+      const cleanCpf = String(body.cpf || '').trim();
+      const cleanPassword = String(body.password || '').trim();
+      const addr = body.address || {};
+      const cleanCep = String(body.cep || addr.cep || '').trim();
+      const cleanStreet = String(body.street || addr.street || '').trim();
+      const cleanNumber = String(body.number || addr.number || 'S/N').trim();
+      const cleanComplement = String(body.complement || addr.complement || '').trim();
+      const cleanNeighborhood = String(body.neighborhood || addr.neighborhood || '').trim();
+      const cleanCity = String(body.city || addr.city || 'São Paulo').trim();
+      const cleanState = String(body.state || body.uf || addr.state || addr.uf || 'SP').trim().toUpperCase();
+      const formattedAddress = String(
+        body.formattedAddress ||
+          [cleanStreet, cleanNumber, cleanComplement, cleanNeighborhood, cleanCity, cleanState, cleanCep]
+            .filter(Boolean)
+            .join(', ')
+      ).trim();
+      const securityQuestionCode = String(body.securityQuestionCode || '').trim();
+      const securityAnswer = String(body.securityAnswer || '').trim();
+
+      if (!cleanName || !cleanEmail || !cleanPassword) {
+        return res.status(400).json({
+          success: false,
+          error: 'Nome completo, e-mail e senha são obrigatórios para criar a conta.',
+        });
+      }
+
+      if (
+        cleanUsername.length < 3 ||
+        !/[A-ZÀ-Ý]/.test(cleanUsername) ||
+        !/[a-zà-ÿ]/.test(cleanUsername) ||
+        !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(cleanUsername)
+      ) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'O nome de usuário deve conter ao menos 1 letra maiúscula, 1 letra minúscula e 1 caractere especial (Ex: João@, Ana#1).',
+        });
+      }
+
+      const preConflict = await checkUserConflictOnServer({
+        username: cleanUsername,
+        email: cleanEmail,
+        phone: cleanPhone,
+        cpf: cleanCpf,
+      });
+
+      if (preConflict.hasConflict) {
+        return res.status(409).json({
+          success: false,
+          conflictField: preConflict.conflictField,
+          error:
+            preConflict.message ||
+            'Já existe um usuário cadastrado com estes dados (Nome de Usuário, E-mail, WhatsApp ou CPF).',
+        });
+      }
+
+      const sUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL).trim();
+      const anonKey = (process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY).trim();
+      const supabaseAdmin = getSupabaseServerClient();
+      const supabaseAnon = createClient(sUrl, anonKey, { auth: { persistSession: false } });
+
+      const userMeta = {
+        full_name: cleanName,
+        name: cleanName,
+        username: cleanUsername,
+        phone: cleanPhone,
+        cpf: cleanCpf || undefined,
+        address: formattedAddress,
+        cep: cleanCep,
+        street: cleanStreet,
+        number: cleanNumber,
+        complement: cleanComplement,
+        neighborhood: cleanNeighborhood,
+        city: cleanCity,
+        uf: cleanState,
+        security_question_code: securityQuestionCode || undefined,
+        security_answer: securityAnswer || undefined,
+      };
+
+      const { data: createdAuth, error: createAuthErr } = await supabaseAdmin.auth.admin.createUser({
+        email: cleanEmail,
+        password: cleanPassword,
+        email_confirm: true,
+        app_metadata: { role: 'client' },
+        user_metadata: userMeta,
+      });
+
+      if (createAuthErr || !createdAuth?.user?.id) {
+        return res.status(400).json({
+          success: false,
+          error:
+            createAuthErr?.message?.includes('already been registered')
+              ? `O e-mail "${cleanEmail}" já está registrado no Supabase Auth. Faça login ou utilize outro e-mail.`
+              : createAuthErr?.message || 'Não foi possível criar o usuário no Supabase Auth.',
+        });
+      }
+
+      const authUserId = createdAuth.user.id;
+
+      const { error: profErr } = await (supabaseAdmin.from('profiles' as any) as any).upsert(
+        {
+          id: authUserId,
+          email: cleanEmail,
+          full_name: cleanName,
+          username: cleanUsername,
+          phone: cleanPhone || null,
+          cpf: cleanCpf || null,
+          address: cleanStreet || null,
+          street_number: cleanNumber || null,
+          complement: cleanComplement || null,
+          neighborhood: cleanNeighborhood || null,
+          city: cleanCity,
+          state: cleanState,
+          cep: cleanCep || null,
+          formatted_address: formattedAddress || null,
+          role: 'client',
+          is_active: true,
+          created_via: 'mnvapp',
+        },
+        { onConflict: 'id' }
+      );
+
+      if (profErr) {
+        return res.status(400).json({
+          success: false,
+          error: `Erro ao gravar perfil no banco de dados: ${profErr.message}`,
+        });
+      }
+
+      const clientPayload: Record<string, any> = {
+        user_id: authUserId,
+        full_name: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone || null,
+        cpf: cleanCpf || null,
+        address: cleanStreet || null,
+        street_number: cleanNumber || null,
+        complement: cleanComplement || null,
+        neighborhood: cleanNeighborhood || null,
+        city: cleanCity,
+        state: cleanState,
+        cep: cleanCep || null,
+        formatted_address: formattedAddress || null,
+        security_question_code: securityQuestionCode || null,
+        is_active: true,
+        created_via: 'mnvapp',
+      };
+
+      const { data: existingCli } = await (supabaseAdmin.from('clients') as any)
+        .select('id')
+        .or(`user_id.eq.${authUserId},email.ilike.${cleanEmail}`)
+        .limit(1)
+        .maybeSingle();
+
+      let savedClient: any = null;
+      if (existingCli?.id) {
+        const { data: updCli, error: updErr } = await (supabaseAdmin.from('clients') as any)
+          .update(clientPayload)
+          .eq('id', existingCli.id)
+          .select('*')
+          .maybeSingle();
+        if (updErr) {
+          return res.status(400).json({
+            success: false,
+            error: `Erro ao atualizar cliente no banco de dados: ${updErr.message}`,
+          });
+        }
+        savedClient = updCli;
+      } else {
+        const { data: insCli, error: insErr } = await (supabaseAdmin.from('clients') as any)
+          .insert(clientPayload)
+          .select('*')
+          .maybeSingle();
+        if (insErr) {
+          return res.status(400).json({
+            success: false,
+            error: `Erro ao inserir cliente no banco de dados: ${insErr.message}`,
+          });
+        }
+        savedClient = insCli;
+      }
+
+      if (savedClient?.id && securityQuestionCode && securityAnswer) {
+        await (supabaseAdmin.from('user_security_answers' as any) as any).upsert(
+          {
+            client_id: savedClient.id,
+            question_code: securityQuestionCode,
+            answer_hash: securityAnswer,
+          },
+          { onConflict: 'client_id,question_code' }
+        );
+      }
+
+      await syncSupabaseAuthAndTables(true);
+
+      let sessionObj: { access_token: string; refresh_token: string } | undefined;
+      try {
+        const { data: signInData } = await supabaseAnon.auth.signInWithPassword({
+          email: cleanEmail,
+          password: cleanPassword,
+        });
+        if (signInData?.session) {
+          sessionObj = {
+            access_token: signInData.session.access_token,
+            refresh_token: signInData.session.refresh_token,
+          };
+        }
+      } catch {}
+
+      return res.json({
+        success: true,
+        userId: authUserId,
+        clientId: savedClient?.id || null,
+        client: savedClient,
+        user: {
+          id: authUserId,
+          clientId: savedClient?.id || null,
+          name: cleanName,
+          full_name: cleanName,
+          username: cleanUsername,
+          email: cleanEmail,
+          phone: cleanPhone,
+          cpf: cleanCpf,
+        },
+        session: sessionObj,
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        success: false,
+        error: err?.message || 'Erro interno ao registrar usuário no banco de dados.',
+      });
+    }
+  });
 
   app.post('/api/auth/resolve-accounts', async (req, res) => {
     try {

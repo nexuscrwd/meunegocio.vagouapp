@@ -766,7 +766,7 @@ BEGIN
 END;
 $$;
 
--- 5.2. Provisionamento Automático de Perfil & Cliente ao criar usuário no Supabase Auth
+-- 5.2. Provisionamento Automático de Perfil, Cliente & Resposta Secreta ao criar usuário no Supabase Auth
 CREATE OR REPLACE FUNCTION public.fn_handle_new_auth_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -775,16 +775,29 @@ SET search_path = public, auth
 AS $$
 DECLARE
   v_name TEXT;
+  v_username TEXT;
   v_role TEXT;
   v_origin TEXT;
   v_phone TEXT;
   v_cpf TEXT;
+  v_address TEXT;
+  v_street_number TEXT;
+  v_complement TEXT;
+  v_neighborhood TEXT;
+  v_city TEXT;
+  v_state TEXT;
+  v_cep TEXT;
+  v_formatted_address TEXT;
+  v_sec_code TEXT;
+  v_sec_answer TEXT;
+  v_client_id UUID;
 BEGIN
   v_name := COALESCE(
     NULLIF(btrim(NEW.raw_user_meta_data ->> 'full_name'), ''),
     NULLIF(btrim(NEW.raw_user_meta_data ->> 'name'), ''),
     split_part(COALESCE(NEW.email, 'usuario'), '@', 1)
   );
+  v_username := NULLIF(regexp_replace(btrim(COALESCE(NEW.raw_user_meta_data ->> 'username', '')), '^@+', ''), '');
   v_role := COALESCE(
     NULLIF(btrim(NEW.raw_app_meta_data ->> 'role'), ''),
     'client'
@@ -798,25 +811,99 @@ BEGIN
   END IF;
   v_phone := NULLIF(btrim(NEW.raw_user_meta_data ->> 'phone'), '');
   v_cpf := NULLIF(btrim(NEW.raw_user_meta_data ->> 'cpf'), '');
+  v_address := COALESCE(
+    NULLIF(btrim(NEW.raw_user_meta_data ->> 'street'), ''),
+    NULLIF(btrim(NEW.raw_user_meta_data ->> 'address'), '')
+  );
+  v_street_number := COALESCE(
+    NULLIF(btrim(NEW.raw_user_meta_data ->> 'number'), ''),
+    NULLIF(btrim(NEW.raw_user_meta_data ->> 'street_number'), '')
+  );
+  v_complement := NULLIF(btrim(NEW.raw_user_meta_data ->> 'complement'), '');
+  v_neighborhood := NULLIF(btrim(NEW.raw_user_meta_data ->> 'neighborhood'), '');
+  v_city := NULLIF(btrim(NEW.raw_user_meta_data ->> 'city'), '');
+  v_state := UPPER(COALESCE(
+    NULLIF(btrim(NEW.raw_user_meta_data ->> 'uf'), ''),
+    NULLIF(btrim(NEW.raw_user_meta_data ->> 'state'), '')
+  ));
+  v_cep := NULLIF(btrim(NEW.raw_user_meta_data ->> 'cep'), '');
+  v_formatted_address := COALESCE(
+    NULLIF(btrim(NEW.raw_user_meta_data ->> 'formatted_address'), ''),
+    NULLIF(btrim(NEW.raw_user_meta_data ->> 'address'), '')
+  );
+  v_sec_code := COALESCE(
+    NULLIF(btrim(NEW.raw_user_meta_data ->> 'security_question_code'), ''),
+    'first_pet'
+  );
+  v_sec_answer := NULLIF(lower(btrim(COALESCE(NEW.raw_user_meta_data ->> 'security_answer', ''))), '');
 
-  INSERT INTO public.profiles (id, email, full_name, cpf, phone, role, created_via)
-  VALUES (NEW.id, lower(btrim(NEW.email)), v_name, v_cpf, v_phone, v_role, v_origin)
+  INSERT INTO public.profiles (
+    id, email, full_name, username, cpf, phone,
+    address, street_number, complement, neighborhood, city, state, cep, formatted_address,
+    role, is_active, created_via
+  )
+  VALUES (
+    NEW.id, lower(btrim(NEW.email)), v_name, v_username, v_cpf, v_phone,
+    v_address, v_street_number, v_complement, v_neighborhood, v_city, v_state, v_cep, v_formatted_address,
+    v_role, TRUE, v_origin
+  )
   ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
-    full_name = COALESCE(NULLIF(public.profiles.full_name, ''), EXCLUDED.full_name),
+    full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), public.profiles.full_name),
+    username = COALESCE(EXCLUDED.username, public.profiles.username),
+    phone = COALESCE(EXCLUDED.phone, public.profiles.phone),
+    cpf = COALESCE(EXCLUDED.cpf, public.profiles.cpf),
+    address = COALESCE(EXCLUDED.address, public.profiles.address),
+    street_number = COALESCE(EXCLUDED.street_number, public.profiles.street_number),
+    complement = COALESCE(EXCLUDED.complement, public.profiles.complement),
+    neighborhood = COALESCE(EXCLUDED.neighborhood, public.profiles.neighborhood),
+    city = COALESCE(EXCLUDED.city, public.profiles.city),
+    state = COALESCE(EXCLUDED.state, public.profiles.state),
+    cep = COALESCE(EXCLUDED.cep, public.profiles.cep),
+    formatted_address = COALESCE(EXCLUDED.formatted_address, public.profiles.formatted_address),
     updated_at = NOW();
 
-  -- Cria ou vincula registro de cliente consumidor automaticamente (exceto se já existir pelo e-mail/CPF)
-  INSERT INTO public.clients (user_id, full_name, email, phone, cpf, created_via)
-  VALUES (NEW.id, v_name, lower(btrim(NEW.email)), v_phone, v_cpf, v_origin)
-  ON CONFLICT (user_id) DO NOTHING;
+  INSERT INTO public.clients (
+    user_id, full_name, email, phone, cpf,
+    address, street_number, complement, neighborhood, city, state, cep, formatted_address,
+    security_question_code, is_active, created_via
+  )
+  VALUES (
+    NEW.id, v_name, lower(btrim(NEW.email)), v_phone, v_cpf,
+    v_address, v_street_number, v_complement, v_neighborhood, v_city, v_state, v_cep, v_formatted_address,
+    v_sec_code, TRUE, v_origin
+  )
+  ON CONFLICT (user_id) DO UPDATE SET
+    full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), public.clients.full_name),
+    email = COALESCE(EXCLUDED.email, public.clients.email),
+    phone = COALESCE(EXCLUDED.phone, public.clients.phone),
+    cpf = COALESCE(EXCLUDED.cpf, public.clients.cpf),
+    address = COALESCE(EXCLUDED.address, public.clients.address),
+    street_number = COALESCE(EXCLUDED.street_number, public.clients.street_number),
+    complement = COALESCE(EXCLUDED.complement, public.clients.complement),
+    neighborhood = COALESCE(EXCLUDED.neighborhood, public.clients.neighborhood),
+    city = COALESCE(EXCLUDED.city, public.clients.city),
+    state = COALESCE(EXCLUDED.state, public.clients.state),
+    cep = COALESCE(EXCLUDED.cep, public.clients.cep),
+    formatted_address = COALESCE(EXCLUDED.formatted_address, public.clients.formatted_address),
+    security_question_code = COALESCE(EXCLUDED.security_question_code, public.clients.security_question_code),
+    updated_at = NOW()
+  RETURNING id INTO v_client_id;
+
+  IF v_client_id IS NOT NULL AND v_sec_answer IS NOT NULL AND length(v_sec_answer) >= 2 THEN
+    INSERT INTO public.user_security_answers (client_id, question_code, answer_hash)
+    VALUES (v_client_id, v_sec_code, v_sec_answer)
+    ON CONFLICT (client_id, question_code) DO UPDATE SET
+      answer_hash = EXCLUDED.answer_hash,
+      updated_at = NOW();
+  END IF;
 
   RETURN NEW;
 END;
 $$;
 
 CREATE TRIGGER trg_on_auth_user_created
-  AFTER INSERT ON auth.users
+  AFTER INSERT OR UPDATE ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.fn_handle_new_auth_user();
 
 -- 5.3. Auto-criação de salon_ui_settings e salon_members (owner) ao criar salão
