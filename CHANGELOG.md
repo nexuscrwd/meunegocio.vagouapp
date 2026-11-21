@@ -11,6 +11,15 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-21] — Correção Crítica de Autenticação v6.0 sob RLS Estrito & Resolução de Identificadores (`bol-209`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / Auth / Database v6.0]`
+- **Motivo / Solicitação:** Após o reset v6.0 com RLS estrito (`auth.uid()` / `is_super_admin()`), o app falhava ao autenticar (`"App não loga"`) porque consultas pré-login (`anon`) em `system_admins`, `clients` e `profiles` eram bloqueadas pelo RLS no navegador e consultas pós-login referenciavam colunas legadas pré-v6.0 (`clients.name`, `clients.username`, `clients.access_level`, `salons.branding`).
+- **Arquivos Impactados:**
+  - `server.ts`: Adicionadas rotas `POST /api/auth/resolve-accounts` e `POST /api/auth/login` (via `SUPABASE_SERVICE_ROLE_KEY`) com preservação de sufixos de usuário (`@`, `#`, `&` — diferenciando ex: `Anderson@` vs `Anderson#`), validação via `verify_admin_login` + sincronização de sessão JWT (`signInWithPassword`) e alinhamento da assinatura de `POST /api/admin/bootstrap` (`p_username`, `p_user_id`).
+  - `src/components/auth/TriadeUserLoginForm.tsx`: Integração com `/api/auth/login` e `/api/auth/resolve-accounts`, hidratação imediata da sessão JWT no cliente (`supabase.auth.setSession`) e remoção de update legado de `password_hash` em `clients`.
+  - `src/components/SalonClientAuthModal.tsx`: Alinhamento de `finalizeAuthentication` às colunas v6.0 (`full_name`, `role === 'super_admin'`, busca de `clients` por `email`/`user_id` sem `clients.username`) e remoção de checagem residual `data:image/`.
+  - `src/lib/supabase.ts`: Alinhamento integral de `checkUserSalonMembership`, `findExistingClientRow`, `ensureClientRow`, `resolveClientAvatarsMap`, `fetchUserProfileFromDb`, `updateUserProfileInDb` e `ensureSalonRow` ao schema oficial v6.0 (`full_name`, `profiles.username`, `salons` + `salon_ui_settings`).
+
 ### [2026-11-21] — Varredura Forense Profunda: Zero Comentários, Zero Exports Mortos, Zero Dados Fantasmas (`bol-208`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Refactor / Cleanup / Security]`
 - **Motivo / Solicitação:** Segunda varredura forense emergencial solicitada para garantir que o código-fonte rode exclusivamente o que foi construído, sem nenhum comentário, vestígio antigo, dado fantasma, rota morta ou símbolo não utilizado.

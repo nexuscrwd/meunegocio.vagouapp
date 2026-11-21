@@ -160,7 +160,7 @@ export async function checkUserSalonMembership(
     if (userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId.trim())) {
       try {
         const { data: clientById } = await (supabase.from('clients') as any)
-          .select('id, user_id, cpf, email, username, access_level')
+          .select('id, user_id, cpf, email')
           .or(`id.eq.${userId.trim()},user_id.eq.${userId.trim()}`)
           .limit(3);
         if (Array.isArray(clientById)) {
@@ -171,10 +171,23 @@ export async function checkUserSalonMembership(
             if (c?.email && (!resolvedClientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resolvedClientEmail))) {
               resolvedClientEmail = String(c.email).trim().toLowerCase();
             }
-            const cAccess = String(c?.access_level || '').toLowerCase();
-            if (cAccess.includes('superadmin') || cAccess.includes('administrador master')) {
-              isSuperadminMaster = true;
-            }
+          }
+        }
+      } catch {}
+
+      try {
+        const { data: profById } = await (supabase.from('profiles') as any)
+          .select('id, email, cpf, role')
+          .eq('id', userId.trim())
+          .maybeSingle();
+        if (profById) {
+          if (profById.id) candidateIds.add(String(profById.id));
+          if (profById.cpf && !userCpfDigits) userCpfDigits = String(profById.cpf).replace(/\D/g, '');
+          if (profById.email && (!resolvedClientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resolvedClientEmail))) {
+            resolvedClientEmail = String(profById.email).trim().toLowerCase();
+          }
+          if (String(profById.role || '').toLowerCase() === 'super_admin') {
+            isSuperadminMaster = true;
           }
         }
       } catch {}
@@ -183,34 +196,40 @@ export async function checkUserSalonMembership(
     if (cleanEmail) {
       try {
         const isRealEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
-        const { data: clientRows } = await (supabase.from('clients') as any)
-          .select('id, user_id, cpf, email, username, access_level')
-          .ilike(isRealEmail ? 'email' : 'username', cleanEmail)
-          .limit(5);
-        if (Array.isArray(clientRows)) {
-          for (const c of clientRows) {
-            if (c?.id) candidateIds.add(String(c.id));
-            if (c?.user_id) candidateIds.add(String(c.user_id));
-            if (c?.cpf && !userCpfDigits) userCpfDigits = String(c.cpf).replace(/\D/g, '');
-            if (c?.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resolvedClientEmail)) {
-              resolvedClientEmail = String(c.email).trim().toLowerCase();
-            }
-            const cAccess = String(c?.access_level || '').toLowerCase();
-            if (cAccess.includes('superadmin') || cAccess.includes('administrador master')) {
-              isSuperadminMaster = true;
+        if (isRealEmail) {
+          const { data: clientRows } = await (supabase.from('clients') as any)
+            .select('id, user_id, cpf, email')
+            .ilike('email', cleanEmail)
+            .limit(5);
+          if (Array.isArray(clientRows)) {
+            for (const c of clientRows) {
+              if (c?.id) candidateIds.add(String(c.id));
+              if (c?.user_id) candidateIds.add(String(c.user_id));
+              if (c?.cpf && !userCpfDigits) userCpfDigits = String(c.cpf).replace(/\D/g, '');
+              if (c?.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resolvedClientEmail)) {
+                resolvedClientEmail = String(c.email).trim().toLowerCase();
+              }
             }
           }
         }
       } catch {}
 
       try {
+        const isRealEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
         const { data: profileRows } = await (supabase.from('profiles') as any)
-          .select('id')
-          .ilike('email', resolvedClientEmail || cleanEmail)
-          .limit(2);
+          .select('id, email, cpf, role')
+          .ilike(isRealEmail ? 'email' : 'username', resolvedClientEmail || cleanEmail)
+          .limit(3);
         if (Array.isArray(profileRows)) {
           for (const p of profileRows) {
             if (p?.id) candidateIds.add(String(p.id));
+            if (p?.cpf && !userCpfDigits) userCpfDigits = String(p.cpf).replace(/\D/g, '');
+            if (p?.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resolvedClientEmail)) {
+              resolvedClientEmail = String(p.email).trim().toLowerCase();
+            }
+            if (String(p?.role || '').toLowerCase() === 'super_admin') {
+              isSuperadminMaster = true;
+            }
           }
         }
       } catch {}
@@ -312,13 +331,13 @@ export async function checkUserSalonMembership(
     if (emailForPro) {
       const { data: pros } = await (supabase
         .from('professionals')
-        .select('id, role, email, is_active')
+        .select('id, role, access_level, email, is_active')
         .eq('salon_id', targetSalonId)
         .ilike('email', emailForPro) as any);
 
       if (pros && pros.length > 0) {
         const activePro = pros.find((p: any) => p.is_active !== false) || pros[0];
-        const rawProRole = String(activePro.role || '').toLowerCase();
+        const rawProRole = String(activePro.access_level || activePro.role || '').toLowerCase();
         const mappedProRole: 'owner' | 'manager' | 'professional' =
           rawProRole.includes('admin') || rawProRole.includes('owner') || rawProRole.includes('dono')
             ? 'owner'
@@ -390,12 +409,19 @@ export async function findExistingClientRow(params: {
   const cleanUsername = String(params.username || '').trim();
   if (cleanUsername && cleanUsername.length >= 2) {
     try {
-      const { data } = await (db.from('clients') as any)
-        .select('*')
+      const { data: prof } = await (db.from('profiles') as any)
+        .select('id, email')
         .ilike('username', cleanUsername)
         .limit(1)
         .maybeSingle();
-      if (data?.id) return data;
+      if (prof?.id) {
+        const { data: clientByProf } = await (db.from('clients') as any)
+          .select('*')
+          .eq('user_id', prof.id)
+          .limit(1)
+          .maybeSingle();
+        if (clientByProf?.id) return clientByProf;
+      }
     } catch {}
   }
 
@@ -418,7 +444,6 @@ export async function ensureClientRow(
   const cleanUsername = userMetadata?.username ? String(userMetadata.username).trim() : null;
 
   try {
-
     const existingClient = await findExistingClientRow({
       userId: isUuid ? cleanUserId : null,
       email: cleanEmail,
@@ -437,12 +462,10 @@ export async function ensureClientRow(
 
     const insertPayload: Record<string, any> = {
       ...(isUuid ? { user_id: cleanUserId } : {}),
-      name: String(resolvedName).trim(),
+      full_name: String(resolvedName).trim(),
       phone: userMetadata?.phone || null,
       email: cleanEmail || null,
       avatar_url: userMetadata?.avatar_url || null,
-      ...(cleanUsername ? { username: cleanUsername } : {}),
-      ...(userMetadata?.password_hash ? { password_hash: String(userMetadata.password_hash) } : {}),
       ...(userMetadata?.cpf ? { cpf: String(userMetadata.cpf).trim() } : {}),
     };
 
@@ -450,24 +473,6 @@ export async function ensureClientRow(
       .insert(insertPayload)
       .select()
       .maybeSingle();
-
-    if (
-      insertErr &&
-      (insertErr.code === 'PGRST204' || insertErr.code === '42703' || insertErr.message?.includes('column'))
-    ) {
-      const minimalPayload: Record<string, any> = {
-        ...(isUuid ? { user_id: cleanUserId } : {}),
-        name: String(resolvedName).trim(),
-        phone: userMetadata?.phone || null,
-        email: cleanEmail || null,
-      };
-      const retryCols = await (db.from('clients') as any)
-        .insert(minimalPayload)
-        .select()
-        .maybeSingle();
-      insertedClient = retryCols.data;
-      insertErr = retryCols.error;
-    }
 
     if (insertErr && (insertErr.code === '23505' || insertErr.message?.includes('duplicate'))) {
       const reFetched = await findExistingClientRow({
@@ -477,19 +482,6 @@ export async function ensureClientRow(
       });
       if (reFetched) {
         return { client: reFetched, error: null };
-      }
-
-      const fallbackInsert = await (db.from('clients') as any)
-        .insert({
-          ...(isUuid ? { user_id: cleanUserId } : {}),
-          name: String(resolvedName).trim(),
-          phone: userMetadata?.phone || null,
-          email: cleanEmail || null,
-        })
-        .select()
-        .maybeSingle();
-      if (fallbackInsert.data) {
-        return { client: fallbackInsert.data, error: null };
       }
     }
 
@@ -971,7 +963,7 @@ export async function resolveClientAvatarsMap(): Promise<Record<string, string>>
   try {
     const [clientsRes, adminsRes, profilesRes, prosRes] = await Promise.all([
       (client.from('clients') as any)
-        .select('id, user_id, name, full_name, username, email, phone, phone_whatsapp, avatar_url')
+        .select('id, user_id, full_name, email, phone, avatar_url')
         .not('avatar_url', 'is', null)
         .limit(200)
         .then((r: any) => r.data || [])
@@ -983,13 +975,13 @@ export async function resolveClientAvatarsMap(): Promise<Record<string, string>>
         .then((r: any) => r.data || [])
         .catch(() => []),
       (client.from('profiles') as any)
-        .select('id, full_name, name, email, phone, phone_whatsapp, avatar_url')
+        .select('id, full_name, username, email, phone, avatar_url')
         .not('avatar_url', 'is', null)
         .limit(200)
         .then((r: any) => r.data || [])
         .catch(() => []),
       (client.from('professionals') as any)
-        .select('id, name, email, phone, avatar_url')
+        .select('id, full_name, email, phone, avatar_url')
         .not('avatar_url', 'is', null)
         .limit(100)
         .then((r: any) => r.data || [])
@@ -1747,33 +1739,29 @@ export async function fetchUserProfileFromDb(identifier?: {
       }
 
       if (!isGenericName) {
-        const { data: byName } = await (client.from('clients') as any).select('*').ilike('name', rawName).limit(10);
+        const { data: byName } = await (client.from('clients') as any).select('*').ilike('full_name', rawName).limit(10);
         if (byName?.length) matchedClients.push(...byName);
-
-        const { data: byUsername } = await (client.from('clients') as any).select('*').ilike('username', rawName).limit(10);
-        if (byUsername?.length) matchedClients.push(...byUsername);
       }
 
       if (matchedClients.length > 0) {
-
         const bestClient =
           matchedClients.find((c) => isValidAvatarUrlString(c?.avatar_url)) ||
           matchedClients[0];
 
         if (bestClient) {
           resolvedId = bestClient.id || resolvedId;
-          resolvedName = bestClient.name || bestClient.username || resolvedName;
+          resolvedName = bestClient.full_name || bestClient.name || resolvedName;
           resolvedEmail = bestClient.email || resolvedEmail;
           resolvedPhone = bestClient.phone || resolvedPhone;
-          const composedClientAddress = bestClient.street
-            ? `${bestClient.street}${bestClient.number ? `, ${bestClient.number}` : ''}${
+          const composedClientAddress = bestClient.address
+            ? `${bestClient.address}${bestClient.street_number ? `, ${bestClient.street_number}` : ''}${
                 bestClient.neighborhood ? ` - ${bestClient.neighborhood}` : ''
               }${bestClient.city ? `, ${bestClient.city}` : ''}${
-                bestClient.uf ? ` - ${bestClient.uf}` : ''
+                bestClient.state ? ` - ${bestClient.state}` : ''
               }${bestClient.cep ? `, CEP ${bestClient.cep}` : ''}`
             : '';
           resolvedAddress =
-            bestClient.default_address ||
+            bestClient.formatted_address ||
             bestClient.address ||
             composedClientAddress ||
             bestClient.cep ||
@@ -1792,7 +1780,7 @@ export async function fetchUserProfileFromDb(identifier?: {
         if (data?.length) matchedPros.push(...data);
       }
       if (!isGenericName) {
-        const { data } = await (client.from('professionals') as any).select('*').ilike('name', rawName).limit(5);
+        const { data } = await (client.from('professionals') as any).select('*').ilike('full_name', rawName).limit(5);
         if (data?.length) matchedPros.push(...data);
       }
       if (matchedPros.length > 0) {
@@ -1802,7 +1790,7 @@ export async function fetchUserProfileFromDb(identifier?: {
         if (bestPro) {
           resolvedRole = 'professional';
           resolvedId = resolvedId || bestPro.id;
-          resolvedName = resolvedName || bestPro.name;
+          resolvedName = resolvedName || bestPro.full_name || bestPro.name;
           resolvedEmail = resolvedEmail || bestPro.email || '';
           resolvedPhone = resolvedPhone || bestPro.phone || '';
           if (isValidAvatarUrlString(bestPro.avatar_url)) {
@@ -2029,7 +2017,7 @@ export async function updateUserProfileInDb(profile: {
       const proUpdatePayload: Record<string, any> = {
         updated_at: new Date().toISOString(),
       };
-      if (cleanName) proUpdatePayload.name = cleanName;
+      if (cleanName) proUpdatePayload.full_name = cleanName;
       if (cleanPhone) proUpdatePayload.phone = cleanPhone;
       if (hasValidAvatar) proUpdatePayload.avatar_url = cleanAvatar;
 
@@ -2040,14 +2028,14 @@ export async function updateUserProfileInDb(profile: {
       } else if (cleanName && cleanName !== 'Usuário' && cleanName !== 'Profissional') {
         await (client.from('professionals') as any)
           .update(proUpdatePayload)
-          .ilike('name', cleanName);
+          .ilike('full_name', cleanName);
       }
     }
 
     try {
       const profileUpdatePayload: Record<string, any> = {};
       if (cleanName) profileUpdatePayload.full_name = cleanName;
-      if (cleanPhone) profileUpdatePayload.phone_whatsapp = cleanPhone;
+      if (cleanPhone) profileUpdatePayload.phone = cleanPhone;
       if (hasValidAvatar) profileUpdatePayload.avatar_url = cleanAvatar;
 
       if (Object.keys(profileUpdatePayload).length > 0) {
@@ -2078,18 +2066,18 @@ export async function updateUserProfileInDb(profile: {
     }
 
     if (matchedClientIds.size === 0 && cleanName && cleanName !== 'Usuário' && cleanName !== 'Cliente') {
-      const { data } = await (client.from('clients') as any).select('id').ilike('name', cleanName).limit(10);
+      const { data } = await (client.from('clients') as any).select('id').ilike('full_name', cleanName).limit(10);
       data?.forEach((r: any) => r?.id && matchedClientIds.add(String(r.id)));
     }
 
     const clientUpdatePayload: Record<string, any> = {
       updated_at: new Date().toISOString(),
     };
-    if (cleanName) clientUpdatePayload.name = cleanName;
+    if (cleanName) clientUpdatePayload.full_name = cleanName;
     if (cleanEmail) clientUpdatePayload.email = cleanEmail;
     if (cleanPhone) clientUpdatePayload.phone = cleanPhone;
     if (cleanCpf) clientUpdatePayload.cpf = cleanCpf;
-    if (profile.address !== undefined) clientUpdatePayload.default_address = profile.address || null;
+    if (profile.address !== undefined) clientUpdatePayload.address = profile.address || null;
     if (hasValidAvatar) clientUpdatePayload.avatar_url = cleanAvatar;
 
     if (matchedClientIds.size > 0) {
@@ -2109,12 +2097,13 @@ export async function updateUserProfileInDb(profile: {
     } else if (cleanEmail || cleanName || cleanCpf) {
       const { data: insertedClient, error: insertErr } = await (client.from('clients') as any)
         .insert({
-          name: cleanName || 'Cliente',
+          ...(storedUserId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storedUserId) ? { user_id: storedUserId } : {}),
+          full_name: cleanName || 'Cliente',
           email: cleanEmail || null,
           phone: cleanPhone || null,
           ...(cleanCpf ? { cpf: cleanCpf } : {}),
           avatar_url: hasValidAvatar ? cleanAvatar : null,
-          default_address: profile.address || null,
+          address: profile.address || null,
         })
         .select('id')
         .maybeSingle();
@@ -2203,23 +2192,26 @@ export async function ensureSalonRow(params: {
     const finalTradeName = params.tradeName || params.name || 'Meu Estabelecimento';
     const finalSlug = targetSlug || `salao-${newId.slice(0, 8)}`;
 
+    let resolvedOwnerId = params.ownerId || null;
+    if (!resolvedOwnerId && typeof window !== 'undefined') {
+      const cachedUid = (localStorage.getItem('vagou_auth_user_id') || '').trim();
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cachedUid)) {
+        resolvedOwnerId = cachedUid;
+      }
+    }
+
     const newSalonPayload = {
       id: newId,
       slug: finalSlug,
       trade_name: finalTradeName,
       legal_name: finalTradeName,
       email: params.email || null,
-      phone_whatsapp: params.phoneWhatsapp || null,
-      owner_id: params.ownerId || null,
+      whatsapp: params.phoneWhatsapp || null,
+      phone: params.phoneWhatsapp || null,
+      owner_id: resolvedOwnerId,
       is_active: true,
-      primary_color: params.primaryColor || '#334155',
-      default_theme: 'light',
-      branding: {
-        primaryColor: params.primaryColor || '#334155',
-        secondaryColor: '#1E293B',
-        defaultTheme: 'light',
-        themeMode: 'light',
-      },
+      status: 'active',
+      created_via: 'mnvapp',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -2230,9 +2222,22 @@ export async function ensureSalonRow(params: {
       .maybeSingle();
 
     if (insErr) {
-      console.warn('Erro ao auto-criar salão no Supabase:', insErr.message);
       const { data: fallback } = await (client.from('salons') as any).select('*').eq('slug', finalSlug).maybeSingle();
       return fallback || null;
+    }
+
+    if (inserted?.id && params.primaryColor) {
+      try {
+        await (client.from('salon_ui_settings') as any).upsert(
+          {
+            salon_id: inserted.id,
+            primary_color: params.primaryColor,
+            secondary_color: '#1E293B',
+            default_theme: 'light',
+          },
+          { onConflict: 'salon_id' }
+        );
+      } catch {}
     }
 
     return inserted;

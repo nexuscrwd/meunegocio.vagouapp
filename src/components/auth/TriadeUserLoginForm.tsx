@@ -54,9 +54,24 @@ export interface TriadeUserLoginFormProps {
 }
 
 export async function findMatchingTriadeAccounts(rawInput: string): Promise<any[]> {
-  if (!isSupabaseConfigured || !supabase) return [];
   const trimmed = rawInput.trim();
   if (!trimmed) return [];
+
+  try {
+    const resp = await fetch('/api/auth/resolve-accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: trimmed }),
+    });
+    if (resp.ok) {
+      const payload = await resp.json();
+      if (Array.isArray(payload?.accounts) && payload.accounts.length > 0) {
+        return payload.accounts;
+      }
+    }
+  } catch {}
+
+  if (!isSupabaseConfigured || !supabase) return [];
 
   const cleanLower = trimmed.toLowerCase();
   const cleanNoSymbols = cleanLower.replace(/^[@#&]+|[@#&]+$/g, '');
@@ -66,7 +81,7 @@ export async function findMatchingTriadeAccounts(rawInput: string): Promise<any[
 
   const matchesRecord = (
     r: any,
-    table: 'system_admins' | 'clients' | 'salon_users' | 'professionals'
+    table: 'system_admins' | 'clients' | 'profiles' | 'professionals'
   ): boolean => {
     if (!r || r.is_active === false) return false;
 
@@ -75,13 +90,12 @@ export async function findMatchingTriadeAccounts(rawInput: string): Promise<any[
     const rEmail = String(r.email || '').trim().toLowerCase();
     const rName = String(r.full_name || r.name || '').trim().toLowerCase();
     const rPhone1 = String(r.phone_whatsapp || r.phone || '').replace(/\D/g, '');
-    const rPhone2 = String(r.phone_secondary || '').replace(/\D/g, '');
     const rCpf = String(r.cpf || '').replace(/\D/g, '');
 
     const matchesText =
       (rUser &&
         (rUser === cleanLower ||
-          (cleanNoSymbols.length >= 3 && rUserNoSymbols === cleanNoSymbols))) ||
+          (cleanNoSymbols.length >= 2 && rUserNoSymbols === cleanNoSymbols))) ||
       (rEmail && rEmail === cleanLower) ||
       (rName && rName === cleanLower);
 
@@ -91,11 +105,7 @@ export async function findMatchingTriadeAccounts(rawInput: string): Promise<any[
         (rPhone1 &&
           (rPhone1 === digits ||
             rPhone1.endsWith(digits.slice(-8)) ||
-            digits.endsWith(rPhone1.slice(-8)))) ||
-        (rPhone2 &&
-          (rPhone2 === digits ||
-            rPhone2.endsWith(digits.slice(-8)) ||
-            digits.endsWith(rPhone2.slice(-8)))));
+            digits.endsWith(rPhone1.slice(-8)))));
 
     if (!matchesText && !matchesDigits) return false;
 
@@ -107,43 +117,43 @@ export async function findMatchingTriadeAccounts(rawInput: string): Promise<any[
 
   const normalizeRecord = (
     r: any,
-    table: 'system_admins' | 'clients' | 'salon_users' | 'professionals'
+    table: 'system_admins' | 'clients' | 'profiles' | 'professionals'
   ) => {
     const rawRole = String(r.role || '').toLowerCase();
     const rawAccess = String(r.access_level || '').toLowerCase();
     const isSuperadmin =
       table === 'system_admins' ||
+      rawRole === 'super_admin' ||
       rawRole === 'superadmin' ||
-      rawAccess.includes('superadmin') ||
-      rawAccess.includes('administrador master');
+      rawAccess === '100' ||
+      rawAccess.includes('superadmin');
 
     return {
       ...r,
       id: String(r.id),
-      user_id: r.user_id || null,
-      sourceTable: table,
+      user_id: r.user_id || (table === 'profiles' ? String(r.id) : null),
+      sourceTable: table === 'profiles' ? 'clients' : table,
       name: r.full_name || r.name || r.username || '',
+      full_name: r.full_name || r.name || r.username || '',
       username: r.username || '',
       email: r.email || '',
-      phone: r.phone_whatsapp || r.phone || r.phone_secondary || '',
+      phone: r.phone_whatsapp || r.phone || '',
       cpf: r.cpf || '',
-      password_hash: r.password_hash ?? null,
       avatar_url: r.avatar_url || '',
       isSuperadmin,
     };
   };
 
   try {
-    const [sysAdminsRes, clientsRes, prosRes] = await Promise.all([
-      (supabase.from('system_admins' as any) as any).select('*').limit(100),
+    const [profilesRes, clientsRes, prosRes] = await Promise.all([
+      (supabase.from('profiles' as any) as any).select('*').limit(200),
       (supabase.from('clients') as any).select('*').limit(400),
       (supabase.from('professionals') as any).select('*').limit(200),
     ]);
 
-    if (Array.isArray(sysAdminsRes?.data)) {
-      for (const r of sysAdminsRes.data) {
-        if (matchesRecord(r, 'system_admins'))
-          results.push(normalizeRecord(r, 'system_admins'));
+    if (Array.isArray(profilesRes?.data)) {
+      for (const r of profilesRes.data) {
+        if (matchesRecord(r, 'profiles')) results.push(normalizeRecord(r, 'profiles'));
       }
     }
     if (Array.isArray(clientsRes?.data)) {
@@ -215,79 +225,88 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
     setIsLoading(true);
 
-    try {const { data: adm } = await (supabase as any).rpc('verify_admin_login', {
-  p_identifier: rawId,
-  p_password: cleanPass,
-});
-if (adm?.[0]) {
-  const a = adm[0];
-  let session;
-  const { data: s } = await supabase!.auth.signInWithPassword({ email: a.email, password: cleanPass });
-  if (s?.session) session = { access_token: s.session.access_token, refresh_token: s.session.refresh_token };
-  setIsLoading(false);
-  onSuccess?.({
-    identifier: rawId, id: String(a.user_id || a.id), name: a.full_name, username: a.username,
-    email: a.email, avatarUrl: a.avatar_url || '', accountType: 'owner', session,
-    matchedAccount: { ...a, sourceTable: 'system_admins', isSuperadmin: true },
-  });
-  return;
-}
-      const cleanUsername = rawId.replace(/^@+/, '').toLowerCase();
-      const matchedList = await findMatchingTriadeAccounts(rawId);
+    try {
+      try {
+        const apiResp = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier: rawId, password: cleanPass }),
+        });
 
-      if (matchedList.length > 0) {
-        const matchedByHash = matchedList.find(
-          (c: any) =>
-            c.password_hash !== null &&
-            c.password_hash !== undefined &&
-            String(c.password_hash).trim() === cleanPass
-        );
+        const apiBody = await apiResp.json().catch(() => null);
 
-        if (matchedByHash) {
-          const resolvedAccountType: 'owner' | 'professional' | 'client' =
-            matchedByHash.isSuperadmin || matchedByHash.sourceTable === 'salon_users'
-              ? 'owner'
-              : matchedByHash.sourceTable === 'professionals'
-                ? 'professional'
-                : 'client';
+        if (apiResp.ok && apiBody?.success && apiBody?.account) {
+          if (
+            apiBody.session?.access_token &&
+            apiBody.session?.refresh_token &&
+            supabase
+          ) {
+            try {
+              await supabase.auth.setSession({
+                access_token: apiBody.session.access_token,
+                refresh_token: apiBody.session.refresh_token,
+              });
+            } catch {}
+          }
 
           const resolvedPayload: TriadeUserLoginPayload = {
-            identifier: rawId,
-            id: String(matchedByHash.user_id || matchedByHash.id),
-            name: matchedByHash.name || matchedByHash.username || cleanUsername,
-            username: matchedByHash.username || cleanUsername,
-            email: matchedByHash.email || rawId,
-            phone: matchedByHash.phone || '',
-            cpf: matchedByHash.cpf || '',
-            avatarUrl: matchedByHash.avatar_url || '',
-            passwordHash: cleanPass,
-            matchedAccount: matchedByHash,
-            accountType: resolvedAccountType,
+            ...apiBody.account,
+            session: apiBody.session,
           };
+
           setFeedback({ type: 'success', message: 'Acesso validado com sucesso!' });
           setIsLoading(false);
           onSuccess?.(resolvedPayload);
           return;
         }
 
-        const allHaveDifferentHash = matchedList.every(
-          (c: any) =>
-            c.password_hash !== null &&
-            c.password_hash !== undefined &&
-            String(c.password_hash).trim().length > 0 &&
-            String(c.password_hash).trim() !== cleanPass
-        );
-
-        if (allHaveDifferentHash) {
+        if (apiResp.status === 401 && apiBody?.error) {
           setIsLoading(false);
           setFeedback({
             type: 'error',
-            message: 'Senha incorreta. Verifique e tente novamente.',
+            message: apiBody.error,
+          });
+          return;
+        }
+      } catch {}
+
+      if (supabase) {
+        const { data: adm } = await (supabase as any).rpc('verify_admin_login', {
+          p_identifier: rawId.replace(/^@+/, ''),
+          p_password: cleanPass,
+        });
+        if (adm?.[0]) {
+          const a = adm[0];
+          let session;
+          const { data: s } = await supabase.auth.signInWithPassword({
+            email: a.email,
+            password: cleanPass,
+          });
+          if (s?.session) {
+            session = {
+              access_token: s.session.access_token,
+              refresh_token: s.session.refresh_token,
+            };
+          }
+          setFeedback({ type: 'success', message: 'Acesso validado com sucesso!' });
+          setIsLoading(false);
+          onSuccess?.({
+            identifier: rawId,
+            id: String(a.user_id || a.id),
+            name: a.full_name,
+            username: a.username,
+            email: a.email,
+            avatarUrl: a.avatar_url || '',
+            accountType: 'owner',
+            session,
+            matchedAccount: { ...a, sourceTable: 'system_admins', isSuperadmin: true },
           });
           return;
         }
       }
 
+      const cleanUsername = rawId.replace(/^@+/, '').toLowerCase();
+      const matchedList = await findMatchingTriadeAccounts(rawId);
       const matchedClient = matchedList[0] || null;
       const resolvedEmail = (
         matchedClient?.email ||
@@ -300,55 +319,31 @@ if (adm?.[0]) {
       let authUserId = matchedClient?.user_id || matchedClient?.id;
 
       if (supabase) {
-        try {
-          const { data: signInData, error: signInErr } =
-            await supabase.auth.signInWithPassword({
-              email: resolvedEmail,
-              password: cleanPass,
-            });
+        const { data: signInData, error: signInErr } =
+          await supabase.auth.signInWithPassword({
+            email: resolvedEmail,
+            password: cleanPass,
+          });
 
-          if (!signInErr && signInData?.session) {
-            authUserId = signInData.user?.id || authUserId;
-            authSession = {
-              access_token: signInData.session.access_token,
-              refresh_token: signInData.session.refresh_token,
-            };
-          } else if (!matchedClient) {
-            setIsLoading(false);
-            setFeedback({
-              type: 'error',
-              message:
-                'Conta ou senha inválida. Verifique seu usuário, celular ou e-mail.',
-            });
-            return;
-          }
-        } catch {
-          if (!matchedClient) {
-            setIsLoading(false);
-            setFeedback({
-              type: 'error',
-              message: 'Não foi possível validar suas credenciais.',
-            });
-            return;
-          }
+        if (!signInErr && signInData?.session) {
+          authUserId = signInData.user?.id || authUserId;
+          authSession = {
+            access_token: signInData.session.access_token,
+            refresh_token: signInData.session.refresh_token,
+          };
+        } else {
+          setIsLoading(false);
+          setFeedback({
+            type: 'error',
+            message:
+              'Conta ou senha inválida. Verifique seu usuário, celular ou e-mail.',
+          });
+          return;
         }
       }
 
-      if (
-        matchedClient?.id &&
-        matchedClient?.sourceTable === 'clients' &&
-        !matchedClient.password_hash &&
-        supabase
-      ) {
-        try {
-          await (supabase.from('clients') as any)
-            .update({ password_hash: cleanPass })
-            .eq('id', matchedClient.id);
-        } catch {}
-      }
-
       const resolvedAccountType: 'owner' | 'professional' | 'client' =
-        matchedClient?.isSuperadmin || matchedClient?.sourceTable === 'salon_users'
+        matchedClient?.isSuperadmin || matchedClient?.sourceTable === 'system_admins'
           ? 'owner'
           : matchedClient?.sourceTable === 'professionals'
             ? 'professional'
@@ -357,13 +352,12 @@ if (adm?.[0]) {
       const resolvedPayload: TriadeUserLoginPayload = {
         identifier: rawId,
         id: authUserId,
-        name: matchedClient?.name || cleanUsername,
+        name: matchedClient?.name || matchedClient?.full_name || cleanUsername,
         username: matchedClient?.username || cleanUsername,
         email: matchedClient?.email || resolvedEmail,
         phone: matchedClient?.phone || '',
         cpf: matchedClient?.cpf || '',
         avatarUrl: matchedClient?.avatar_url || '',
-        passwordHash: cleanPass,
         matchedAccount: matchedClient,
         accountType: resolvedAccountType,
         session: authSession,

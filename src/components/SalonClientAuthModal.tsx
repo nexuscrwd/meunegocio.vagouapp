@@ -47,7 +47,6 @@ function isValidPhotoUrl(url: unknown): url is string {
   return (
     trimmed.startsWith('http://') ||
     trimmed.startsWith('https://') ||
-    trimmed.startsWith('data:image/') ||
     trimmed.startsWith('/')
   );
 }
@@ -325,7 +324,9 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
       existingAccountRow?.isSuperadmin ||
       existingAccountRow?.sourceTable === 'system_admins' ||
       userMeta?.isSuperadmin ||
+      String(existingAccountRow?.access_level || '') === '100' ||
       String(existingAccountRow?.access_level || '').toLowerCase().includes('superadmin') ||
+      String(existingAccountRow?.role || '').toLowerCase() === 'super_admin' ||
       String(existingAccountRow?.role || '').toLowerCase() === 'superadmin'
     );
 
@@ -337,7 +338,6 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
     if (!clientRow && supabase) {
       try {
         const candidateEmail = existingAccountRow?.email || (isValidEmailAddress(emailOrUsername) ? emailOrUsername : '');
-        const candidateUsername = existingAccountRow?.username || (!isValidEmailAddress(emailOrUsername) ? emailOrUsername : '');
         if (candidateEmail) {
           const { data: cByEmail } = await (supabase.from('clients') as any)
             .select('*')
@@ -346,39 +346,43 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
             .maybeSingle();
           if (cByEmail) clientRow = cByEmail;
         }
-        if (!clientRow && candidateUsername) {
-          const { data: cByUser } = await (supabase.from('clients') as any)
+        if (!clientRow && userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+          const { data: cByUid } = await (supabase.from('clients') as any)
             .select('*')
-            .ilike('username', candidateUsername)
+            .eq('user_id', userId)
             .limit(1)
             .maybeSingle();
-          if (cByUser) clientRow = cByUser;
+          if (cByUid) clientRow = cByUid;
         }
       } catch {}
     }
 
-    if (!clientRow) {
+    if (!clientRow && !isSuperadmin) {
       const ensured = await ensureClientRow(
         userId,
         isValidEmailAddress(emailOrUsername) ? emailOrUsername : (existingAccountRow?.email || null),
         {
-          full_name: fallbackName || existingAccountRow?.name || userMeta?.full_name || userMeta?.name,
+          full_name:
+            fallbackName ||
+            existingAccountRow?.full_name ||
+            existingAccountRow?.name ||
+            userMeta?.full_name ||
+            userMeta?.name,
           phone: fallbackPhone || existingAccountRow?.phone || userMeta?.phone,
           cpf: fallbackCpf || existingAccountRow?.cpf || userMeta?.cpf,
           username:
             existingAccountRow?.username ||
             userMeta?.username ||
             (!isValidEmailAddress(emailOrUsername) ? emailOrUsername : undefined),
-          password_hash: existingAccountRow?.password_hash || userMeta?.password_hash,
         }
       );
       clientRow = ensured.client;
     }
 
     const effectiveUserId = String(
-      userId || existingAccountRow?.id || clientRow?.user_id || clientRow?.id || ''
+      userId || existingAccountRow?.user_id || existingAccountRow?.id || clientRow?.user_id || clientRow?.id || ''
     ).trim();
-    const effectiveClientId = String(clientRow?.id || '').trim();
+    const effectiveClientId = String(existingAccountRow?.client_id || clientRow?.id || '').trim();
     const cleanCpf = (
       fallbackCpf ||
       existingAccountRow?.cpf ||
@@ -391,12 +395,11 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
       clientRow?.email ||
       emailOrUsername ||
       existingAccountRow?.username ||
-      clientRow?.username ||
       ''
     ).trim();
     const effectiveUsername = (
       existingAccountRow?.username ||
-      clientRow?.username ||
+      userMeta?.username ||
       effectiveIdentity
     ).trim();
 
@@ -417,10 +420,11 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
 
     const resolvedName =
       fallbackName ||
+      existingAccountRow?.full_name ||
       existingAccountRow?.name ||
+      clientRow?.full_name ||
       clientRow?.name ||
       existingAccountRow?.username ||
-      clientRow?.username ||
       userMeta?.full_name ||
       userMeta?.name ||
       (effectiveIdentity ? effectiveIdentity.split('@')[0] : 'Usuário');

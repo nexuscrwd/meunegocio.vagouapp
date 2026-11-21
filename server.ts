@@ -3302,12 +3302,520 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
     }
   });
 
+  const resolveTriadeAccountsOnServer = async (rawInput: string) => {
+    const trimmed = String(rawInput || '').trim();
+    if (!trimmed) return [];
+
+    const supabase = getSupabaseServerClient();
+    const cleanLower = trimmed.toLowerCase();
+    const cleanNoSymbols = cleanLower.replace(/^[@#&]+|[@#&]+$/g, '');
+    const digits = trimmed.replace(/\D/g, '');
+    const results: any[] = [];
+    const seenKeys = new Set<string>();
+
+    const [sysAdminsRes, profilesRes, clientsRes, prosRes] = await Promise.all([
+      (supabase.from('system_admins' as any) as any)
+        .select('id, user_id, full_name, username, email, cpf, phone_whatsapp, avatar_url, role, access_level, is_active')
+        .limit(100),
+      (supabase.from('profiles' as any) as any)
+        .select('id, email, full_name, username, cpf, phone, avatar_url, role, is_active')
+        .limit(500),
+      (supabase.from('clients' as any) as any)
+        .select('id, user_id, full_name, email, phone, cpf, avatar_url, is_active')
+        .limit(500),
+      (supabase.from('professionals' as any) as any)
+        .select('id, user_id, salon_id, full_name, role, access_level, cpf, email, phone, avatar_url, is_active')
+        .limit(300),
+    ]);
+
+    const profilesById = new Map<string, any>();
+    const profilesByEmail = new Map<string, any>();
+    if (Array.isArray(profilesRes?.data)) {
+      for (const p of profilesRes.data) {
+        if (p?.id) profilesById.set(String(p.id), p);
+        if (p?.email) profilesByEmail.set(String(p.email).trim().toLowerCase(), p);
+      }
+    }
+
+    const cleanStripLeadingAt = cleanLower.replace(/^@+/, '');
+    const hasTrailingSymbol = /[@#&]$/.test(cleanStripLeadingAt);
+
+    const getMatchPriority = (
+      r: any,
+      table: 'system_admins' | 'clients' | 'profiles' | 'professionals'
+    ): number => {
+      if (!r || r.is_active === false) return 0;
+
+      const rUser = String(r.username || '').trim().toLowerCase();
+      const rUserStripLeadingAt = rUser.replace(/^@+/, '');
+      const rUserNoSymbols = rUser.replace(/^[@#&]+|[@#&]+$/g, '');
+      const rEmail = String(r.email || '').trim().toLowerCase();
+      const rName = String(r.full_name || r.name || '').trim().toLowerCase();
+      const rPhone1 = String(r.phone_whatsapp || r.phone || '').replace(/\D/g, '');
+      const rCpf = String(r.cpf || '').replace(/\D/g, '');
+
+      let priority = 0;
+
+      if (
+        (rEmail && rEmail === cleanLower) ||
+        (rUser && (rUser === cleanLower || rUserStripLeadingAt === cleanStripLeadingAt)) ||
+        (rName && (rName === cleanLower || rName === cleanStripLeadingAt))
+      ) {
+        priority = 100;
+      } else if (
+        digits.length >= 8 &&
+        ((digits.length === 11 && rCpf && rCpf === digits) ||
+          (rPhone1 &&
+            (rPhone1 === digits ||
+              rPhone1.endsWith(digits.slice(-8)) ||
+              digits.endsWith(rPhone1.slice(-8)))))
+      ) {
+        priority = 90;
+      } else if (
+        !hasTrailingSymbol &&
+        cleanNoSymbols.length >= 2 &&
+        ((rUserNoSymbols && rUserNoSymbols === cleanNoSymbols) ||
+          (rName && rName.replace(/^[@#&]+|[@#&]+$/g, '') === cleanNoSymbols))
+      ) {
+        priority = 50;
+      }
+
+      if (priority === 0) return 0;
+
+      const key = `${table}::${r.id}`;
+      if (seenKeys.has(key)) return 0;
+      seenKeys.add(key);
+      return priority;
+    };
+
+    const normalizeRecord = (
+      r: any,
+      table: 'system_admins' | 'clients' | 'profiles' | 'professionals'
+    ) => {
+      const rawRole = String(r.role || '').toLowerCase();
+      const rawAccess = String(r.access_level || '').toLowerCase();
+      const isSuperadmin =
+        table === 'system_admins' ||
+        rawRole === 'super_admin' ||
+        rawRole === 'superadmin' ||
+        rawAccess === '100' ||
+        rawAccess.includes('superadmin');
+
+      return {
+        id: String(r.id),
+        user_id: r.user_id || (table === 'profiles' ? String(r.id) : null),
+        client_id: table === 'clients' ? String(r.id) : r.client_id || null,
+        sourceTable: table === 'profiles' ? 'clients' : table,
+        name: r.full_name || r.name || r.username || '',
+        full_name: r.full_name || r.name || r.username || '',
+        username: r.username || '',
+        email: r.email || '',
+        phone: r.phone_whatsapp || r.phone || '',
+        cpf: r.cpf || '',
+        avatar_url: r.avatar_url || '',
+        role: r.role || 'client',
+        access_level: r.access_level ?? null,
+        isSuperadmin,
+      };
+    };
+
+    if (Array.isArray(sysAdminsRes?.data)) {
+      for (const r of sysAdminsRes.data) {
+        const prio = getMatchPriority(r, 'system_admins');
+        if (prio > 0) {
+          results.push({ ...normalizeRecord(r, 'system_admins'), _prio: prio });
+        }
+      }
+    }
+
+    if (Array.isArray(clientsRes?.data)) {
+      for (const c of clientsRes.data) {
+        const linkedProf =
+          (c?.user_id && profilesById.get(String(c.user_id))) ||
+          (c?.email && profilesByEmail.get(String(c.email).trim().toLowerCase())) ||
+          null;
+        const merged = {
+          ...c,
+          username: c.username || linkedProf?.username || '',
+          role: linkedProf?.role || 'client',
+          phone: c.phone || linkedProf?.phone || '',
+          cpf: c.cpf || linkedProf?.cpf || '',
+          avatar_url: c.avatar_url || linkedProf?.avatar_url || '',
+        };
+        const prio = getMatchPriority(merged, 'clients');
+        if (prio > 0) {
+          results.push({ ...normalizeRecord(merged, 'clients'), _prio: prio });
+        }
+      }
+    }
+
+    if (Array.isArray(profilesRes?.data)) {
+      for (const p of profilesRes.data) {
+        const alreadyHasEmail = results.some(
+          (item) =>
+            item.email &&
+            p.email &&
+            String(item.email).trim().toLowerCase() === String(p.email).trim().toLowerCase()
+        );
+        if (!alreadyHasEmail) {
+          const prio = getMatchPriority(p, 'profiles');
+          if (prio > 0) {
+            results.push({ ...normalizeRecord(p, 'profiles'), _prio: prio });
+          }
+        }
+      }
+    }
+
+    if (Array.isArray(prosRes?.data)) {
+      for (const pr of prosRes.data) {
+        const linkedProf =
+          (pr?.user_id && profilesById.get(String(pr.user_id))) ||
+          (pr?.email && profilesByEmail.get(String(pr.email).trim().toLowerCase())) ||
+          null;
+        const merged = {
+          ...pr,
+          username: pr.username || linkedProf?.username || '',
+        };
+        const prio = getMatchPriority(merged, 'professionals');
+        if (prio > 0) {
+          results.push({ ...normalizeRecord(merged, 'professionals'), _prio: prio });
+        }
+      }
+    }
+
+    results.sort((a, b) => (b._prio || 0) - (a._prio || 0));
+    return results.map(({ _prio, ...rest }) => rest);
+  };
+
+  app.post('/api/auth/resolve-accounts', async (req, res) => {
+    try {
+      const identifier = String(req.body?.identifier || '').trim();
+      if (!identifier) {
+        return res.json({ accounts: [] });
+      }
+      const accounts = await resolveTriadeAccountsOnServer(identifier);
+      return res.json({ accounts });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Erro ao localizar conta.', accounts: [] });
+    }
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const rawId = String(req.body?.identifier || '').trim();
+      const cleanPass = String(req.body?.password || '').trim();
+
+      if (!rawId || !cleanPass) {
+        return res.status(400).json({ error: 'Informe seu identificador e senha.' });
+      }
+
+      const sUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL).trim();
+      const anonKey = (process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY).trim();
+      const supabaseAdmin = getSupabaseServerClient();
+      const supabaseAnon = createClient(sUrl, anonKey, { auth: { persistSession: false } });
+
+      const cleanLower = rawId.toLowerCase();
+      const cleanNoSymbols = cleanLower.replace(/^[@#&]+|[@#&]+$/g, '');
+
+      const envAdminEmail = String(process.env.INITIAL_SUPER_ADMIN_EMAIL || '').trim().toLowerCase();
+      const envAdminUser = String(process.env.INITIAL_SUPER_ADMIN_USERNAME || '').trim().toLowerCase();
+      const envAdminUserNoSym = envAdminUser.replace(/^[@#&]+|[@#&]+$/g, '');
+      const envAdminPass = String(process.env.INITIAL_SUPER_ADMIN_PASSWORD || '').trim();
+      const envAdminName = String(process.env.INITIAL_SUPER_ADMIN_NAME || 'Super Admin Vagou').trim();
+
+      if (
+        envAdminEmail &&
+        envAdminPass &&
+        cleanPass === envAdminPass &&
+        (cleanLower === envAdminEmail ||
+          (envAdminUser && cleanLower === envAdminUser) ||
+          (envAdminUserNoSym && cleanNoSymbols === envAdminUserNoSym))
+      ) {
+        let envAuthUserId: string | null = null;
+        const { data: createdAuth, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+          email: envAdminEmail,
+          password: envAdminPass,
+          email_confirm: true,
+          app_metadata: { role: 'super_admin' },
+          user_metadata: { full_name: envAdminName, username: envAdminUser || 'superadmin', role: 'super_admin' },
+        });
+        if (!createErr && createdAuth?.user?.id) {
+          envAuthUserId = createdAuth.user.id;
+        } else {
+          const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
+          const existingUser = (listData?.users || []).find(
+            (u: any) => String(u.email || '').trim().toLowerCase() === envAdminEmail
+          );
+          if (existingUser?.id) {
+            envAuthUserId = existingUser.id;
+            await supabaseAdmin.auth.admin.updateUserById(envAuthUserId, {
+              password: envAdminPass,
+              email_confirm: true,
+              app_metadata: { ...existingUser.app_metadata, role: 'super_admin' },
+              user_metadata: { ...existingUser.user_metadata, full_name: envAdminName, username: envAdminUser || 'superadmin', role: 'super_admin' },
+            });
+          }
+        }
+
+        if (envAuthUserId) {
+          await (supabaseAdmin.from('profiles' as any) as any).upsert(
+            {
+              id: envAuthUserId,
+              email: envAdminEmail,
+              full_name: envAdminName,
+              username: envAdminUser || 'superadmin',
+              role: 'super_admin',
+              is_active: true,
+              created_via: 'admvapp',
+            },
+            { onConflict: 'id' }
+          );
+        }
+
+        const { data: signInEnv } = await supabaseAnon.auth.signInWithPassword({
+          email: envAdminEmail,
+          password: envAdminPass,
+        });
+
+        const matchedEnvAdmin = {
+          id: envAuthUserId || envAdminEmail,
+          user_id: envAuthUserId,
+          sourceTable: 'system_admins',
+          name: envAdminName,
+          full_name: envAdminName,
+          username: envAdminUser || 'superadmin',
+          email: envAdminEmail,
+          phone: '',
+          cpf: '',
+          avatar_url: '',
+          role: 'super_admin',
+          access_level: 100,
+          isSuperadmin: true,
+        };
+
+        return res.json({
+          success: true,
+          account: {
+            identifier: rawId,
+            id: String(envAuthUserId || envAdminEmail),
+            name: envAdminName,
+            username: envAdminUser || 'superadmin',
+            email: envAdminEmail,
+            phone: '',
+            cpf: '',
+            avatarUrl: '',
+            accountType: 'owner',
+            matchedAccount: matchedEnvAdmin,
+          },
+          session: signInEnv?.session
+            ? {
+                access_token: signInEnv.session.access_token,
+                refresh_token: signInEnv.session.refresh_token,
+              }
+            : undefined,
+        });
+      }
+
+      const matchedAccounts = await resolveTriadeAccountsOnServer(rawId);
+      const matchedSysAdmin = matchedAccounts.find((a) => a.sourceTable === 'system_admins' || a.isSuperadmin);
+
+      const candidateAdminIdentifiers = Array.from(
+        new Set(
+          [
+            rawId,
+            rawId.replace(/^@+/, ''),
+            matchedSysAdmin?.email,
+            matchedSysAdmin?.username,
+          ].filter(Boolean)
+        )
+      );
+
+      for (const candidateId of candidateAdminIdentifiers) {
+        const { data: admRows } = await (supabaseAdmin.rpc as any)('verify_admin_login', {
+          p_identifier: candidateId,
+          p_password: cleanPass,
+        });
+        if (Array.isArray(admRows) && admRows[0]) {
+          const a = admRows[0];
+          let sessionObj: { access_token: string; refresh_token: string } | undefined;
+          const { data: signInData, error: signInErr } = await supabaseAnon.auth.signInWithPassword({
+            email: a.email,
+            password: cleanPass,
+          });
+          if (!signInErr && signInData?.session) {
+            sessionObj = {
+              access_token: signInData.session.access_token,
+              refresh_token: signInData.session.refresh_token,
+            };
+          } else if (a.user_id && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            await supabaseAdmin.auth.admin.updateUserById(String(a.user_id), {
+              password: cleanPass,
+              email_confirm: true,
+              app_metadata: { role: 'super_admin' },
+            });
+            const { data: retrySign } = await supabaseAnon.auth.signInWithPassword({
+              email: a.email,
+              password: cleanPass,
+            });
+            if (retrySign?.session) {
+              sessionObj = {
+                access_token: retrySign.session.access_token,
+                refresh_token: retrySign.session.refresh_token,
+              };
+            }
+          }
+
+          return res.json({
+            success: true,
+            account: {
+              identifier: rawId,
+              id: String(a.user_id || a.id),
+              name: a.full_name || a.username,
+              username: a.username,
+              email: a.email,
+              phone: matchedSysAdmin?.phone || '',
+              cpf: matchedSysAdmin?.cpf || '',
+              avatarUrl: a.avatar_url || '',
+              accountType: 'owner',
+              matchedAccount: {
+                ...a,
+                name: a.full_name || a.username,
+                phone: matchedSysAdmin?.phone || '',
+                cpf: matchedSysAdmin?.cpf || '',
+                sourceTable: 'system_admins',
+                isSuperadmin: true,
+              },
+            },
+            session: sessionObj,
+          });
+        }
+      }
+
+      const candidateEmails: { email: string; matched: any }[] = [];
+      const seenEmails = new Set<string>();
+
+      for (const acc of matchedAccounts) {
+        const em = String(acc.email || '').trim().toLowerCase();
+        if (em && em.includes('@') && !seenEmails.has(em)) {
+          seenEmails.add(em);
+          candidateEmails.push({ email: em, matched: acc });
+        }
+      }
+
+      if (rawId.includes('@') && rawId.includes('.')) {
+        const directEmail = rawId.toLowerCase();
+        if (!seenEmails.has(directEmail)) {
+          seenEmails.add(directEmail);
+          candidateEmails.push({ email: directEmail, matched: null });
+        }
+      }
+
+      for (const cand of candidateEmails) {
+        const { data: signInData, error: signInErr } = await supabaseAnon.auth.signInWithPassword({
+          email: cand.email,
+          password: cleanPass,
+        });
+
+        if (!signInErr && signInData?.session) {
+          const authUser = signInData.user;
+          const acc = cand.matched;
+          const isSuper = Boolean(
+            acc?.isSuperadmin ||
+              acc?.sourceTable === 'system_admins' ||
+              acc?.role === 'super_admin' ||
+              authUser?.app_metadata?.role === 'super_admin' ||
+              authUser?.user_metadata?.role === 'super_admin'
+          );
+
+          const accountType: 'owner' | 'professional' | 'client' = isSuper
+            ? 'owner'
+            : acc?.sourceTable === 'professionals'
+              ? 'professional'
+              : 'client';
+
+          const resolvedName =
+            acc?.name ||
+            acc?.full_name ||
+            authUser?.user_metadata?.full_name ||
+            authUser?.user_metadata?.name ||
+            acc?.username ||
+            cand.email.split('@')[0];
+
+          const resolvedUsername =
+            acc?.username ||
+            authUser?.user_metadata?.username ||
+            cand.email.split('@')[0];
+
+          const resolvedPhone =
+            acc?.phone ||
+            authUser?.user_metadata?.phone ||
+            '';
+
+          const resolvedCpf =
+            acc?.cpf ||
+            authUser?.user_metadata?.cpf ||
+            '';
+
+          const resolvedAvatar =
+            acc?.avatar_url ||
+            authUser?.user_metadata?.avatar_url ||
+            '';
+
+          const finalMatched = acc
+            ? { ...acc, isSuperadmin: isSuper }
+            : {
+                id: authUser?.id || cand.email,
+                user_id: authUser?.id || null,
+                sourceTable: isSuper ? 'system_admins' : 'clients',
+                name: resolvedName,
+                full_name: resolvedName,
+                username: resolvedUsername,
+                email: cand.email,
+                phone: resolvedPhone,
+                cpf: resolvedCpf,
+                avatar_url: resolvedAvatar,
+                role: isSuper ? 'super_admin' : 'client',
+                isSuperadmin: isSuper,
+              };
+
+          return res.json({
+            success: true,
+            account: {
+              identifier: rawId,
+              id: String(authUser?.id || acc?.user_id || acc?.id || ''),
+              name: resolvedName,
+              username: resolvedUsername,
+              email: cand.email,
+              phone: resolvedPhone,
+              cpf: resolvedCpf,
+              avatarUrl: resolvedAvatar,
+              accountType,
+              matchedAccount: finalMatched,
+            },
+            session: {
+              access_token: signInData.session.access_token,
+              refresh_token: signInData.session.refresh_token,
+            },
+          });
+        }
+      }
+
+      return res.status(401).json({
+        error: 'Conta ou senha inválida. Verifique seu usuário, celular ou e-mail.',
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        error: err?.message || 'Não foi possível validar suas credenciais.',
+      });
+    }
+  });
+
   app.post('/api/admin/bootstrap', async (req, res) => {
     try {
       const email = String(req.body?.email || process.env.INITIAL_SUPER_ADMIN_EMAIL || '').trim().toLowerCase();
       const password = String(req.body?.password || process.env.INITIAL_SUPER_ADMIN_PASSWORD || '').trim();
       const fullName = String(req.body?.fullName || process.env.INITIAL_SUPER_ADMIN_NAME || 'Super Admin Vagou').trim();
-      const cpf = String(req.body?.cpf || '').replace(/\D/g, '') || null;
+      const username = String(req.body?.username || process.env.INITIAL_SUPER_ADMIN_USERNAME || email.split('@')[0] || 'superadmin').trim();
 
       if (!email || !email.includes('@') || password.length < 8) {
         return res.status(400).json({
@@ -3333,19 +3841,33 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
           password,
           email_confirm: true,
           app_metadata: { role: 'super_admin' },
-          user_metadata: { full_name: fullName, role: 'super_admin' },
+          user_metadata: { full_name: fullName, username, role: 'super_admin' },
         });
         if (!authErr && createdAuth?.user?.id) {
           authUserId = createdAuth.user.id;
+        } else {
+          const { data: listData } = await supabase.auth.admin.listUsers();
+          const existingUser = (listData?.users || []).find(
+            (u: any) => String(u.email || '').trim().toLowerCase() === email
+          );
+          if (existingUser?.id) {
+            authUserId = existingUser.id;
+            await supabase.auth.admin.updateUserById(authUserId, {
+              password,
+              email_confirm: true,
+              app_metadata: { ...existingUser.app_metadata, role: 'super_admin' },
+              user_metadata: { ...existingUser.user_metadata, full_name: fullName, username, role: 'super_admin' },
+            });
+          }
         }
       }
 
       const { data: rpcId, error: rpcErr } = await (supabase.rpc as any)('bootstrap_initial_super_admin', {
         p_email: email,
         p_full_name: fullName,
+        p_username: username,
         p_password: password,
-        p_auth_user_id: authUserId,
-        p_cpf: cpf,
+        p_user_id: authUserId,
       });
 
       if (rpcErr) {
@@ -3357,6 +3879,7 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
         adminId: rpcId,
         authUserId,
         email,
+        username,
       });
     } catch (err: any) {
       return res.status(500).json({ error: err?.message || 'Erro ao inicializar Super Admin.' });
