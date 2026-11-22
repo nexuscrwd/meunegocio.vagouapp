@@ -2294,8 +2294,8 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
       } catch {
         return res.json({
           id: '/?source=pwa',
-          name: 'Vagou Pro — Gestão & Vagas Imediatas',
-          short_name: 'Vagou Pro',
+          name: 'Meu Negócio',
+          short_name: 'Meu Negócio',
           start_url: '/?source=pwa',
           scope: '/',
           display: 'standalone',
@@ -3499,13 +3499,16 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
     return results.map(({ _prio, ...rest }) => rest);
   };
 
-  let isSyncingAuthDirectory = false;
+  let inflightAuthSyncPromise: Promise<any[]> | null = null;
+  let lastAuthDirectoryCache: any[] = [];
   let lastAuthDirectoryHash = '';
 
   const syncSupabaseAuthAndTables = async (force = false): Promise<any[]> => {
-    if (isSyncingAuthDirectory && !force) return [];
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return [];
-    isSyncingAuthDirectory = true;
+    if (inflightAuthSyncPromise && !force) {
+      return inflightAuthSyncPromise;
+    }
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return lastAuthDirectoryCache;
+    const runSync = async (): Promise<any[]> => {
     try {
       const supabaseAdmin = getSupabaseServerClient();
       const [sysRes, profRes, cliRes, proRes, authRes] = await Promise.all([
@@ -3756,6 +3759,33 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
         });
       }
 
+      const knownEmails = new Set(
+        directory.map((d) => String(d.email || '').trim().toLowerCase()).filter(Boolean)
+      );
+      for (const u of authUsers) {
+        const uEmail = String(u.email || '').trim().toLowerCase();
+        if (!uEmail || knownEmails.has(uEmail)) continue;
+        const meta = u.user_metadata || {};
+        const linkedProf = profById.get(String(u.id));
+        directory.push({
+          id: u.id,
+          user_id: u.id,
+          email: uEmail,
+          name: linkedProf?.full_name || meta.full_name || meta.name || uEmail.split('@')[0],
+          full_name: linkedProf?.full_name || meta.full_name || meta.name || uEmail.split('@')[0],
+          username: linkedProf?.username || meta.username || '',
+          phone: linkedProf?.phone || meta.phone || '',
+          cpf: linkedProf?.cpf || meta.cpf || '',
+          role: linkedProf?.role || 'client',
+          sourceTable: 'profiles',
+          isSuperadmin: false,
+          avatar_url: linkedProf?.avatar_url || meta.avatar_url || null,
+        });
+        knownEmails.add(uEmail);
+      }
+
+      lastAuthDirectoryCache = directory;
+
       const dirHash = JSON.stringify(directory.map((d) => `${d.id}:${d.username}:${d.email}:${d.phone}`));
       if (force || didMutateTables || dirHash !== lastAuthDirectoryHash) {
         lastAuthDirectoryHash = dirHash;
@@ -3775,10 +3805,16 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
       }
       return directory;
     } catch {
-      return [];
-    } finally {
-      isSyncingAuthDirectory = false;
+      return lastAuthDirectoryCache;
     }
+    };
+    const promise = runSync().finally(() => {
+      if (inflightAuthSyncPromise === promise) {
+        inflightAuthSyncPromise = null;
+      }
+    });
+    inflightAuthSyncPromise = promise;
+    return promise;
   };
 
   setTimeout(() => {
@@ -3854,16 +3890,20 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
         phone: req.body?.phone,
         cpf: req.body?.cpf,
       });
-      return res.json(conflict);
+      return res.json({
+        conflict: Boolean(conflict.hasConflict),
+        field: conflict.conflictField,
+        ...conflict,
+      });
     } catch (err: any) {
-      return res.status(500).json({ hasConflict: false, error: err?.message });
+      return res.status(500).json({ conflict: false, hasConflict: false, error: err?.message });
     }
   });
 
   app.post('/api/public/register-user', async (req, res) => {
     try {
       const body = req.body || {};
-      const cleanName = String(body.fullName || body.name || '').trim();
+      const cleanName = String(body.fullName || body.full_name || body.name || '').trim();
       const cleanEmail = String(body.email || '').trim().toLowerCase();
       const cleanUsername = String(body.username || '').trim().replace(/^@+/, '');
       const cleanPhone = String(body.phone || '').trim();
@@ -3872,19 +3912,20 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
       const addr = body.address || {};
       const cleanCep = String(body.cep || addr.cep || '').trim();
       const cleanStreet = String(body.street || addr.street || '').trim();
-      const cleanNumber = String(body.number || addr.number || 'S/N').trim();
+      const cleanNumber = String(body.number || body.street_number || addr.number || 'S/N').trim();
       const cleanComplement = String(body.complement || addr.complement || '').trim();
       const cleanNeighborhood = String(body.neighborhood || addr.neighborhood || '').trim();
       const cleanCity = String(body.city || addr.city || 'São Paulo').trim();
       const cleanState = String(body.state || body.uf || addr.state || addr.uf || 'SP').trim().toUpperCase();
       const formattedAddress = String(
         body.formattedAddress ||
+          body.formatted_address ||
           [cleanStreet, cleanNumber, cleanComplement, cleanNeighborhood, cleanCity, cleanState, cleanCep]
             .filter(Boolean)
             .join(', ')
       ).trim();
-      const securityQuestionCode = String(body.securityQuestionCode || '').trim();
-      const securityAnswer = String(body.securityAnswer || '').trim();
+      const securityQuestionCode = String(body.securityQuestionCode || body.security_question_code || '').trim();
+      const securityAnswer = String(body.securityAnswer || body.security_answer || '').trim();
 
       if (!cleanName || !cleanEmail || !cleanPassword) {
         return res.status(400).json({
@@ -3916,6 +3957,9 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
       if (preConflict.hasConflict) {
         return res.status(409).json({
           success: false,
+          conflict: true,
+          hasConflict: true,
+          field: preConflict.conflictField,
           conflictField: preConflict.conflictField,
           error:
             preConflict.message ||

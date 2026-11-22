@@ -61,6 +61,7 @@ export interface TriadeUserRecoveryModalProps {
   salonSlug?: string;
   salonSlogan?: string;
   salonLogoUrl?: string;
+  logoTextFallback?: string;
   onClose?: () => void;
   onBackToLogin: (recoveredIdentifier?: string) => void;
   variant?: 'card' | 'flat';
@@ -73,6 +74,7 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
   salonSlug,
   salonSlogan,
   salonLogoUrl,
+  logoTextFallback,
   onClose,
   onBackToLogin,
   variant = 'card',
@@ -394,6 +396,7 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
         salonSlug={salonSlug}
         salonSlogan={salonSlogan}
         salonLogoUrl={salonLogoUrl}
+        logoTextFallback={logoTextFallback}
         subtitle={subtitleByView[view]}
         onClose={onClose}
       />

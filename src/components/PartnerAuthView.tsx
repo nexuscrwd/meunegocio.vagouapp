@@ -29,6 +29,7 @@ interface PartnerAuthViewProps {
   salonName?: string;
   salonSlug?: string;
   salonLogo?: string;
+  logoTextFallback?: string;
   primaryColor?: string;
 }
 
@@ -38,6 +39,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
   salonName = '',
   salonSlug = '',
   salonLogo = '',
+  logoTextFallback = '',
   primaryColor,
 }) => {
 
@@ -93,6 +95,7 @@ export const PartnerAuthView: React.FC<PartnerAuthViewProps> = ({
         salonName={salonName}
         salonSlug={salonSlug}
         salonLogo={salonLogo}
+        logoTextFallback={logoTextFallback}
         primaryColor={primaryColor}
         themeMode="dark"
         onAuthenticated={(_user, role) => {

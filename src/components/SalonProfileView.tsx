@@ -70,6 +70,7 @@ import {
   subscribeToSalonRealtime
 } from '../lib/supabase';
 import { formatDurationFromMinutes, parseDurationToMinutes } from '../utils/duration';
+import { TEMPLATE_APP_NAME, isGenericTemplateName } from '../utils/templateBranding';
 
 export interface SalonProfileViewProps {
   salonName: string;
@@ -745,7 +746,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
     const effectiveSalonName = hasActiveSubdomain
       ? (salonName || '')
-      : (salonName || partnerInfo?.salonName || 'Meu Estabelecimento');
+      : (salonName || partnerInfo?.salonName || TEMPLATE_APP_NAME);
     const effectivePhone = partnerInfo?.phoneWhatsapp || '';
     const effectiveColor = sanitizeAccentColor(partnerInfo?.primaryColor || localStorage.getItem('vagou_accent_color') || DEFAULT_NEUTRAL_HEX);
 
@@ -760,7 +761,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
       salonLogoDark: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_logo_dark') || ''),
       salonLogoLight: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_logo_light') || ''),
       salonLogo: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_logo_dark') || ''),
-      salonIcon: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_icon') || (partnerInfo ? '' : '/icon-512.png')),
+      salonIcon: hasActiveSubdomain ? '' : (localStorage.getItem('vagou_salon_icon') || ''),
       pwaName: effectiveSalonName,
       slogan: '',
       showSlogan: true,
@@ -1365,7 +1366,20 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
         return null;
       }
       try {
-        const activeSlug = activeSubdomain || localStorage.getItem('vagou_salon_slug') || adminSettings.salonSlug || salonName.toLowerCase().replace(/\s+/g, '-');
+        const storedSlug = (localStorage.getItem('vagou_salon_slug') || '').trim().toLowerCase();
+        const rawSlugCandidate = (activeSubdomain || storedSlug || adminSettings.salonSlug || '').trim().toLowerCase();
+        const isBlankTemplateContext =
+          !hasActiveSubdomain &&
+          !initialSalonData?.id &&
+          (!rawSlugCandidate || rawSlugCandidate === 'meu-negocio' || rawSlugCandidate === 'meu-estabelecimento') &&
+          isGenericTemplateName(salonName);
+
+        if (isBlankTemplateContext) {
+          if (isMounted) setIsLoadingSalon(false);
+          return null;
+        }
+
+        const activeSlug = rawSlugCandidate || salonName.toLowerCase().replace(/\s+/g, '-');
         const activeEmail = localStorage.getItem('vagou_user_email') || localStorage.getItem('vagou_active_partner') || '';
 
         const salonRecord = (initialSalonData && initialSalonData.id)
@@ -1995,7 +2009,7 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
 
     return {
       name: adminSettings.salonName || salonName,
-      avatar: adminSettings.salonIcon || activeLogo || (hasActiveSubdomain ? '' : '/icon-512.png'),
+      avatar: adminSettings.salonIcon || activeLogo || '',
       coverImage: primaryOffer?.galleryImages?.[0] || primaryOffer?.imageUrl || 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=1200&q=80',
       rating: primaryOffer?.rating || 4.9,
       reviewsCount: primaryOffer?.reviewsCount || 84,
@@ -2464,9 +2478,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           name: isUserLoggedInState && currentUserName ? currentUserName : 'Visitante',
           avatarUrl: currentUserAvatarUrl,
           jobTitle: isGerMode ? (isActiveProAdmin ? 'Proprietário / Gestor' : 'Profissional') : 'Usuário',
-          companyName: salonInfo.name,
+          companyName: adminSettings.salonName || salonInfo.name || '',
         }}
-        logoUrl={adminSettings?.salonLogo || adminSettings?.salonLogoLight || adminSettings?.salonLogoDark || salonInfo?.avatar || salonInfo?.avatarUrl || ''}
+        logoUrl={activeLogo || ''}
+        logoTextFallback={adminSettings.logoTextFallback || ''}
         isGerMode={isGerMode}
         isSalonLoggedIn={isSalonLoggedIn}
         isProAdmin={isActiveProAdmin}
@@ -3939,9 +3954,10 @@ export const SalonProfileView: React.FC<SalonProfileViewProps> = ({
           }}
           salonName={salonInfo.name}
           salonSlug={adminSettings.salonSlug || activeSubdomain || ''}
-          salonLogo={activeLogo || adminSettings.salonIcon || ''}
+          salonLogo={activeLogo || ''}
           salonLogoLight={adminSettings.salonLogoLight || ''}
           salonLogoDark={adminSettings.salonLogoDark || ''}
+          logoTextFallback={adminSettings.logoTextFallback || ''}
           primaryColor={adminSettings.accentColor || DEFAULT_NEUTRAL_HEX}
           secondaryColor={adminSettings.secondaryColor || ''}
           themeMode={isDark ? 'dark' : 'light'}

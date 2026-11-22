@@ -18,7 +18,6 @@ import {
   mapDbAppointmentToBookingAppointment,
   subscribeToAppointments,
   cancelAppointmentInDb,
-  ensureSalonRow
 } from './lib/supabase';
 import { subscribeToVagouRealtimeHub } from './services/realtimeHub';
 import { ensureServiceWorkerReady, triggerPushOutboxDispatch } from './services/webPushService';
@@ -43,6 +42,14 @@ const RESERVED_SUBDOMAINS = [
 
 function detectActiveSubdomain(): string {
   if (typeof window === 'undefined') return '';
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramSlug = (urlParams.get('salon') || urlParams.get('slug') || '').trim().toLowerCase();
+    if (paramSlug && !RESERVED_SUBDOMAINS.includes(paramSlug)) {
+      return paramSlug;
+    }
+  } catch {}
+
   const hostname = window.location.hostname;
   const isDevOrPreview =
     hostname.includes('localhost') ||
@@ -755,28 +762,70 @@ export const App: React.FC = () => {
             syncSalonThemeState(salon);
           }
         } else {
+          const isLogged = hasActiveAppSession();
+          if (!isLogged) {
+            try {
+              localStorage.removeItem('vagou_salon_db_id');
+              localStorage.removeItem('vagou_salon_name');
+              localStorage.removeItem('vagou_salon_slug');
+              localStorage.removeItem('vagou_salon_logo');
+              localStorage.removeItem('vagou_salon_logo_dark');
+              localStorage.removeItem('vagou_salon_logo_light');
+              localStorage.removeItem('vagou_salon_icon');
+              localStorage.removeItem('vagou_salon_admin_settings');
+            } catch {}
+            setInitialSalonData(null);
+            setSalonName('');
+            resetToDefaultPalette();
+          } else if (isSupabaseConfigured && supabase) {
+            const authUserId = (localStorage.getItem('vagou_auth_user_id') || '').trim();
+            const userEmail = (localStorage.getItem('vagou_user_email') || '').trim().toLowerCase();
+            let ownedSalon: any = null;
 
-          if (isSupabaseConfigured) {
-            const cachedSlug = localStorage.getItem('vagou_salon_slug') || '';
-            const cachedDbId = localStorage.getItem('vagou_salon_db_id') || '';
-            const userEmail = localStorage.getItem('vagou_user_email') || '';
+            if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authUserId)) {
+              const { data: byOwner } = await (supabase.from('salons') as any)
+                .select('*')
+                .eq('owner_id', authUserId)
+                .eq('is_active', true)
+                .order('created_at', { ascending: true })
+                .limit(1)
+                .maybeSingle();
+              if (byOwner) ownedSalon = byOwner;
+            }
 
-            const resolvedSalon = await ensureSalonRow({
-              id: cachedDbId || undefined,
-              slug: cachedSlug || undefined,
-              email: userEmail || undefined,
-              tradeName: salonName || 'Meu Estabelecimento',
-            });
+            if (!ownedSalon && userEmail) {
+              const { data: byEmail } = await (supabase.from('salons') as any)
+                .select('*')
+                .ilike('email', userEmail)
+                .eq('is_active', true)
+                .order('created_at', { ascending: true })
+                .limit(1)
+                .maybeSingle();
+              if (byEmail) ownedSalon = byEmail;
+            }
 
-            if (resolvedSalon) {
-              setInitialSalonData(resolvedSalon);
-              const displayName = resolvedSalon.trade_name || salonName || 'Meu Estabelecimento';
+            if (ownedSalon) {
+              setInitialSalonData(ownedSalon);
+              const displayName = ownedSalon.trade_name || '';
               setSalonName(displayName);
-              localStorage.setItem('vagou_salon_db_id', resolvedSalon.id);
+              localStorage.setItem('vagou_salon_db_id', ownedSalon.id);
               localStorage.setItem('vagou_salon_name', displayName);
-              localStorage.setItem('vagou_salon_slug', resolvedSalon.slug);
-
-              syncSalonThemeState(resolvedSalon);
+              localStorage.setItem('vagou_salon_slug', ownedSalon.slug);
+              syncSalonThemeState(ownedSalon);
+            } else {
+              try {
+                localStorage.removeItem('vagou_salon_db_id');
+                localStorage.removeItem('vagou_salon_name');
+                localStorage.removeItem('vagou_salon_slug');
+                localStorage.removeItem('vagou_salon_logo');
+                localStorage.removeItem('vagou_salon_logo_dark');
+                localStorage.removeItem('vagou_salon_logo_light');
+                localStorage.removeItem('vagou_salon_icon');
+                localStorage.removeItem('vagou_salon_admin_settings');
+              } catch {}
+              setInitialSalonData(null);
+              setSalonName('');
+              resetToDefaultPalette();
             }
           }
         }
@@ -926,6 +975,11 @@ export const App: React.FC = () => {
                 initialSalonData?.logo_dark_url ||
                 initialSalonData?.logo_url ||
                 initialSalonData?.logo_light_url ||
+                ''
+              }
+              logoTextFallback={
+                initialSalonData?.logo_text_fallback ||
+                initialSalonData?.branding?.logoTextFallback ||
                 ''
               }
               primaryColor={initialSalonData?.primary_color || initialSalonData?.branding?.primaryColor || DEFAULT_NEUTRAL_HEX}

@@ -1,27 +1,73 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
   <defs>
-    <linearGradient id="vagouVGradSvg" x1="10%" y1="90%" x2="90%" y2="10%">
-      <stop offset="0%" stop-color="#087A2A" />
-      <stop offset="50%" stop-color="#20C933" />
-      <stop offset="100%" stop-color="#32E046" />
+    <linearGradient id="vCheckMain" x1="12%" y1="88%" x2="92%" y2="8%">
+      <stop offset="0%" stop-color="#0D8A1E" />
+      <stop offset="48%" stop-color="#22C51A" />
+      <stop offset="100%" stop-color="#4BE817" />
     </linearGradient>
+    <linearGradient id="vCheckDepth" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#075412" stop-opacity="0.68" />
+      <stop offset="100%" stop-color="#22C51A" stop-opacity="0" />
+    </linearGradient>
+    <linearGradient id="tileBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F1F5F9" />
+    </linearGradient>
+    <clipPath id="vCheckClip">
+      <path d="M 18 148 C 4 128, 28 102, 56 120 L 116 238 C 128 260, 146 254, 160 232 L 328 24 C 356 -10, 424 -8, 434 10 C 442 24, 412 46, 376 82 L 180 356 C 154 392, 110 392, 90 350 Z" />
+    </clipPath>
   </defs>
-  <!-- Background Squircle / Rounded Container (Grafite Vagou #151A1E) -->
-  <rect width="512" height="512" rx="128" fill="#151A1E" />
-  
-  <!-- Official Vagou "V" Checkmark Symbol -->
-  <g transform="translate(40, 40) scale(2.16)">
+
+  <rect width="512" height="512" rx="96" fill="url(#tileBg)" />
+  <rect x="4" y="4" width="504" height="504" rx="92" stroke="#E2E8F0" stroke-width="8" />
+
+  <g transform="translate(26, 46)">
     <path
-      d="M 28 92 
-         C 18 80, 32 62, 46 72 
-         L 78 106 
-         C 86 114, 98 112, 106 102 
-         L 174 24 
-         C 186 10, 202 24, 192 38 
-         L 112 168 
-         C 98 186, 74 186, 60 168 
-         Z"
-      fill="url(#vagouVGradSvg)"
+      d="M 18 148 C 4 128, 28 102, 56 120 L 116 238 C 128 260, 146 254, 160 232 L 328 24 C 356 -10, 424 -8, 434 10 C 442 24, 412 46, 376 82 L 180 356 C 154 392, 110 392, 90 350 Z"
+      fill="url(#vCheckMain)"
     />
+    <g clip-path="url(#vCheckClip)">
+      <path
+        d="M 76 200 L 144 340 L 204 318 L 136 226 Z"
+        fill="url(#vCheckDepth)"
+      />
+    </g>
+    <text
+      x="130"
+      y="354"
+      fill="#FFFFFF"
+      font-family="'Poppins', 'Segoe UI', -apple-system, sans-serif"
+      font-size="112"
+      font-weight="900"
+      font-style="italic"
+    >a</text>
+    <text
+      x="198"
+      y="354"
+      fill="#111827"
+      font-family="'Poppins', 'Segoe UI', -apple-system, sans-serif"
+      font-size="112"
+      font-weight="900"
+      font-style="italic"
+      letter-spacing="-3"
+    >gou</text>
+    <text
+      x="382"
+      y="272"
+      fill="#1FA618"
+      font-family="'Poppins', 'Segoe UI', -apple-system, sans-serif"
+      font-size="40"
+      font-weight="900"
+      font-style="italic"
+    >app</text>
+    <text
+      x="284"
+      y="404"
+      fill="#1FA618"
+      font-family="'Poppins', 'Segoe UI', -apple-system, sans-serif"
+      font-size="28"
+      font-weight="800"
+      font-style="italic"
+    >Vagou achou.</text>
   </g>
 </svg>

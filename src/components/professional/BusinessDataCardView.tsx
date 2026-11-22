@@ -186,7 +186,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
         const razao = (data.razao_social || '').trim();
 
         if (razao) setRazaoSocial(razao);
-        if (nomeFantasia && (!salonName || salonName === 'Meu Salão' || salonName === 'Meu Estabelecimento')) {
+        if (nomeFantasia && (!salonName || salonName === 'Meu Salão' || salonName === 'Meu Estabelecimento' || salonName === 'Meu Negócio')) {
           setSalonName(nomeFantasia);
         } else if (!salonName && razao) {
           setSalonName(razao);
@@ -218,7 +218,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
         const nomeFantasia = (fallbackData.nome_fantasia || '').trim();
 
         if (razao) setRazaoSocial(razao);
-        if (nomeFantasia && (!salonName || salonName === 'Meu Salão' || salonName === 'Meu Estabelecimento')) {
+        if (nomeFantasia && (!salonName || salonName === 'Meu Salão' || salonName === 'Meu Estabelecimento' || salonName === 'Meu Negócio')) {
           setSalonName(nomeFantasia);
         }
 
@@ -271,7 +271,7 @@ export const BusinessDataCardView: React.FC<BusinessDataCardViewProps> = ({
     setIsSaving(true);
     setSaveError(null);
     const dbRes = await onUpdateSettings({
-      salonName: salonName.trim() || 'Meu Estabelecimento',
+      salonName: salonName.trim() || 'Meu Negócio',
       category: category.trim() || 'Barbearia',
       razaoSocial: finalRazaoSocial,
       cnpj: finalCnpj,

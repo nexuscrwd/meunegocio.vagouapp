@@ -3,6 +3,11 @@ import type { Database } from '../types/database.types';
 import type { BookingAppointment } from '../types';
 import { DEFAULT_NEUTRAL_HEX, resolveThemePresetId } from '../utils/themePalette';
 import { formatDurationFromMinutes, parseDurationToMinutes } from '../utils/duration';
+import {
+  isGenericTemplateName,
+  sanitizeSalonMediaUrlForDb,
+  TEMPLATE_APP_NAME,
+} from '../utils/templateBranding';
 
 const DEFAULT_SUPABASE_URL = 'https://xemenxdhuoekytyhmgyt.supabase.co';
 const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlbWVueGRodW9la3l0eWhtZ3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMDE2MzAsImV4cCI6MjEwNTc3NzYzMH0.P-q6bQspwuQNhub08hjWmsjLrugr3CVA1NIdznWJxuo';
@@ -2184,7 +2189,7 @@ export async function ensureSalonRow(params: {
     }
 
     const targetSlug = (params.slug || (params.tradeName || params.name || '').toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || '').trim();
-    if (targetSlug && targetSlug !== 'meu-estabelecimento') {
+    if (targetSlug && targetSlug !== 'meu-estabelecimento' && targetSlug !== 'meu-negocio' && targetSlug !== 'meunegocio') {
       const { data: bySlug } = await (client.from('salons') as any).select('*').eq('slug', targetSlug).maybeSingle();
       if (bySlug) return bySlug;
     }
@@ -2200,7 +2205,7 @@ export async function ensureSalonRow(params: {
     }
 
     const searchName = params.tradeName || params.name;
-    if (searchName && searchName !== 'Meu Estabelecimento') {
+    if (searchName && !isGenericTemplateName(searchName)) {
       const { data: byName } = await (client.from('salons') as any)
         .select('*')
         .ilike('trade_name', `%${searchName.trim()}%`)
@@ -2216,17 +2221,10 @@ export async function ensureSalonRow(params: {
       }
     }
 
-    if (!searchName || searchName === 'Meu Estabelecimento') {
-      const { data: firstActive } = await (client.from('salons') as any).select('*').eq('is_active', true).order('created_at', { ascending: true }).limit(1).maybeSingle();
-      if (firstActive) {
-        return firstActive;
-      }
-    }
-
     const newId = (params.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.id))
       ? params.id
       : generateUuidV4();
-    const finalTradeName = params.tradeName || params.name || 'Meu Estabelecimento';
+    const finalTradeName = params.tradeName || params.name || TEMPLATE_APP_NAME;
     const finalSlug = targetSlug || `salao-${newId.slice(0, 8)}`;
 
     let resolvedOwnerId = params.ownerId || null;
@@ -2428,10 +2426,15 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
     if (settings.amenities !== undefined) {
       payload.amenities = settings.amenities;
     }
-    if (settings.salonLogoLight !== undefined) payload.logo_light_url = settings.salonLogoLight || null;
-    if (settings.salonLogoDark !== undefined) payload.logo_dark_url = settings.salonLogoDark || null;
+    const cleanLogoLight = sanitizeSalonMediaUrlForDb(settings.salonLogoLight);
+    const cleanLogoDark = sanitizeSalonMediaUrlForDb(settings.salonLogoDark);
+    const cleanLogoPrimary = sanitizeSalonMediaUrlForDb(
+      settings.salonLogo || settings.logoUrl || settings.salonLogoDark || settings.salonLogoLight
+    );
+    if (settings.salonLogoLight !== undefined) payload.logo_light_url = cleanLogoLight;
+    if (settings.salonLogoDark !== undefined) payload.logo_dark_url = cleanLogoDark;
     if (settings.salonLogo !== undefined || settings.logoUrl !== undefined) {
-      payload.logo_url = settings.salonLogo || settings.logoUrl || settings.salonLogoDark || settings.salonLogoLight || null;
+      payload.logo_url = cleanLogoPrimary;
     }
     if (settings.slogan !== undefined) payload.slogan = settings.slogan || '';
     if (settings.isOpenNow !== undefined) payload.is_open_now = settings.isOpenNow;
@@ -2478,12 +2481,13 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
     if (settings.bio !== undefined) payload.bio = settings.bio;
     if (settings.defaultTheme !== undefined) payload.default_theme = settings.defaultTheme;
 
-    const resolvedIcon =
+    const rawResolvedIcon =
       settings.salonIcon !== undefined
         ? (settings.salonIcon || '')
         : (settings.faviconUrl !== undefined
             ? settings.faviconUrl
             : (existingBranding.salonIcon || existingBranding.faviconUrl || ''));
+    const resolvedIcon = sanitizeSalonMediaUrlForDb(rawResolvedIcon) || '';
     if (settings.salonIcon !== undefined || settings.faviconUrl !== undefined) {
       payload.favicon_url = resolvedIcon || null;
     }
@@ -2511,9 +2515,9 @@ export async function updateSalonSettingsInDb(salonIdOrSlug: string, settings: a
       showHeroSlides: settings.showHeroSlides !== undefined ? settings.showHeroSlides : (existingBranding.showHeroSlides !== false),
       faviconUrl: resolvedIcon,
       salonIcon: resolvedIcon,
-      ...(settings.salonLogoLight !== undefined ? { salonLogoLight: settings.salonLogoLight } : {}),
-      ...(settings.salonLogoDark !== undefined ? { salonLogoDark: settings.salonLogoDark } : {}),
-      ...(settings.salonLogo !== undefined ? { salonLogo: settings.salonLogo } : {}),
+      ...(settings.salonLogoLight !== undefined ? { salonLogoLight: cleanLogoLight || '' } : {}),
+      ...(settings.salonLogoDark !== undefined ? { salonLogoDark: cleanLogoDark || '' } : {}),
+      ...(settings.salonLogo !== undefined ? { salonLogo: cleanLogoPrimary || '' } : {}),
       slogan: settings.slogan !== undefined ? (settings.slogan || '') : (existingBranding.slogan || ''),
       brandFont: settings.brandFont || existingBranding.brandFont || 'Plus Jakarta Sans',
       welcomeStyle: settings.welcomeStyle || existingBranding.welcomeStyle || 'atmospheric',

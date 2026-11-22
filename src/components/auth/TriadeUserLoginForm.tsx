@@ -50,6 +50,7 @@ export interface TriadeUserLoginFormProps {
   salonSlug?: string;
   salonSlogan?: string;
   salonLogoUrl?: string;
+  logoTextFallback?: string;
   initialIdentifier?: string;
 }
 
@@ -234,6 +235,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
   salonSlug,
   salonSlogan,
   salonLogoUrl,
+  logoTextFallback,
   initialIdentifier = '',
 }) => {
   const [identifier, setIdentifier] = useState(initialIdentifier);
@@ -517,6 +519,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
           salonSlug={salonSlug}
           salonSlogan={salonSlogan}
           salonLogoUrl={salonLogoUrl}
+          logoTextFallback={logoTextFallback}
           subtitle={subtitle}
           onClose={onClose}
         />

@@ -17,6 +17,10 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import {
+  resolveEstablishmentBrandDisplay,
+  TEMPLATE_APP_NAME,
+} from '../utils/templateBranding';
 
 export type UserRole = 'COLLABORATOR' | 'MANAGER' | 'SUPER_ADMIN';
 
@@ -48,6 +52,7 @@ interface MobileHeaderProps {
   currentUser: HeaderUser;
   userRole: UserRole;
   logoUrl?: string;
+  logoTextFallback?: string;
   isGerMode?: boolean;
   isSalonLoggedIn?: boolean;
   isProAdmin?: boolean;
@@ -59,6 +64,7 @@ interface MobileHeaderProps {
 export const MobileHeader: React.FC<MobileHeaderProps> = ({
   currentUser,
   logoUrl,
+  logoTextFallback,
   isGerMode = false,
   isSalonLoggedIn = false,
   isProAdmin = true,
@@ -68,6 +74,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   const { isDark, toggleTheme, resolvedPalette } = useTheme();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isGerenciarExpanded, setIsGerenciarExpanded] = useState(false);
+  const [logoLoadError, setLogoLoadError] = useState(false);
 
   const firstName = (currentUser.name || 'Usuário').trim().split(' ')[0].toUpperCase();
   const initials = (currentUser.name || 'Usuário')
@@ -92,19 +99,22 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     return 'Usuário';
   })();
 
-  const resolvedLogo =
-    logoUrl ||
-    localStorage.getItem('vagou_salon_logo') ||
-    localStorage.getItem('vagou_salon_logo_dark') ||
-    localStorage.getItem('vagou_salon_logo_light') ||
-    '';
+  const resolvedLogo = logoLoadError
+    ? ''
+    : (
+        logoUrl ||
+        localStorage.getItem('vagou_salon_logo') ||
+        localStorage.getItem('vagou_salon_logo_dark') ||
+        localStorage.getItem('vagou_salon_logo_light') ||
+        ''
+      );
 
-  const hasValidLogo =
-    Boolean(resolvedLogo) &&
-    typeof resolvedLogo === 'string' &&
-    resolvedLogo.trim().length > 0 &&
-    !resolvedLogo.includes('placeholder') &&
-    !resolvedLogo.startsWith('data:image/svg+xml');
+  const brandDisplay = resolveEstablishmentBrandDisplay({
+    logoUrl: resolvedLogo,
+    logoTextFallback,
+    salonName: currentUser.companyName,
+    isDark,
+  });
 
   const headerBg = resolvedPalette.headerBg;
   const headerBorder = resolvedPalette.headerBorder;
@@ -128,20 +138,27 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
         <div className="flex items-center justify-between gap-2">
 
           <div className="h-[60px] -my-2.5 flex-1 min-w-0 max-w-[200px] border-0 bg-transparent flex items-center justify-start overflow-hidden">
-            {hasValidLogo ? (
+            {brandDisplay.kind === 'logo' ? (
               <img
-                src={resolvedLogo}
-                alt="Logo"
+                src={brandDisplay.logoUrl}
+                alt={currentUser.companyName || TEMPLATE_APP_NAME}
+                onError={() => setLogoLoadError(true)}
                 className="w-full h-full object-contain object-left select-none"
                 referrerPolicy="no-referrer"
               />
-            ) : (
+            ) : brandDisplay.kind === 'name' ? (
               <span
-                className="font-display font-extrabold text-sm tracking-wider uppercase select-none"
+                className="font-display font-extrabold text-sm sm:text-base tracking-tight truncate select-none"
                 style={{ color: headerText }}
               >
-                Logo
+                {brandDisplay.displayName}
               </span>
+            ) : (
+              <img
+                src={brandDisplay.logoUrl}
+                alt="LOGOTIPO"
+                className="h-7 sm:h-8 w-auto max-w-[160px] object-contain object-left select-none"
+              />
             )}
           </div>
 
@@ -204,7 +221,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                       </p>
                       <p className="text-[10px] text-slate-500 font-medium truncate">
                         {currentUser.jobTitle || 'Cliente'} •{' '}
-                        {currentUser.companyName || 'Estabelecimento'}
+                        {currentUser.companyName || TEMPLATE_APP_NAME}
                       </p>
                     </div>
                     <button

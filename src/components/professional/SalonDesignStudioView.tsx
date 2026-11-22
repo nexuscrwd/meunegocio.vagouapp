@@ -47,6 +47,7 @@ import {
   resolveAppThemeTokens,
   resolveThemePresetId,
 } from '../../utils/themePalette';
+import { resolveEstablishmentBrandDisplay } from '../../utils/templateBranding';
 
 export type DesignStudioTab = 'tema' | 'marca' | 'estrutura';
 
@@ -1049,13 +1050,28 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
                   </div>
 
                   <div className="h-14 rounded-[4px] border border-slate-200 bg-white px-3 flex items-center justify-between">
-                    {salonLogoLight ? (
-                      <img src={salonLogoLight} alt="Logo Claro" className="max-h-9 max-w-[160px] object-contain" />
-                    ) : (
-                      <span className="text-xs font-black uppercase text-slate-800 truncate">
-                        {logoTextFallback || salonName || 'Logo Claro'}
-                      </span>
-                    )}
+                    {(() => {
+                      const lightPreview = resolveEstablishmentBrandDisplay({
+                        logoUrl: salonLogoLight,
+                        logoTextFallback,
+                        salonName,
+                        isDark: false,
+                      });
+                      if (lightPreview.kind === 'logo' || lightPreview.kind === 'template_logo') {
+                        return (
+                          <img
+                            src={lightPreview.logoUrl}
+                            alt={lightPreview.kind === 'logo' ? 'Logo Claro' : 'Logotipo padrão'}
+                            className="max-h-9 max-w-[160px] object-contain"
+                          />
+                        );
+                      }
+                      return (
+                        <span className="text-xs font-black uppercase text-slate-800 truncate">
+                          {lightPreview.displayName}
+                        </span>
+                      );
+                    })()}
                     <button
                       type="button"
                       onClick={() => logoLightInputRef.current?.click()}
@@ -1096,13 +1112,28 @@ export const SalonDesignStudioView: React.FC<SalonDesignStudioViewProps> = ({
                   </div>
 
                   <div className="h-14 rounded-[4px] border border-slate-800 bg-[#0F172A] px-3 flex items-center justify-between">
-                    {salonLogoDark ? (
-                      <img src={salonLogoDark} alt="Logo Escuro" className="max-h-9 max-w-[160px] object-contain" />
-                    ) : (
-                      <span className="text-xs font-black uppercase text-white truncate">
-                        {logoTextFallback || salonName || 'Logo Escuro'}
-                      </span>
-                    )}
+                    {(() => {
+                      const darkPreview = resolveEstablishmentBrandDisplay({
+                        logoUrl: salonLogoDark,
+                        logoTextFallback,
+                        salonName,
+                        isDark: true,
+                      });
+                      if (darkPreview.kind === 'logo' || darkPreview.kind === 'template_logo') {
+                        return (
+                          <img
+                            src={darkPreview.logoUrl}
+                            alt={darkPreview.kind === 'logo' ? 'Logo Escuro' : 'Logotipo padrão'}
+                            className="max-h-9 max-w-[160px] object-contain"
+                          />
+                        );
+                      }
+                      return (
+                        <span className="text-xs font-black uppercase text-white truncate">
+                          {darkPreview.displayName}
+                        </span>
+                      );
+                    })()}
                     <button
                       type="button"
                       onClick={() => logoDarkInputRef.current?.click()}

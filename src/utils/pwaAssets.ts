@@ -43,7 +43,7 @@ function detectClientSalonSlug(explicitSlug?: string): string | null {
 }
 
 export function buildShortPwaName(name?: string, isMainDomain: boolean = false): string {
-  const raw = (name || (isMainDomain ? 'Vagou Pro' : 'Meu Espaço')).trim();
+  const raw = (name || (isMainDomain ? 'Meu Negócio' : 'Meu Negócio')).trim();
   if (raw.length <= 12) return raw;
   return raw.slice(0, 12).trim();
 }
@@ -63,11 +63,11 @@ export function updateDynamicPwaAssets(
     const isMainDomain = !activeSlug;
 
     const finalName = isMainDomain
-      ? 'Vagou Pro'
-      : (name && name.trim()) || 'Meu Estabelecimento';
+      ? 'Meu Negócio'
+      : (name && name.trim()) || 'Meu Negócio';
     const finalShortName = buildShortPwaName(finalName, isMainDomain);
     const finalSlogan = isMainDomain
-      ? 'Gestão & Vagas Imediatas'
+      ? ''
       : (slogan || '').trim();
 
     const effectiveIsDark = isDarkTheme !== undefined
@@ -177,7 +177,7 @@ export function initializeStoredPwaAssets() {
     const isDarkTheme = localStorage.getItem('vagou_theme_mode_v3') === 'dark';
 
     if (!activeSlug) {
-      updateDynamicPwaAssets('Vagou Pro', '/icon-512.png', '#20C933', 'Gestão & Vagas Imediatas', isDarkTheme);
+      updateDynamicPwaAssets('Meu Negócio', '/icon-512.png', '#20C933', '', isDarkTheme);
       return;
     }
 

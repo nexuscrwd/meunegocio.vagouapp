@@ -20,6 +20,7 @@ export interface TriadeUserAuthCardProps {
   salonSlug?: string;
   salonSlogan?: string;
   salonLogoUrl?: string;
+  logoTextFallback?: string;
   salonAccentColor?: string;
   variant?: 'card' | 'flat';
 }
@@ -35,6 +36,7 @@ export const TriadeUserAuthCard: React.FC<TriadeUserAuthCardProps> = ({
   salonSlug,
   salonSlogan,
   salonLogoUrl,
+  logoTextFallback,
   salonAccentColor = '#20C933',
   variant = 'card',
 }) => {
@@ -65,6 +67,7 @@ export const TriadeUserAuthCard: React.FC<TriadeUserAuthCardProps> = ({
         salonSlug={salonSlug}
         salonSlogan={salonSlogan}
         salonLogoUrl={salonLogoUrl}
+        logoTextFallback={logoTextFallback}
         onClose={requireAuth ? () => setMode('login') : onClose}
         onBackToLogin={(recoveredId) => {
           if (recoveredId) {
@@ -89,6 +92,7 @@ export const TriadeUserAuthCard: React.FC<TriadeUserAuthCardProps> = ({
         salonSlug={salonSlug}
         salonSlogan={salonSlogan}
         salonLogoUrl={salonLogoUrl}
+        logoTextFallback={logoTextFallback}
         salonAccentColor={salonAccentColor}
         onSuccess={(data, opts) =>
           onSuccess?.({
@@ -111,6 +115,7 @@ export const TriadeUserAuthCard: React.FC<TriadeUserAuthCardProps> = ({
       salonSlug={salonSlug}
       salonSlogan={salonSlogan}
       salonLogoUrl={salonLogoUrl}
+      logoTextFallback={logoTextFallback}
       initialIdentifier={recoveredIdentifier}
       onOpenRecovery={() => setMode('recovery')}
       onSwitchToRegister={() => setMode('register')}

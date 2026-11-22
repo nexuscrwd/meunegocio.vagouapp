@@ -86,6 +86,7 @@ export interface TriadeUserRegisterFormProps {
   salonSlug?: string;
   salonSlogan?: string;
   salonLogoUrl?: string;
+  logoTextFallback?: string;
   salonAccentColor?: string;
 }
 
@@ -130,6 +131,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   salonSlug,
   salonSlogan,
   salonLogoUrl,
+  logoTextFallback,
 }) => {
   const isDark = true;
   const initialDraft = React.useMemo(() => {
@@ -604,8 +606,12 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
         });
         if (res.ok) {
           const json = await res.json();
-          if (json && typeof json.conflict === 'boolean') {
-            return json;
+          if (json && (typeof json.conflict === 'boolean' || typeof json.hasConflict === 'boolean')) {
+            return {
+              conflict: Boolean(json.conflict ?? json.hasConflict),
+              field: json.field || json.conflictField,
+              message: json.message,
+            };
           }
         }
       } catch {}
@@ -1149,7 +1155,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   };
 
   const currentMeta = stepMeta[step];
-  const resolvedSalonTitle = salonName || 'Meu Estabelecimento';
+  const resolvedSalonTitle = salonName || 'Meu Negócio';
 
   return (
     <div
@@ -1166,6 +1172,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           salonSlug={salonSlug}
           salonSlogan={salonSlogan}
           salonLogoUrl={salonLogoUrl}
+          logoTextFallback={logoTextFallback}
           subtitle={`CRIAR CONTA • ${currentMeta.label}`}
           onClose={step === 'welcome' ? onClose : (onSwitchToLogin || onClose)}
         />

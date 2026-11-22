@@ -1,11 +1,17 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
+import {
+  resolveEstablishmentBrandDisplay,
+  TEMPLATE_APP_HOST,
+  TEMPLATE_APP_NAME,
+} from '../../utils/templateBranding';
 
 export interface SalonAuthHeaderProps {
   salonName?: string;
   salonSlug?: string;
   salonSlogan?: string;
   salonLogoUrl?: string;
+  logoTextFallback?: string;
   subtitle?: string;
   onClose?: () => void;
 }
@@ -15,39 +21,52 @@ export const SalonAuthHeader: React.FC<SalonAuthHeaderProps> = ({
   salonSlug,
   salonSlogan,
   salonLogoUrl,
+  logoTextFallback,
   subtitle,
   onClose,
 }) => {
   const [logoError, setLogoError] = useState(false);
-
-  const resolvedLogo = (
-    salonLogoUrl ||
-    (typeof window !== 'undefined'
-      ? localStorage.getItem('vagou_salon_logo_dark') ||
-        localStorage.getItem('vagou_salon_logo_light') ||
-        localStorage.getItem('vagou_salon_icon') ||
-        ''
-      : '')
-  ).trim();
 
   const resolvedSlug = (
     salonSlug ||
     (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_slug') || '' : '')
   ).trim();
 
-  const resolvedSalonName = (
+  const resolvedLogo = logoError
+    ? ''
+    : (
+        salonLogoUrl ||
+        (typeof window !== 'undefined' && resolvedSlug
+          ? localStorage.getItem('vagou_salon_logo_dark') ||
+            localStorage.getItem('vagou_salon_logo_light') ||
+            localStorage.getItem('vagou_salon_icon') ||
+            ''
+          : '')
+      ).trim();
+
+  const rawSalonName = (
     salonName ||
-    (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_name') || '' : '') ||
-    resolvedSlug ||
-    'Meu Estabelecimento'
+    (typeof window !== 'undefined' && resolvedSlug
+      ? localStorage.getItem('vagou_salon_name') || ''
+      : '')
   ).trim();
+
+  const brandDisplay = resolveEstablishmentBrandDisplay({
+    logoUrl: resolvedLogo,
+    logoTextFallback,
+    salonName: rawSalonName,
+    isDark: true,
+  });
+
+  const resolvedSalonTitle =
+    brandDisplay.kind === 'name'
+      ? brandDisplay.displayName
+      : rawSalonName || TEMPLATE_APP_NAME;
 
   const resolvedSlogan = (
     salonSlogan ||
-    (resolvedSlug ? `${resolvedSlug}.vagouapp.com` : 'Agendamento & Gestão em Tempo Real')
+    (resolvedSlug ? `${resolvedSlug}.vagouapp.com` : TEMPLATE_APP_HOST)
   ).trim();
-
-  const hasValidCustomLogo = Boolean(resolvedLogo && !logoError);
 
   return (
     <div className="relative px-6 pt-6 pb-4 flex flex-col items-center justify-center text-center gap-2.5">
@@ -63,26 +82,31 @@ export const SalonAuthHeader: React.FC<SalonAuthHeaderProps> = ({
         </button>
       )}
 
-      {hasValidCustomLogo ? (
+      {brandDisplay.kind === 'logo' && (
         <img
-          src={resolvedLogo}
-          alt={resolvedSalonName}
+          src={brandDisplay.logoUrl}
+          alt={resolvedSalonTitle}
           referrerPolicy="no-referrer"
           onError={() => setLogoError(true)}
           className="h-12 sm:h-14 w-auto max-w-[200px] object-contain mx-auto select-none"
         />
-      ) : (
+      )}
+
+      {brandDisplay.kind === 'template_logo' && (
         <img
-          src="/logo.svg"
-          alt="VagouApp"
-          referrerPolicy="no-referrer"
-          className="h-11 sm:h-12 w-auto object-contain mx-auto select-none"
+          src={brandDisplay.logoUrl}
+          alt="LOGOTIPO"
+          className="h-10 sm:h-11 w-auto max-w-[210px] object-contain mx-auto select-none"
         />
       )}
 
       <div className="flex flex-col items-center justify-center max-w-full space-y-0.5">
-        <h2 className="text-white font-bold text-lg sm:text-xl tracking-tight text-center break-words leading-snug">
-          {resolvedSalonName}
+        <h2
+          className={`text-white font-bold tracking-tight text-center break-words leading-snug ${
+            brandDisplay.kind === 'name' ? 'text-xl sm:text-2xl' : 'text-lg sm:text-xl'
+          }`}
+        >
+          {resolvedSalonTitle}
         </h2>
         <p className="text-xs text-slate-400 font-medium text-center">
           {resolvedSlogan}

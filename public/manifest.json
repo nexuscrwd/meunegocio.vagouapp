@@ -1,8 +1,8 @@
 {
   "id": "/?source=pwa",
-  "name": "Vagou Pro — Gestão & Vagas Imediatas",
-  "short_name": "Vagou Pro",
-  "description": "Plataforma de gestão e vagas imediatas para profissionais e estabelecimentos de beleza e bem-estar.",
+  "name": "Meu Negócio",
+  "short_name": "Meu Negócio",
+  "description": "Meu Negócio — Plataforma de Gestão e Vitrine Oficial Vagou",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",

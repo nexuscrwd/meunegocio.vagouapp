@@ -10,6 +10,7 @@ import { TriadeUserAuthCard, UserAuthMode } from './auth/TriadeUserAuthCard';
 import { TriadeUserLoginPayload } from './auth/TriadeUserLoginForm';
 import { TriadeUserData } from './auth/TriadeUserRegisterForm';
 import { CURATED_EDITORIAL_FALLBACK_SLIDES } from '../assets/editorialAuthSlides';
+import { TEMPLATE_APP_NAME } from '../utils/templateBranding';
 
 export interface SalonClientAuthUser {
   id?: string;
@@ -27,6 +28,7 @@ interface SalonClientAuthModalProps {
   salonLogo?: string;
   salonLogoLight?: string;
   salonLogoDark?: string;
+  logoTextFallback?: string;
   primaryColor?: string;
   secondaryColor?: string;
   themeMode?: 'light' | 'dark';
@@ -60,6 +62,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
   salonLogo,
   salonLogoLight,
   salonLogoDark,
+  logoTextFallback,
   primaryColor,
   initialMode = 'login',
   requireAuth = false,
@@ -78,6 +81,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
   const [fetchedSalonMeta, setFetchedSalonMeta] = useState<{
     tradeName?: string;
     logoUrl?: string;
+    logoTextFallback?: string;
     slogan?: string;
   }>({});
   const [salonSlides, setSalonSlides] = useState<string[]>([]);
@@ -123,6 +127,9 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
             salonRow.branding?.faviconUrl ||
             ''
         ).trim();
+        const resolvedLogoTextFallback = String(
+          salonRow.logo_text_fallback || salonRow.branding?.logoTextFallback || ''
+        ).trim();
         const resolvedSlogan = String(
           salonRow.slogan || salonRow.branding?.slogan || ''
         ).trim();
@@ -130,6 +137,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
         setFetchedSalonMeta({
           tradeName: resolvedTradeName || undefined,
           logoUrl: isValidPhotoUrl(resolvedLogoUrl) ? resolvedLogoUrl : undefined,
+          logoTextFallback: resolvedLogoTextFallback || undefined,
           slogan: resolvedSlogan || undefined,
         });
 
@@ -287,7 +295,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
     salonLogoDark ||
     salonLogo ||
     salonLogoLight ||
-    (typeof window !== 'undefined'
+    (typeof window !== 'undefined' && currentSlug
       ? localStorage.getItem('vagou_salon_logo_dark') ||
         localStorage.getItem('vagou_salon_logo_light') ||
         localStorage.getItem('vagou_salon_icon') ||
@@ -299,9 +307,15 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
   const resolvedSalonName =
     fetchedSalonMeta.tradeName ||
     salonName ||
-    (typeof window !== 'undefined' ? localStorage.getItem('vagou_salon_name') || '' : '') ||
+    (typeof window !== 'undefined' && currentSlug ? localStorage.getItem('vagou_salon_name') || '' : '') ||
     currentSlug ||
-    'Meu Estabelecimento';
+    TEMPLATE_APP_NAME;
+
+  const resolvedLogoTextFallback = (
+    fetchedSalonMeta.logoTextFallback ||
+    logoTextFallback ||
+    ''
+  ).trim();
 
   const resolvedSalonSlogan =
     fetchedSalonMeta.slogan ||
@@ -607,6 +621,7 @@ export const SalonClientAuthModal: React.FC<SalonClientAuthModalProps> = ({
           salonSlug={currentSlug}
           salonSlogan={resolvedSalonSlogan}
           salonLogoUrl={rawLogo || undefined}
+          logoTextFallback={resolvedLogoTextFallback || undefined}
           salonAccentColor={resolvedPrimaryColor}
           onClose={handleCloseModal}
           onSuccess={handleAuthSuccess}

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vagou-cache-v14';
+const CACHE_NAME = 'vagou-cache-v15';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
