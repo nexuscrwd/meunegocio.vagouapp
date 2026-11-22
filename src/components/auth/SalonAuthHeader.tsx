@@ -13,8 +13,11 @@ export interface SalonAuthHeaderProps {
   salonLogoUrl?: string;
   logoTextFallback?: string;
   subtitle?: string;
+  brandMode?: 'establishment' | 'vagou';
   onClose?: () => void;
 }
+
+const VAGOU_REGISTER_LOGO_URL = '/assets/aistudio/VagouApp-Preto_cd3c144c.png';
 
 export const SalonAuthHeader: React.FC<SalonAuthHeaderProps> = ({
   salonName,
@@ -23,9 +26,40 @@ export const SalonAuthHeader: React.FC<SalonAuthHeaderProps> = ({
   salonLogoUrl,
   logoTextFallback,
   subtitle,
+  brandMode = 'establishment',
   onClose,
 }) => {
   const [logoError, setLogoError] = useState(false);
+
+  if (brandMode === 'vagou') {
+    return (
+      <div className="relative px-6 pt-6 pb-4 flex flex-col items-center justify-center text-center gap-2.5">
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute top-3.5 right-3.5 min-h-[36px] min-w-[36px] flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+            title="Fechar"
+            aria-label="Fechar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+
+        <img
+          src={VAGOU_REGISTER_LOGO_URL}
+          alt="VagouApp"
+          className="h-12 sm:h-14 w-auto max-w-[210px] object-contain mx-auto select-none mix-blend-lighten rounded-lg"
+        />
+
+        {subtitle && subtitle !== 'ACESSAR' && subtitle !== 'ENTRAR' && (
+          <p className="text-[10px] font-bold uppercase tracking-wider brand-text text-center pt-0.5">
+            {subtitle}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   const resolvedSlug = (
     salonSlug ||

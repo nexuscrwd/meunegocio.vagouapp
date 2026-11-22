@@ -8,7 +8,6 @@ import {
   AlertCircle,
   ArrowRight,
   Loader2,
-  Chrome,
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { SalonAuthHeader } from './SalonAuthHeader';
@@ -242,7 +241,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: 'success' | 'error';
     message: string;
@@ -474,36 +472,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
     }
   };
 
-  const handleGoogleAccountLogin = async () => {
-    setFeedback(null);
-    if (!supabase) {
-      setFeedback({
-        type: 'error',
-        message: 'Serviço de autenticação Supabase indisponível no momento.',
-      });
-      return;
-    }
-    setIsGoogleLoading(true);
-    try {
-      const { error: oauthErr } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-          queryParams: { prompt: 'select_account' },
-        },
-      });
-      if (oauthErr) {
-        throw oauthErr;
-      }
-    } catch (err: any) {
-      setIsGoogleLoading(false);
-      setFeedback({
-        type: 'error',
-        message: err?.message || 'Não foi possível autenticar com sua Conta Google.',
-      });
-    }
-  };
-
   return (
     <div
       className={`w-full max-w-md mx-auto text-white ${
@@ -592,7 +560,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
           <button
             type="submit"
-            disabled={isLoading || isGoogleLoading}
+            disabled={isLoading}
             className="w-full min-h-[46px] py-3 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg active:scale-[0.99] transition cursor-pointer whitespace-nowrap"
           >
             {isLoading ? (
@@ -605,26 +573,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
                 <ArrowRight className="w-4 h-4 text-white" />
               </>
             )}
-          </button>
-
-          <div className="flex items-center gap-3 py-0.5">
-            <div className="flex-1 h-px bg-white/10" />
-            <span className="text-[11px] font-semibold text-slate-400">ou</span>
-            <div className="flex-1 h-px bg-white/10" />
-          </div>
-
-          <button
-            type="button"
-            onClick={handleGoogleAccountLogin}
-            disabled={isLoading || isGoogleLoading}
-            className="w-full min-h-[46px] py-3 px-4 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] text-white font-bold text-xs flex items-center justify-center gap-2 transition active:scale-[0.99] cursor-pointer whitespace-nowrap"
-          >
-            {isGoogleLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-            ) : (
-              <Chrome className="w-4 h-4 text-emerald-400" />
-            )}
-            <span className="text-white font-bold">Conta Google</span>
           </button>
 
           <div className="pt-4 mt-2 border-t border-white/10 flex items-center justify-between gap-4">

@@ -15,7 +15,6 @@ import {
   Hash,
   Building2,
   Loader2,
-  Chrome,
   HelpCircle,
   Sparkles,
   ChevronDown,
@@ -128,10 +127,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   showHeader = true,
   variant = 'card',
   salonName,
-  salonSlug,
-  salonSlogan,
-  salonLogoUrl,
-  logoTextFallback,
 }) => {
   const isDark = true;
   const initialDraft = React.useMemo(() => {
@@ -187,7 +182,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   const [securityAnswer, setSecurityAnswer] = useState<string>('');
 
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
@@ -1119,30 +1113,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     }
   };
 
-  const handleGoogleAccountRegister = async () => {
-    setFeedback(null);
-    if (!supabase) {
-      setFeedback({ type: 'error', message: 'Serviço de autenticação Supabase indisponível.' });
-      return;
-    }
-    setIsGoogleLoading(true);
-    try {
-      const { error: oauthErr } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-          queryParams: { prompt: 'select_account' },
-        },
-      });
-      if (oauthErr) {
-        throw oauthErr;
-      }
-    } catch (err: any) {
-      setIsGoogleLoading(false);
-      setFeedback({ type: 'error', message: err?.message || 'Não foi possível conectar sua Conta Google.' });
-    }
-  };
-
   const stepMeta: Record<RegisterWizardStep, { index: number; total: number; label: string }> = {
     contact: { index: 1, total: 5, label: 'Contato' },
     name: { index: 2, total: 5, label: 'Nome e Usuário' },
@@ -1168,11 +1138,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
 
       {showHeader && (
         <SalonAuthHeader
-          salonName={salonName}
-          salonSlug={salonSlug}
-          salonSlogan={salonSlogan}
-          salonLogoUrl={salonLogoUrl}
-          logoTextFallback={logoTextFallback}
+          brandMode="vagou"
           subtitle={`CRIAR CONTA • ${currentMeta.label}`}
           onClose={step === 'welcome' ? onClose : (onSwitchToLogin || onClose)}
         />
@@ -1281,26 +1247,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               )}
             </button>
           </div>
-
-          <div className="flex items-center gap-3 py-0.5">
-            <div className="flex-1 h-px bg-slate-800" />
-            <span className="text-[10px] uppercase font-bold text-slate-500">ou</span>
-            <div className="flex-1 h-px bg-slate-800" />
-          </div>
-
-          <button
-            type="button"
-            onClick={handleGoogleAccountRegister}
-            disabled={isGoogleLoading}
-            className="w-full py-2.5 px-4 rounded-[4px] bg-slate-950 hover:bg-slate-800 border border-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer whitespace-nowrap"
-          >
-            {isGoogleLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-            ) : (
-              <Chrome className="w-4 h-4 text-emerald-400" />
-            )}
-            <span>Conta Google</span>
-          </button>
         </div>
       )}
 

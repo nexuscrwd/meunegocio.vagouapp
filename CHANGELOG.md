@@ -11,6 +11,14 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-22] — Remoção da Opção "Conta Google" no Acesso/Cadastro & Logotipo Oficial VagouApp na Tela de Cadastro (`bol-214`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[UI / Auth / Branding]`
+- **Motivo / Solicitação:** Remover a opção de conectar com Conta Google (divisor `"ou"` e botão `"Conta Google"`) das telas de autenticação e exibir o logotipo oficial do **VagouApp** (`/assets/aistudio/VagouApp-Preto_cd3c144c.png`) no cabeçalho da tela de cadastro.
+- **Arquivos Impactados:**
+  - `src/components/auth/TriadeUserLoginForm.tsx`: Removidos o divisor `"ou"`, o botão `"Conta Google"`, o estado `isGoogleLoading`, a função `handleGoogleAccountLogin` e o import `Chrome`.
+  - `src/components/auth/TriadeUserRegisterForm.tsx`: Removidos o divisor `"ou"`, o botão `"Conta Google"`, o estado `isGoogleLoading`, a função `handleGoogleAccountRegister` e o import `Chrome`; configurado `brandMode="vagou"` no `SalonAuthHeader`.
+  - `src/components/auth/SalonAuthHeader.tsx`: Adicionado suporte a `brandMode="vagou"` exibindo `/assets/aistudio/VagouApp-Preto_cd3c144c.png` integrado ao cabeçalho escuro da tela de cadastro.
+
 ### [2026-11-22] — Template "Meu Negócio", Logotipo Padrão Embarcado (Zero Persistência no Banco), Ícone Oficial "V" & Regra de Precedência em 3 Níveis (`bol-213`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[Feat / Branding / Isolation / PWA]`
 - **Motivo / Solicitação:** Corrigir o sequestro do domínio template `meunegocio.vagouapp.com` pela primeira linha ativa de `public.salons` (`Navalha Real Barbearia`), substituir o ícone circular verde em `icon-192.png`/`icon-512.png` pelo ícone oficial quadrado do VagouApp ("V"), padronizar o nome do template para **"Meu Negócio"** (removendo `"Vagou Pro"` e `"Meu Estabelecimento"`), embarcar o logotipo alternativo padrão `LOGOTIPO` diretamente nos arquivos do app sem jamais gravá-lo no Supabase e impor a precedência exata de exibição de marca em 3 níveis.
