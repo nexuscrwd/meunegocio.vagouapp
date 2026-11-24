@@ -3499,6 +3499,59 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
     return results.map(({ _prio, ...rest }) => rest);
   };
 
+  const LEGACY_SECURITY_QUESTION_CODE_MAP: Record<string, string> = {
+    first_pet: 'sq_1',
+    pet: 'sq_1',
+    city_at_10: 'sq_2',
+    parents_city: 'sq_2',
+    childhood_friend: 'sq_3',
+    first_school: 'sq_3',
+  };
+
+  const normalizeSecurityQuestionCode = (raw?: string | null): string => {
+    const clean = String(raw || '').trim().toLowerCase();
+    if (!clean) return 'sq_1';
+    return LEGACY_SECURITY_QUESTION_CODE_MAP[clean] || clean;
+  };
+
+  const normalizeBrazilPhoneDigits = (raw?: string | null): string => {
+    const digits = String(raw || '').replace(/\D/g, '');
+    if (digits.length >= 12 && digits.startsWith('55')) {
+      return digits.slice(2);
+    }
+    return digits;
+  };
+
+  const phonesMatchBrazil = (aRaw?: string | null, bRaw?: string | null): boolean => {
+    const a = normalizeBrazilPhoneDigits(aRaw);
+    const b = normalizeBrazilPhoneDigits(bRaw);
+    if (a.length < 10 || b.length < 10) return false;
+    if (a === b) return true;
+    const dddA = a.slice(0, 2);
+    const dddB = b.slice(0, 2);
+    if (dddA !== dddB) return false;
+    return a.slice(-8) === b.slice(-8);
+  };
+
+  const resolveValidSecurityQuestionCode = async (
+    supabaseAdmin: any,
+    rawCode?: string | null
+  ): Promise<string | null> => {
+    const normalized = normalizeSecurityQuestionCode(rawCode);
+    try {
+      const { data: rows } = await (supabaseAdmin.from('security_questions' as any) as any)
+        .select('code')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+      if (Array.isArray(rows) && rows.length > 0) {
+        const validCodes = rows.map((r: any) => String(r.code || '').trim()).filter(Boolean);
+        if (validCodes.includes(normalized)) return normalized;
+        return validCodes[0] || null;
+      }
+    } catch {}
+    return normalized || null;
+  };
+
   let inflightAuthSyncPromise: Promise<any[]> | null = null;
   let lastAuthDirectoryCache: any[] = [];
   let lastAuthDirectoryHash = '';
@@ -3565,7 +3618,7 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
         const metaUf = String(meta.uf || meta.state || '').trim();
         const metaCep = String(meta.cep || '').trim();
         const metaFormattedAddr = String(meta.address || '').trim();
-        const metaSecCode = String(meta.security_question_code || '').trim();
+        const metaSecCode = normalizeSecurityQuestionCode(meta.security_question_code);
         const metaSecAnswer = String(meta.security_answer || '').trim();
         const isSuper =
           sysByEmail.has(uEmail) ||
@@ -3867,11 +3920,7 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
           message: 'O CPF informado já pertence a um usuário cadastrado no sistema.',
         };
       }
-      if (
-        reqPhone.length >= 10 &&
-        recPhone.length >= 10 &&
-        recPhone.slice(-9) === reqPhone.slice(-9)
-      ) {
+      if (phonesMatchBrazil(reqPhone, recPhone)) {
         return {
           hasConflict: true,
           conflictField: 'phone',
@@ -3901,17 +3950,31 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
   });
 
   app.post('/api/public/register-user', async (req, res) => {
+    let createdAuthUserId = '';
+    const supabaseAdmin = getSupabaseServerClient();
+
+    const rollbackAuthUser = async () => {
+      if (!createdAuthUserId) return;
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(createdAuthUserId);
+      } catch {}
+      createdAuthUserId = '';
+    };
+
     try {
       const body = req.body || {};
       const cleanName = String(body.fullName || body.full_name || body.name || '').trim();
       const cleanEmail = String(body.email || '').trim().toLowerCase();
       const cleanUsername = String(body.username || '').trim().replace(/^@+/, '');
       const cleanPhone = String(body.phone || '').trim();
+      const cleanPhoneDigits = normalizeBrazilPhoneDigits(cleanPhone);
       const cleanCpf = String(body.cpf || '').trim();
       const cleanPassword = String(body.password || '').trim();
-      const addr = body.address || {};
+      const addr = body.address && typeof body.address === 'object' ? body.address : {};
       const cleanCep = String(body.cep || addr.cep || '').trim();
-      const cleanStreet = String(body.street || addr.street || '').trim();
+      const cleanStreet = String(
+        body.street || addr.street || (typeof body.address === 'string' ? body.address : '')
+      ).trim();
       const cleanNumber = String(body.number || body.street_number || addr.number || 'S/N').trim();
       const cleanComplement = String(body.complement || addr.complement || '').trim();
       const cleanNeighborhood = String(body.neighborhood || addr.neighborhood || '').trim();
@@ -3924,13 +3987,27 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
             .filter(Boolean)
             .join(', ')
       ).trim();
-      const securityQuestionCode = String(body.securityQuestionCode || body.security_question_code || '').trim();
-      const securityAnswer = String(body.securityAnswer || body.security_answer || '').trim();
+      const rawSecCode = String(body.securityQuestionCode || body.security_question_code || '').trim();
+      const securityAnswer = String(body.securityAnswer || body.security_answer || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
 
-      if (!cleanName || !cleanEmail || !cleanPassword) {
+      if (cleanPhoneDigits.length < 10 || cleanPhoneDigits.length > 11) {
         return res.status(400).json({
           success: false,
-          error: 'Nome completo, e-mail e senha são obrigatórios para criar a conta.',
+          field: 'phone',
+          error: 'Informe um número de celular / WhatsApp válido com DDD (10 ou 11 dígitos).',
+        });
+      }
+
+      if (cleanName.length < 2) {
+        return res.status(400).json({
+          success: false,
+          field: 'name',
+          error: 'Informe seu nome completo para criar a conta.',
         });
       }
 
@@ -3942,8 +4019,30 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
       ) {
         return res.status(400).json({
           success: false,
+          field: 'username',
           error:
             'O nome de usuário deve conter ao menos 1 letra maiúscula, 1 letra minúscula e 1 caractere especial (Ex: João@, Ana#1).',
+        });
+      }
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        return res.status(400).json({
+          success: false,
+          field: 'email',
+          error: 'Informe um endereço de e-mail válido para criar a conta.',
+        });
+      }
+
+      if (
+        cleanPassword.length < 6 ||
+        !/[A-Z]/.test(cleanPassword) ||
+        !/[^A-Za-z0-9\s]/.test(cleanPassword)
+      ) {
+        return res.status(400).json({
+          success: false,
+          field: 'password',
+          error:
+            'A senha deve ter no mínimo 6 caracteres, ao menos 1 letra maiúscula e 1 caractere especial.',
         });
       }
 
@@ -3967,9 +4066,13 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
         });
       }
 
+      const validSecurityQuestionCode = await resolveValidSecurityQuestionCode(
+        supabaseAdmin,
+        rawSecCode
+      );
+
       const sUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL).trim();
       const anonKey = (process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY).trim();
-      const supabaseAdmin = getSupabaseServerClient();
       const supabaseAnon = createClient(sUrl, anonKey, { auth: { persistSession: false } });
 
       const userMeta = {
@@ -3986,8 +4089,10 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
         neighborhood: cleanNeighborhood,
         city: cleanCity,
         uf: cleanState,
-        security_question_code: securityQuestionCode || undefined,
+        formatted_address: formattedAddress,
+        security_question_code: validSecurityQuestionCode || undefined,
         security_answer: securityAnswer || undefined,
+        created_via: 'mnvapp',
       };
 
       const { data: createdAuth, error: createAuthErr } = await supabaseAdmin.auth.admin.createUser({
@@ -3999,16 +4104,25 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
       });
 
       if (createAuthErr || !createdAuth?.user?.id) {
-        return res.status(400).json({
+        const errMsg = String(createAuthErr?.message || '');
+        const isEmailDup =
+          errMsg.toLowerCase().includes('already been registered') ||
+          errMsg.toLowerCase().includes('already registered') ||
+          errMsg.toLowerCase().includes('already exists');
+        return res.status(isEmailDup ? 409 : 400).json({
           success: false,
-          error:
-            createAuthErr?.message?.includes('already been registered')
-              ? `O e-mail "${cleanEmail}" já está registrado no Supabase Auth. Faça login ou utilize outro e-mail.`
-              : createAuthErr?.message || 'Não foi possível criar o usuário no Supabase Auth.',
+          conflict: isEmailDup,
+          hasConflict: isEmailDup,
+          field: isEmailDup ? 'email' : undefined,
+          conflictField: isEmailDup ? 'email' : undefined,
+          error: isEmailDup
+            ? `O e-mail "${cleanEmail}" já está registrado no sistema. Faça login ou utilize outro e-mail.`
+            : errMsg || 'Não foi possível criar o usuário no Supabase Auth.',
         });
       }
 
       const authUserId = createdAuth.user.id;
+      createdAuthUserId = authUserId;
 
       const { error: profErr } = await (supabaseAdmin.from('profiles' as any) as any).upsert(
         {
@@ -4034,9 +4148,17 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
       );
 
       if (profErr) {
-        return res.status(400).json({
+        await rollbackAuthUser();
+        const isUserDup = String(profErr.message || '').toLowerCase().includes('username');
+        return res.status(isUserDup ? 409 : 400).json({
           success: false,
-          error: `Erro ao gravar perfil no banco de dados: ${profErr.message}`,
+          conflict: isUserDup,
+          hasConflict: isUserDup,
+          field: isUserDup ? 'username' : undefined,
+          conflictField: isUserDup ? 'username' : undefined,
+          error: isUserDup
+            ? `O nome de usuário "${cleanUsername}" já está cadastrado no sistema. Escolha outro.`
+            : `Erro ao gravar perfil no banco de dados: ${profErr.message}`,
         });
       }
 
@@ -4054,16 +4176,29 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
         state: cleanState,
         cep: cleanCep || null,
         formatted_address: formattedAddress || null,
-        security_question_code: securityQuestionCode || null,
+        security_question_code: validSecurityQuestionCode,
         is_active: true,
         created_via: 'mnvapp',
       };
 
-      const { data: existingCli } = await (supabaseAdmin.from('clients') as any)
+      let existingCli: { id: string } | null = null;
+      const { data: cliByUid } = await (supabaseAdmin.from('clients') as any)
         .select('id')
-        .or(`user_id.eq.${authUserId},email.ilike.${cleanEmail}`)
+        .eq('user_id', authUserId)
         .limit(1)
         .maybeSingle();
+      if (cliByUid?.id) {
+        existingCli = cliByUid;
+      } else {
+        const { data: cliByMail } = await (supabaseAdmin.from('clients') as any)
+          .select('id')
+          .ilike('email', cleanEmail)
+          .limit(1)
+          .maybeSingle();
+        if (cliByMail?.id) {
+          existingCli = cliByMail;
+        }
+      }
 
       let savedClient: any = null;
       if (existingCli?.id) {
@@ -4073,6 +4208,7 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
           .select('*')
           .maybeSingle();
         if (updErr) {
+          await rollbackAuthUser();
           return res.status(400).json({
             success: false,
             error: `Erro ao atualizar cliente no banco de dados: ${updErr.message}`,
@@ -4085,6 +4221,7 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
           .select('*')
           .maybeSingle();
         if (insErr) {
+          await rollbackAuthUser();
           return res.status(400).json({
             success: false,
             error: `Erro ao inserir cliente no banco de dados: ${insErr.message}`,
@@ -4093,17 +4230,34 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
         savedClient = insCli;
       }
 
-      if (savedClient?.id && securityQuestionCode && securityAnswer) {
-        await (supabaseAdmin.from('user_security_answers' as any) as any).upsert(
-          {
-            client_id: savedClient.id,
-            question_code: securityQuestionCode,
-            answer_hash: securityAnswer,
-          },
-          { onConflict: 'client_id,question_code' }
-        );
+      if (savedClient?.id && validSecurityQuestionCode && securityAnswer.length >= 2) {
+        const { data: existingSec } = await (supabaseAdmin.from('user_security_answers' as any) as any)
+          .select('id')
+          .eq('client_id', savedClient.id)
+          .eq('question_code', validSecurityQuestionCode)
+          .limit(1)
+          .maybeSingle();
+
+        const secResult = existingSec?.id
+          ? await (supabaseAdmin.from('user_security_answers' as any) as any)
+              .update({ answer_hash: securityAnswer })
+              .eq('id', existingSec.id)
+          : await (supabaseAdmin.from('user_security_answers' as any) as any).insert({
+              client_id: savedClient.id,
+              question_code: validSecurityQuestionCode,
+              answer_hash: securityAnswer,
+            });
+
+        if (secResult?.error) {
+          await rollbackAuthUser();
+          return res.status(400).json({
+            success: false,
+            error: `Erro ao salvar pergunta de segurança: ${secResult.error.message}`,
+          });
+        }
       }
 
+      createdAuthUserId = '';
       await syncSupabaseAuthAndTables(true);
 
       let sessionObj: { access_token: string; refresh_token: string } | undefined;
@@ -4138,6 +4292,7 @@ Forneça uma resposta objetiva, atualizada e resumida para leitura rápida no ce
         session: sessionObj,
       });
     } catch (err: any) {
+      await rollbackAuthUser();
       return res.status(500).json({
         success: false,
         error: err?.message || 'Erro interno ao registrar usuário no banco de dados.',

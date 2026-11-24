@@ -11,6 +11,17 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 - **Arquivos Impactados:** Lista de arquivos alterados/criados.
 - **Resumo Técnico:** Explicação concisa da alteração.
 
+### [2026-11-23] — Reestruturação Completa do Cadastro em 5 Fases, Verificação Instantânea no Banco, Correção de FK nas Perguntas Secretas (`sq_1`/`sq_2`/`sq_3`) & Rollback Atômico (`bol-215`) `[ECOSYSTEM_UPDATE]`
+- **Tipo:** `[Fix / Auth / Database Integrity / UX]`
+- **Motivo / Solicitação:** Corrigir erro gravíssimo que impedia a conclusão do cadastro de novos usuários e garantir verificação imediata no banco de dados no ato da digitação de Celular/WhatsApp (Fase 1), Nome de Usuário (Fase 2) e E-mail (Fase 3), com testes ponta a ponta em todas as 5 fases.
+- **Causa Raiz Identificada:** O banco Supabase v6.0 utiliza códigos `sq_1`, `sq_2`, `sq_3` em `public.security_questions` (referenciados por chave estrangeira em `clients.security_question_code` e `user_security_answers.question_code`), mas o formulário e o trigger enviavam códigos legados (`first_pet`, `city_at_10`, `childhood_friend`), causando violação de FK ao gravar em `clients`, contas órfãs em `auth.users` e erros engolidos pelo fallback. Adicionalmente, telefone e e-mail não consultavam o banco em tempo real na digitação e senhas com menos de 6 caracteres passavam pela UI mas eram rejeitadas pelo Supabase Auth.
+- **Arquivos Impactados:**
+  - `src/components/auth/TriadeUserRegisterForm.tsx`: Reestruturação completa das 5 fases com verificação instantânea em banco (debounce 320ms + `onBlur` + trava no botão Avançar) para Celular (Fase 1), Usuário (Fase 2) e E-mail (Fase 3), carregamento dinâmico de `public.security_questions` (`sq_1`, `sq_2`, `sq_3`), validação explícita de campos faltantes no resumo de endereço (Fase 4), regra mínima de 6 caracteres na senha + resposta secreta obrigatória (Fase 5) e exibição transparente de qualquer erro retornado pela API (zero engolimento de HTTP 400/409/500).
+  - `src/components/auth/TriadeUserRecoveryModal.tsx`: Alinhamento de `OFFICIAL_SECURITY_QUESTIONS` aos códigos oficiais `sq_1`/`sq_2`/`sq_3`, exportação de `normalizeSecurityQuestionCode` e leitura dinâmica de `public.security_questions`.
+  - `server.ts`: Normalização e validação contra `public.security_questions` antes de gravar (`resolveValidSecurityQuestionCode`), normalização brasileira de telefones (`phonesMatchBrazil`), validação rigorosa de todos os campos na rota `POST /api/public/register-user` e rollback atômico (`auth.admin.deleteUser`) caso qualquer tabela falhe após a criação em `auth.users`.
+  - `supabase/schema.sql` & `supabase/migrations/20261121_vagou_v6_0_clean_reset.sql`: Correção do trigger `fn_handle_new_auth_user()` para normalizar códigos legados para `sq_1`/`sq_2`/`sq_3` com guarda de FK e criação da RPC pública `public.check_triade_user_conflict` (`SECURITY DEFINER`).
+  - `public/sw.js`: Atualizado `CACHE_NAME` para `vagou-cache-v16`.
+
 ### [2026-11-22] — Remoção da Opção "Conta Google" no Acesso/Cadastro & Logotipo Oficial VagouApp na Tela de Cadastro (`bol-214`) `[ECOSYSTEM_UPDATE]`
 - **Tipo:** `[UI / Auth / Branding]`
 - **Motivo / Solicitação:** Remover a opção de conectar com Conta Google (divisor `"ou"` e botão `"Conta Google"`) das telas de autenticação e exibir o logotipo oficial do **VagouApp** (`/assets/aistudio/VagouApp-Preto_cd3c144c.png`) no cabeçalho da tela de cadastro.

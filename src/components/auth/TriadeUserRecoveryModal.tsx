@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   User,
   Lock,
@@ -28,24 +28,42 @@ export interface SecurityQuestionItem {
 
 export const OFFICIAL_SECURITY_QUESTIONS: SecurityQuestionItem[] = [
   {
-    id: 'sq-pet',
-    code: 'first_pet',
+    id: 'sq-1',
+    code: 'sq_1',
     categoryLabel: 'Animal de estimação',
-    questionText: 'Qual o nome do meu animal de estimação?',
+    questionText: 'Qual é o nome do seu primeiro animal de estimação?',
   },
   {
-    id: 'sq-age10',
-    code: 'city_at_10',
-    categoryLabel: 'Moradia aos 10 anos',
-    questionText: 'Onde vc morou aos 10 anos?',
+    id: 'sq-2',
+    code: 'sq_2',
+    categoryLabel: 'Cidade dos pais',
+    questionText: 'Em qual cidade seus pais se conheceram?',
   },
   {
-    id: 'sq-friend',
-    code: 'childhood_friend',
-    categoryLabel: 'Amigo de infância',
-    questionText: 'Nome do seu amigo de infância?',
+    id: 'sq-3',
+    code: 'sq_3',
+    categoryLabel: 'Primeira escola',
+    questionText: 'Qual era o nome da sua primeira escola?',
   },
 ];
+
+const LEGACY_SECURITY_QUESTION_MAP: Record<string, string> = {
+  first_pet: 'sq_1',
+  pet: 'sq_1',
+  city_at_10: 'sq_2',
+  parents_city: 'sq_2',
+  childhood_friend: 'sq_3',
+  first_school: 'sq_3',
+};
+
+export function normalizeSecurityQuestionCode(rawCode?: string | null): string {
+  const clean = String(rawCode || '').trim().toLowerCase();
+  if (!clean) return 'sq_1';
+  if (LEGACY_SECURITY_QUESTION_MAP[clean]) {
+    return LEGACY_SECURITY_QUESTION_MAP[clean];
+  }
+  return clean;
+}
 
 function normalizeAnswer(value: string): string {
   return value
@@ -81,12 +99,37 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
 }) => {
   const isDark = true;
   const [view, setView] = useState<RecoveryModalView>('choose');
-  const [questions] = useState<SecurityQuestionItem[]>(OFFICIAL_SECURITY_QUESTIONS);
+  const [questions, setQuestions] = useState<SecurityQuestionItem[]>(OFFICIAL_SECURITY_QUESTIONS);
   const [selectedQuestion, setSelectedQuestion] = useState<SecurityQuestionItem>(() => {
     const randomIndex = Math.floor(Math.random() * OFFICIAL_SECURITY_QUESTIONS.length);
     return OFFICIAL_SECURITY_QUESTIONS[randomIndex];
   });
   const [isQuestionListOpen, setIsQuestionListOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+    let active = true;
+    (async () => {
+      try {
+        const { data } = await (supabase.from('security_questions' as any) as any)
+          .select('code, question_text, sort_order')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true });
+        if (!active || !Array.isArray(data) || data.length === 0) return;
+        const mapped: SecurityQuestionItem[] = data.map((row: any, idx: number) => ({
+          id: `sq-db-${idx + 1}`,
+          code: String(row.code),
+          categoryLabel: `Pergunta ${idx + 1}`,
+          questionText: String(row.question_text),
+        }));
+        setQuestions(mapped);
+        setSelectedQuestion((prev) => mapped.find((q) => q.code === prev.code) || mapped[0]);
+      } catch {}
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const [secretAnswer, setSecretAnswer] = useState('');
   const [contactHint, setContactHint] = useState('');
@@ -155,53 +198,42 @@ export const TriadeUserRecoveryModal: React.FC<TriadeUserRecoveryModalProps> = (
         if (!foundUser) {
           try {
             const { data: ansRows } = await (supabase.from('user_security_answers' as any) as any)
-              .select('user_id, client_id, question_code, answer_normalized')
-              .eq('question_code', selectedQuestion.code)
-              .eq('answer_normalized', cleanAns)
+              .select('client_id, question_code, answer_hash')
+              .eq('question_code', normalizeSecurityQuestionCode(selectedQuestion.code))
+              .eq('answer_hash', cleanAns)
               .limit(10);
 
             if (Array.isArray(ansRows) && ansRows.length > 0) {
-              const targetClientId = ansRows[0].client_id || ansRows[0].user_id;
+              const targetClientId = ansRows[0].client_id;
               if (targetClientId) {
-                const { data: clientData } = await (supabase.from('clients') as any)
-                  .select('id, name, username, email, phone')
-                  .or(`id.eq.${targetClientId},user_id.eq.${targetClientId}`)
+                const { data: clientById } = await (supabase.from('clients') as any)
+                  .select('id, user_id, full_name')
+                  .eq('id', targetClientId)
                   .limit(1)
                   .maybeSingle();
 
-                if (clientData?.username) {
-                  foundUser = {
-                    username: String(clientData.username),
-                    name: String(clientData.name || clientData.username),
-                  };
+                const clientData =
+                  clientById ||
+                  (
+                    await (supabase.from('clients') as any)
+                      .select('id, user_id, full_name')
+                      .eq('user_id', targetClientId)
+                      .limit(1)
+                      .maybeSingle()
+                  ).data;
+
+                if (clientData?.user_id) {
+                  const { data: profData } = await (supabase.from('profiles' as any) as any)
+                    .select('username, full_name')
+                    .eq('id', clientData.user_id)
+                    .maybeSingle();
+                  if (profData?.username) {
+                    foundUser = {
+                      username: String(profData.username),
+                      name: String(profData.full_name || clientData.full_name || profData.username),
+                    };
+                  }
                 }
-              }
-            }
-          } catch {}
-        }
-
-        if (!foundUser) {
-          try {
-            const { data: clientRows } = await (supabase.from('clients') as any)
-              .select('id, name, username, email, phone, security_question_code, security_answer_normalized')
-              .limit(400);
-
-            if (Array.isArray(clientRows)) {
-              const matchedBySecret = clientRows.find((c: any) => {
-                const cAns = normalizeAnswer(String(c.security_answer_normalized || ''));
-                const cCode = String(c.security_question_code || '');
-                return (
-                  cAns === cleanAns &&
-                  (!cCode || cCode === selectedQuestion.code) &&
-                  Boolean(c.username)
-                );
-              });
-
-              if (matchedBySecret) {
-                foundUser = {
-                  username: String(matchedBySecret.username),
-                  name: String(matchedBySecret.name || matchedBySecret.username),
-                };
               }
             }
           } catch {}

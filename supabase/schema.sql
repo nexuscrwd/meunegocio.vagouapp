@@ -831,10 +831,19 @@ BEGIN
     NULLIF(btrim(NEW.raw_user_meta_data ->> 'formatted_address'), ''),
     NULLIF(btrim(NEW.raw_user_meta_data ->> 'address'), '')
   );
-  v_sec_code := COALESCE(
-    NULLIF(btrim(NEW.raw_user_meta_data ->> 'security_question_code'), ''),
-    'first_pet'
-  );
+  v_sec_code := lower(COALESCE(NULLIF(btrim(NEW.raw_user_meta_data ->> 'security_question_code'), ''), 'sq_1'));
+  v_sec_code := CASE v_sec_code
+    WHEN 'first_pet' THEN 'sq_1'
+    WHEN 'pet' THEN 'sq_1'
+    WHEN 'city_at_10' THEN 'sq_2'
+    WHEN 'parents_city' THEN 'sq_2'
+    WHEN 'childhood_friend' THEN 'sq_3'
+    WHEN 'first_school' THEN 'sq_3'
+    ELSE v_sec_code
+  END;
+  IF NOT EXISTS (SELECT 1 FROM public.security_questions WHERE code = v_sec_code) THEN
+    SELECT code INTO v_sec_code FROM public.security_questions WHERE is_active = TRUE ORDER BY sort_order ASC LIMIT 1;
+  END IF;
   v_sec_answer := NULLIF(lower(btrim(COALESCE(NEW.raw_user_meta_data ->> 'security_answer', ''))), '');
 
   INSERT INTO public.profiles (
@@ -890,7 +899,7 @@ BEGIN
     updated_at = NOW()
   RETURNING id INTO v_client_id;
 
-  IF v_client_id IS NOT NULL AND v_sec_answer IS NOT NULL AND length(v_sec_answer) >= 2 THEN
+  IF v_client_id IS NOT NULL AND v_sec_code IS NOT NULL AND v_sec_answer IS NOT NULL AND length(v_sec_answer) >= 2 THEN
     INSERT INTO public.user_security_answers (client_id, question_code, answer_hash)
     VALUES (v_client_id, v_sec_code, v_sec_answer)
     ON CONFLICT (client_id, question_code) DO UPDATE SET
@@ -1818,6 +1827,108 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.resolve_triade_login_account(TEXT) TO anon, authenticated, service_role;
+
+-- 6.5b. Verificação instantânea de conflito no cadastro (Phone / Username / Email / CPF)
+CREATE OR REPLACE FUNCTION public.check_triade_user_conflict(
+  p_phone TEXT DEFAULT NULL,
+  p_username TEXT DEFAULT NULL,
+  p_email TEXT DEFAULT NULL,
+  p_cpf TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  v_user TEXT := lower(regexp_replace(btrim(COALESCE(p_username, '')), '^@+', ''));
+  v_email TEXT := lower(btrim(COALESCE(p_email, '')));
+  v_phone TEXT := regexp_replace(COALESCE(p_phone, ''), '\D', '', 'g');
+  v_cpf TEXT := regexp_replace(COALESCE(p_cpf, ''), '\D', '', 'g');
+BEGIN
+  IF length(v_phone) >= 12 AND left(v_phone, 2) = '55' THEN
+    v_phone := substr(v_phone, 3);
+  END IF;
+
+  IF v_user <> '' THEN
+    IF EXISTS (
+      SELECT 1 FROM public.system_admins WHERE is_active = TRUE AND lower(regexp_replace(btrim(COALESCE(username, '')), '^@+', '')) = v_user
+      UNION ALL
+      SELECT 1 FROM public.profiles WHERE is_active = TRUE AND lower(regexp_replace(btrim(COALESCE(username, '')), '^@+', '')) = v_user
+    ) THEN
+      RETURN jsonb_build_object(
+        'has_conflict', TRUE,
+        'conflict_field', 'username',
+        'message', 'Este nome de usuário já está cadastrado no sistema. Escolha outro nome de usuário.'
+      );
+    END IF;
+  END IF;
+
+  IF v_email <> '' THEN
+    IF EXISTS (
+      SELECT 1 FROM public.system_admins WHERE is_active = TRUE AND lower(btrim(email)) = v_email
+      UNION ALL
+      SELECT 1 FROM public.profiles WHERE is_active = TRUE AND lower(btrim(email)) = v_email
+      UNION ALL
+      SELECT 1 FROM public.clients WHERE is_active = TRUE AND lower(btrim(COALESCE(email, ''))) = v_email
+      UNION ALL
+      SELECT 1 FROM auth.users WHERE lower(btrim(COALESCE(email, ''))) = v_email
+    ) THEN
+      RETURN jsonb_build_object(
+        'has_conflict', TRUE,
+        'conflict_field', 'email',
+        'message', 'Este e-mail já está cadastrado no sistema. Faça login ou utilize outro e-mail.'
+      );
+    END IF;
+  END IF;
+
+  IF length(v_cpf) = 11 THEN
+    IF EXISTS (
+      SELECT 1 FROM public.profiles WHERE is_active = TRUE AND cpf_digits = v_cpf
+      UNION ALL
+      SELECT 1 FROM public.clients WHERE is_active = TRUE AND cpf_digits = v_cpf
+      UNION ALL
+      SELECT 1 FROM public.system_admins WHERE is_active = TRUE AND cpf_digits = v_cpf
+    ) THEN
+      RETURN jsonb_build_object(
+        'has_conflict', TRUE,
+        'conflict_field', 'cpf',
+        'message', 'O CPF informado já pertence a um usuário cadastrado no sistema.'
+      );
+    END IF;
+  END IF;
+
+  IF length(v_phone) >= 10 THEN
+    IF EXISTS (
+      SELECT 1 FROM (
+        SELECT regexp_replace(COALESCE(phone_whatsapp, ''), '\D', '', 'g') AS ph FROM public.system_admins WHERE is_active = TRUE
+        UNION ALL
+        SELECT regexp_replace(COALESCE(phone, ''), '\D', '', 'g') AS ph FROM public.profiles WHERE is_active = TRUE
+        UNION ALL
+        SELECT regexp_replace(COALESCE(phone, ''), '\D', '', 'g') AS ph FROM public.clients WHERE is_active = TRUE
+      ) all_phones
+      WHERE length(ph) >= 10
+        AND (
+          CASE WHEN length(ph) >= 12 AND left(ph, 2) = '55' THEN substr(ph, 3) ELSE ph END = v_phone
+          OR (
+            left(CASE WHEN length(ph) >= 12 AND left(ph, 2) = '55' THEN substr(ph, 3) ELSE ph END, 2) = left(v_phone, 2)
+            AND right(CASE WHEN length(ph) >= 12 AND left(ph, 2) = '55' THEN substr(ph, 3) ELSE ph END, 8) = right(v_phone, 8)
+          )
+        )
+    ) THEN
+      RETURN jsonb_build_object(
+        'has_conflict', TRUE,
+        'conflict_field', 'phone',
+        'message', 'Este celular / WhatsApp já está vinculado a uma conta cadastrada. Faça login ou utilize outro número.'
+      );
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object('has_conflict', FALSE);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.check_triade_user_conflict(TEXT, TEXT, TEXT, TEXT) TO anon, authenticated, service_role;
 
 -- 6.6. Helper Anti-Recursão de RLS para public.clients
 CREATE OR REPLACE FUNCTION public.is_my_client_id(p_client_id UUID)
